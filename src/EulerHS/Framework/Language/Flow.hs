@@ -11,11 +11,11 @@ import qualified EulerHS.Framework.Language.Types as T
 -- | Flow language.
 data FlowMethod next where
   CallAPI :: T.RestEndpoint req resp => req -> (T.APIResult resp -> next) -> FlowMethod next
-  CallServantAPI :: ClientM a -> (Either ClientError a -> next) -> FlowMethod next
+  CallServantAPI :: BaseUrl -> ClientM a -> (Either ClientError a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req $ f . next
-  fmap f (CallServantAPI clientAct next) = CallServantAPI clientAct $ f . next
+  fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct $ f . next
 
 
 type Flow = F FlowMethod

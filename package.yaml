@@ -31,6 +31,7 @@ default-extensions:
 - TupleSections
 - ViewPatterns
 - MultiWayIf
+- DuplicateRecordFields
 
 dependencies:
 - base >= 4.7 && < 5

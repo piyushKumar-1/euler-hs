@@ -3,8 +3,6 @@ module Services.API.AAAPIs where
 import EulerHS.Prelude
 
 import Data.Aeson (Options(..), defaultOptions)
--- import Data.Text (Text)
-
 
 
 -- ### POST FIP Data - Adding User Data ###

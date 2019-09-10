@@ -97,3 +97,13 @@ executables:
     - -fno-ignore-asserts
     dependencies:
     - EulerHS
+
+tests:
+  tasty:
+    main: Main.hs
+    source-dirs: test
+    dependencies:
+      - tasty
+      - tasty-hunit
+      - tasty-quickcheck
+      - EulerHS

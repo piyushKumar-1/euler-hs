@@ -20,6 +20,8 @@ instance Functor FlowMethod where
 
 type Flow = F FlowMethod
 
+callServantAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
+callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
 -- TODO: port
 -- callAPI

@@ -75,7 +75,12 @@ dependencies:
 - safe-exceptions
 - newtype-generics
 - servant
+- servant-server
 - servant-client
+- servant-swagger
+- servant-docs
+- wai
+- warp
 
 library:
   source-dirs:

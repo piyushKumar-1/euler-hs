@@ -4,8 +4,8 @@ import EulerHS.Prelude
 import EulerHS.Language
 import EulerHS.Types
 
-
-
+import Servant.API ((:<|>) (..), (:>) (..), ReqBody(..), JSON(..), Get(..), Post(..), Capture(..), QueryParam(..))
+import Servant.Client (client)
 
 type SampleAPI
          = "position"  :> Capture "x" Int :> Capture "y" Int :> Get '[JSON] Position

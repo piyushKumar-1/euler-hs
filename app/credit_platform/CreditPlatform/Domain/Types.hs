@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
 module CreditPlatform.Domain.Types where
 
 import EulerHS.Prelude
@@ -17,8 +20,8 @@ data SomeData = SomeData
   deriving (Show, Eq, Ord, Generic)
 
 
-instance FromJSON ConsentHandleResponse where
+instance FromJSON SomeData where
     parseJSON = genericParseJSON stripLensPrefixOptions
 
-instance ToJSON ConsentHandleResponse where
+instance ToJSON SomeData where
     toJSON = genericToJSON stripLensPrefixOptions

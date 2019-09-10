@@ -42,8 +42,6 @@ import           Universum.Functor.Fmap       as X ((<<$>>))
 import           Universum.Unsafe             as X (head, init, last, tail,
                                                     (!!))
 
-import           Servant.API                  as X
-import           Servant.Client               as X
 import           EulerHS.Extra.Aeson          as X
 
 import qualified Control.Monad.Free.Church    as CF

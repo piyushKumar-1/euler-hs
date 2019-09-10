@@ -1,4 +1,4 @@
-module Services.API.Types where
+module CreditPlatform.Services.API.Types where
 
 import EulerHS.Prelude
 import EulerHS.Language

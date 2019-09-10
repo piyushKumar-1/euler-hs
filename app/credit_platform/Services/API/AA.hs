@@ -1,9 +1,11 @@
-module Services.API.AAAPIs where
+module Services.API.AA where
 
 import EulerHS.Prelude
 
 import Data.Aeson (Options(..), defaultOptions)
 
+aaAesonOptions :: Options
+aaAesonOptions = defaultOptions { fieldLabelModifier = drop 1 }
 
 -- ### POST FIP Data - Adding User Data ###
 -- Req in xml
@@ -18,12 +20,10 @@ data UserAccount = UserAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON UserAccount where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON UserAccount where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data Identifiers = Identifiers
   { _pan    :: Text --"BIYPS2601E",
@@ -33,12 +33,10 @@ data Identifiers = Identifiers
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Identifiers where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON Identifiers where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- Resp
 -- In plain text
@@ -80,12 +78,10 @@ data Customer = Customer
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Customer where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON Customer where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DiscoverIdentifier = DiscoverIdentifier
   { _category :: Text -- "STRONG"
@@ -94,12 +90,10 @@ data DiscoverIdentifier = DiscoverIdentifier
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverIdentifier where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DiscoverIdentifier where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DiscoverAccountRequest = DiscoverAccountRequest
   { _ver       :: Text --"1.0",
@@ -110,12 +104,10 @@ data DiscoverAccountRequest = DiscoverAccountRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverAccountRequest where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DiscoverAccountRequest where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 --Resp
 data DiscoveredAccount = DiscoveredAccount
@@ -126,12 +118,10 @@ data DiscoveredAccount = DiscoveredAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoveredAccount where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DiscoveredAccount where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DiscoverAccountResponse = DiscoverAccountResponse
   { _ver                :: Text -- "1.0"
@@ -141,12 +131,10 @@ data DiscoverAccountResponse = DiscoverAccountResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverAccountResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DiscoverAccountResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- ### POST Account Linking ###
 -- Req
@@ -159,12 +147,10 @@ data AccLinkingRequest = AccLinkingRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON AccLinkingRequest where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON AccLinkingRequest where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data LinkCustomer = LinkCustomer
   { _id       :: Text -- "cust123"
@@ -172,12 +158,10 @@ data LinkCustomer = LinkCustomer
   } deriving (Generic, Show, Eq)
 
 instance FromJSON LinkCustomer where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON LinkCustomer where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data LinkAccount = LinkAccount
   { _FIType          :: Text -- "DEPOSIT"
@@ -187,12 +171,10 @@ data LinkAccount = LinkAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON LinkAccount where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON LinkAccount where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- Resp
 data AccLinkingResponse = AccLinkingResponse
@@ -204,12 +186,10 @@ data AccLinkingResponse = AccLinkingResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON AccLinkingResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON AccLinkingResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- ### POST FI Request ###
 -- Req
@@ -220,12 +200,10 @@ data Consent = Consent
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Consent where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON Consent where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data FIDataRange = FIDataRange
   { _from :: Text -- "2001-11-27T06:26:29.761Z"
@@ -233,12 +211,10 @@ data FIDataRange = FIDataRange
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIDataRange where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON FIDataRange where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data KeyMaterial = KeyMaterial
   { _cryptoAlg   :: Text -- "ECDHE"
@@ -250,12 +226,10 @@ data KeyMaterial = KeyMaterial
   } deriving (Generic, Show, Eq)
 
 instance FromJSON KeyMaterial where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON KeyMaterial where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DHPublicKey = DHPublicKey
   { _expiry     :: Text -- "2019-06-01T09:58:50.505Z"
@@ -264,12 +238,10 @@ data DHPublicKey = DHPublicKey
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DHPublicKey where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DHPublicKey where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data FIRequest = FIRequest
   { _ver         :: Text -- "1.0"
@@ -281,12 +253,10 @@ data FIRequest = FIRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIRequest where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON FIRequest where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- Resp
 
@@ -299,12 +269,10 @@ data FIResponse = FIResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON FIResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- ### POST Consent ###
 -- Req
@@ -321,12 +289,10 @@ data ConsentRequest = ConsentRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentRequest where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentRequest where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data ConsentDetail = ConsentDetail
   { _consentStart  :: Text -- "2019-12-06T11:39:57.153Z"
@@ -347,12 +313,10 @@ data ConsentDetail = ConsentDetail
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentDetail where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentDetail where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data ConsentAccount = ConsentAccount
   { _fiType          :: Text -- "DEPOSIT"
@@ -363,24 +327,20 @@ data ConsentAccount = ConsentAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentAccount where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentAccount where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data ConsentCustomer = ConsentCustomer 
   { _id :: Text -- "cust123"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentCustomer where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentCustomer where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DataConsumer = DataConsumer
   { _id   :: Text -- "magizhan@gmail.com",
@@ -388,12 +348,10 @@ data DataConsumer = DataConsumer
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataConsumer where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DataConsumer where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DataProvider = DataProvider
   { _id   :: Text -- "HDFC",
@@ -401,12 +359,10 @@ data DataProvider = DataProvider
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataProvider where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DataProvider where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data Purpose = Purpose
   { _code     :: Text -- "101"
@@ -416,24 +372,20 @@ data Purpose = Purpose
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Purpose where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON Purpose where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data PurposeCategory = PurposeCategory
   { _type :: Text -- "string"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON PurposeCategory where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON PurposeCategory where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DataLife = DataLife
   { _unit  :: Text -- "DAY"
@@ -441,12 +393,10 @@ data DataLife = DataLife
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataLife where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DataLife where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data Frequency = Frequency
   { _unit  :: Text -- "HOUR"
@@ -454,12 +404,10 @@ data Frequency = Frequency
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Frequency where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON Frequency where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data Filter = Filter
   { _type     :: Text -- "TRANSACTIONAMOUNT"
@@ -468,12 +416,10 @@ data Filter = Filter
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Filter where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON Filter where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data ConsentUse = ConsentUse
   { _logUri :: Text -- "string"
@@ -482,12 +428,10 @@ data ConsentUse = ConsentUse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentUse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentUse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- Resp
 -- None
@@ -509,12 +453,10 @@ data FIFetchResponse = FIFetchResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIFetchResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON FIFetchResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data FI = FI
   { _fipID       :: Text -- "BARB0KIMXXX"
@@ -523,12 +465,10 @@ data FI = FI
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FI where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON FI where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data FIData = FIData
   { _linkRefNumber   :: Text -- "UBI485964579"
@@ -537,12 +477,10 @@ data FIData = FIData
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIData where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON FIData where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- ### GET Heartbeat ###
 -- Req
@@ -556,12 +494,10 @@ data HeartbeatResponse = HeartbeatResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON HeartbeatResponse where
-  parseJSON = genericParseJSON defaultOptions {
-                fieldLabelModifier = drop 1 }
+  parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON HeartbeatResponse where
-  toJSON = genericToJSON defaultOptions {
-             fieldLabelModifier = drop 1 }
+  toJSON = genericToJSON aaAesonOptions
 -- ### GET Account Confirm Token ###
 --Req
 --Resp
@@ -578,12 +514,10 @@ data ConsentsRequest = ConsentsRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentsRequest where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentsRequest where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data ConsentDetail2 = ConsentDetail2
   { _consentStart  :: Text -- "2019-12-06T11:39:57.153Z"
@@ -603,24 +537,20 @@ data ConsentDetail2 = ConsentDetail2
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentDetail2 where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentDetail2 where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data DataConsumer2 = DataConsumer2
   { _id :: Text -- "fiu-1"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataConsumer2 where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON DataConsumer2 where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- Resp
 
@@ -633,12 +563,10 @@ data ConsentResponse = ConsentResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- ### POST FI fetch for FIU ###
 -- Req
@@ -696,12 +624,10 @@ data ConsentHandleResponse = ConsentHandleResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentHandleResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentHandleResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 data ConsentStatus = ConsentStatus
   { _id     :: Text -- "ce721611-0ed1-4043-b54a-9493b4ad3007"
@@ -709,12 +635,10 @@ data ConsentStatus = ConsentStatus
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentStatus where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentStatus where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions
 
 -- ### GET Consent Data Fetch ###
 
@@ -733,9 +657,7 @@ data ConsentDataFetchResponse = ConsentDataFetchResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentDataFetchResponse where
-    parseJSON = genericParseJSON defaultOptions {
-                  fieldLabelModifier = drop 1 }
+    parseJSON = genericParseJSON aaAesonOptions
 
 instance ToJSON ConsentDataFetchResponse where
-    toJSON = genericToJSON defaultOptions {
-               fieldLabelModifier = drop 1 }
+    toJSON = genericToJSON aaAesonOptions

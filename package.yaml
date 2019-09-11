@@ -31,6 +31,7 @@ default-extensions:
 - TupleSections
 - ViewPatterns
 - MultiWayIf
+- DuplicateRecordFields
 
 dependencies:
 - base >= 4.7 && < 5
@@ -75,13 +76,22 @@ dependencies:
 - safe-exceptions
 - newtype-generics
 - servant
+- servant-server
 - servant-client
+- servant-swagger
+- servant-docs
+- wai
+- warp
+- servant-xml
+- xmlbf
+- xmlbf-xeno
 
 library:
   source-dirs:
     - src
   ghc-options:
   - -Wall
+  - -Werror
 
 executables:
   credit-platform:

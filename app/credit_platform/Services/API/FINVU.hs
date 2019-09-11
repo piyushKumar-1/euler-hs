@@ -1,3 +1,24 @@
+{-
+
+  AA  - Account Aggregator
+  FIP - Financial Information Providers
+  FIU - Financial Information Users 
+
+  Account Aggregator Ecosystem API Specifications
+  https://api.rebit.org.in/list
+
+  Account Aggregator API description
+  https://swagger-ui.rebit.org.in/?url=https://s3.ap-south-1.amazonaws.com/api-spec-prod/api_specifications/account_aggregator/AA_1_1_1.yaml#/
+
+  Financial Information Provider API description
+  https://swagger-ui.rebit.org.in/?url=https://s3.ap-south-1.amazonaws.com/api-spec-prod/api_specifications/account_aggregator/FIP_1_1_1.yaml
+
+  FIU Callback API description
+  https://swagger-ui.rebit.org.in/?url=https://s3.ap-south-1.amazonaws.com/api-spec-prod/api_specifications/account_aggregator/FIU_1_1_1.yaml
+
+-}
+
+
 module Services.API.FINVU where
 
 import EulerHS.Prelude

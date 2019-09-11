@@ -76,6 +76,7 @@ dependencies:
 - safe-exceptions
 - newtype-generics
 - servant
+- servant-server
 - servant-client
 - servant-swagger
 - servant-docs
@@ -90,6 +91,7 @@ library:
     - src
   ghc-options:
   - -Wall
+  - -Werror
 
 executables:
   credit-platform:

@@ -3,7 +3,6 @@ module CreditPlatform.API where
 import EulerHS.Prelude
 
 import           Servant
-import           Servant.API
 
 import CreditPlatform.Domain as D
 
@@ -19,8 +18,6 @@ authenticate = error "Not implemented."
 
 fetchSomething :: Text -> Handler D.SomeData
 fetchSomething = error "Not implemented."
-
-
 
 api :: Proxy CreditPlatformAPI
 api = Proxy

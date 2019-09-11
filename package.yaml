@@ -87,6 +87,7 @@ library:
     - src
   ghc-options:
   - -Wall
+  - -Werror
 
 executables:
   credit-platform:

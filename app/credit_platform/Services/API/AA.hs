@@ -3,13 +3,24 @@ module Services.API.AA where
 import EulerHS.Prelude
 
 import Data.Aeson (Options(..), defaultOptions)
+import Xmlbf
+
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text.Lazy      as LT
 
 aaAesonOptions :: Options
 aaAesonOptions = defaultOptions { fieldLabelModifier = drop 1 }
 
+class ToCDATAText a where
+  toCDATAText :: a -> Text
+
 -- ### POST FIP Data - Adding User Data ###
 -- Req in xml
 type UserAccountInfo = [UserAccount]
+
+instance ToXml [UserAccount] where
+  toXml uas = 
+    Xmlbf.element "UserAccountInfo"  (HM.empty)  (concatMap toXml uas)
 
 data UserAccount = UserAccount
   {  _accountRefNo    :: Text -- "RefAXIS0001",
@@ -25,6 +36,14 @@ instance FromJSON UserAccount where
 instance ToJSON UserAccount where
     toJSON = genericToJSON aaAesonOptions
 
+instance ToXml UserAccount where
+  toXml UserAccount{..} =
+    Xmlbf.element "UserAccount"  (HM.singleton "accountRefNo" _accountRefNo
+    <> HM.singleton "accountNo" _accountNo
+    <> HM.singleton "accountTypeEnum" _accountTypeEnum
+    <> HM.singleton "FIType" _FIType
+    <> HM.empty)  (toXml _Identifiers)
+
 data Identifiers = Identifiers
   { _pan    :: Text --"BIYPS2601E",
   , _mobile :: Text --"9620902139",
@@ -38,8 +57,16 @@ instance FromJSON Identifiers where
 instance ToJSON Identifiers where
     toJSON = genericToJSON aaAesonOptions
 
+instance ToXml Identifiers where
+  toXml Identifiers {..} = 
+    Xmlbf.element "Identifiers"  (HM.singleton "pan" _pan
+    <> HM.singleton "mobile" _mobile
+    <> HM.singleton "email" _email
+    <> HM.singleton "aadhar" _aadhar
+    <> HM.empty)  []
+
 -- Resp
--- In plain text
+-- In xml text
 {-
 
 User account(s) added.
@@ -65,10 +92,150 @@ User account(s) added.
 
 -- ### POST FIP Data - Adding User Transaction ###
 -- Req xml with CDATA
+data UserAccountTrans = UserAccountTrans
+  { _UserAccount :: UserAccountT
+  } deriving (Generic, Show, Eq)
+
+instance ToXml UserAccountTrans where
+  toXml UserAccountTrans{..} =
+    Xmlbf.element "UserAccountTrans"  (HM.empty) $ toXml _UserAccount
+
+data UserAccountT = UserAccountT
+  { _accountRefNo    :: Text
+  , _accountNo       :: Text
+  , _FIType          :: Text
+  , _accountTypeEnum :: Text
+  , _accountData     :: Account -- CDATA
+  } deriving (Generic, Show, Eq)
+
+instance ToXml UserAccountT where
+  toXml UserAccountT{..} =
+    Xmlbf.element "UserAccount"  HM.empty
+      ( (Xmlbf.element "accountRefNo" HM.empty (text $ LT.fromStrict _accountRefNo))
+      <> (Xmlbf.element "accountNo" HM.empty ( text $ LT.fromStrict _accountNo ))
+      <> (Xmlbf.element "FIType" HM.empty ( text $ LT.fromStrict _FIType ))
+      <> (Xmlbf.element "accountTypeEnum" HM.empty ( text $ LT.fromStrict _accountTypeEnum))
+      <> (Xmlbf.element "accountData" HM.empty ( text $ LT.fromStrict ("<![CDATA[" <> toCDATAText _accountData <> "]]>")))
+      )
+
+data Account = Account
+  { _id           :: Text
+  , _type         :: Text
+  , _summary      :: Summary
+  , _transactions :: Transactions
+  } deriving (Generic, Show, Eq)
+
+instance ToCDATAText Account where
+  toCDATAText Account{..} =
+    "<Account " <> accountXMLCDATALinks
+    <> " id=" <> _id
+    <> "\" type=" <> _type
+    <> "\">"
+    <> toCDATAText _summary
+    <> toCDATAText _transactions
+    <> "</Account>"
+    where
+      accountXMLCDATALinks :: Text
+      accountXMLCDATALinks = "xmlns=\"http://api.rebit.org.in/FISchema/deposit\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://api.rebit.org.in/FISchema/deposit ../FISchema/deposit.xsd\""
+
+data Summary = Summary
+  { _type           :: Text --"savings"
+  , _openingDate    :: Text -- "2002-09-24"
+  , _ifscCode       :: Text -- "AIRP0000001"
+  , _micrCode       :: Text -- ""
+  , _branch         :: Text -- ""
+  , _facility       :: Text -- "OD"
+  , _currentBalance :: Text -- "100000"
+  , _currentODLimit :: Text -- ""
+  , _Holders        :: Holders
+  } deriving (Generic, Show, Eq)
+
+instance ToCDATAText Summary where
+  toCDATAText Summary{..} =
+    "<Summary type=" <> _type
+    <> "\" openingDate=" <> _openingDate
+    <> "\" ifscCode=" <> _ifscCode
+    <> "\" micrCode=" <> _micrCode
+    <> "\" branch=" <> _branch
+    <> "\" facility=" <> _facility
+    <> "\" currentBalance=" <> _currentBalance
+    <> "\" currentODLimit=" <> _currentODLimit
+    <> "\">"
+    <> toCDATAText _Holders
+    <> "</Summary>"
+
+data Holders = Holders
+  { _type    :: Text -- "single"
+  , _holders :: [Holder]
+  } deriving (Generic, Show, Eq)
+
+instance ToCDATAText Holders where
+  toCDATAText Holders{..} =
+    "<Holders type=" <> _type 
+    <>  "\">"
+    <> (foldl1 (<>) $ toCDATAText <$> _holders)
+    <> "</Holders>"
+
+data Holder = Holder
+    { _order    :: Text -- "1|2" 
+    , _name     :: Text -- "test" 
+    , _aadhaar  :: Text -- "830692432388" 
+    , _mobile   :: Text -- "9620902139" 
+    , _landline :: Text -- "" 
+    , _address  :: Text -- "Bangalore" 
+    , _email    :: Text -- "magizhan.selvan@juspay.in"
+    , _pan      :: Text -- "BIYPS2601E"
+    } deriving (Generic, Show, Eq)
+
+instance ToCDATAText Holder where
+  toCDATAText Holder{..} =
+    "<Holder order=" <> _order
+    <> "\" name=" <> _name
+    <> "\" aadhaar=" <> _aadhaar
+    <> "\" mobile=" <> _mobile
+    <> "\" landline=" <> _landline
+    <> "\" address=" <> _address
+    <> "\" email=" <> _email
+    <> "\" pan=" <> _pan
+    <> "\"/>"
+
+data Transactions = Transactions
+    { _startDate    :: Text -- "2002-09-24"
+    , _endDate      :: Text -- "2002-09-24"
+    , _Transactions :: [Transaction]
+    } deriving (Generic, Show, Eq)
+
+instance ToCDATAText Transactions where
+  toCDATAText Transactions{..} =
+    "<Transactions startDate=" <> _startDate
+    <> "\" endDate=" <> _endDate
+    <> "\">"
+    <> (foldl1 (<>) $ toCDATAText <$> _Transactions)
+    <> "</Transactions>"
+
+data Transaction = Transaction
+  { _id        :: Text -- "bf58d0e8-cad0-4659-87cf-3c97642fd6d6"
+  , _date      :: Text --"2002-09-24"
+  , _narration :: Text --"MMT/Ref815116555662/68012604153"
+  , _reference :: Text --"12222222"
+  , _amount    :: Text -- "800"
+  , _balance   :: Text --"100000"
+  } deriving (Generic, Show, Eq)
+
+instance ToCDATAText Transaction where
+  toCDATAText Transaction{..} = 
+    "<Transaction id=" <> _id
+     <>"\" date=" <> _date
+     <>"\" narration=" <> _narration
+     <>"\" reference=" <> _reference
+     <>"\" amount=" <> _amount
+     <>"\" balance=" <> _balance
+     <> "\"/>"
+
 
 
 -- Resp
--- plain text "User account transation added."
+-- xml text "User account transation added."
 
 -- ### POST Discover Account ###
 --Req
@@ -86,7 +253,7 @@ instance ToJSON Customer where
 data DiscoverIdentifier = DiscoverIdentifier
   { _category :: Text -- "STRONG"
   , _type     :: Text -- "MOBILE"
-  , _value    :: Int -- "9620902139"
+  , _value    :: Text -- "9620902139"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverIdentifier where

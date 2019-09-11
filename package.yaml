@@ -32,6 +32,7 @@ default-extensions:
 - ViewPatterns
 - MultiWayIf
 - DuplicateRecordFields
+- RecordWildCards
 
 dependencies:
 - base >= 4.7 && < 5
@@ -91,7 +92,7 @@ library:
     - src
   ghc-options:
   - -Wall
-  - -Werror
+  # - -Werror
 
 executables:
   credit-platform:
@@ -107,3 +108,13 @@ executables:
     - -fno-ignore-asserts
     dependencies:
     - EulerHS
+
+tests:
+  tasty:
+    main: Main.hs
+    source-dirs: test
+    dependencies:
+      - tasty
+      - tasty-hunit
+      - tasty-quickcheck
+      - EulerHS

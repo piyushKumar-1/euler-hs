@@ -465,31 +465,31 @@ instance ToJSON FIResponse where
 -- ### POST Consent ###
 -- Req
 
-data ConsentRequest = ConsentRequest
+data ConsentArtefact = ConsentArtefact
   { _ver                           :: Text
   , _timestamp                     :: Text -- "2018-06-09T09:58:50.505Z"
   , _consentId                     :: Text -- "0fee9e18-cf95-11e9-bb65-2a2ae2dbcce4"
   , _status                        :: Text -- "ACTIVE"
   , _createTimestamp               :: Text -- "2018-12-06T11:39:57.153Z"
-  , _ConsentDetail                 :: ConsentDetail
+  , _ConsentDetail                 :: ConsentDetailFIP
   , _consentDetailDigitalSignature :: Text -- "Digital Signature of the ConsentDetail Section."
   , _ConsentUse                    :: ConsentUse
   } deriving (Generic, Show, Eq)
 
-instance FromJSON ConsentRequest where
+instance FromJSON ConsentArtefact where
     parseJSON = genericParseJSON aaAesonOptions
 
-instance ToJSON ConsentRequest where
+instance ToJSON ConsentArtefact where
     toJSON = genericToJSON aaAesonOptions
 
-data ConsentDetail = ConsentDetail
+data ConsentDetailFIP = ConsentDetailFIP
   { _consentStart  :: Text -- "2019-12-06T11:39:57.153Z"
   , _consentExpiry :: Text -- "2019-12-06T11:39:57.153Z"
   , _consentMode   :: Text -- "VIEW"
   , _fetchType     :: Text -- "ONETIME"
   , _consentTypes  :: [Text] -- ["BALANCE"]
   , _fiTypes       :: [Text] -- ["DEPOSIT"]
-  , _DataConsumer  :: DataConsumer
+  , _DataConsumer  :: DataConsumerFIP
   , _DataProvider  :: DataProvider
   , _Customer      :: ConsentCustomer
   , _Accounts      :: [ConsentAccount]
@@ -500,10 +500,10 @@ data ConsentDetail = ConsentDetail
   , _DataFilter    :: [Filter]
   } deriving (Generic, Show, Eq)
 
-instance FromJSON ConsentDetail where
+instance FromJSON ConsentDetailFIP where
     parseJSON = genericParseJSON aaAesonOptions
 
-instance ToJSON ConsentDetail where
+instance ToJSON ConsentDetailFIP where
     toJSON = genericToJSON aaAesonOptions
 
 data ConsentAccount = ConsentAccount
@@ -530,15 +530,15 @@ instance FromJSON ConsentCustomer where
 instance ToJSON ConsentCustomer where
     toJSON = genericToJSON aaAesonOptions
 
-data DataConsumer = DataConsumer
+data DataConsumerFIP = DataConsumerFIP
   { _id   :: Text -- "magizhan@gmail.com",
   , _type :: Text -- "AA"
   } deriving (Generic, Show, Eq)
 
-instance FromJSON DataConsumer where
+instance FromJSON DataConsumerFIP where
     parseJSON = genericParseJSON aaAesonOptions
 
-instance ToJSON DataConsumer where
+instance ToJSON DataConsumerFIP where
     toJSON = genericToJSON aaAesonOptions
 
 data DataProvider = DataProvider
@@ -698,7 +698,7 @@ data ConsentsRequest = ConsentsRequest
   { _ver           :: Text
   , _timestamp     :: Text -- "2018-06-09T09:58:50.505Z"
   , _txnid         :: Text -- "3f2b52f0-cf97-11e9-bb65-2a2ae2dbcce4"
-  , _ConsentDetail :: ConsentDetail2
+  , _ConsentDetail :: ConsentDetailAA
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentsRequest where
@@ -706,15 +706,15 @@ instance FromJSON ConsentsRequest where
 
 instance ToJSON ConsentsRequest where
     toJSON = genericToJSON aaAesonOptions
-
-data ConsentDetail2 = ConsentDetail2
+-- 
+data ConsentDetailAA = ConsentDetailAA
   { _consentStart  :: Text -- "2019-12-06T11:39:57.153Z"
   , _consentExpiry :: Text -- "2019-12-06T11:39:57.153Z"
   , _consentMode   :: Text -- "VIEW"
   , _fetchType     :: Text -- "ONETIME"
   , _consentTypes  :: [Text] -- ["BALANCE"]
   , _fiTypes       :: [Text] -- ["DEPOSIT"]
-  , _DataConsumer  :: DataConsumer2
+  , _DataConsumer  :: DataConsumerAA
   , _Customer      :: ConsentCustomer
   , _Accounts      :: [ConsentAccount]
   , _Purpose       :: Purpose
@@ -724,20 +724,20 @@ data ConsentDetail2 = ConsentDetail2
   , _DataFilter    :: [Filter]
   } deriving (Generic, Show, Eq)
 
-instance FromJSON ConsentDetail2 where
+instance FromJSON ConsentDetailAA where
     parseJSON = genericParseJSON aaAesonOptions
 
-instance ToJSON ConsentDetail2 where
+instance ToJSON ConsentDetailAA where
     toJSON = genericToJSON aaAesonOptions
 
-data DataConsumer2 = DataConsumer2
+data DataConsumerAA = DataConsumerAA
   { _id :: Text -- "fiu-1"
   } deriving (Generic, Show, Eq)
 
-instance FromJSON DataConsumer2 where
+instance FromJSON DataConsumerAA where
     parseJSON = genericParseJSON aaAesonOptions
 
-instance ToJSON DataConsumer2 where
+instance ToJSON DataConsumerAA where
     toJSON = genericToJSON aaAesonOptions
 
 -- Resp
@@ -839,7 +839,7 @@ data ConsentDataFetchResponse = ConsentDataFetchResponse
   , _consentId                     :: Text -- "ce721611-0ed1-4043-b54a-9493b4ad3007"
   , _status                        :: Text -- "ACTIVE"
   , _createTimestamp               :: Text -- 2019-05-28T11:38:20.380+0000"
-  , _ConsentDetail                 :: ConsentDetail
+  , _ConsentDetail                 :: ConsentDetailFIP
   , _consentDetailDigitalSignature :: Text -- ""Signature of AA as defined in W3C standards; Base64 encoded"
   , _ConsentUse                    :: ConsentUse
   } deriving (Generic, Show, Eq)

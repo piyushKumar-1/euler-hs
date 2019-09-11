@@ -35,7 +35,7 @@ interpretFlowMethod Runtime{..} (SetOption k v next) =
       let newMap = Map.insert (BSL.toStrict $ encode k) (BSL.toStrict $ encode v) m
       putMVar options newMap
 
-interpretFlowMethod Runtime{..} (L.CallServantAPI bUrl clientAct continuation) = do
+interpretFlowMethod Runtime{..} (CallServantAPI bUrl clientAct continuation) = do
   continuation <$> catchAny (S.runClientM clientAct (S.mkClientEnv networkManager bUrl)) (pure . Left . S.ConnectionError)
 
 

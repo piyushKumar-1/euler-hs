@@ -4,7 +4,6 @@ import           EulerHS.Prelude
 import           EulerHS.Framework.Language.Flow
 import           EulerHS.Framework.Language.Types
 import           Data.Aeson                      (encode, decode)
-import           Network.HTTP.Client             (Manager)
 
 import qualified Data.ByteString.Lazy     as BSL (toStrict, fromStrict)
 import qualified Data.Map as Map                 (lookup, insert)
@@ -16,7 +15,7 @@ runFlow rt = foldF (interpretFlowMethod rt)
 
 interpretFlowMethod :: Runtime -> FlowMethod a -> IO a
 
-interpretFlowMethod rt (RunIO ioAct next) =
+interpretFlowMethod _ (RunIO ioAct next) =
   next <$> ioAct
 
 interpretFlowMethod Runtime{..} (GetOption k next) =

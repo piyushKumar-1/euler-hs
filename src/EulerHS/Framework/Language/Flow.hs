@@ -7,7 +7,7 @@ module EulerHS.Framework.Language.Flow where
 import           EulerHS.Prelude
 
 
-import           Servant.Client (ClientM, ClientError)
+import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Framework.Language.Types as T
 

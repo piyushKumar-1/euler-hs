@@ -92,7 +92,7 @@ library:
     - src
   ghc-options:
   - -Wall
-  - -Werror
+  # - -Werror
 
 executables:
   credit-platform:

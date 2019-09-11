@@ -77,6 +77,10 @@ dependencies:
 - newtype-generics
 - servant
 - servant-client
+- servant-swagger
+- servant-docs
+- wai
+- warp
 - servant-xml
 - xmlbf
 - xmlbf-xeno

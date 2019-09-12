@@ -7,6 +7,9 @@ import Servant
 import Servant.XML
 import qualified Data.Text.Lazy as TL
 
+instance FromXml TL.Text where
+  fromXml = pText
+
 -- http://api.finvu.in/ConnectHub/V1/Heartbeat
 type HeartbeatAPI = "ConnectHub" :> "V1" :> "Heartbeat"
   :> Header "aa_api_key" Text

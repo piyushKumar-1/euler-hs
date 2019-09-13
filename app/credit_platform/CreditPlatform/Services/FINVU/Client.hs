@@ -1,7 +1,7 @@
-module CreditPlatform.Services.API.FINVUServantClient where
+module CreditPlatform.Services.FINVU.Client where
 
 import EulerHS.Prelude
-import CreditPlatform.Services.FINVU.Client
+import CreditPlatform.Services.FINVU.API
 
 import Servant
 import Servant.XML

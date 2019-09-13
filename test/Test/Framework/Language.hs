@@ -1,6 +1,6 @@
 module Test.Framework.Language (testLanguage) where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (getOption)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck as QC
@@ -16,6 +16,14 @@ import           Network.Wai.Handler.Warp (run, runSettings, setBeforeMainLoop, 
 import           EulerHS.Framework.Language.Interpreter
 import           EulerHS.Framework.Language.Flow
 import           EulerHS.Framework.Language.Types
+
+data TestStringKey = TestStringKey
+  deriving (Generic, Show, Eq)
+
+instance ToJSON TestStringKey
+instance FromJSON TestStringKey
+
+instance OptionEntity TestStringKey String
 
 data User = User { firstName :: String, lastName :: String }
   deriving (Generic, Show, Eq)
@@ -88,10 +96,29 @@ test03 rt = do
     Left err -> return ()
     Right book -> assertFailure "Somehow got an answer from nothing"
 
+test04 :: Runtime -> Assertion
+test04 rt = do
+  result <- runFlow rt $
+    runIO (pure ("hi" :: String))
+  case result of
+    "hi" -> return ()
+    _ -> assertFailure $ "incorrect runIO behavior"
+
+test05 :: Runtime -> Assertion
+test05 rt = do
+  result <- runFlow rt $ do
+    _ <- setOption TestStringKey "lore ipsum"
+    getOption TestStringKey
+  case result of
+    Just "lore ipsum" -> return ()
+    _ -> assertFailure $ "incorrect options get set behavior"
+
 unitTests :: Runtime -> TestTree
 unitTests rt = testGroup "Unit tests" [ testCase "Simple request (book)" (test01 rt)
                                       , testCase "Simple request (book)" (test02 rt)
-                                      , testCase "Incorrect request" (test03 rt) ]
+                                      , testCase "Incorrect request" (test03 rt)
+                                      , testCase "RunIO" (test04 rt)
+                                      , testCase "Options set get" (test05 rt) ]
 
 testLanguage :: Runtime -> TestTree
 testLanguage rt = testGroup "EulerHS.Framework.Language tests" [unitTests rt]

@@ -19,7 +19,7 @@
 -}
 
 
-module CreditPlatform.Services.API.FINVU where
+module CreditPlatform.Services.FINVU.API where
 
 import EulerHS.Prelude
 

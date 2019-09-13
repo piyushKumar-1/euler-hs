@@ -114,7 +114,11 @@ tests:
     main: Main.hs
     source-dirs: test
     dependencies:
+      - QuickCheck
+      - servant-mock
+      - servant-server
       - tasty
       - tasty-hunit
       - tasty-quickcheck
       - EulerHS
+      - warp

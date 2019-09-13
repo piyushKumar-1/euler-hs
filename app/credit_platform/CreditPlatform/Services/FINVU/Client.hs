@@ -5,6 +5,8 @@ import CreditPlatform.Services.FINVU.API
 
 import Servant
 import Servant.XML
+import Xmlbf
+
 import qualified Data.Text.Lazy as TL
 
 instance FromXml TL.Text where

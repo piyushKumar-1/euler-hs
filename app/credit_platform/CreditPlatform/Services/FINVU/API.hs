@@ -19,7 +19,7 @@
 -}
 
 
-module CreditPlatform.Services.API.FINVU where
+module CreditPlatform.Services.FINVU.API where
 
 import EulerHS.Prelude
 
@@ -463,7 +463,7 @@ instance ToJSON FIResponse where
 
 data ConsentArtefact = ConsentArtefact
   { _ver                           :: Text
-  , _timestamp                     :: Text -- "2018-06-09T09:58:50.505Z"
+  , _txnid                         :: Text -- "0b811819-9044-4856-b0ee-8c88035f8858"
   , _consentId                     :: Text -- "0fee9e18-cf95-11e9-bb65-2a2ae2dbcce4"
   , _status                        :: Text -- "ACTIVE"
   , _createTimestamp               :: Text -- "2018-12-06T11:39:57.153Z"
@@ -686,21 +686,46 @@ instance ToJSON HeartbeatResponse where
 --Req
 --Resp
 -- Invalid token
+data LinkDelinkTokenResponse = LinkDelinkTokenResponse
+  { _ver :: Text -- "1.0"
+  , _timestamp :: Text -- "2018-05-05T10:27:17.699+0000"
+  , _txnid :: Text -- "410c2d2e-4a1e-11e8-960e-0277a9fbfedc"
+  , _AccLinkDetails :: [AccLinkDetail]
+  }  deriving (Generic, Show, Eq)
+
+instance FromJSON LinkDelinkTokenResponse where
+  parseJSON = genericParseJSON stripLensPrefixOptions
+
+instance ToJSON LinkDelinkTokenResponse where
+  toJSON = genericToJSON stripLensPrefixOptions
+
+data AccLinkDetail = AccLinkDetail
+  { _customerAddress :: Text -- "customer_address@aa_identifier"
+  , _linkRefNumber :: Text -- "xxxxxxxxxxxxx"
+  , _accRefNumber :: Text -- "XXXXXXXXXXXX"
+  , _status :: Text -- "LINKED"
+  } deriving (Generic, Show, Eq)
+
+instance FromJSON AccLinkDetail where
+  parseJSON = genericParseJSON stripLensPrefixOptions
+
+instance ToJSON AccLinkDetail where
+  toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### POST Consents ###
 -- Req
 
-data ConsentsRequest = ConsentsRequest
+data ConsentRequest = ConsentRequest
   { _ver           :: Text
   , _timestamp     :: Text -- "2018-06-09T09:58:50.505Z"
   , _txnid         :: Text -- "3f2b52f0-cf97-11e9-bb65-2a2ae2dbcce4"
   , _ConsentDetail :: ConsentDetailAA
   } deriving (Generic, Show, Eq)
 
-instance FromJSON ConsentsRequest where
+instance FromJSON ConsentRequest where
     parseJSON = genericParseJSON stripLensPrefixOptions
 
-instance ToJSON ConsentsRequest where
+instance ToJSON ConsentRequest where
     toJSON = genericToJSON stripLensPrefixOptions
 --
 data ConsentDetailAA = ConsentDetailAA
@@ -828,20 +853,4 @@ instance ToJSON ConsentStatus where
 
 --Req
 --Resp
-
-data ConsentDataFetchResponse = ConsentDataFetchResponse
-  { _ver                           :: Text
-  , _txnid                         :: Text -- "5d9fce7c-ca84-4107-a670-c3b0837c5ef1"
-  , _consentId                     :: Text -- "ce721611-0ed1-4043-b54a-9493b4ad3007"
-  , _status                        :: Text -- "ACTIVE"
-  , _createTimestamp               :: Text -- 2019-05-28T11:38:20.380+0000"
-  , _ConsentDetail                 :: ConsentDetailFIP
-  , _consentDetailDigitalSignature :: Text -- ""Signature of AA as defined in W3C standards; Base64 encoded"
-  , _ConsentUse                    :: ConsentUse
-  } deriving (Generic, Show, Eq)
-
-instance FromJSON ConsentDataFetchResponse where
-    parseJSON = genericParseJSON stripLensPrefixOptions
-
-instance ToJSON ConsentDataFetchResponse where
-    toJSON = genericToJSON stripLensPrefixOptions
+-- ConsentArtefact

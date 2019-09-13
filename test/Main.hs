@@ -1,10 +1,20 @@
 module Main where
 
+import           EulerHS.Prelude
+
 import           Test.Tasty
 
 import           Test.Framework.Language
+import           Test.Types.Runtime
 
-tests :: TestTree
-tests = testGroup "Tests" [testLanguage]
+import           Network.HTTP.Client     (defaultManagerSettings, newManager)
+import EulerHS.Framework.Language.Types
 
-main = defaultMain tests
+tests :: Runtime -> TestTree
+tests rt = testGroup "Tests" [testLanguage rt]
+
+main = do
+  manager <- newManager defaultManagerSettings
+  options <- newMVar mempty
+  let rt = Runtime options manager
+  defaultMain $ tests rt

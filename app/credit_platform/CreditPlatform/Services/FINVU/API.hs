@@ -2,7 +2,7 @@
 
   AA  - Account Aggregator
   FIP - Financial Information Providers
-  FIU - Financial Information Users 
+  FIU - Financial Information Users
 
   Account Aggregator Ecosystem API Specifications
   https://api.rebit.org.in/list
@@ -19,18 +19,14 @@
 -}
 
 
-module CreditPlatform.Services.API.FINVU where
+module CreditPlatform.Services.FINVU.API where
 
 import EulerHS.Prelude
 
-import Data.Aeson (Options(..), defaultOptions)
 import Xmlbf
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text.Lazy      as LT
-
-aaAesonOptions :: Options
-aaAesonOptions = defaultOptions { fieldLabelModifier = drop 1 }
 
 class ToCDATAText a where
   toCDATAText :: a -> Text
@@ -40,7 +36,7 @@ class ToCDATAText a where
 type UserAccountInfo = [UserAccount]
 
 instance ToXml [UserAccount] where
-  toXml uas = 
+  toXml uas =
     Xmlbf.element "UserAccountInfo"  (HM.empty)  (concatMap toXml uas)
 
 data UserAccount = UserAccount
@@ -52,10 +48,10 @@ data UserAccount = UserAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON UserAccount where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON UserAccount where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 instance ToXml UserAccount where
   toXml UserAccount{..} =
@@ -73,13 +69,13 @@ data Identifiers = Identifiers
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Identifiers where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON Identifiers where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 instance ToXml Identifiers where
-  toXml Identifiers {..} = 
+  toXml Identifiers {..} =
     Xmlbf.element "Identifiers"  (HM.singleton "pan" _pan
     <> HM.singleton "mobile" _mobile
     <> HM.singleton "email" _email
@@ -192,18 +188,18 @@ data Holders = Holders
 
 instance ToCDATAText Holders where
   toCDATAText Holders{..} =
-    "<Holders type=" <> _type 
-    <>  "\">"
+    "<Holders type=" <> _type
+    <> "\">"
     <> (foldl1 (<>) $ toCDATAText <$> _holders)
     <> "</Holders>"
 
 data Holder = Holder
-    { _order    :: Text -- "1|2" 
-    , _name     :: Text -- "test" 
-    , _aadhaar  :: Text -- "830692432388" 
-    , _mobile   :: Text -- "9620902139" 
-    , _landline :: Text -- "" 
-    , _address  :: Text -- "Bangalore" 
+    { _order    :: Text -- "1|2"
+    , _name     :: Text -- "test"
+    , _aadhaar  :: Text -- "830692432388"
+    , _mobile   :: Text -- "9620902139"
+    , _landline :: Text -- ""
+    , _address  :: Text -- "Bangalore"
     , _email    :: Text -- "magizhan.selvan@juspay.in"
     , _pan      :: Text -- "BIYPS2601E"
     } deriving (Generic, Show, Eq)
@@ -244,13 +240,13 @@ data Transaction = Transaction
   } deriving (Generic, Show, Eq)
 
 instance ToCDATAText Transaction where
-  toCDATAText Transaction{..} = 
+  toCDATAText Transaction{..} =
     "<Transaction id=" <> _id
-     <>"\" date=" <> _date
-     <>"\" narration=" <> _narration
-     <>"\" reference=" <> _reference
-     <>"\" amount=" <> _amount
-     <>"\" balance=" <> _balance
+     <> "\" date=" <> _date
+     <> "\" narration=" <> _narration
+     <> "\" reference=" <> _reference
+     <> "\" amount=" <> _amount
+     <> "\" balance=" <> _balance
      <> "\"/>"
 
 
@@ -266,10 +262,10 @@ data Customer = Customer
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Customer where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON Customer where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DiscoverIdentifier = DiscoverIdentifier
   { _category :: Text -- "STRONG"
@@ -278,10 +274,10 @@ data DiscoverIdentifier = DiscoverIdentifier
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverIdentifier where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DiscoverIdentifier where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DiscoverAccountRequest = DiscoverAccountRequest
   { _ver       :: Text --"1.0",
@@ -292,10 +288,10 @@ data DiscoverAccountRequest = DiscoverAccountRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverAccountRequest where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DiscoverAccountRequest where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 --Resp
 data DiscoveredAccount = DiscoveredAccount
@@ -306,10 +302,10 @@ data DiscoveredAccount = DiscoveredAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoveredAccount where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DiscoveredAccount where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DiscoverAccountResponse = DiscoverAccountResponse
   { _ver                :: Text -- "1.0"
@@ -319,10 +315,10 @@ data DiscoverAccountResponse = DiscoverAccountResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DiscoverAccountResponse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DiscoverAccountResponse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### POST Account Linking ###
 -- Req
@@ -335,10 +331,10 @@ data AccLinkingRequest = AccLinkingRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON AccLinkingRequest where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON AccLinkingRequest where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data LinkCustomer = LinkCustomer
   { _id       :: Text -- "cust123"
@@ -346,10 +342,10 @@ data LinkCustomer = LinkCustomer
   } deriving (Generic, Show, Eq)
 
 instance FromJSON LinkCustomer where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON LinkCustomer where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data LinkAccount = LinkAccount
   { _FIType          :: Text -- "DEPOSIT"
@@ -359,10 +355,10 @@ data LinkAccount = LinkAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON LinkAccount where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON LinkAccount where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- Resp
 data AccLinkingResponse = AccLinkingResponse
@@ -374,10 +370,10 @@ data AccLinkingResponse = AccLinkingResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON AccLinkingResponse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON AccLinkingResponse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### POST FI Request ###
 -- Req
@@ -388,10 +384,10 @@ data Consent = Consent
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Consent where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON Consent where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data FIDataRange = FIDataRange
   { _from :: Text -- "2001-11-27T06:26:29.761Z"
@@ -399,10 +395,10 @@ data FIDataRange = FIDataRange
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIDataRange where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON FIDataRange where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data KeyMaterial = KeyMaterial
   { _cryptoAlg   :: Text -- "ECDHE"
@@ -414,10 +410,10 @@ data KeyMaterial = KeyMaterial
   } deriving (Generic, Show, Eq)
 
 instance FromJSON KeyMaterial where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON KeyMaterial where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DHPublicKey = DHPublicKey
   { _expiry     :: Text -- "2019-06-01T09:58:50.505Z"
@@ -426,10 +422,10 @@ data DHPublicKey = DHPublicKey
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DHPublicKey where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DHPublicKey where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data FIRequest = FIRequest
   { _ver         :: Text -- "1.0"
@@ -441,10 +437,10 @@ data FIRequest = FIRequest
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIRequest where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON FIRequest where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- Resp
 
@@ -457,17 +453,17 @@ data FIResponse = FIResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIResponse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON FIResponse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### POST Consent ###
 -- Req
 
 data ConsentArtefact = ConsentArtefact
   { _ver                           :: Text
-  , _timestamp                     :: Text -- "2018-06-09T09:58:50.505Z"
+  , _txnid                         :: Text -- "0b811819-9044-4856-b0ee-8c88035f8858"
   , _consentId                     :: Text -- "0fee9e18-cf95-11e9-bb65-2a2ae2dbcce4"
   , _status                        :: Text -- "ACTIVE"
   , _createTimestamp               :: Text -- "2018-12-06T11:39:57.153Z"
@@ -477,10 +473,10 @@ data ConsentArtefact = ConsentArtefact
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentArtefact where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentArtefact where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data ConsentDetailFIP = ConsentDetailFIP
   { _consentStart  :: Text -- "2019-12-06T11:39:57.153Z"
@@ -501,10 +497,10 @@ data ConsentDetailFIP = ConsentDetailFIP
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentDetailFIP where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentDetailFIP where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data ConsentAccount = ConsentAccount
   { _fiType          :: Text -- "DEPOSIT"
@@ -515,20 +511,20 @@ data ConsentAccount = ConsentAccount
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentAccount where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentAccount where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
-data ConsentCustomer = ConsentCustomer 
+data ConsentCustomer = ConsentCustomer
   { _id :: Text -- "cust123"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentCustomer where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentCustomer where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DataConsumerFIP = DataConsumerFIP
   { _id   :: Text -- "magizhan@gmail.com",
@@ -536,10 +532,10 @@ data DataConsumerFIP = DataConsumerFIP
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataConsumerFIP where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DataConsumerFIP where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DataProvider = DataProvider
   { _id   :: Text -- "HDFC",
@@ -547,10 +543,10 @@ data DataProvider = DataProvider
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataProvider where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DataProvider where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data Purpose = Purpose
   { _code     :: Text -- "101"
@@ -560,20 +556,20 @@ data Purpose = Purpose
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Purpose where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON Purpose where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data PurposeCategory = PurposeCategory
   { _type :: Text -- "string"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON PurposeCategory where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON PurposeCategory where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DataLife = DataLife
   { _unit  :: Text -- "DAY"
@@ -581,10 +577,10 @@ data DataLife = DataLife
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataLife where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DataLife where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data Frequency = Frequency
   { _unit  :: Text -- "HOUR"
@@ -592,10 +588,10 @@ data Frequency = Frequency
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Frequency where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON Frequency where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data Filter = Filter
   { _type     :: Text -- "TRANSACTIONAMOUNT"
@@ -604,10 +600,10 @@ data Filter = Filter
   } deriving (Generic, Show, Eq)
 
 instance FromJSON Filter where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON Filter where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data ConsentUse = ConsentUse
   { _logUri :: Text -- "string"
@@ -616,10 +612,10 @@ data ConsentUse = ConsentUse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentUse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentUse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- Resp
 -- None
@@ -641,10 +637,10 @@ data FIFetchResponse = FIFetchResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIFetchResponse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON FIFetchResponse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data FI = FI
   { _fipID       :: Text -- "BARB0KIMXXX"
@@ -653,10 +649,10 @@ data FI = FI
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FI where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON FI where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data FIData = FIData
   { _linkRefNumber   :: Text -- "UBI485964579"
@@ -665,10 +661,10 @@ data FIData = FIData
   } deriving (Generic, Show, Eq)
 
 instance FromJSON FIData where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON FIData where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### GET Heartbeat ###
 -- Req
@@ -682,31 +678,56 @@ data HeartbeatResponse = HeartbeatResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON HeartbeatResponse where
-  parseJSON = genericParseJSON aaAesonOptions
+  parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON HeartbeatResponse where
-  toJSON = genericToJSON aaAesonOptions
+  toJSON = genericToJSON stripLensPrefixOptions
 -- ### GET Account Confirm Token ###
 --Req
 --Resp
 -- Invalid token
+data LinkDelinkTokenResponse = LinkDelinkTokenResponse
+  { _ver :: Text -- "1.0"
+  , _timestamp :: Text -- "2018-05-05T10:27:17.699+0000"
+  , _txnid :: Text -- "410c2d2e-4a1e-11e8-960e-0277a9fbfedc"
+  , _AccLinkDetails :: [AccLinkDetail]
+  }  deriving (Generic, Show, Eq)
+
+instance FromJSON LinkDelinkTokenResponse where
+  parseJSON = genericParseJSON stripLensPrefixOptions
+
+instance ToJSON LinkDelinkTokenResponse where
+  toJSON = genericToJSON stripLensPrefixOptions
+
+data AccLinkDetail = AccLinkDetail
+  { _customerAddress :: Text -- "customer_address@aa_identifier"
+  , _linkRefNumber :: Text -- "xxxxxxxxxxxxx"
+  , _accRefNumber :: Text -- "XXXXXXXXXXXX"
+  , _status :: Text -- "LINKED"
+  } deriving (Generic, Show, Eq)
+
+instance FromJSON AccLinkDetail where
+  parseJSON = genericParseJSON stripLensPrefixOptions
+
+instance ToJSON AccLinkDetail where
+  toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### POST Consents ###
 -- Req
 
-data ConsentsRequest = ConsentsRequest
+data ConsentRequest = ConsentRequest
   { _ver           :: Text
   , _timestamp     :: Text -- "2018-06-09T09:58:50.505Z"
   , _txnid         :: Text -- "3f2b52f0-cf97-11e9-bb65-2a2ae2dbcce4"
   , _ConsentDetail :: ConsentDetailAA
   } deriving (Generic, Show, Eq)
 
-instance FromJSON ConsentsRequest where
-    parseJSON = genericParseJSON aaAesonOptions
+instance FromJSON ConsentRequest where
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
-instance ToJSON ConsentsRequest where
-    toJSON = genericToJSON aaAesonOptions
--- 
+instance ToJSON ConsentRequest where
+    toJSON = genericToJSON stripLensPrefixOptions
+--
 data ConsentDetailAA = ConsentDetailAA
   { _consentStart  :: Text -- "2019-12-06T11:39:57.153Z"
   , _consentExpiry :: Text -- "2019-12-06T11:39:57.153Z"
@@ -725,20 +746,20 @@ data ConsentDetailAA = ConsentDetailAA
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentDetailAA where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentDetailAA where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data DataConsumerAA = DataConsumerAA
   { _id :: Text -- "fiu-1"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON DataConsumerAA where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON DataConsumerAA where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- Resp
 
@@ -746,15 +767,15 @@ data ConsentResponse = ConsentResponse
   { _ver           :: Text -- "1.0"
   , _timestamp     :: Text -- "2019-09-09T07:09:03.095+0000"
   , _txnid         :: Text -- "3f2b52f0-cf97-11e9-bb65-2a2ae2dbcce4"
-  , _Customer      :: Customer 
+  , _Customer      :: Customer
   , _ConsentHandle :: Text -- "d803988d-d810-42fc-bea6-e6a1bac1c025"
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentResponse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentResponse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### POST FI fetch for FIU ###
 -- Req
@@ -812,10 +833,10 @@ data ConsentHandleResponse = ConsentHandleResponse
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentHandleResponse where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentHandleResponse where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 data ConsentStatus = ConsentStatus
   { _id     :: Text -- "ce721611-0ed1-4043-b54a-9493b4ad3007"
@@ -823,29 +844,13 @@ data ConsentStatus = ConsentStatus
   } deriving (Generic, Show, Eq)
 
 instance FromJSON ConsentStatus where
-    parseJSON = genericParseJSON aaAesonOptions
+    parseJSON = genericParseJSON stripLensPrefixOptions
 
 instance ToJSON ConsentStatus where
-    toJSON = genericToJSON aaAesonOptions
+    toJSON = genericToJSON stripLensPrefixOptions
 
 -- ### GET Consent Data Fetch ###
 
 --Req
 --Resp
-
-data ConsentDataFetchResponse = ConsentDataFetchResponse
-  { _ver                           :: Text
-  , _txnid                         :: Text -- "5d9fce7c-ca84-4107-a670-c3b0837c5ef1"
-  , _consentId                     :: Text -- "ce721611-0ed1-4043-b54a-9493b4ad3007"
-  , _status                        :: Text -- "ACTIVE"
-  , _createTimestamp               :: Text -- 2019-05-28T11:38:20.380+0000"
-  , _ConsentDetail                 :: ConsentDetailFIP
-  , _consentDetailDigitalSignature :: Text -- ""Signature of AA as defined in W3C standards; Base64 encoded"
-  , _ConsentUse                    :: ConsentUse
-  } deriving (Generic, Show, Eq)
-
-instance FromJSON ConsentDataFetchResponse where
-    parseJSON = genericParseJSON aaAesonOptions
-
-instance ToJSON ConsentDataFetchResponse where
-    toJSON = genericToJSON aaAesonOptions
+-- ConsentArtefact

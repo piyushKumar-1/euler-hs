@@ -87,6 +87,7 @@ dependencies:
 - servant-xml
 - xmlbf
 - xmlbf-xeno
+- natural-transformation
 
 library:
   source-dirs:

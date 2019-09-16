@@ -13,5 +13,5 @@ interpretLogger (R.LoggerRuntime handle) (L.LogMessage level tag msg next) = do
   Impl.sendPendingMsg handle $ D.PendingMsg level tag msg
   pure $ next ()
 
-runLogger :: R.LoggerRuntime -> L.Logger () -> IO ()
+runLogger :: R.LoggerRuntime -> L.Logger a -> IO a
 runLogger loggerRt = foldF (interpretLogger loggerRt)

@@ -17,7 +17,7 @@ data FlowMethod next where
   CallAPI :: T.RestEndpoint req resp => req -> (T.APIResult resp -> next) -> FlowMethod next
   CallServantAPI :: BaseUrl -> ClientM a -> (Either ClientError a -> next) -> FlowMethod next
 
-  EvalLogger :: Logger () -> (() -> next) -> FlowMethod next
+  EvalLogger :: Logger a -> (a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
@@ -31,7 +31,7 @@ type Flow = F FlowMethod
 callServantAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
-evalLogger' :: Logger () -> Flow ()
+evalLogger' :: Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id
 
 

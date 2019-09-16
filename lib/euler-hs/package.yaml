@@ -77,6 +77,7 @@ dependencies:
 - servant
 - servant-client
 - tinylog
+- natural-transformation
 
 library:
   source-dirs:

@@ -1,9 +1,12 @@
-module EulerHS.Framework.Language.Types
-  ( module X
+module EulerHS.Framework.Runtime.Types
+  ( Runtime(..)
   ) where
 
-import           EulerHS.Framework.Types.API as X
 import           EulerHS.Prelude
 import           Data.Map                        (Map)
 import           Network.HTTP.Client             (Manager)
 
+data Runtime = Runtime
+  { options :: MVar (Map ByteString ByteString)
+  , networkManager :: Manager
+  }

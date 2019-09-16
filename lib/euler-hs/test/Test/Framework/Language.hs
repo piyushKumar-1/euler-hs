@@ -52,6 +52,7 @@ api = Proxy
 server :: Server API
 server = mock api Proxy
 
+port :: Int
 port = 8081
 
 getUser :: ClientM User

@@ -3,6 +3,7 @@ module EulerHS.Framework.Language.Interpreter where
 import           EulerHS.Prelude
 import           EulerHS.Framework.Language.Flow
 import           EulerHS.Framework.Language.Types
+import           EulerHS.Framework.Runtime.Types
 import           Data.Aeson                      (encode, decode)
 
 import qualified Data.ByteString.Lazy     as BSL (toStrict, fromStrict)
@@ -22,8 +23,8 @@ interpretFlowMethod Runtime{..} (GetOption k next) =
   next <$> maybeValue
   where
     maybeValue = do
-          m <- readMVar options
-          pure $ decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ encode k) m
+      m <- readMVar options
+      pure $ decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ encode k) m
 
 interpretFlowMethod Runtime{..} (SetOption k v next) =
   next <$> set

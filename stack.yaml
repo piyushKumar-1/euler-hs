@@ -1,3 +1,6 @@
 resolver: lts-14.4
 
 packages:
+- lib/euler-hs
+- lib/dashboard
+- app/credit-platform

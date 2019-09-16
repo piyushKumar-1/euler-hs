@@ -1,0 +1,106 @@
+name:                euler-hs
+version:             0.0.1.0
+github:              "https://bitbucket.org/juspay/euler-hs"
+license:             Private
+author:              "Juspay Technologies Pvt Ltd"
+copyright:           "Juspay Technologies Pvt Ltd 2019"
+
+default-extensions:
+- NoImplicitPrelude
+- GADTs
+- RankNTypes
+- DeriveFunctor
+- DeriveGeneric
+- OverloadedStrings
+- LambdaCase
+- MultiParamTypeClasses
+- FunctionalDependencies
+- ExplicitNamespaces
+- TypeApplications
+- ScopedTypeVariables
+- TypeOperators
+- TypeFamilies
+- DataKinds
+- FlexibleContexts
+- FlexibleInstances
+- PatternSynonyms
+- PolyKinds
+- DefaultSignatures
+- ConstraintKinds
+- NamedFieldPuns
+- TupleSections
+- ViewPatterns
+- MultiWayIf
+- DuplicateRecordFields
+- RecordWildCards
+
+dependencies:
+- base >= 4.7 && < 5
+- aeson
+- bytestring
+- containers
+- errors
+- extra
+- hashable
+- mtl
+- network
+- optparse-applicative
+- text
+- transformers
+- unordered-containers
+- lens
+- http-client
+- messagepack
+- cereal
+- time
+- newtype
+- monad-loops
+- http-types
+- attoparsec
+- scientific
+- stm
+- named
+- tagged
+- aeson-pretty
+- cryptonite
+- process
+- vector
+- random
+- free
+- async
+- haskeline
+- bytestring-conversion
+- universum
+- fmt
+- safe-exceptions
+- newtype-generics
+- servant
+- servant-client
+
+library:
+  source-dirs:
+  - src
+  exposed-modules:
+  - EulerHS.Framework.Language.Flow
+  - EulerHS.Framework.Language.Interpreter
+  - EulerHS.Language
+  - EulerHS.Prelude
+  - EulerHS.Types
+  ghc-options:
+  - -Wall
+  # - -Werror
+
+tests:
+  tasty:
+    main: Main.hs
+    source-dirs: test
+    dependencies:
+    - QuickCheck
+    - servant
+    - servant-mock
+    - servant-server
+    - tasty
+    - tasty-hunit
+    - tasty-quickcheck
+    - warp
+    - euler-hs

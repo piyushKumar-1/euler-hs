@@ -2,4 +2,4 @@ module EulerHS.Language
   ( module X
   ) where
 
-import           EulerHS.Framework.Language.Flow as X
+import           EulerHS.Framework.Flow.Language as X

@@ -82,11 +82,11 @@ library:
   source-dirs:
   - src
   exposed-modules:
-  - EulerHS.Framework.Language.Flow
-  - EulerHS.Framework.Language.Interpreter
+  - EulerHS.Interpreters
   - EulerHS.Language
   - EulerHS.Prelude
   - EulerHS.Types
+  - EulerHS.Runtime
   ghc-options:
   - -Wall
   # - -Werror

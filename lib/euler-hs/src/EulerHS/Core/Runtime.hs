@@ -14,5 +14,5 @@ createLoggerRuntime cfg = LoggerRuntime <$> Impl.createLogger cfg
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = LoggerRuntime <$> Impl.createVoidLogger
 
-cleanLoggerRuntime :: LoggerRuntime -> IO ()
-cleanLoggerRuntime (LoggerRuntime handle) = Impl.disposeLogger handle
+clearLoggerRuntime :: LoggerRuntime -> IO ()
+clearLoggerRuntime (LoggerRuntime handle) = Impl.disposeLogger handle

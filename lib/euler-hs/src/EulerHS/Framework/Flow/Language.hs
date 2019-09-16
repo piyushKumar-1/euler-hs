@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
-module EulerHS.Framework.Language.Flow where
+module EulerHS.Framework.Flow.Language where
 
 import           EulerHS.Prelude
 

@@ -24,6 +24,7 @@ cabal.project.local~
 .ghc.environment.*
 dist-newstyle
 .stack-work
+stack.yaml.lock
 
 dashboard.cabal
 credit-platform.cabal

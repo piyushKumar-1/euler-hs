@@ -14,8 +14,9 @@ import           Servant.API
 import           Servant.Client (ClientM, client, BaseUrl(..), Scheme(..))
 import           Test.QuickCheck.Arbitrary
 import           Network.Wai.Handler.Warp (run, runSettings, setBeforeMainLoop, setPort, defaultSettings, testWithApplication, Port)
-import           EulerHS.Framework.Language.Interpreter
-import           EulerHS.Framework.Language.Flow
+import           EulerHS.Interpreters
+import           EulerHS.Language
+import           EulerHS.Runtime
 
 data User = User { firstName :: String, lastName :: String }
   deriving (Generic, Show, Eq)
@@ -62,8 +63,8 @@ runWhenServerIsReady app port act = do
 test01 :: TestRT -> Assertion
 test01 rt = runWhenServerIsReady (serve api server) (port rt) $ do
   let url = BaseUrl Http "localhost" (port rt) ""
-  bookEither <- runFlowMethodL (manager rt) $
-    callServantAPI url getBook
+  bookEither <- withFlowRuntime Nothing $ \flowRt ->
+    runFlow flowRt $ callServantAPI url getBook
   case bookEither of
     Left err -> assertFailure $ show err
     Right book -> return ()
@@ -71,8 +72,8 @@ test01 rt = runWhenServerIsReady (serve api server) (port rt) $ do
 test02 :: TestRT -> Assertion
 test02 rt = runWhenServerIsReady (serve api server) (port rt) $ do
   let url = BaseUrl Http "localhost" (port rt) ""
-  userEither <- runFlowMethodL (manager rt) $
-    callServantAPI url getUser
+  userEither <- withFlowRuntime Nothing $ \flowRt ->
+    runFlow flowRt $ callServantAPI url getUser
   case userEither of
     Left err -> assertFailure $ show err
     Right user -> return ()
@@ -80,8 +81,8 @@ test02 rt = runWhenServerIsReady (serve api server) (port rt) $ do
 test03 :: TestRT -> Assertion
 test03 rt = do
   let url = BaseUrl Http "localhost" (port rt) ""
-  bookEither <- runFlowMethodL (manager rt) $
-    callServantAPI url getBook
+  bookEither <- withFlowRuntime Nothing $ \flowRt ->
+    runFlow flowRt $ callServantAPI url getBook
   case bookEither of
     Left err -> return ()
     Right book -> assertFailure "Somehow got an answer from nothing"

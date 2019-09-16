@@ -15,7 +15,7 @@ import           Test.QuickCheck.Arbitrary
 import           Network.Wai.Handler.Warp (run, runSettings, setBeforeMainLoop, setPort, defaultSettings, testWithApplication, Port)
 import           EulerHS.Framework.Language.Interpreter
 import           EulerHS.Framework.Language.Flow
-import           EulerHS.Framework.Language.Types
+import           EulerHS.Types
 
 data TestStringKey = TestStringKey
   deriving (Generic, Show, Eq)

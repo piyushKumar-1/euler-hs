@@ -8,7 +8,7 @@ import           Test.Framework.Language
 import           Test.Types.Runtime
 
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
-import EulerHS.Framework.Language.Types
+import           EulerHS.Types
 
 tests :: Runtime -> TestTree
 tests rt = testGroup "Tests" [testLanguage rt]

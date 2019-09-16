@@ -76,6 +76,7 @@ dependencies:
 - newtype-generics
 - servant
 - servant-client
+- tinylog
 
 library:
   source-dirs:

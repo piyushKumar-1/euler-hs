@@ -1,4 +1,4 @@
-module EulerHS.Framework.Language.Types.API
+module EulerHS.Framework.Types.API
   ( RestEndpoint
   , APIResult(..)
   , ErrorPayload(..)

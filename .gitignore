@@ -24,4 +24,7 @@ cabal.project.local~
 .ghc.environment.*
 dist-newstyle
 .stack-work
-EulerHS.cabal
+
+dashboard.cabal
+credit-platform.cabal
+euler-hs.cabal

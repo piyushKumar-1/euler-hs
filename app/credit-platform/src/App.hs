@@ -13,9 +13,13 @@ import qualified EulerHS.Types as T
 runCreditPlatformApp :: IO ()
 runCreditPlatformApp = do
   let port = 8080
+  let loggerCfg = T.defaultLoggerConfig
+        { T._logToFile = True
+        , T._logFilePath = "/tmp/euler-hs.log"
+        , T._isAsync = True
+        }
 
-  R.withFlowRuntime (Just T.defaultLoggerConfig) $ \flowRt -> do
+  R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do
     putStrLn @String "Runtime created. Starting server..."
     let env = CP.Env flowRt
     run port $ CP.creditPlatformApp env
-    putStrLn @String "Finished."

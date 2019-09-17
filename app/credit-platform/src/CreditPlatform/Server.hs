@@ -47,12 +47,15 @@ withFlowHandler flow = do
   lift $ lift $ R.runFlow flowRt flow
 
 test :: FlowHandler Text
-test = pure "Test."
+test = do
+  liftIO $ putStrLn @String "Test method called."
+  withFlowHandler (L.logMessageFlow "Test")
+  pure "Test."
 
 authenticate :: D.GSTIN -> FlowHandler D.AuthToken
 authenticate = error "Not implemented."
 
 logMessage :: Text -> FlowHandler Text
 logMessage msg = do
-  liftIO $ putStrLn @String "Log Message api called."
+  liftIO $ putStrLn @String "Log Message method called."
   withFlowHandler (L.logMessageFlow msg >> pure msg)

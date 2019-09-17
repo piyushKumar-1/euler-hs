@@ -4,3 +4,4 @@ packages:
 - lib/euler-hs
 - lib/dashboard
 - app/credit-platform
+- app/analytics-dashboard

@@ -22,5 +22,5 @@ dummyResult = SingleResult $ QueryResultValue ts ts (IntValue 5)
   -- communicate failures on the backend out.
   -- Note that this itself can be a QueryBackend
   -- We may have to change this to allow for errors (consider ExceptT)
-runQuery :: Query -> IO QueryResult
-runQuery query = return dummyResult
+runQuery :: QueryConfiguration -> Query -> IO QueryResult
+runQuery queryConf query = return dummyResult

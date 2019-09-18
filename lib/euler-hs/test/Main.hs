@@ -8,11 +8,16 @@ import           Test.Framework.Language
 import           Test.Types.Runtime
 
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
+import           EulerHS.Types
 
-tests :: TestRT -> TestTree
+import           EulerHS.Runtime
+
+tests :: FlowRuntime -> TestTree
 tests rt = testGroup "Tests" [testLanguage rt]
 
 main = do
-  manager' <- newManager defaultManagerSettings
-  manager  <- newMVar manager'
-  defaultMain $ tests (TestRT manager 8081)
+  manager <- newMVar =<< newManager defaultManagerSettings
+  options <- newMVar mempty
+  lrt <- createVoidLoggerRuntime
+  let rt = FlowRuntime lrt manager options
+  defaultMain $ tests rt

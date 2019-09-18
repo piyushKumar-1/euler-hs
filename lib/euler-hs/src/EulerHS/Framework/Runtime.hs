@@ -1,6 +1,7 @@
 module EulerHS.Framework.Runtime where
 
 import           EulerHS.Prelude
+import           Data.Map            (Map)
 import           Network.HTTP.Client (Manager, newManager, defaultManagerSettings)
 
 import qualified EulerHS.Core.Runtime as R
@@ -10,12 +11,14 @@ import qualified EulerHS.Framework.Types as T
 data FlowRuntime = FlowRuntime
   { _loggerRuntime :: R.LoggerRuntime
   , _httpClientManager :: MVar Manager
+  , _options :: MVar (Map ByteString ByteString)
   }
 
 createFlowRuntime :: R.LoggerRuntime -> IO FlowRuntime
 createFlowRuntime loggerRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
-  pure $ FlowRuntime loggerRt managerVar
+  optionsVar <- newMVar mempty
+  pure $ FlowRuntime loggerRt managerVar optionsVar
 
 clearFlowRuntime :: FlowRuntime -> IO ()
 clearFlowRuntime _ = pure ()

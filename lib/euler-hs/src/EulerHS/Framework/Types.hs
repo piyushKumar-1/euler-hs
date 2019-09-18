@@ -3,3 +3,4 @@ module EulerHS.Framework.Types
   ) where
 
 import EulerHS.Framework.Types.API as X
+import EulerHS.Framework.Types.Options as X

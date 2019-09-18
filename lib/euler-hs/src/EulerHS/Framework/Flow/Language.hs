@@ -19,11 +19,21 @@ data FlowMethod next where
 
   EvalLogger :: Logger a -> (a -> next) -> FlowMethod next
 
+  RunIO :: (ToJSON s, FromJSON s) => IO s -> (s -> next) -> FlowMethod next
+
+  GetOption :: T.OptionEntity k v => k -> (Maybe v -> next) -> FlowMethod next
+  SetOption :: T.OptionEntity k v => k -> v -> (() -> next) -> FlowMethod next
+
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
 
   fmap f (EvalLogger logAct next) = EvalLogger logAct (f . next)
+
+  fmap f (RunIO ioAct next)                   = RunIO ioAct (f . next)
+
+  fmap f (GetOption k next)                   = GetOption k (f.next)
+  fmap f (SetOption k v next)                 = SetOption k v (f.next)
 
 
 type Flow = F FlowMethod
@@ -50,6 +60,15 @@ logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 -- | Log message with Warning level.
 logWarning :: Show tag => tag -> T.Message -> Flow ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
+
+runIO :: (ToJSON s, FromJSON s) => IO s -> Flow s
+runIO ioAct = liftFC $ RunIO ioAct id
+
+getOption :: T.OptionEntity k v => k -> Flow (Maybe v)
+getOption k = liftFC $ GetOption k id
+
+setOption :: T.OptionEntity k v => k -> v -> Flow ()
+setOption k v = liftFC $ SetOption k v id
 
 -- TODO: port
 -- callAPI

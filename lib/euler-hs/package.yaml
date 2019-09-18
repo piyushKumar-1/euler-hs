@@ -78,6 +78,7 @@ dependencies:
 - servant-client
 - tinylog
 - natural-transformation
+- uuid
 
 library:
   source-dirs:

@@ -1,10 +1,14 @@
 module EulerHS.Framework.Flow.Interpreter where
 
 import           EulerHS.Prelude
+import           Control.Exception               (throwIO)
 import           Data.Aeson                      (encode, decode)
 import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.Map                        as Map
+import qualified Data.UUID                       as UUID (toText)
+import qualified Data.UUID.V4                    as UUID (nextRandom)
 import qualified Servant.Client                  as S
+import           System.Process (shell, readCreateProcess)
 
 
 import qualified EulerHS.Core.Language as L
@@ -40,6 +44,21 @@ interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
       m <- takeMVar _options
       let newMap = Map.insert (BSL.toStrict $ encode k) (BSL.toStrict $ encode v) m
       putMVar _options newMap
+
+interpretFlowMethod _ (L.GenerateGUID next) = do
+  next . UUID.toText <$> UUID.nextRandom
+
+interpretFlowMethod _ (L.RunSysCmd cmd next) = do
+  next <$> (readCreateProcess (shell cmd) "")
+
+interpretFlowMethod rt (L.Fork _ _ flow next) = do
+  next <$> forkF rt flow
+
+interpretFlowMethod _ (L.ThrowException ex next) = do
+  next <$> throwIO ex
+
+forkF :: R.FlowRuntime -> L.Flow a -> IO ()
+forkF rt flow = void $ forkIO $ void $ runFlow rt flow
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)

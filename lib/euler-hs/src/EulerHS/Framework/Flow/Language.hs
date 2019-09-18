@@ -12,6 +12,10 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage')
 import qualified EulerHS.Framework.Types as T
 
+type Description = Text
+
+type ForkGUID = Text
+
 -- | Flow language.
 data FlowMethod next where
   CallAPI :: T.RestEndpoint req resp => req -> (T.APIResult resp -> next) -> FlowMethod next
@@ -24,16 +28,32 @@ data FlowMethod next where
   GetOption :: T.OptionEntity k v => k -> (Maybe v -> next) -> FlowMethod next
   SetOption :: T.OptionEntity k v => k -> v -> (() -> next) -> FlowMethod next
 
+  GenerateGUID :: (Text -> next) -> FlowMethod next
+
+  RunSysCmd :: String -> (String -> next) -> FlowMethod next
+
+  Fork :: Description -> ForkGUID -> Flow s -> (() -> next) -> FlowMethod next
+
+  ThrowException :: Exception e => e -> (() -> next) -> FlowMethod next
+
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
 
-  fmap f (EvalLogger logAct next) = EvalLogger logAct (f . next)
+  fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
+
+  fmap f (GenerateGUID next)                  = GenerateGUID (f . next)
+
+  fmap f (RunSysCmd cmd next)                 = RunSysCmd cmd (f . next)
+
+  fmap f (Fork desc guid fflow next)          = Fork desc guid fflow (f . next)
+
+  fmap f (ThrowException message next)        = ThrowException message (f . next)
 
   fmap f (RunIO ioAct next)                   = RunIO ioAct (f . next)
 
-  fmap f (GetOption k next)                   = GetOption k (f.next)
-  fmap f (SetOption k v next)                 = SetOption k v (f.next)
+  fmap f (GetOption k next)                   = GetOption k (f . next)
+  fmap f (SetOption k v next)                 = SetOption k v (f . next)
 
 
 type Flow = F FlowMethod
@@ -69,6 +89,25 @@ getOption k = liftFC $ GetOption k id
 
 setOption :: T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption k v id
+
+generateGUID :: Flow Text
+generateGUID = liftFC $ GenerateGUID id
+
+runSysCmd :: String -> Flow String
+runSysCmd cmd = liftFC $ RunSysCmd cmd id
+
+forkFlow :: (ToJSON s, FromJSON s) => Text -> Flow s -> Flow ()
+forkFlow description flow = do
+  flowGUID <- generateGUID
+  unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
+  when   (null description) $ logInfo tag $ "Flow forked. GUID: " <> flowGUID
+  void $ liftFC $ Fork description flowGUID flow id
+  where
+    tag :: Text
+    tag = "ForkFlow"
+
+throwException :: Exception e => e -> Flow ()
+throwException ex = liftFC $ ThrowException ex id
 
 -- TODO: port
 -- callAPI

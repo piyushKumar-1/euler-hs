@@ -8,6 +8,8 @@ import           Test.Tasty.QuickCheck as QC
 import           Servant.Mock
 import           GHC.Generics
 import           Data.Aeson
+import qualified Data.UUID                       as UUID (fromText)
+import qualified Control.Exception               as E
 import           Servant.Server
 import           Servant.API
 import           Servant.Client (ClientM, client, BaseUrl(..), Scheme(..))
@@ -18,6 +20,7 @@ import           EulerHS.Types
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import           EulerHS.Runtime
+import           EulerHS.Types
 
 data TestStringKey = TestStringKey
   deriving (Generic, Show, Eq)
@@ -73,6 +76,34 @@ runWhenServerIsReady app port act = do
   act
   killThread tId
 
+testRunSysCmd :: FlowRuntime -> Assertion
+testRunSysCmd rt = do
+  result <- runFlow rt $ runSysCmd "echo test"
+  case result of
+    "test\n" -> pure ()
+    _ -> assertFailure "runSysCmd failed"
+
+testGenerateGUID :: FlowRuntime -> Assertion
+testGenerateGUID rt = do
+  guid <- runFlow rt $ generateGUID
+  let maybeGUID = UUID.fromText guid
+  case maybeGUID of
+    Just _ -> pure ()
+    Nothing -> assertFailure "Incorrect GUID generation"
+
+testThrowException :: FlowRuntime -> Assertion
+testThrowException rt = do
+  res <- E.catch
+    (runFlow rt $ do
+      throwException (E.AssertionFailed "Exception message")
+      pure "Newer returned")
+    (\e -> do let err = show (e :: E.AssertionFailed)
+              pure err)
+  case res of
+    "Exception message" -> pure ()
+    _ -> assertFailure "Incorrect throwException"
+
+
 test01 :: FlowRuntime -> Assertion
 test01 rt = runWhenServerIsReady (serve api server) port $ do
   let url = BaseUrl Http "localhost" port ""
@@ -122,7 +153,11 @@ unitTests rt = testGroup "Unit tests" [ testCase "Simple request (book)" (test01
                                       , testCase "Simple request (book)" (test02 rt)
                                       , testCase "Incorrect request" (test03 rt)
                                       , testCase "RunIO" (test04 rt)
-                                      , testCase "Options set get" (test05 rt) ]
+                                      , testCase "Options set get" (test05 rt)
+                                      , testCase "test RunSysCmd" (testRunSysCmd rt)
+                                      , testCase "test GenerateGUID" (testGenerateGUID rt)
+                                      , testCase "test ThrowException" (testThrowException rt)
+                                      ]
 
 testLanguage :: FlowRuntime -> TestTree
 testLanguage rt = testGroup "EulerHS.Framework.Language tests" [unitTests rt]

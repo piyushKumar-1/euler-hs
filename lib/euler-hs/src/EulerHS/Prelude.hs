@@ -13,6 +13,9 @@ import           Control.Concurrent.STM.TMVar as X (TMVar, newEmptyTMVar,
                                                     newTMVarIO, putTMVar,
                                                     readTMVar, takeTMVar,
                                                     tryReadTMVar)
+import           Control.Concurrent.STM.TChan as X (TChan, newTChan, newTChanIO,
+                                                    writeTChan, tryReadTChan,
+                                                    readTChan)
 import           Control.Concurrent.STM.TVar  as X (modifyTVar)
 import           Control.Exception            as X (SomeException (..))
 import           Control.Lens                 as X (at, (.=))

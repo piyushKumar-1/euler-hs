@@ -13,9 +13,11 @@ import           Servant.API
 import           Servant.Client (ClientM, client, BaseUrl(..), Scheme(..))
 import           Test.QuickCheck.Arbitrary
 import           Network.Wai.Handler.Warp (run, runSettings, setBeforeMainLoop, setPort, defaultSettings, testWithApplication, Port)
-import           EulerHS.Framework.Language.Interpreter
-import           EulerHS.Framework.Language.Flow
+
 import           EulerHS.Types
+import           EulerHS.Interpreters
+import           EulerHS.Language
+import           EulerHS.Runtime
 
 data TestStringKey = TestStringKey
   deriving (Generic, Show, Eq)
@@ -24,6 +26,7 @@ instance ToJSON TestStringKey
 instance FromJSON TestStringKey
 
 instance OptionEntity TestStringKey String
+
 
 data User = User { firstName :: String, lastName :: String }
   deriving (Generic, Show, Eq)
@@ -70,7 +73,7 @@ runWhenServerIsReady app port act = do
   act
   killThread tId
 
-test01 :: Runtime -> Assertion
+test01 :: FlowRuntime -> Assertion
 test01 rt = runWhenServerIsReady (serve api server) port $ do
   let url = BaseUrl Http "localhost" port ""
   bookEither <- runFlow rt $
@@ -79,7 +82,7 @@ test01 rt = runWhenServerIsReady (serve api server) port $ do
     Left err -> assertFailure $ show err
     Right book -> return ()
 
-test02 :: Runtime -> Assertion
+test02 :: FlowRuntime -> Assertion
 test02 rt = runWhenServerIsReady (serve api server) port $ do
   let url = BaseUrl Http "localhost" port ""
   userEither <- runFlow rt $
@@ -88,7 +91,7 @@ test02 rt = runWhenServerIsReady (serve api server) port $ do
     Left err -> assertFailure $ show err
     Right user -> return ()
 
-test03 :: Runtime -> Assertion
+test03 :: FlowRuntime -> Assertion
 test03 rt = do
   let url = BaseUrl Http "localhost" port ""
   bookEither <- runFlow rt $
@@ -97,7 +100,7 @@ test03 rt = do
     Left err -> return ()
     Right book -> assertFailure "Somehow got an answer from nothing"
 
-test04 :: Runtime -> Assertion
+test04 :: FlowRuntime -> Assertion
 test04 rt = do
   result <- runFlow rt $
     runIO (pure ("hi" :: String))
@@ -105,7 +108,7 @@ test04 rt = do
     "hi" -> return ()
     _ -> assertFailure $ "incorrect runIO behavior"
 
-test05 :: Runtime -> Assertion
+test05 :: FlowRuntime -> Assertion
 test05 rt = do
   result <- runFlow rt $ do
     _ <- setOption TestStringKey "lore ipsum"
@@ -114,12 +117,12 @@ test05 rt = do
     Just "lore ipsum" -> return ()
     _ -> assertFailure $ "incorrect options get set behavior"
 
-unitTests :: Runtime -> TestTree
+unitTests :: FlowRuntime -> TestTree
 unitTests rt = testGroup "Unit tests" [ testCase "Simple request (book)" (test01 rt)
                                       , testCase "Simple request (book)" (test02 rt)
                                       , testCase "Incorrect request" (test03 rt)
                                       , testCase "RunIO" (test04 rt)
                                       , testCase "Options set get" (test05 rt) ]
 
-testLanguage :: Runtime -> TestTree
+testLanguage :: FlowRuntime -> TestTree
 testLanguage rt = testGroup "EulerHS.Framework.Language tests" [unitTests rt]

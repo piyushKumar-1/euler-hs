@@ -27,5 +27,6 @@ dist-newstyle
 stack.yaml.lock
 
 dashboard.cabal
+analytics-dashboard.cabal
 credit-platform.cabal
 euler-hs.cabal

@@ -9,7 +9,7 @@ import           EulerHS.Prelude
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, logMessage')
+import           EulerHS.Core.Language (Logger, SqlDB, logMessage')
 import qualified EulerHS.Framework.Types as T
 
 type Description = Text
@@ -36,6 +36,10 @@ data FlowMethod next where
 
   ThrowException ::forall a e next. Exception e => e -> (a -> next) -> FlowMethod next
 
+  -- TODO: disconnect method.
+  Connect :: T.DBConfig -> (T.DBResult T.SqlConn -> next) -> FlowMethod next
+  RunDB :: T.SqlConn -> SqlDB b -> (b -> next) -> FlowMethod next
+
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
@@ -54,6 +58,9 @@ instance Functor FlowMethod where
 
   fmap f (GetOption k next)                   = GetOption k (f . next)
   fmap f (SetOption k v next)                 = SetOption k v (f . next)
+
+  fmap f (Connect cfg next)                   = Connect cfg (f . next)
+  fmap f (RunDB conn dbAct next)              = RunDB conn dbAct (f . next)
 
 
 type Flow = F FlowMethod

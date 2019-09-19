@@ -3,3 +3,4 @@ module EulerHS.Core.Types
   ) where
 
 import EulerHS.Core.Types.Logger as X
+import EulerHS.Core.Types.DB as X

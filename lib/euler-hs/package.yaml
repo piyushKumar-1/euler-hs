@@ -79,6 +79,11 @@ dependencies:
 - tinylog
 - natural-transformation
 - uuid
+- beam-core
+# - beam-postgres
+- beam-sqlite
+- beam-migrate
+- sqlite-simple
 
 library:
   source-dirs:

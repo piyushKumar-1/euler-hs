@@ -9,26 +9,31 @@ import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Types as T
 
 data FlowRuntime = FlowRuntime
-  { _loggerRuntime :: R.LoggerRuntime
+  { _coreRuntime :: R.CoreRuntime
   , _httpClientManager :: MVar Manager
   , _options :: MVar (Map ByteString ByteString)
   }
 
-createFlowRuntime :: R.LoggerRuntime -> IO FlowRuntime
-createFlowRuntime loggerRt = do
+createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
+createFlowRuntime coreRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
-  pure $ FlowRuntime loggerRt managerVar optionsVar
+  pure $ FlowRuntime coreRt managerVar optionsVar
+
+createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
+createFlowRuntime' mbLoggerCfg =
+  createLoggerRuntime' mbLoggerCfg >>= R.createCoreRuntime >>= createFlowRuntime
 
 clearFlowRuntime :: FlowRuntime -> IO ()
 clearFlowRuntime _ = pure ()
 
 withFlowRuntime :: Maybe T.LoggerConfig -> (FlowRuntime -> IO a) -> IO a
 withFlowRuntime mbLoggerCfg actionF =
-  bracket createLoggerRuntime' R.clearLoggerRuntime $ \loggerRt ->
-  -- bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt   ->
-  bracket (createFlowRuntime loggerRt) clearFlowRuntime actionF
-  where
-    createLoggerRuntime' = case mbLoggerCfg of
-      Nothing        -> R.createVoidLoggerRuntime
-      Just loggerCfg -> R.createLoggerRuntime loggerCfg
+  bracket (createLoggerRuntime' mbLoggerCfg) R.clearLoggerRuntime $ \loggerRt ->
+  bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt ->
+  bracket (createFlowRuntime coreRt) clearFlowRuntime actionF
+
+createLoggerRuntime' :: Maybe T.LoggerConfig -> IO R.LoggerRuntime
+createLoggerRuntime' mbLoggerCfg = case mbLoggerCfg of
+  Nothing        -> R.createVoidLoggerRuntime
+  Just loggerCfg -> R.createLoggerRuntime loggerCfg

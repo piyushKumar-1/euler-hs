@@ -37,6 +37,7 @@ default-extensions:
 dependencies:
 - base >= 4.7 && < 5
 - aeson
+- aeson-utils
 - bytestring
 - containers
 - errors
@@ -75,6 +76,9 @@ dependencies:
 - safe-exceptions
 - newtype-generics
 - servant-client
+- gogol >= 0.5 && < 0.6
+- gogol-core >= 0.5 && < 0.6
+- gogol-bigquery >= 0.5 && < 0.6
 
 library:
   source-dirs:

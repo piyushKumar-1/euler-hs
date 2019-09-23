@@ -2,59 +2,57 @@ module Test.Query where
 
 import Universum
 
+import Data.Maybe (fromJust)
+import Data.Time.ISO8601 (parseISO8601)
 import Test.Hspec
-import Data.Time.Clock
-import Data.Time.Calendar (Day(ModifiedJulianDay))
 
-import Test.Fixtures (withConsoleServer, testPort)
-import Console.API (app, queryAPI)
-import Console.Query (dummyResult)
+import Test.Fixtures (testPort)
+import Console.API (queryAPI)
 import qualified Dashboard.Query.Types as QT
 
 import Servant.Client (client, runClientM, mkClientEnv, parseBaseUrl)
 import Network.HTTP.Client (newManager, defaultManagerSettings)
 
--- The Modified Julian Day is a standard count of days, with zero being the day 1858-11-17
--- which will come up as a negative Unix timestamp
-ts :: QT.Timestamp
-ts = QT.Timestamp $ UTCTime {
-        utctDay = ModifiedJulianDay (160 * 365) -- 160 years since 1858 i.e. 2018,
-      , utctDayTime = secondsToDiffTime 0
-      }
+makeTimestamp :: String -> QT.Timestamp
+makeTimestamp = QT.Timestamp . fromJust . parseISO8601
 
-dummyQuery :: QT.Query
-dummyQuery = QT.Query (QT.Selection
-                        [(Just QT.COUNT, QT.All)])
-                        "table1"
-                        (QT.Interval { start = ts
-                                     , stop = ts
-                                     , step = Just $ QT.Milliseconds 15
-                                     , field = "field1"})
-                      (QT.Filter [])
-                      (QT.GroupBy [])
+testQuery :: QT.Query
+testQuery = QT.Query (QT.Selection [(Just QT.SUM, QT.Field "amount")])
+                     "godel-big-q.express_checkout.express_checkout20190927"
+                     (QT.Interval { start = makeTimestamp "2019-09-27T10:00:00Z"
+                                  , stop  = makeTimestamp "2019-09-27T12:00:00Z"
+                                  , step  = Just . QT.Milliseconds $ 5 * 60 * 1000
+                                  , field = "order_last_modified"
+                                  })
+                     (QT.Filter [("merchant_id", QT.EQUALS, QT.StringValue "com.swiggy")])
+                     (QT.GroupBy ["gateway", "card_type"])
+
+testResultRow :: QT.QueryResultRow
+testResultRow = QT.QueryResultRow ts1 ts2 [QT.FloatValue 75557.0]
+  where
+    ts1 = QT.Timestamp . fromJust . parseISO8601 $ "2019-09-27T10:05:00Z"
+    ts2 = QT.Timestamp . fromJust . parseISO8601 $ "2019-09-27T10:10:00Z"
 
 incorrectQuery :: QT.Query
 incorrectQuery = QT.Query (QT.Selection
                             [(Just QT.COUNT, QT.All)])
-                            "table666"
-                            (QT.Interval { start = ts
-                                         , stop = ts
-                                         , step = Just $ QT.Milliseconds 15
+                            "bad_table"
+                            (QT.Interval { start = makeTimestamp "1970-01-01T00:00:00Z"
+                                         , stop  = makeTimestamp "1970-01-01T00:10:00Z"
+                                         , step  = Just $ QT.Milliseconds 15
                                          , field = "field1"})
                             (QT.Filter []) (QT.GroupBy [])
 
--- FIXME: API tests should yuse hspec-wai so that we can check on Response body
--- and status code without having to constrcut responses ourselves
 specs :: Spec
 specs = describe "Query API" $ do
       let queryClient = client queryAPI
-      baseUrl <- runIO $ parseBaseUrl $ "http://localhost:" ++ show testPort
-      manager <- runIO $ newManager defaultManagerSettings
+      baseUrl <- runIO . parseBaseUrl $ "http://localhost:" ++ show testPort
+      manager <- runIO . newManager $ defaultManagerSettings
       let clientEnv = mkClientEnv manager baseUrl
 
       it "should return a queryresult when a query is given" $ do
-        result <- runClientM (queryClient dummyQuery) clientEnv
-        result `shouldBe` Right dummyResult
+        result <- runClientM (queryClient testQuery) clientEnv
+        map (\(QT.QueryResult (x:xs)) -> x) result `shouldBe` Right testResultRow
 
       -- FIXME: Use hspec-wai and check for a 400 here and responseBody
       it "should return a failure when an incorrect query is given" $ do

@@ -117,6 +117,7 @@ tests:
     source-dirs: test
     dependencies:
     - QuickCheck
+    - iso8601-time
     - servant
     - servant-mock
     - servant-server

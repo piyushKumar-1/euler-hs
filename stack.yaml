@@ -5,3 +5,8 @@ packages:
 - lib/dashboard
 - app/credit-platform
 - app/analytics-dashboard
+
+extra-deps:
+- gogol-0.5.0@sha256:01b38acf97ae0afb2465935fee1bebce03c1b84e629cf0887467be7ae361f0a7,3222
+- gogol-core-0.5.0
+- gogol-bigquery-0.5.0@sha256:47ba01fd655f0b8e8789b10949e70a308041bc9db7892a0c7ab26ec4bcf174d4,2698

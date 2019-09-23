@@ -3,6 +3,7 @@ module EulerHS.Framework.Runtime where
 import           EulerHS.Prelude
 import           Data.Map            (Map)
 import           Network.HTTP.Client (Manager, newManager, defaultManagerSettings)
+import           Database.Redis      (Connection)
 
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
@@ -12,13 +13,15 @@ data FlowRuntime = FlowRuntime
   { _coreRuntime :: R.CoreRuntime
   , _httpClientManager :: MVar Manager
   , _options :: MVar (Map ByteString ByteString)
+  , _kvConnections :: MVar Connection
   }
 
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
-  pure $ FlowRuntime coreRt managerVar optionsVar
+  kvConnections <- newEmptyMVar
+  pure $ FlowRuntime loggerRt managerVar optionsVar kvConnections
 
 createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
 createFlowRuntime' mbLoggerCfg =

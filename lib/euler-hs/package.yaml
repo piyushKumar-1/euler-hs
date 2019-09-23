@@ -84,6 +84,7 @@ dependencies:
 - beam-sqlite
 - beam-migrate
 - sqlite-simple
+- hedis
 
 library:
   source-dirs:

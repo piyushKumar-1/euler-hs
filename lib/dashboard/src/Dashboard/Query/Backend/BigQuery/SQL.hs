@@ -33,16 +33,18 @@ printIntervalSelection (Interval _ _ step intervalField) =
       " - " ++
       "MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " ++ intervalField ++ ")), " ++
            show (duration `quot` 1000) ++ ")" ++
-      " AS " ++ timeStampField ++
-      ", "
+      " AS " ++ timeStampField
 
 -- FIXME: Will need to use ROUND over aggregate functions if DB fields are float.
 -- Likewise will need to parse an Int out of DB field if they are strings
 printSelection :: Selection -> Interval -> String
-printSelection (Selection (sOp, sField)) interval =
+printSelection (Selection selections) interval =
   "SELECT " ++
-    printIntervalSelection interval ++
-    show sOp ++ "(" ++ printSelectField sField ++ ")"
+    printIntervalSelection interval ++ ", " ++
+    (intercalate "," . fmap printOneSelection $ selections)
+
+  where
+    printOneSelection (sOp, sField) = show sOp ++ "(" ++ printSelectField sField ++ ")"
 
 printFrom :: String -> String
 printFrom table = "FROM " ++ table

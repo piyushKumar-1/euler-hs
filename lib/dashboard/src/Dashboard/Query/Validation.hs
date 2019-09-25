@@ -4,12 +4,9 @@ module Dashboard.Query.Validation
 
 import Data.List (lookup)
 import Dashboard.Query.Types
-import Universum
+import Universum hiding (All)
 
--- FIXME: Eventually we want to return a single QueryValidationError which
--- will nest the Query as well details of the QueryValidationFailure
 validateQuery :: QueryConfiguration -> Query -> Either [QueryValidationError] ()
--- FIXME: Don't do subsequent vavlidations if tablename is invalid
 validateQuery qc q =
   case validateTable qc q of
     Left err -> Left [err]
@@ -30,77 +27,58 @@ validateTable :: QueryConfiguration -> Query -> Either QueryValidationError Tabl
 validateTable (QueryConfiguration queryConfig) (Query _ tableName _ _ _) =
   case lookup tableName queryConfig of
     Nothing     -> Left $
-                   QueryValidationError (TableError tableName) "Invalid table name"
+                   QueryValidationError (TableNotFound tableName) "Invalid table name"
     Just config -> Right config
 
--- QueryConfiguration has multiple tables, but a query works only with a single table
--- FIXME: We have an awful lot of pattern matches going on. Can we have record syntax for
--- Query.Types once they are fixed?
--- FIXME: Name validation functions more aptly once we extend them to do more
--- e.g. validSelections, validFilters
 validateSelectFields :: TableConfiguration -> Query -> [QueryValidationError]
--- FIXME: We will have to extend selection for multiple fields\
-validateSelectFields tableConfig (Query (Selection (_, Field field)) _ _ _ _) =
-  validateFields
-    tableConfig
-    [field]
-    SelectFieldError
-    "Invalid select field name"
--- To match when Select field is ALL
-validateSelectFields _ (Query (Selection (_, _)) _ _ _ _) = []
+validateSelectFields tableConfig (Query (Selection selections) _ _ _ _) =
+    lefts $ validateSelectField tableConfig <$> selections
 
-validateFilterFields :: TableConfiguration -> Query -> [QueryValidationError]
-validateFilterFields tableConfig (Query _ _ _ (Filter filters) _) =
-  validateFields
-    tableConfig
-    [x | (x, _, _) <- filters]
-    FilterFieldError
-    "Invalid filter field name"
+validateSelectField :: TableConfiguration->(SelectOp,SelectField)->Either QueryValidationError ()
+validateSelectField (TableConfiguration tableConfig) (op, Field fieldname) =
+  case lookup fieldname tableConfig of
+    Nothing -> Left $ QueryValidationError (SelectFieldNotFound fieldname) "Invalid field name"
+    Just fieldtype -> validateSelectOperation op fieldtype
+validateSelectField _ (_, All) =
+  Right ()
+
+validateSelectOperation :: SelectOp -> FieldType -> Either QueryValidationError ()
+validateSelectOperation op fieldtype =
+  case (op,fieldtype) of
+    (SUM, StringType) -> Left $ QueryValidationError (SelectOperationNotValid op) "Invalid Operation"
+    (AVG, StringType) -> Left $ QueryValidationError (SelectOperationNotValid op) "Invalid Operation"
+    (_, _)            -> Right ()
 
 validateFilters :: TableConfiguration -> Query -> [QueryValidationError]
-validateFilters (TableConfiguration fieldData) (Query _ _ _ (Filter filters) _)=
-    if null filters
-    then
-      []
-    else
-      lefts $ map ( validateFilter fieldData ) filters
+validateFilters (TableConfiguration fieldData) (Query _ _ _ (Filter filters) _) =
+  lefts $ map (validateFilter fieldData) filters
+  where
+    validateFilter fields (fieldName, _, value) =
+      case lookup fieldName fields of
+        Nothing        -> Left $ QueryValidationError (FilterFieldNotFound fieldName) "Invalid field name"
+        Just fieldType -> verifyFieldTypes value fieldType fieldName
 
-validateFilter :: [(FieldName, FieldType)] -> (FieldName, FilterOp, Value) -> Either QueryValidationError ()
-validateFilter fields (fn, op, value) =
-  let result = find (\ (fieldname , fieldtype) -> fieldname == fn) fields
-  in
-    if result == Nothing
-    then
-       Left (QueryValidationError (FilterFieldError fn) "Invalid field name")
-    else
-      let Just (fieldname, fieldtype) = result
-      in
-         if ( check (value, fieldtype) )
-         then
-           Right ()
-         else
-           Left (QueryValidationError (FilterError fieldname) "Invalid operation, type mismatch")
- 
-check :: (Value , FieldType) -> Bool
-check ((IntValue _),IntType) = True
-check ((FloatValue _),FloatType) = True
-check ((StringValue _),StringType) = True
-check (_,_) = False
+    verifyFieldTypes value fieldType fieldName =
+      case (value, fieldType) of
+        (IntValue _, IntType)       -> Right ()
+        (FloatValue _, FloatType)   -> Right ()
+        (StringValue _, StringType) -> Right ()
+        _                           -> Left (QueryValidationError (FilterTypeMismatch fieldName) "Field type mismatch")
 
 validateGroupByFields :: TableConfiguration -> Query ->  [QueryValidationError]
 validateGroupByFields tableConfig (Query _ _ _ _ (GroupBy groupByFields)) =
   validateFields
     tableConfig
     groupByFields
-    GroupByFieldError
+    GroupByFieldNotFound
     "Invalid group-by field name"
 
 validateIntervalField :: TableConfiguration -> Query -> [QueryValidationError]
 validateIntervalField tableConfig (Query _ _ (Interval _ _ _ intervalField) _ _) =
-  validateFields 
+  validateFields
     tableConfig
     [intervalField]
-    IntervalFieldError
+    IntervalFieldNotFound
     "Invalid interval field name"
 
 validateFields ::

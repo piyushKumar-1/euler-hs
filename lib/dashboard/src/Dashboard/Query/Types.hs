@@ -12,7 +12,6 @@ import Universum hiding (All)
 
 type FieldName = String
 
--- FIXME: Support multiple selections
 data SelectField
   = All
   | Field FieldName
@@ -26,9 +25,8 @@ data SelectOp
   | AVG
   deriving (Generic, Show, Eq)
 
--- FIXME: Extend to multiple fields for custom queries
 newtype Selection =
-  Selection (SelectOp, SelectField)
+  Selection [(SelectOp, SelectField)]
   deriving (Generic, Show, Eq)
 
 newtype Timestamp =
@@ -100,13 +98,13 @@ data QueryValidationError =
 
 --Assuming single fields
 data QueryErrorType
-  = TableError TableName
-  | SelectFieldError FieldName
-  | FilterFieldError FieldName
-  | GroupByFieldError FieldName
-  | IntervalFieldError FieldName
-  | FieldError FieldName
-  | FilterError FieldName
+  = TableNotFound TableName
+  | SelectFieldNotFound FieldName
+  | FilterFieldNotFound FieldName
+  | GroupByFieldNotFound FieldName
+  | IntervalFieldNotFound FieldName
+  | FilterTypeMismatch FieldName
+  | SelectOperationNotValid SelectOp
   deriving (Generic, Show, Eq)
 
 -- All the JSON instances

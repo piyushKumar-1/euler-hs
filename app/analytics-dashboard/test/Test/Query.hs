@@ -24,7 +24,7 @@ ts = QT.Timestamp $ UTCTime {
 
 dummyQuery :: QT.Query
 dummyQuery = QT.Query (QT.Selection
-                        (QT.COUNT, QT.All))
+                        [(QT.COUNT, QT.All)])
                         "table1"
                         (QT.Interval { start = ts
                                      , stop = ts
@@ -35,7 +35,7 @@ dummyQuery = QT.Query (QT.Selection
 
 incorrectQuery :: QT.Query
 incorrectQuery = QT.Query (QT.Selection
-                            (QT.COUNT, QT.All))
+                            [(QT.COUNT, QT.All)])
                             "table666"
                             (QT.Interval { start = ts
                                          , stop = ts

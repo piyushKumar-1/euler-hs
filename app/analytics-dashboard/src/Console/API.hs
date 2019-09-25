@@ -21,12 +21,13 @@ dummyQueryConf = QueryConfiguration [("table1", TableConfiguration [ ("field1", 
 showQueryValidationError :: QueryValidationError -> String
 showQueryValidationError (QueryValidationError qve _) =
   case qve of
-    (TableError name)         -> "Table: " ++ name
-    (SelectFieldError name)   -> "Select field: " ++ name
-    (FilterFieldError name)   -> "Filter field: " ++ name
-    (GroupByFieldError name)  -> "Group by field" ++ name
-    (IntervalFieldError name) -> "Interval field" ++ name
-    (FieldError name)         -> "Field: " ++ name
+    (TableNotFound name)         -> "Table: " ++ name
+    (SelectFieldNotFound name)   -> "Select field: " ++ name
+    (FilterFieldNotFound name)   -> "Filter field: " ++ name
+    (GroupByFieldNotFound name)  -> "Group by field" ++ name
+    (FilterTypeMismatch name)    -> "Filter on: " ++ name
+    (IntervalFieldNotFound name) -> "Interval field: " ++ name
+    (SelectOperationNotValid op) -> "Select Operation: " ++ show op
 
 -- FIXME: The error reporting is very basic now to reflect the flattened error that gets
 -- returned i.e. [QueryValidationerror], will change once we have a richer, nested error type.

@@ -80,7 +80,7 @@ dependencies:
 - natural-transformation
 - uuid
 - beam-core
-# - beam-postgres
+- beam-postgres
 - beam-sqlite
 - beam-migrate
 - sqlite-simple

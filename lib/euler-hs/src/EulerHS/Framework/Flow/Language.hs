@@ -12,6 +12,7 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, SqlDB, logMessage')
 import qualified EulerHS.Framework.Types as T
 
+
 type Description = Text
 
 type ForkGUID = Text
@@ -19,6 +20,7 @@ type ForkGUID = Text
 -- | Flow language.
 data FlowMethod next where
   CallAPI :: T.RestEndpoint req resp => req -> (T.APIResult resp -> next) -> FlowMethod next
+
   CallServantAPI :: BaseUrl -> ClientM a -> (Either ClientError a -> next) -> FlowMethod next
 
   EvalLogger :: Logger a -> (a -> next) -> FlowMethod next
@@ -26,6 +28,7 @@ data FlowMethod next where
   RunIO :: (ToJSON s, FromJSON s) => IO s -> (s -> next) -> FlowMethod next
 
   GetOption :: T.OptionEntity k v => k -> (Maybe v -> next) -> FlowMethod next
+
   SetOption :: T.OptionEntity k v => k -> v -> (() -> next) -> FlowMethod next
 
   GenerateGUID :: (Text -> next) -> FlowMethod next
@@ -36,12 +39,16 @@ data FlowMethod next where
 
   ThrowException ::forall a e next. Exception e => e -> (a -> next) -> FlowMethod next
 
-  -- TODO: disconnect method.
+  -- TODO: Disconnect :: _ -> FlowMethod next
+
   Connect :: T.DBConfig -> (T.DBResult T.SqlConn -> next) -> FlowMethod next
+
   RunDB :: T.SqlConn -> SqlDB b -> (b -> next) -> FlowMethod next
+
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
+
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
 
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
@@ -57,11 +64,12 @@ instance Functor FlowMethod where
   fmap f (RunIO ioAct next)                   = RunIO ioAct (f . next)
 
   fmap f (GetOption k next)                   = GetOption k (f . next)
+
   fmap f (SetOption k v next)                 = SetOption k v (f . next)
 
   fmap f (Connect cfg next)                   = Connect cfg (f . next)
-  fmap f (RunDB conn dbAct next)              = RunDB conn dbAct (f . next)
 
+  fmap f (RunDB conn dbAct next)              = RunDB conn dbAct (f . next)
 
 type Flow = F FlowMethod
 
@@ -70,7 +78,6 @@ callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
 evalLogger' :: Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id
-
 
 -- | Log message with Info level.
 logInfo :: Show tag => tag -> T.Message -> Flow ()
@@ -102,6 +109,12 @@ generateGUID = liftFC $ GenerateGUID id
 
 runSysCmd :: String -> Flow String
 runSysCmd cmd = liftFC $ RunSysCmd cmd id
+
+connect :: T.DBConfig -> Flow (T.DBResult T.SqlConn)
+connect cfg = liftFC $ Connect cfg id
+
+runDB :: T.SqlConn -> SqlDB a -> Flow a
+runDB conn dbAct = liftFC $ RunDB conn dbAct id
 
 forkFlow :: (ToJSON s, FromJSON s) => Text -> Flow s -> Flow ()
 forkFlow description flow = do

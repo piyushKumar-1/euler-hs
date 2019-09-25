@@ -11,13 +11,17 @@ import qualified Servant.Client                  as S
 import           System.Process (shell, readCreateProcess)
 
 import qualified Database.SQLite.Simple as SQLite
+import qualified Database.Beam.Postgres as BP
 
-import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Interpreters as R
-import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
+
+import qualified EulerHS.Core.Types as T
+
+import qualified EulerHS.Framework.Language as L
+-- import qualified EulerHS.Core.Language as L
+
 
 connect :: T.DBConfig -> IO (T.DBResult T.SqlConn)
 connect (T.SQLiteConfig dbName) = do
@@ -25,6 +29,12 @@ connect (T.SQLiteConfig dbName) = do
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right $ T.SQLiteConn conn
+
+connect (T.PostgresConfig connInfo) = do
+  eConn <- try $ BP.connect connInfo
+  case eConn of
+    Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
+    Right conn -> pure $ Right $ T.PostgresConn conn
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod _ (L.CallAPI _ next) = error "CallAPI not yet supported."
@@ -70,9 +80,8 @@ interpretFlowMethod _ (L.ThrowException ex next) =
 interpretFlowMethod rt (L.Connect cfg next) =
   next <$> connect cfg
 
-interpretFlowMethod flowRt (L.RunDB conn dbAct next) =
-  next <$> R.runSqlDB (R._coreRuntime flowRt) conn dbAct
-
+interpretFlowMethod rt (L.RunDB conn dbAct next) =
+  next <$> R.runSqlDB (R._coreRuntime rt) conn dbAct
 
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()

@@ -34,7 +34,7 @@ data FlowMethod next where
 
   Fork :: Description -> ForkGUID -> Flow s -> (() -> next) -> FlowMethod next
 
-  ThrowException :: Exception e => e -> (() -> next) -> FlowMethod next
+  ThrowException ::forall a e next. Exception e => e -> (a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
@@ -106,7 +106,7 @@ forkFlow description flow = do
     tag :: Text
     tag = "ForkFlow"
 
-throwException :: Exception e => e -> Flow ()
+throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
 -- TODO: port

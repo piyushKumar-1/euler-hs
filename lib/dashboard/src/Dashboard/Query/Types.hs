@@ -80,12 +80,18 @@ data QueryResult
   | MultipleResult [(String, QueryResult)]
   deriving (Generic, Show, Eq)
 
-data Table =
-  Table TableName [FieldName]
+data FieldType
+  = IntType
+  | FloatType
+  | StringType
+  deriving (Generic,Show,Eq)
+
+newtype TableConfiguration =
+  TableConfiguration [(FieldName, FieldType)]
   deriving (Generic, Show, Eq)
 
 newtype QueryConfiguration =
-  QueryConfiguration [Table]
+  QueryConfiguration [(TableName, TableConfiguration)]
   deriving (Generic, Show)
 
 data QueryValidationError =
@@ -100,6 +106,7 @@ data QueryErrorType
   | GroupByFieldError FieldName
   | IntervalFieldError FieldName
   | FieldError FieldName
+  | FilterError FieldName
   deriving (Generic, Show, Eq)
 
 -- All the JSON instances
@@ -147,9 +154,13 @@ instance ToJSON QueryResult
 
 instance FromJSON QueryResult
 
-instance FromJSON Table
+instance ToJSON FieldType
 
-instance ToJSON Table
+instance FromJSON FieldType
+
+instance FromJSON TableConfiguration
+
+instance ToJSON TableConfiguration
 
 instance FromJSON QueryConfiguration
 

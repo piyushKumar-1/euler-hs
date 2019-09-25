@@ -13,7 +13,10 @@ type QueryAPI
    = "dashboard" :> "query" :> ReqBody '[ JSON] Query :> Post '[ JSON] QueryResult
 
 dummyQueryConf :: QueryConfiguration
-dummyQueryConf = QueryConfiguration [Table "table1" ["field1","field2"]]
+dummyQueryConf = QueryConfiguration [("table1", TableConfiguration [ ("field1", IntType)
+                                                                   , ("field2", StringType)
+                                                                   ]
+                                     )]
 
 showQueryValidationError :: QueryValidationError -> String
 showQueryValidationError (QueryValidationError qve _) =

@@ -7,6 +7,9 @@ import EulerHS.Prelude
 import qualified Database.SQLite.Simple as SQLite
 import qualified Database.Beam.Postgres as BP
 
+-- import qualified Data.Aeson as A
+-- import qualified Data.Aeson.Types as A
+
 data MockedSqlConn  = MockedSqlConn String
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -25,12 +28,24 @@ data KVDBConn
 
 type DBName = String
 
+instance Ord BP.ConnectInfo where
+
+data ConnectInfo
+  = ConnectInfo
+    { connectHost :: String
+    , connectPort :: Word16
+    , connectUser :: String
+    , connectPassword :: String
+    , connectDatabase :: String
+    } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+toBeamPostgresConnectInfo :: ConnectInfo -> BP.ConnectInfo
+toBeamPostgresConnectInfo (ConnectInfo {..}) = BP.ConnectInfo {..}
+
 data DBConfig
   = SQLiteConfig DBName
-  | PostgresConfig BP.ConnectInfo
-  deriving (Show, Eq, Generic)
-  -- Ord, ToJSON, FromJSON)
-  -- no such instances for BP.ConnectInfo
+  | PostgresConfig ConnectInfo
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- TODO: more informative typed error.
 data DBErrorType
@@ -43,3 +58,36 @@ data DBError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 type DBResult a = Either DBError a
+
+-- newtype ConnectInfo' a
+--   = ConnectInfo' a
+--   deriving (Show, Eq, Ord, Generic)
+
+-- unpackCI :: ConnectInfo' a -> a
+-- unpackCI (ConnectInfo' a) = a
+
+-- packCI :: a -> ConnectInfo' a
+-- packCI a = ConnectInfo' a
+
+-- mapCI :: (a -> b) -> ConnectInfo' a -> ConnectInfo' b
+-- mapCI f = packCI . f . unpackCI
+
+-- type ConnectInfo = ConnectInfo' BP.ConnectInfo
+
+-- instance ToJSON ConnectInfo where
+--   toJSON = outer . mapCI inner
+--     where
+--       outer :: ConnectInfo' A.Value -> A.Value
+--       outer = A.genericToJSON A.defaultOptions
+
+--       inner :: BP.ConnectInfo -> A.Value
+--       inner = A.genericToJSON A.defaultOptions
+
+-- instance FromJSON ConnectInfo where
+--   parseJSON = fmap packCI . inner . unpackCI <=< outer
+--     where
+--       outer :: A.Value -> A.Parser (ConnectInfo' A.Value)
+--       outer = A.genericParseJSON A.defaultOptions
+
+--       inner :: A.Value -> A.Parser BP.ConnectInfo
+--       inner = A.genericParseJSON A.defaultOptions

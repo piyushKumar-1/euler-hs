@@ -31,7 +31,7 @@ connect (T.SQLiteConfig dbName) = do
     Right conn -> pure $ Right $ T.SQLiteConn conn
 
 connect (T.PostgresConfig connInfo) = do
-  eConn <- try $ BP.connect connInfo
+  eConn <- try $ BP.connect $ T.toBeamPostgresConnectInfo $ connInfo
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right $ T.PostgresConn conn

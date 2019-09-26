@@ -77,6 +77,7 @@ interpretFlowMethod rt (L.Fork _ _ flow next) =
 interpretFlowMethod _ (L.ThrowException ex next) =
   next <$> throwIO ex
 
+<<<<<<< HEAD
 interpretFlowMethod rt (L.Connect cfg next) =
   next <$> connect cfg
 
@@ -96,7 +97,14 @@ interpretFlowMethod rt (L.RunDB conn dbm next) =
           commit
           return res
 
-
+interpret R.FlowRuntime {..} (L.RunKVDBEither act next) = do
+  next <$> run
+    where
+      run = do
+        conn <- takeMVar _kvConnections
+        res <- R.runKVDB conn act
+        putMVar _kvConnections conn
+        pure res
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()
 forkF rt flow = void $ forkIO $ void $ runFlow rt flow

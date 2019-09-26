@@ -9,9 +9,9 @@ import           EulerHS.Prelude
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, SqlDB, logMessage')
+import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB, KVDBAnswer)
 import qualified EulerHS.Framework.Types as T
-import qualified EulerHS.Framework.Types.API as T
+import qualified EulerHS.Core.KVDB.Language as KVDB
 
 type Description = Text
 
@@ -49,6 +49,7 @@ data FlowMethod next where
     -> (T.DBResult a -> next)
     -> FlowMethod next
 
+  RunKVDBEither :: KVDB.KVDB (Either KVDB.Reply a) -> (Either KVDB.Reply a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
@@ -74,6 +75,8 @@ instance Functor FlowMethod where
   fmap f (Connect cfg next)                   = Connect cfg (f . next)
 
   fmap f (RunDB conn dbAct next)              = RunDB conn dbAct (f . next)
+
+  fmap f (RunKVDBEither act next)             = RunKVDBEither act (f . next)
 
 type Flow = F FlowMethod
 
@@ -132,6 +135,9 @@ forkFlow description flow = do
 
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
+
+runKVDBEither :: KVDB (KVDBAnswer a) -> Flow (KVDBAnswer a)
+runKVDBEither act = liftFC $ RunKVDBEither act id
 
 -- TODO: port
 -- callAPI

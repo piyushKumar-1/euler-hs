@@ -4,3 +4,4 @@ module EulerHS.Core.Interpreters
 
 import           EulerHS.Core.Logger.Interpreter as X
 import           EulerHS.Core.SqlDB.Interpreter as X
+import           EulerHS.Core.KVDB.Interpreter as X

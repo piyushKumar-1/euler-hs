@@ -4,3 +4,4 @@ module EulerHS.Core.Language
 
 import EulerHS.Core.Logger.Language as X
 import EulerHS.Core.SqlDB.Language as X
+import EulerHS.Core.KVDB.Language as X

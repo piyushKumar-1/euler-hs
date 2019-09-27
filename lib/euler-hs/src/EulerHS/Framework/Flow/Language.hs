@@ -49,7 +49,7 @@ data FlowMethod next where
     -> (T.DBResult a -> next)
     -> FlowMethod next
 
-  RunKVDBEither :: KVDB.KVDB (Either KVDB.Reply a) -> (Either KVDB.Reply a -> next) -> FlowMethod next
+  RunKVDBEither :: KVDB (KVDBAnswer a) -> (KVDBAnswer a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
@@ -138,6 +138,12 @@ throwException ex = liftFC $ ThrowException ex id
 
 runKVDBEither :: KVDB (KVDBAnswer a) -> Flow (KVDBAnswer a)
 runKVDBEither act = liftFC $ RunKVDBEither act id
+
+setKV :: ByteString -> ByteString -> Flow (KVDBAnswer KVDB.Status)
+setKV key value = runKVDBEither $ KVDB.set key value
+
+getKV :: ByteString -> Flow (KVDBAnswer (Maybe ByteString))
+getKV key = runKVDBEither $ KVDB.get key
 
 -- TODO: port
 -- callAPI

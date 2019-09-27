@@ -3,7 +3,7 @@
 
 module EulerHS.Core.KVDB.Language ( module X, KVDB, KVDBAnswer, KVDBMethod(..)
                                        , set, get, exists, del, expire, incr, hset, hget
-                                       , publish, subscribe, unsubscribe, subHandle) where
+                                       , publish) where
 
 import           Database.Redis  as X (Message (..), PubSub, Reply (..),
                                        Status (..))
@@ -21,9 +21,9 @@ data KVDBMethod next where
   HSet :: ByteString -> ByteString -> ByteString -> (KVDBAnswer Bool -> next) -> KVDBMethod next
   HGet :: ByteString -> ByteString -> (KVDBAnswer (Maybe ByteString) -> next) -> KVDBMethod next
   Publish :: ByteString -> ByteString -> (KVDBAnswer Integer -> next) -> KVDBMethod next
-  Subscribe :: [ByteString] -> (X.PubSub -> next) -> KVDBMethod next
-  Unsubscribe :: [ByteString] -> (X.PubSub -> next) -> KVDBMethod next
-  SubHandle :: X.PubSub -> (X.Message -> IO X.PubSub) -> (() -> next) -> KVDBMethod next
+  -- Subscribe :: [ByteString] -> (X.PubSub -> next) -> KVDBMethod next
+  -- Unsubscribe :: [ByteString] -> (X.PubSub -> next) -> KVDBMethod next
+  -- SubHandle :: X.PubSub -> (X.Message -> IO X.PubSub) -> (() -> next) -> KVDBMethod next
 
 instance Functor KVDBMethod where
   fmap f (Set k value next)            = Set k value (f . next)
@@ -35,9 +35,9 @@ instance Functor KVDBMethod where
   fmap f (HSet k field value next)     = HSet k field value (f . next)
   fmap f (HGet k field next)           = HGet k field (f . next)
   fmap f (Publish chan msg next)       = Publish chan msg (f . next)
-  fmap f (Subscribe chan next)         = Subscribe chan (f . next)
-  fmap f (Unsubscribe chan next)       = Unsubscribe chan (f . next)
-  fmap f (SubHandle sub callback next) = SubHandle sub callback (f . next)
+  -- fmap f (Subscribe chan next)         = Subscribe chan (f . next)
+  -- fmap f (Unsubscribe chan next)       = Unsubscribe chan (f . next)
+  -- fmap f (SubHandle sub callback next) = SubHandle sub callback (f . next)
 
 type KVDB = F KVDBMethod
 
@@ -68,11 +68,11 @@ hget key field = liftFC $ HGet key field id
 publish :: ByteString -> ByteString -> KVDB (KVDBAnswer Integer)
 publish chan msg = liftFC $ Publish chan msg id
 
-subscribe :: [ByteString] -> KVDB X.PubSub
-subscribe chan = liftFC $ Subscribe chan id
-
-unsubscribe :: [ByteString] -> KVDB X.PubSub
-unsubscribe chan = liftFC $ Unsubscribe chan id
-
-subHandle :: X.PubSub -> (X.Message -> IO X.PubSub) -> KVDB ()
-subHandle sub callback = liftFC $ SubHandle sub callback id
+-- subscribe :: [ByteString] -> KVDB X.PubSub
+-- subscribe chan = liftFC $ Subscribe chan id
+--
+-- unsubscribe :: [ByteString] -> KVDB X.PubSub
+-- unsubscribe chan = liftFC $ Unsubscribe chan id
+--
+-- subHandle :: X.PubSub -> (X.Message -> IO X.PubSub) -> KVDB ()
+-- subHandle sub callback = liftFC $ SubHandle sub callback id

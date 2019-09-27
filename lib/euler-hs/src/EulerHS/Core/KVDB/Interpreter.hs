@@ -33,14 +33,14 @@ interpretKVDBMethod connection (L.HGet k field next) = do
 interpretKVDBMethod connection (L.Publish chan msg next) = do
   next <$> (RD.runRedis connection $ RD.publish chan msg)
 
-interpretKVDBMethod _ (L.Subscribe chan next) = do
-  next <$> (pure $ RD.subscribe chan)
-
-interpretKVDBMethod _ (L.Unsubscribe chan next) = do
-  next <$> (pure $ RD.unsubscribe chan)
-
-interpretKVDBMethod connection (L.SubHandle sub callback next) = do
-  next <$> (RD.runRedis connection $ RD.pubSub sub callback)
+-- interpretKVDBMethod _ (L.Subscribe chan next) = do
+--   next <$> (pure $ RD.subscribe chan)
+--
+-- interpretKVDBMethod _ (L.Unsubscribe chan next) = do
+--   next <$> (pure $ RD.unsubscribe chan)
+--
+-- interpretKVDBMethod connection (L.SubHandle sub callback next) = do
+--   next <$> (RD.runRedis connection $ RD.pubSub sub callback)
 
 runKVDB :: RD.Connection -> L.KVDB b -> IO b
 runKVDB conn = foldF (interpretKVDBMethod conn)

@@ -145,6 +145,27 @@ setKV key value = runKVDBEither $ KVDB.set key value
 getKV :: ByteString -> Flow (KVDBAnswer (Maybe ByteString))
 getKV key = runKVDBEither $ KVDB.get key
 
+existsKV :: ByteString -> Flow (KVDBAnswer Bool)
+existsKV key = runKVDBEither $ KVDB.exists key
+
+delKV :: [ByteString] -> Flow (KVDBAnswer Integer)
+delKV keys = runKVDBEither $ KVDB.del keys
+
+expireKV :: ByteString -> Integer -> Flow (KVDBAnswer Bool)
+expireKV key time = runKVDBEither $ KVDB.expire key time
+
+incrKV :: ByteString -> Flow (KVDBAnswer Integer)
+incrKV key = runKVDBEither $ KVDB.incr key
+
+hsetKV :: ByteString -> ByteString -> ByteString -> Flow (KVDBAnswer Bool)
+hsetKV key field value = runKVDBEither $ KVDB.hset key field value
+
+hgetKV :: ByteString -> ByteString -> Flow (KVDBAnswer (Maybe ByteString))
+hgetKV key field = runKVDBEither $ KVDB.hget key field
+
+publishKV :: ByteString -> ByteString -> Flow (KVDBAnswer Integer)
+publishKV chan msg = runKVDBEither $ KVDB.publish chan msg
+
 -- TODO: port
 -- callAPI
 --   :: forall st rt a b

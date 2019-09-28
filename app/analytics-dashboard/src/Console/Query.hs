@@ -14,7 +14,7 @@ ts = Timestamp $ UTCTime {
       }
 
 dummyResult :: QueryResult
-dummyResult = SingleResult $ QueryResultValue ts ts (IntValue 5)
+dummyResult = QueryResult [QueryResultRow ts ts [IntValue 5]]
 
   -- stub for runQuery which will eventually
   -- pick a query backend

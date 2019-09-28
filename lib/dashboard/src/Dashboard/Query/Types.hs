@@ -69,13 +69,16 @@ data Query =
   Query Selection TableName Interval Filter GroupBy
   deriving (Generic, Show, Eq)
 
-data QueryResultValue =
-  QueryResultValue Timestamp Timestamp Value
+data QueryResultRow =
+  QueryResultRow
+    { start   :: Timestamp
+    , end     :: Timestamp
+    , columns :: [Value]
+    }
   deriving (Generic, Show, Eq)
 
-data QueryResult
-  = SingleResult QueryResultValue
-  | MultipleResult [(String, QueryResult)]
+newtype QueryResult
+  = QueryResult [QueryResultRow]
   deriving (Generic, Show, Eq)
 
 data FieldType
@@ -144,9 +147,9 @@ instance FromJSON Query
 
 instance ToJSON Query
 
-instance ToJSON QueryResultValue
+instance ToJSON QueryResultRow
 
-instance FromJSON QueryResultValue
+instance FromJSON QueryResultRow
 
 instance ToJSON QueryResult
 

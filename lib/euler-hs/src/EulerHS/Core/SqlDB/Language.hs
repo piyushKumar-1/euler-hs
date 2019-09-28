@@ -12,25 +12,39 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import qualified Database.Beam.Schema.Tables as B
 
-import qualified Database.Beam.Postgres.Syntax as BP
+-- import qualified Database.Beam.Postgres.Syntax as BP
+-- import qualified Database.Beam.Postgres as BP
 
 import qualified Database.Beam.Sqlite.Syntax as BS
+import qualified Database.Beam.Sqlite as BS
+
+type DBEntity db table =
+  B.DatabaseEntity BS.Sqlite db (B.TableEntity table)
+
+type DBTable db table =
+  ( B.Table table
+  , B.Database BS.Sqlite db
+  , B.FieldsFulfillConstraint (B.HasSqlValueSyntax BS.SqliteValueSyntax) table
+  , B.FromBackendRow BS.Sqlite (table Identity)
+  )
 
 data SqlDBAction next where
   RawQuery :: String -> (a -> next) -> SqlDBAction next
 
   Create
-    ::
-      ( B.Beamable table
-      , B.FieldsFulfillConstraint (B.HasSqlValueSyntax BP.PgValueSyntax) table
-      , B.FieldsFulfillConstraint (B.HasSqlValueSyntax BS.SqliteValueSyntax) table
-      )
-    => (forall be . B.DatabaseEntity be db (B.TableEntity table))
+    :: DBTable db table
+    => DBEntity db table
     -> [table Identity]
-    -> (T.DBResult () -> next)
+    -> (() -> next)
     -> SqlDBAction next
 
-  -- FindOne :: (() -> next) -> SqlDBAction next
+  FindOne
+    :: DBTable db table
+    => DBEntity db table
+    -> (Maybe (table Identity) -> next)
+    -- -> B.Q _ _ _ _
+    -> SqlDBAction next
+
   -- FindAll :: (() -> next) -> SqlDBAction next
   -- FindOrCreate :: (() -> next) -> SqlDBAction next
   -- Query :: (() -> next) -> SqlDBAction next
@@ -42,7 +56,8 @@ instance Functor SqlDBAction where
 
   fmap f (Create ent rows next) = Create ent rows (f . next)
 
-  -- fmap f (FindOne next) = FindOne (f . next)
+  fmap f (FindOne ent next) = FindOne ent (f . next)
+
   -- fmap f (FindAll next) = FindAll (f . next)
   -- fmap f (FindOrCreate next) = FindOrCreate (f . next)
   -- fmap f (Query next) = Query (f . next)
@@ -55,12 +70,17 @@ rawQuery' :: String -> SqlDB a
 rawQuery' q = liftFC $ RawQuery q id
 
 create
-  ::
-    ( B.Beamable table
-    , B.FieldsFulfillConstraint (B.HasSqlValueSyntax BP.PgValueSyntax) table
-    , B.FieldsFulfillConstraint (B.HasSqlValueSyntax BS.SqliteValueSyntax) table
-    )
-  => (forall be . B.DatabaseEntity be db (B.TableEntity table))
+  :: DBTable db table
+  => DBEntity db table
   -> [table Identity]
-  -> SqlDB (T.DBResult ())
+  -> SqlDB ()
 create ent rows = liftFC $ Create ent rows id
+
+findOne
+  :: DBTable db table
+  => DBEntity db table
+  -> SqlDB (Maybe (table Identity))
+findOne ent = liftFC $ FindOne ent id
+
+
+

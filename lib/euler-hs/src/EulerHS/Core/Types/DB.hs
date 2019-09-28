@@ -5,7 +5,7 @@ module EulerHS.Core.Types.DB where
 import EulerHS.Prelude
 
 import qualified Database.SQLite.Simple as SQLite
-import qualified Database.Beam.Postgres as BP
+-- import qualified Database.Beam.Postgres as BP
 
 -- import qualified Data.Aeson as A
 -- import qualified Data.Aeson.Types as A
@@ -19,7 +19,7 @@ data MockedKVDBConn = MockedKVDBConn String
 data SqlConn
   = MockedSql MockedSqlConn
   | SQLiteConn SQLite.Connection
-  | PostgresConn BP.Connection
+  -- | PostgresConn BP.Connection
 
 
 data KVDBConn
@@ -28,23 +28,21 @@ data KVDBConn
 
 type DBName = String
 
-instance Ord BP.ConnectInfo where
+-- data ConnectInfo
+--   = ConnectInfo
+--     { connectHost :: String
+--     , connectPort :: Word16
+--     , connectUser :: String
+--     , connectPassword :: String
+--     , connectDatabase :: String
+--     } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data ConnectInfo
-  = ConnectInfo
-    { connectHost :: String
-    , connectPort :: Word16
-    , connectUser :: String
-    , connectPassword :: String
-    , connectDatabase :: String
-    } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-toBeamPostgresConnectInfo :: ConnectInfo -> BP.ConnectInfo
-toBeamPostgresConnectInfo (ConnectInfo {..}) = BP.ConnectInfo {..}
+-- toBeamPostgresConnectInfo :: ConnectInfo -> BP.ConnectInfo
+-- toBeamPostgresConnectInfo (ConnectInfo {..}) = BP.ConnectInfo {..}
 
 data DBConfig
   = SQLiteConfig DBName
-  | PostgresConfig ConnectInfo
+  -- | PostgresConfig ConnectInfo
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- TODO: more informative typed error.

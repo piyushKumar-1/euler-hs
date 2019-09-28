@@ -32,7 +32,7 @@ printIntervalSelection (Interval _ _ step intervalField) =
       "UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " ++ intervalField ++ "))" ++
       " - " ++
       "MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " ++ intervalField ++ ")), " ++
-           show duration ++ ")" ++
+           show (duration `quot` 1000) ++ ")" ++
       " AS " ++ timeStampField ++
       ", "
 

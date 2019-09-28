@@ -18,6 +18,7 @@ validateQuery qc q =
               [ validateSelectFields qc q
               , validateFilterFields qc q
               , validateGroupByFields qc q
+              , validateIntervalField qc q
               ]
       in if null validationResults
            then Right ()
@@ -57,6 +58,7 @@ validateFilterFields queryConfig (Query _ table _ (Filter filters) _) =
     FilterFieldError
     "Invalid filter field name"
 
+-- FIXME: Should validate that a GroupBy field has been selected
 validateGroupByFields :: QueryConfiguration -> Query -> [QueryValidationError]
 validateGroupByFields queryConfig (Query _ table _ _ (GroupBy groupByFields)) =
   validateFields
@@ -65,6 +67,10 @@ validateGroupByFields queryConfig (Query _ table _ _ (GroupBy groupByFields)) =
     groupByFields
     GroupByFieldError
     "Invalid group-by field name"
+
+validateIntervalField :: QueryConfiguration -> Query -> [QueryValidationError]
+validateIntervalField queryConfig (Query _ table (Interval _ _ _ intervalField) _ _) =
+  validateFields queryConfig table [intervalField] IntervalFieldError "Invalid interval field name"
 
 validateFields ::
      QueryConfiguration

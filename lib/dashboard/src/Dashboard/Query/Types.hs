@@ -42,8 +42,9 @@ newtype Milliseconds =
 data Interval =
   Interval
     { start :: Timestamp
-    , stop :: Timestamp
-    , step :: Maybe Milliseconds
+    , stop  :: Timestamp
+    , step  :: Maybe Milliseconds
+    , field :: FieldName
     }
   deriving (Generic, Show, Eq)
 
@@ -97,6 +98,7 @@ data QueryErrorType
   | SelectFieldError FieldName
   | FilterFieldError FieldName
   | GroupByFieldError FieldName
+  | IntervalFieldError FieldName
   | FieldError FieldName
   deriving (Generic, Show, Eq)
 

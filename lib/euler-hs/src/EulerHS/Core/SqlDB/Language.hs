@@ -6,7 +6,7 @@ module EulerHS.Core.SqlDB.Language where
 
 import           EulerHS.Prelude
 
-import qualified EulerHS.Core.Types as T
+-- import qualified EulerHS.Core.Types as T
 
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
@@ -34,15 +34,19 @@ data SqlDBAction next where
   Create
     :: DBTable db table
     => DBEntity db table
-    -> [table Identity]
+    -> (forall s . [table (B.QExpr BS.Sqlite s)])
     -> (() -> next)
     -> SqlDBAction next
 
   FindOne
     :: DBTable db table
     => DBEntity db table
+    ->
+      ( forall s
+         . B.Q BS.Sqlite db s (table (B.QExpr BS.Sqlite s))
+        -> B.Q BS.Sqlite db s (table (B.QExpr BS.Sqlite s))
+      )
     -> (Maybe (table Identity) -> next)
-    -- -> B.Q _ _ _ _
     -> SqlDBAction next
 
   -- FindAll :: (() -> next) -> SqlDBAction next
@@ -56,7 +60,7 @@ instance Functor SqlDBAction where
 
   fmap f (Create ent rows next) = Create ent rows (f . next)
 
-  fmap f (FindOne ent next) = FindOne ent (f . next)
+  fmap f (FindOne ent q next) = FindOne ent q (f . next)
 
   -- fmap f (FindAll next) = FindAll (f . next)
   -- fmap f (FindOrCreate next) = FindOrCreate (f . next)
@@ -72,15 +76,20 @@ rawQuery' q = liftFC $ RawQuery q id
 create
   :: DBTable db table
   => DBEntity db table
-  -> [table Identity]
+  -> (forall s . [table (B.QExpr BS.Sqlite s)])
   -> SqlDB ()
 create ent rows = liftFC $ Create ent rows id
 
 findOne
   :: DBTable db table
   => DBEntity db table
+  ->
+    ( forall s
+       . B.Q BS.Sqlite db s (table (B.QExpr BS.Sqlite s))
+      -> B.Q BS.Sqlite db s (table (B.QExpr BS.Sqlite s))
+    )
   -> SqlDB (Maybe (table Identity))
-findOne ent = liftFC $ FindOne ent id
+findOne ent q = liftFC $ FindOne ent q id
 
 
 

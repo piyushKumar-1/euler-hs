@@ -18,6 +18,8 @@ import qualified Database.Beam as B
 -- import qualified Database.Beam.Schema.Tables as B
 
 import qualified Database.Beam.Sqlite as BS
+-- import qualified Database.Beam.Sqlite.Syntax as BS
+
 
 -- import qualified Database.Beam.Postgres as BP
 
@@ -32,16 +34,16 @@ interpretSqlDBAction rt conn (L.Create ent rows next) =
     T.SQLiteConn connection ->
       ExceptT $ map (first $ T.DBError T.SomeError . show) $
         try @_ @SomeException $ BS.runBeamSqliteDebug putStrLn connection $
-          B.runInsert $ B.insert ent $ B.insertValues rows
+          B.runInsert $ B.insert ent $ B.insertExpressions rows
 
-interpretSqlDBAction rt conn (L.FindOne ent next) =
+interpretSqlDBAction rt conn (L.FindOne ent query next) =
   next <$> case conn of
     T.MockedSql _ -> error "not implemented MockedSql"
 
     T.SQLiteConn connection ->
       ExceptT $ map (first $ T.DBError T.SomeError . show) $
         try @_ @SomeException $ BS.runBeamSqliteDebug putStrLn connection $
-          B.runSelectReturningOne $ B.select $ B.limit_ 1 $ B.all_ ent
+          B.runSelectReturningOne $ B.select $ B.limit_ 1 $ query $ B.all_ ent
 
 
 runSqlDB :: R.CoreRuntime -> T.SqlConn -> L.SqlDB a -> ExceptT T.DBError IO a

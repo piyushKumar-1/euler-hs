@@ -94,7 +94,7 @@ library:
   # - -Werror
 
 tests:
-  tasty:
+  language:
     main: Main.hs
     source-dirs: test
     dependencies:
@@ -102,8 +102,6 @@ tests:
     - servant
     - servant-mock
     - servant-server
-    - tasty
-    - tasty-hunit
-    - tasty-quickcheck
     - warp
     - euler-hs
+    - hspec

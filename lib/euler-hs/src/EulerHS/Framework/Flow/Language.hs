@@ -9,7 +9,7 @@ import           EulerHS.Prelude
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB, KVDBAnswer)
+import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB, KVDBAnswer, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage)
 import qualified EulerHS.Framework.Types as T
 import qualified EulerHS.Core.KVDB.Language as KVDB
 
@@ -139,31 +139,31 @@ throwException ex = liftFC $ ThrowException ex id
 runKVDBEither :: KVDB (KVDBAnswer a) -> Flow (KVDBAnswer a)
 runKVDBEither act = liftFC $ RunKVDBEither act id
 
-setKV :: ByteString -> ByteString -> Flow (KVDBAnswer KVDB.Status)
+setKV :: KVDBKey -> KVDBValue -> Flow (KVDBAnswer KVDB.Status)
 setKV key value = runKVDBEither $ KVDB.set key value
 
-getKV :: ByteString -> Flow (KVDBAnswer (Maybe ByteString))
+getKV :: KVDBKey -> Flow (KVDBAnswer (Maybe ByteString))
 getKV key = runKVDBEither $ KVDB.get key
 
-existsKV :: ByteString -> Flow (KVDBAnswer Bool)
+existsKV :: KVDBKey -> Flow (KVDBAnswer Bool)
 existsKV key = runKVDBEither $ KVDB.exists key
 
-delKV :: [ByteString] -> Flow (KVDBAnswer Integer)
+delKV :: [KVDBKey] -> Flow (KVDBAnswer Integer)
 delKV keys = runKVDBEither $ KVDB.del keys
 
-expireKV :: ByteString -> Integer -> Flow (KVDBAnswer Bool)
+expireKV :: KVDBKey -> KVDBDuration -> Flow (KVDBAnswer Bool)
 expireKV key time = runKVDBEither $ KVDB.expire key time
 
-incrKV :: ByteString -> Flow (KVDBAnswer Integer)
+incrKV :: KVDBKey -> Flow (KVDBAnswer Integer)
 incrKV key = runKVDBEither $ KVDB.incr key
 
-hsetKV :: ByteString -> ByteString -> ByteString -> Flow (KVDBAnswer Bool)
+hsetKV :: KVDBKey -> KVDBField -> KVDBValue -> Flow (KVDBAnswer Bool)
 hsetKV key field value = runKVDBEither $ KVDB.hset key field value
 
-hgetKV :: ByteString -> ByteString -> Flow (KVDBAnswer (Maybe ByteString))
+hgetKV :: KVDBKey -> KVDBField -> Flow (KVDBAnswer (Maybe ByteString))
 hgetKV key field = runKVDBEither $ KVDB.hget key field
 
-publishKV :: ByteString -> ByteString -> Flow (KVDBAnswer Integer)
+publishKV :: KVDBChannel -> KVDBMessage -> Flow (KVDBAnswer Integer)
 publishKV chan msg = runKVDBEither $ KVDB.publish chan msg
 
 -- TODO: port

@@ -41,10 +41,11 @@ printSelection :: Selection -> Interval -> String
 printSelection (Selection selections) interval =
   "SELECT " ++
     printIntervalSelection interval ++ ", " ++
-    (intercalate "," . fmap printOneSelection $ selections)
+    (intercalate ", " . fmap printOneSelection $ selections)
 
   where
-    printOneSelection (sOp, sField) = show sOp ++ "(" ++ printSelectField sField ++ ")"
+    printOneSelection (Nothing, sField) = printSelectField sField
+    printOneSelection (Just op, sField) = show op ++ "(" ++ printSelectField sField ++ ")"
 
 printFrom :: String -> String
 printFrom table = "FROM " ++ table

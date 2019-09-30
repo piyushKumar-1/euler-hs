@@ -26,7 +26,7 @@ data SelectOp
   deriving (Generic, Show, Eq)
 
 newtype Selection =
-  Selection [(SelectOp, SelectField)]
+  Selection [(Maybe SelectOp, SelectField)]
   deriving (Generic, Show, Eq)
 
 newtype Timestamp =

@@ -34,7 +34,7 @@ validateSelectFields :: TableConfiguration -> Query -> [QueryValidationError]
 validateSelectFields tableConfig (Query (Selection selections) _ _ _ _) =
     lefts $ validateSelectField tableConfig <$> selections
 
-validateSelectField :: TableConfiguration->(SelectOp,SelectField)->Either QueryValidationError ()
+validateSelectField :: TableConfiguration -> (Maybe SelectOp, SelectField) -> Either QueryValidationError ()
 validateSelectField (TableConfiguration tableConfig) (op, Field fieldname) =
   case lookup fieldname tableConfig of
     Nothing -> Left $ QueryValidationError (SelectFieldNotFound fieldname) "Invalid field name"
@@ -42,12 +42,13 @@ validateSelectField (TableConfiguration tableConfig) (op, Field fieldname) =
 validateSelectField _ (_, All) =
   Right ()
 
-validateSelectOperation :: SelectOp -> FieldType -> Either QueryValidationError ()
+validateSelectOperation :: Maybe SelectOp -> FieldType -> Either QueryValidationError ()
 validateSelectOperation op fieldtype =
-  case (op,fieldtype) of
-    (SUM, StringType) -> Left $ QueryValidationError (SelectOperationNotValid op) "Invalid Operation"
-    (AVG, StringType) -> Left $ QueryValidationError (SelectOperationNotValid op) "Invalid Operation"
-    (_, _)            -> Right ()
+  case (op, fieldtype) of
+    (Nothing, _)           -> Right ()
+    (Just SUM, StringType) -> Left $ QueryValidationError (SelectOperationNotValid SUM) "Invalid Operation"
+    (Just AVG, StringType) -> Left $ QueryValidationError (SelectOperationNotValid AVG) "Invalid Operation"
+    (_, _)                 -> Right ()
 
 validateFilters :: TableConfiguration -> Query -> [QueryValidationError]
 validateFilters (TableConfiguration fieldData) (Query _ _ _ (Filter filters) _) =

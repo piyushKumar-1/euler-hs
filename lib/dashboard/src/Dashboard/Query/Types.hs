@@ -34,7 +34,7 @@ newtype Timestamp =
   deriving (Generic, Show, Eq)
 
 newtype Milliseconds =
-  Milliseconds Int64
+  Milliseconds { toInt64 :: Int64 }
   deriving (Generic, Show, Eq)
 
 data Interval =
@@ -66,7 +66,13 @@ newtype GroupBy =
   deriving (Generic, Show, Eq)
 
 data Query =
-  Query Selection TableName Interval Filter GroupBy
+  Query
+    { selection :: Selection
+    , table     :: TableName
+    , interval  :: Interval
+    , filter    :: Filter
+    , groupBy   :: GroupBy
+    }
   deriving (Generic, Show, Eq)
 
 data QueryResultRow =

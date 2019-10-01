@@ -48,7 +48,7 @@ printSelection (Selection selections) interval =
     printOneSelection (Just op, sField) = show op ++ "(" ++ printSelectField sField ++ ")"
 
 printFrom :: String -> String
-printFrom table = "FROM " ++ table
+printFrom table = "FROM `" ++ table ++ "`"
 
 printIntervalFilter :: Interval -> String
 printIntervalFilter (Interval (Timestamp start) (Timestamp end) _ field) =

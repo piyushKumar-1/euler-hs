@@ -59,4 +59,4 @@ specs = describe "Query API" $ do
       -- FIXME: Use hspec-wai and check for a 400 here and responseBody
       it "should return a failure when an incorrect query is given" $ do
         result <- runClientM (queryClient incorrectQuery) clientEnv
-        result `shouldNotBe` Right dummyResult
+        result `shouldSatisfy` isLeft

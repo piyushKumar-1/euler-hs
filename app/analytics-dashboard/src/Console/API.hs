@@ -40,7 +40,7 @@ queryHandler q =
   where
     toServerError :: [QueryValidationError] -> ServerError
     toServerError validationErrors =
-      let queryError = B.pack . concatMap showQueryValidationError $ validationErrors
+      let queryError = B.pack . intercalate ", " $ showQueryValidationError <$> validationErrors
       in err400 {errBody = queryError}
 
 server :: Server QueryAPI

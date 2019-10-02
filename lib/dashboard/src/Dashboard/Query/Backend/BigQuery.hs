@@ -35,7 +35,7 @@ newBigQueryBackend project = do
 
 instance QueryBackend BigQueryBackend where
   runQuery (BigQueryBackend project env) queryConf query = do
-    let sql       = T.pack . printSQL $ query
+    let sql       = printSQL query
     let bqRequest = BQT.queryRequest
                       & (BQT.qrQuery ?~ sql)
                       . (BQT.qrUseLegacySQL .~ False)

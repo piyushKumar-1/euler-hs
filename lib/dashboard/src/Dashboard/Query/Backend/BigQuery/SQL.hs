@@ -1,95 +1,99 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Dashboard.Query.Backend.BigQuery.SQL
   ( printSQL
   ) where
 
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Fmt ((+|), (|+))
+import qualified Fmt
 import Universum hiding (All, filter, group)
 
 import Dashboard.Query.Types
 
-timeStampField :: String
+timeStampField :: Fmt.Builder
 timeStampField = "ts"
 
 toPOSIXSeconds :: UTCTime -> Int64
 toPOSIXSeconds t = round $ utcTimeToPOSIXSeconds t
 
-printSelectField :: SelectField -> String
-printSelectField s =
-  case s of
+fmtSelectField :: SelectField -> Fmt.Builder
+fmtSelectField s =
+  Fmt.build $ case s of
        All        -> "*"
        (Field sf) -> sf
 
 -- Includes a trailing comma assuming if there's an interval, we have other
 -- select fields as well
 -- (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)), 15)) AS ts
-printIntervalSelection :: Interval -> String
-printIntervalSelection (Interval _ _ step intervalField) =
-  maybeToMonoid . fmap print' $ step
+fmtIntervalSelection :: Interval -> Fmt.Builder
+fmtIntervalSelection (Interval _ _ step intervalField) =
+  Fmt.maybeF . fmap fmt' $ step
 
   where
-    print' (Milliseconds duration) =
-      "UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " ++ intervalField ++ "))" ++
-      " - " ++
-      "MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " ++ intervalField ++ ")), " ++
-           show (duration `quot` 1000) ++ ")" ++
-      " AS " ++ timeStampField
+    fmt' :: Milliseconds -> Fmt.Builder
+    fmt' (Milliseconds duration) =
+      "UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " +| intervalField ++ "))" |+
+        " - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " +| intervalField |+ ")), " +|
+           (duration `quot` 1000) |+ ") AS " <> timeStampField
 
--- FIXME: Will need to use ROUND over aggregate functions if DB fields are float.
--- Likewise will need to parse an Int out of DB field if they are strings
-printSelection :: Selection -> Interval -> String
-printSelection (Selection selections) interval =
-  "SELECT " ++
-    printIntervalSelection interval ++ ", " ++
-    (intercalate ", " . fmap printOneSelection $ selections)
+fmtSelection :: Selection -> Interval -> Fmt.Builder
+fmtSelection (Selection selections) interval =
+  "SELECT " +| fmtIntervalSelection interval |+
+    ", " +| fmtCommaSepSelections selections
 
   where
-    printOneSelection (Nothing, sField) = printSelectField sField
-    printOneSelection (Just op, sField) = show op ++ "(" ++ printSelectField sField ++ ")"
+    fmtCommaSepSelections = mconcat . intersperse ", " . fmap fmtOneSelection
 
-printFrom :: String -> String
-printFrom table = "FROM `" ++ table ++ "`"
+    fmtOneSelection :: (Maybe SelectOp, SelectField) -> Fmt.Builder
+    fmtOneSelection (Nothing, sField) = fmtSelectField sField
+    fmtOneSelection (Just op, sField) =
+      fmtSelectOp op <> "(" +| fmtSelectField sField |+ ")"
 
-printIntervalFilter :: Interval -> String
-printIntervalFilter (Interval (Timestamp start) (Timestamp end) _ field) =
+    fmtSelectOp op =
+      case op of
+           SUM   -> "SUM"
+           COUNT -> "COUNT"
+           AVG   -> "AVG"
+
+fmtFrom :: String -> Fmt.Builder
+fmtFrom table = "FROM `" +| table |+ "`"
+
+fmtIntervalFilter :: Interval -> Fmt.Builder
+fmtIntervalFilter (Interval (Timestamp start) (Timestamp end) _ field) =
   -- UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)) BETWEEN 1569456045 AND 1569457470
-  "(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " ++ field ++ ")) " ++
-  "BETWEEN " ++ show (toPOSIXSeconds start) ++ " AND " ++ show (toPOSIXSeconds end) ++ ")"
+  "(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " +| field |+
+    ")) BETWEEN " +| toPOSIXSeconds start |+ " AND " +| toPOSIXSeconds end |+ ")"
 
-printValue :: Value -> String
-printValue value =
+fmtValue :: Value -> Fmt.Builder
+fmtValue value =
   case value of
-    StringValue filterVal -> "\"" ++ filterVal ++ "\""
-    IntValue filterVal    -> show filterVal
-    FloatValue filterVal  -> show filterVal
+       StringValue filterVal -> "\"" +| filterVal |+ "\""
+       IntValue filterVal    -> Fmt.build filterVal
+       FloatValue filterVal  -> Fmt.build filterVal
 
-printFilterOp :: FilterOp -> String
-printFilterOp EQUALS = "="
+fmtFilterOp :: FilterOp -> Fmt.Builder
+fmtFilterOp EQUALS = "="
 
-printFilter :: Interval -> Filter -> String
-printFilter interval (Filter fs) =
-  "WHERE " ++
-  printIntervalFilter interval ++
-  concatMap
+fmtFilter :: Interval -> Filter -> Fmt.Builder
+fmtFilter interval (Filter fs) =
+  "WHERE " +| fmtIntervalFilter interval |+
+  foldMap
     (\(filterField, filterOp, filterValue) ->
-       " AND " ++
-       filterField ++ " " ++ printFilterOp filterOp ++ " " ++ printValue filterValue)
+       " AND " +| filterField |+ " " +| fmtFilterOp filterOp |+ " " +| fmtValue filterValue)
     fs
 
-printGroup :: GroupBy -> Maybe Milliseconds -> String
-printGroup (GroupBy gs) step =
-  let timeField = if isJust step then timeStampField else ""
+fmtGroup :: GroupBy -> Maybe Milliseconds -> Fmt.Builder
+fmtGroup (GroupBy gs) step =
+  let timeField = fmap (const timeStampField) step
   in
-    "GROUP BY " ++ intercalate ", " (gs ++ [timeField])
+    "GROUP BY " <> (mconcat . intersperse ", " $ fmap Fmt.build gs <> maybeToList timeField)
 
 -- FIXME: Return Text instead of String?
-printSQL :: Query -> String
+printSQL :: Query -> Text
 printSQL (Query selection table interval filter group) =
-  printSelection selection interval ++
-  " " ++
-  printFrom table ++
-  " " ++
-  printFilter interval filter ++
-  " " ++
-  printGroup group (step interval) ++
+  fmtSelection selection interval |+
+  " " +| fmtFrom table |+
+  " " +| fmtFilter interval filter |+
+  " " +| fmtGroup group (step interval) |+
   ";"

@@ -25,15 +25,6 @@ import GHC.Generics
 import EulerHS.TestData.Types.Interpreters.TestInterpreter
 
 
--- takeMockedVal ::forall (x :: Symbol) a.  Proxy x -> MockedValues -> IO a
--- takeMockedVal _ mmv = do
---   mv <- takeMVar mmv
---   (v,t) <- case (getField @x mv) of
---     [] -> error "empty MockedValues "
---     (x:xs) -> pure (x,xs)
---   putMVar mmv $ setField @x t mv
---   pure v
-
 runFlowWithTestInterpreter :: MockedValues -> R.FlowRuntime -> L.Flow a -> IO a
 runFlowWithTestInterpreter mv flowRt = foldF (interpretFlowMethod mv flowRt)
 

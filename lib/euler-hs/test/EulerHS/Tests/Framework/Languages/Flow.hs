@@ -48,19 +48,16 @@ flow = do
 
           it "Simple request (book)" $ \rt -> do
             let url = BaseUrl Http "localhost" port ""
-            bookEither <- runFlow rt $
-              callServantAPI url getBook
+            bookEither <- runFlow rt $ callServantAPI url getBook
             bookEither `shouldSatisfy` isRight
 
           it "Simple request (user)" $ \rt -> do
             let url = BaseUrl Http "localhost" port ""
-            userEither <- runFlow rt $
-              callServantAPI url getUser
+            userEither <- runFlow rt $ callServantAPI url getUser
             userEither `shouldSatisfy` isRight
 
       it "RunIO" $ \rt -> do
-        result <- runFlow rt $ do
-          runIO (pure ("hi" :: String))
+        result <- runFlow rt $ runIO (pure ("hi" :: String))
         result `shouldBe` "hi"
 
       it "Options Set Get" $ \rt -> do
@@ -70,13 +67,11 @@ flow = do
         result `shouldBe` (Just "lore ipsum")
 
       it "RunSysCmd" $ \rt -> do
-        result <- runFlow rt $ do
-          runSysCmd "echo test"
+        result <- runFlow rt $ runSysCmd "echo test"
         result `shouldBe` "test\n"
 
       it "GenerateGUID" $ \rt -> do
-        guid <- runFlow rt $ do
-          generateGUID
+        guid <- runFlow rt generateGUID
         let maybeGUID = UUID.fromText guid
         maybeGUID `shouldSatisfy` isJust
 

@@ -12,6 +12,8 @@ import           System.Process (shell, readCreateProcess)
 
 import qualified Database.SQLite.Simple as SQLite
 import qualified Database.Beam.Sqlite as BS
+import           EulerHS.Core.Types.KVDB
+import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Interpreters as R
 import qualified EulerHS.Framework.Runtime as R
@@ -100,10 +102,15 @@ interpretFlowMethod R.FlowRuntime {..} (L.RunKVDBEither act next) = do
   next <$> run
     where
       run = do
-        conn <- takeMVar _kvConnections
-        res <- R.runKVDB conn act
-        putMVar _kvConnections conn
-        pure res
+        conns <- readMVar _connections
+        let conn = Map.lookup "redis" conns
+        case conn of
+          Just (R.Redis a) -> do
+            res <- try (R.runKVDB a act)
+            case res of
+              Left err -> pure $ Left (ExceptionMessage (fromString $ (displayException :: RD.ConnectionLostException -> String) err))
+              Right resp -> pure resp
+          _ -> pure $ Left $ ExceptionMessage "No such key"
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()
 forkF rt flow = void $ forkIO $ void $ runFlow rt flow

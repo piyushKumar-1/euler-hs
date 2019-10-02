@@ -7,11 +7,11 @@ module EulerHS.Core.KVDB.Language ( module X, KVDB, KVDBAnswer, KVDBMethod(..)
                                        , set, get, exists, del, expire, incr, hset, hget
                                        , publish) where
 
-import           Database.Redis  as X (Message (..), PubSub, Reply (..),
-                                       Status (..))
+import           Database.Redis  as X (Message (..), PubSub, Status (..))
 import           EulerHS.Prelude hiding (get)
+import           EulerHS.Core.Types.KVDB
 
-type KVDBAnswer res = Either X.Reply res
+type KVDBAnswer res = Either KVDBReply res
 
 type KVDBKey = ByteString
 type KVDBValue = ByteString

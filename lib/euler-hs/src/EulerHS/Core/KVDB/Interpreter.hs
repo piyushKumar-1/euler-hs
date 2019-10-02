@@ -2,36 +2,37 @@ module EulerHS.Core.KVDB.Interpreter where
 
 import qualified Database.Redis             as RD
 import qualified EulerHS.Core.KVDB.Language as L
+import           EulerHS.Core.Types.KVDB
 import           EulerHS.Prelude
 
 interpretKVDBMethod :: RD.Connection -> L.KVDBMethod b -> IO b
 
 interpretKVDBMethod connection (L.Set k v next) = do
-  next <$> (RD.runRedis connection $ RD.set k v)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.set k v))
 
 interpretKVDBMethod connection (L.Get k next) = do
-  next <$> (RD.runRedis connection $ RD.get k)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.get k))
 
 interpretKVDBMethod connection (L.Exists k next) = do
-  next <$> (RD.runRedis connection $ RD.exists k)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.exists k))
 
 interpretKVDBMethod connection (L.Del ks next) = do
-  next <$> (RD.runRedis connection $ RD.del ks)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.del ks))
 
 interpretKVDBMethod connection (L.Expire k sec next) = do
-  next <$> (RD.runRedis connection $ RD.expire k sec)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.expire k sec))
 
 interpretKVDBMethod connection (L.Incr k next) = do
-  next <$> (RD.runRedis connection $ RD.incr k)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.incr k))
 
 interpretKVDBMethod connection (L.HSet k field value next) = do
-  next <$> (RD.runRedis connection $ RD.hset k field value)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.hset k field value))
 
 interpretKVDBMethod connection (L.HGet k field next) = do
-  next <$> (RD.runRedis connection $ RD.hget k field)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.hget k field))
 
 interpretKVDBMethod connection (L.Publish chan msg next) = do
-  next <$> (RD.runRedis connection $ RD.publish chan msg)
+  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.publish chan msg))
 
 -- interpretKVDBMethod _ (L.Subscribe chan next) = do
 --   next <$> (pure $ RD.subscribe chan)

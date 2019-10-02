@@ -1,27 +1,48 @@
-module EulerHS.Tests.Framework.Languages.Flow (flow) where
+module EulerHS.Tests.Framework.FlowSpec where
 
 import           EulerHS.Prelude   hiding (getOption)
 import           Test.Hspec        hiding (runIO)
 import           Network.Wai.Handler.Warp (run)
-
-
+import           Data.Aeson               (encode)
+import qualified Data.ByteString.Lazy as BSL
+import           Unsafe.Coerce
 
 import qualified Data.UUID                       as UUID (fromText)
 import qualified Control.Exception               as E
 import           Servant.Server
-import           Servant.Client (BaseUrl(..), Scheme(..))
+import           Servant.Client                  (BaseUrl(..), Scheme(..))
 
 import           EulerHS.Types
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import           EulerHS.Runtime
 
-import           EulerHS.Helpers
-import           EulerHS.Tests.Framework.FlowRuntime
-import           EulerHS.TestData
+import           EulerHS.TestData.Types
+import           EulerHS.TestData.API.Client
+import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
 
-import EulerHS.TestData.Scenarios.Scenario1 (testScenario1, scenario1MockedValues)
-import EulerHS.Tests.Framework.Interpreters.TestInterpreter (runFlowWithTestInterpreter)
+import           EulerHS.Testing.Types (MockedValues'(..), MockedValues)
+import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
+import           EulerHS.Testing.Flow.Runtime (initDefaultFlowRt)
+
+user :: Any
+user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
+
+localGUID :: Any
+localGUID = unsafeCoerce "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+
+lhost :: BSL.ByteString
+lhost = encode ("localhost" :: String)
+
+
+scenario1MockedValues :: MockedValues'
+scenario1MockedValues = MockedValues'
+  { mockedCallServantAPI = [user]
+  , mockedRunIO = [localGUID]
+  , mockedGetOption = [lhost]
+  , mockedGenerateGUID = ["00000000-0000-0000-0000-000000000000"]
+  , mockedRunSysCmd = ["Neo"]
+  }
 
 
 withDefaultFlowRt :: (FlowRuntime -> IO ()) -> IO ()
@@ -30,12 +51,12 @@ withDefaultFlowRt = bracket initDefaultFlowRt (const (pure ()))
 runServer :: IO ()
 runServer = void $ forkIO $ run port (serve api server)
 
-flow :: Spec
-flow = do
+spec :: Spec
+spec = do
   around withDefaultFlowRt $ do
 
     describe "EulerHS flow language tests" $ do
-      
+
       describe "TestInterpreters" $ do
 
         it "testScenario1" $ \rt -> do

@@ -1,4 +1,4 @@
-module EulerHS.Tests.Framework.FlowRuntime where
+module EulerHS.Testing.Flow.Runtime where
 
 import           EulerHS.Prelude
 import           EulerHS.Runtime

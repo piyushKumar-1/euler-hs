@@ -1,16 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
-module EulerHS.TestData.Types.Framework.Flow where
+module EulerHS.TestData.Types where
 
 import           EulerHS.Prelude
 import           EulerHS.Types
 
 import           Test.QuickCheck.Arbitrary
-import           Servant.API
-import           Servant.Client (BaseUrl)
 
-
-type API = "user" :> Get '[JSON] User
-      :<|> "book" :> Get '[JSON] Book
 
 data UrlKey = UrlKey
   deriving (Generic, Show, Eq, ToJSON, FromJSON )

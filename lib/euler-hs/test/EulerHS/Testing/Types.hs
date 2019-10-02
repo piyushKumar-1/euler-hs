@@ -1,9 +1,9 @@
-module EulerHS.TestData.Types.Interpreters.TestInterpreter where
+module EulerHS.Testing.Types where
 
 import EulerHS.Prelude
 import qualified Data.ByteString.Lazy as BSL
 
-data MockedValues' = MockedValues 
+data MockedValues' = MockedValues'
   { mockedCallServantAPI :: [Any]
   , mockedRunIO :: [Any]
   , mockedGetOption :: [BSL.ByteString]

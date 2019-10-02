@@ -1,4 +1,4 @@
-module EulerHS.TestData.Framework.Flow where
+module EulerHS.TestData.API.Client where
 
 import           EulerHS.Prelude
 
@@ -6,8 +6,13 @@ import           Servant.API
 import           Servant.Client (ClientM, client)
 import           Servant.Mock (mock)
 import           Servant.Server (Server)
+import           Servant.API
 
-import EulerHS.TestData.Types.Framework.Flow
+import EulerHS.TestData.Types
+
+
+type API = "user" :> Get '[JSON] User
+      :<|> "book" :> Get '[JSON] Book
 
 
 port :: Int

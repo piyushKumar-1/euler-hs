@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications          #-}
 
 
-module EulerHS.Tests.Framework.Interpreters.TestInterpreter where
+module EulerHS.Testing.Flow.Interpreter where
 
 import           EulerHS.Prelude -- hiding (view, (^.))
 import           Data.Aeson                      (encode, decode)
@@ -16,14 +16,12 @@ import qualified EulerHS.Language as L
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
 
-import EulerHS.TestData.Types.Framework.Flow
+import EulerHS.Testing.Types
 import Unsafe.Coerce
 
 import Control.Lens
 import Data.Generics.Product.Fields
 import GHC.Generics
-import EulerHS.TestData.Types.Interpreters.TestInterpreter
-
 
 runFlowWithTestInterpreter :: MockedValues -> R.FlowRuntime -> L.Flow a -> IO a
 runFlowWithTestInterpreter mv flowRt = foldF (interpretFlowMethod mv flowRt)
@@ -74,4 +72,3 @@ interpretFlowMethod mmv _ (L.RunSysCmd cmd next) = do
   next <$> (pure v)
 
 interpretFlowMethod mv _ _ = error "not yet supported."
-

@@ -2,35 +2,13 @@ module EulerHS.TestData.Scenarios.Scenario1 where
 
 import           EulerHS.Prelude hiding (getOption)
 import           EulerHS.Language
+import           Servant.Client                  (BaseUrl(..), Scheme(..))
 
-import           EulerHS.TestData
-
-import           Servant.Client (BaseUrl(..), Scheme(..))
-import qualified Data.ByteString.Lazy as BSL
-import EulerHS.TestData.Types.Interpreters.TestInterpreter
-import Unsafe.Coerce
-import           Data.Aeson                      (encode)
+import           EulerHS.TestData.Types
+import           EulerHS.TestData.API.Client
 
 mkUrl :: String -> BaseUrl
 mkUrl host = BaseUrl Http host port ""
-
-user :: Any
-user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
-
-localGUID :: Any
-localGUID = unsafeCoerce "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
-
-lhost :: BSL.ByteString
-lhost = encode ("localhost" :: String)
-
-scenario1MockedValues :: MockedValues'
-scenario1MockedValues = MockedValues
-  { mockedCallServantAPI = [user]
-  , mockedRunIO = [localGUID]
-  , mockedGetOption = [lhost]
-  , mockedGenerateGUID = ["00000000-0000-0000-0000-000000000000"]
-  , mockedRunSysCmd = ["Neo"]
-  }
 
 testScenario1 :: Flow User
 testScenario1 = do

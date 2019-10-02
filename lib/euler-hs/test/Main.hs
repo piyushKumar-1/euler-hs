@@ -1,9 +1,7 @@
 module Main where
 
-import           EulerHS.Prelude
-
 import           Test.Hspec
 
-import qualified EulerHS.Tests.Framework.Languages as Framework
+import qualified EulerHS.Tests.Framework.FlowSpec as Framework
 
-main = hspec Framework.flow
+main = hspec Framework.spec

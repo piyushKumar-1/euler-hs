@@ -20,7 +20,7 @@ import           EulerHS.Helpers
 import           EulerHS.Tests.Framework.FlowRuntime
 import           EulerHS.TestData
 
-import EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
+import EulerHS.TestData.Scenarios.Scenario1 (testScenario1, scenario1MockedValues)
 import EulerHS.Tests.Framework.Interpreters.TestInterpreter (runFlowWithTestInterpreter)
 
 
@@ -39,7 +39,8 @@ flow = do
       describe "TestInterpreters" $ do
 
         it "testScenario1" $ \rt -> do
-          res <- runFlowWithTestInterpreter rt testScenario1
+          mv <- newMVar scenario1MockedValues
+          res <- runFlowWithTestInterpreter mv rt testScenario1
           res `shouldBe` (User "John" "Snow" "00000000-0000-0000-0000-000000000000")
 
       beforeAll_ runServer $ do

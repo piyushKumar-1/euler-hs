@@ -4,3 +4,4 @@ module EulerHS.Core.Types
 
 import EulerHS.Core.Types.Logger as X
 import EulerHS.Core.Types.DB as X
+import EulerHS.Core.Types.KVDB as X

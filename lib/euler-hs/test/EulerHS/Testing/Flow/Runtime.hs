@@ -14,5 +14,6 @@ initDefaultFlowRt = do
   manager <- newMVar =<< newManager defaultManagerSettings
   options <- newMVar mempty
   lrt <- createVoidLoggerRuntime
-  conn <- newEmptyMVar
-  pure $ FlowRuntime lrt manager options conn
+  conn <- checkedConnect defaultConnectInfo
+  connPool <- newMVar (singleton "redis" $ Redis conn)
+  pure $ FlowRuntime lrt manager options connPool

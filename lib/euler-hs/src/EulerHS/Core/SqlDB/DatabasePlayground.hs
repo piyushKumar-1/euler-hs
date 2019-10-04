@@ -78,7 +78,7 @@ testDb = do
 
             -- Will cause UNIQUE constraint violation
 
-            -- B.runInsert $ B.insert (_users eulerDb) $
+            -- L.runInsert $ B.insert (_users eulerDb) $
             --     B.insertValues [User 1 "Eve" "Beon"]
 
             -- Select user John with Id = 1

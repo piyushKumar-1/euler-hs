@@ -18,6 +18,13 @@ import qualified EulerHS.Framework.Runtime as R
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
 
+executeWithLog :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO()
+executeWithLog log conn q = SQLite.execute_ conn q >> (log $ show q)
+
+beginTransaction    log conn = executeWithLog log conn "BEGIN TRANSACTION"
+commitTransaction   log conn = executeWithLog log conn "COMMIT TRANSACTION"
+rollbackTransaction log conn = executeWithLog log conn "ROLLBACK TRANSACTION"
+
 
 connect :: T.DBConfig -> IO (T.DBResult T.SqlConn)
 connect T.MockConfig  = pure $ Right $ T.MockedConn
@@ -78,8 +85,17 @@ interpretFlowMethod rt (L.RunDB conn dbm next) =
     T.MockedConn -> error "not implemented MockedSql"
 
     T.SQLiteConn connection ->
-      map (first $ T.DBError T.SomeError . show) $
-        try @_ @SomeException $ BS.runBeamSqliteDebug putStrLn connection $ R.runSqlDB dbm
+      let
+        begin    = beginTransaction      putStrLn connection
+        commit   = commitTransaction     putStrLn connection
+        rollback = rollbackTransaction   putStrLn connection
+        run      = BS.runBeamSqliteDebug putStrLn connection
+      in map (first $ T.DBError T.SomeError . show) $
+        try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+          res <- run $ R.runSqlDB dbm
+          commit
+          return res
+
 
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()

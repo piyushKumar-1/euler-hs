@@ -44,7 +44,7 @@ data FlowMethod next where
 
   RunDB
     :: T.SqlConn
-    -> SqlDB a
+    -> SqlDB T.DbBackend a
     -> (T.DBResult a -> next)
     -> FlowMethod next
 
@@ -116,7 +116,7 @@ runSysCmd cmd = liftFC $ RunSysCmd cmd id
 connect :: T.DBConfig -> Flow (T.DBResult T.SqlConn)
 connect cfg = liftFC $ Connect cfg id
 
-runDB :: T.SqlConn -> SqlDB a -> Flow (T.DBResult a)
+runDB :: T.SqlConn -> SqlDB T.DbBackend a -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct id
 
 forkFlow :: (ToJSON s, FromJSON s) => Text -> Flow s -> Flow ()

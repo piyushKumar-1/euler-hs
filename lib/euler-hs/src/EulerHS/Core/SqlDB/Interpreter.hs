@@ -7,11 +7,12 @@ module EulerHS.Core.SqlDB.Interpreter where
 import EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Core.Types as T
+-- import qualified EulerHS.Core.Types as T
 import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
 
 
-interpretSqlDBAction :: L.SqlDBAction a -> T.DbBackendM a
+interpretSqlDBAction :: (B.BeamSqlBackend be, B.MonadBeam be beM) => L.SqlDBAction be a -> beM a
 -- interpretSqlDBAction (L.RawQuery q next) =
 --   error "not implemented"
 
@@ -31,6 +32,6 @@ interpretSqlDBAction (L.RunDelete a next) =
   fmap next $ B.runDelete a
 
 
-runSqlDB :: L.SqlDB a -> T.DbBackendM a
+runSqlDB :: (B.BeamSqlBackend be, B.MonadBeam be beM) => L.SqlDB be a -> beM a
 runSqlDB = foldF interpretSqlDBAction
 

@@ -91,7 +91,7 @@ dependencies:
 
 library:
   source-dirs:
-    - src
+  - src
   ghc-options:
   - -Wall
   # - -Werror

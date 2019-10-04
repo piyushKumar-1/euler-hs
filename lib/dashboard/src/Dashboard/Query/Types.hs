@@ -50,7 +50,7 @@ data Interval =
 data Value
   = StringValue String
   | IntValue Int
-  | FloatValue Float
+  | FloatValue Double
   deriving (Generic, Show, Eq)
 
 data FilterOp =

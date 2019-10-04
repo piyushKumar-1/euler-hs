@@ -52,8 +52,9 @@ data Value
   | FloatValue Double
   deriving (Generic, Show, Eq)
 
-data FilterOp =
-  EQUALS
+data FilterOp
+  = EQUAL
+  | NOT_EQUAL
   deriving (Generic, Show, Eq)
 
 newtype Filter =

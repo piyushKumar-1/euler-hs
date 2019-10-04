@@ -73,7 +73,8 @@ fmtValue value =
        FloatValue filterVal  -> Fmt.build filterVal
 
 fmtFilterOp :: FilterOp -> Fmt.Builder
-fmtFilterOp EQUALS = "="
+fmtFilterOp EQUAL = "="
+fmtFilterOp NOT_EQUAL = "<>"
 
 fmtFilter :: Interval -> Filter -> Fmt.Builder
 fmtFilter interval (Filter fs) =

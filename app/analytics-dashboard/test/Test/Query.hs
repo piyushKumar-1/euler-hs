@@ -24,7 +24,7 @@ testQuery = QT.Query (QT.Selection [(Just QT.SUM, QT.Field "amount")])
                                   , step  = Just . QT.Milliseconds $ 5 * 60 * 1000
                                   , field = "order_last_modified"
                                   })
-                     (QT.Filter [("merchant_id", QT.EQUALS, QT.StringValue "com.swiggy")])
+                     (QT.Filter [("merchant_id", QT.EQUAL, QT.StringValue "com.swiggy")])
                      (QT.GroupBy ["gateway", "card_type"])
 
 testResultRow :: QT.QueryResultRow

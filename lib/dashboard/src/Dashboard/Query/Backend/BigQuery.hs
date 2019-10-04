@@ -59,7 +59,7 @@ toQueryResult queryConf query queryResponse = QT.QueryResult $ rowToResult <$> r
              -- from the query
              let startUtc = parseTimestamp t
                  start    = QT.Timestamp startUtc
-                 step     = fmap ((`quot` 1000) . QT.toInt64) . QT.step . QT.interval $ query
+                 step     = fmap ((`quot` 1000) . QT.unMs) . QT.step . QT.interval $ query
                  end      = case step of
                                  Just step' -> QT.Timestamp $ fromIntegral step' `addUTCTime` startUtc
                                  Nothing    -> QT.stop . QT.interval $ query

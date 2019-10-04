@@ -2,7 +2,6 @@
 
 module Dashboard.Query.Types where
 
-import Data.Int (Int64)
 import Data.Time.Clock
 
 import Data.Aeson.Types (FromJSON, ToJSON)
@@ -34,7 +33,7 @@ newtype Timestamp =
   deriving (Generic, Show, Eq)
 
 newtype Milliseconds =
-  Milliseconds { toInt64 :: Int64 }
+  Milliseconds { unMs :: Int }
   deriving (Generic, Show, Eq)
 
 data Interval =

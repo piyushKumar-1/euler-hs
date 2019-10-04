@@ -12,7 +12,6 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, SqlDB, logMessage')
 import qualified EulerHS.Framework.Types as T
 
-
 type Description = Text
 
 type ForkGUID = Text
@@ -43,7 +42,11 @@ data FlowMethod next where
 
   Connect :: T.DBConfig -> (T.DBResult T.SqlConn -> next) -> FlowMethod next
 
-  RunDB :: T.SqlConn -> SqlDB b -> (T.DBResult b -> next) -> FlowMethod next
+  RunDB
+    :: T.SqlConn
+    -> SqlDB a
+    -> (T.DBResult a -> next)
+    -> FlowMethod next
 
 
 instance Functor FlowMethod where

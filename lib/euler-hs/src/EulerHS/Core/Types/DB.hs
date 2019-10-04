@@ -1,20 +1,22 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
 module EulerHS.Core.Types.DB where
 
 import EulerHS.Prelude
 
 import qualified Database.SQLite.Simple as SQLite
+import qualified Database.Beam.Sqlite as BS
 -- import qualified Database.Beam.Postgres as BP
-
--- import qualified Data.Aeson as A
--- import qualified Data.Aeson.Types as A
 
 data MockedSqlConn  = MockedSqlConn String
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data MockedKVDBConn = MockedKVDBConn String
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+type DbBackend  = BS.Sqlite
+type DbBackendM = BS.SqliteM
 
 data SqlConn
   = MockedSql MockedSqlConn
@@ -27,18 +29,6 @@ data KVDBConn
   -- | Redis SimpleConn
 
 type DBName = String
-
--- data ConnectInfo
---   = ConnectInfo
---     { connectHost :: String
---     , connectPort :: Word16
---     , connectUser :: String
---     , connectPassword :: String
---     , connectDatabase :: String
---     } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- toBeamPostgresConnectInfo :: ConnectInfo -> BP.ConnectInfo
--- toBeamPostgresConnectInfo (ConnectInfo {..}) = BP.ConnectInfo {..}
 
 data DBConfig
   = SQLiteConfig DBName
@@ -56,6 +46,20 @@ data DBError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 type DBResult a = Either DBError a
+
+-- data ConnectInfo
+--   = ConnectInfo
+--     { connectHost :: String
+--     , connectPort :: Word16
+--     , connectUser :: String
+--     , connectPassword :: String
+--     , connectDatabase :: String
+--     } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- toBeamPostgresConnectInfo :: ConnectInfo -> BP.ConnectInfo
+-- toBeamPostgresConnectInfo (ConnectInfo {..}) = BP.ConnectInfo {..}
+
+--- OR
 
 -- newtype ConnectInfo' a
 --   = ConnectInfo' a

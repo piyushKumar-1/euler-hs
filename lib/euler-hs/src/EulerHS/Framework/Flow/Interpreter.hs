@@ -11,16 +11,12 @@ import qualified Servant.Client                  as S
 import           System.Process (shell, readCreateProcess)
 
 import qualified Database.SQLite.Simple as SQLite
--- import qualified Database.Beam.Postgres as BP
-
+import qualified Database.Beam.Sqlite as BS
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Interpreters as R
 import qualified EulerHS.Framework.Runtime as R
-
 import qualified EulerHS.Core.Types as T
-
 import qualified EulerHS.Framework.Language as L
--- import qualified EulerHS.Core.Language as L
 
 
 connect :: T.DBConfig -> IO (T.DBResult T.SqlConn)
@@ -74,8 +70,13 @@ interpretFlowMethod _ (L.ThrowException ex next) =
 interpretFlowMethod rt (L.Connect cfg next) =
   next <$> connect cfg
 
-interpretFlowMethod rt (L.RunDB conn dbAct next) =
-  map next $ runExceptT $ R.runSqlDB (R._coreRuntime rt) conn dbAct
+interpretFlowMethod rt (L.RunDB conn dbm next) =
+  next <$> case conn of
+    T.MockedSql _ -> error "not implemented MockedSql"
+
+    T.SQLiteConn connection ->
+      map (first $ T.DBError T.SomeError . show) $
+        try @_ @SomeException $ BS.runBeamSqliteDebug putStrLn connection $ R.runSqlDB dbm
 
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()

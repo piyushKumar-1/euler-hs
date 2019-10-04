@@ -9,8 +9,8 @@ import qualified Database.SQLite.Simple as SQLite
 import qualified Database.Beam.Sqlite as BS
 -- import qualified Database.Beam.Postgres as BP
 
-data MockedSqlConn  = MockedSqlConn String
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+-- data MockedSqlConn  = MockedSqlConn String
+--   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data MockedKVDBConn = MockedKVDBConn String
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
@@ -19,7 +19,7 @@ type DbBackend  = BS.Sqlite
 type DbBackendM = BS.SqliteM
 
 data SqlConn
-  = MockedSql MockedSqlConn
+  = MockedConn
   | SQLiteConn SQLite.Connection
   -- | PostgresConn BP.Connection
 
@@ -32,6 +32,7 @@ type DBName = String
 
 data DBConfig
   = SQLiteConfig DBName
+  | MockConfig
   -- | PostgresConfig ConnectInfo
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

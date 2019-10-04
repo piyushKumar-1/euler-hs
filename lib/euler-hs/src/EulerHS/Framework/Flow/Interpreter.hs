@@ -20,11 +20,14 @@ import qualified EulerHS.Framework.Language as L
 
 
 connect :: T.DBConfig -> IO (T.DBResult T.SqlConn)
+connect T.MockConfig  = pure $ Right $ T.MockedConn
+
 connect (T.SQLiteConfig dbName) = do
   eConn <- try $ SQLite.open dbName
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right $ T.SQLiteConn conn
+
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod _ (L.CallAPI _ next) = error "CallAPI not yet supported."
@@ -72,7 +75,7 @@ interpretFlowMethod rt (L.Connect cfg next) =
 
 interpretFlowMethod rt (L.RunDB conn dbm next) =
   next <$> case conn of
-    T.MockedSql _ -> error "not implemented MockedSql"
+    T.MockedConn -> error "not implemented MockedSql"
 
     T.SQLiteConn connection ->
       map (first $ T.DBError T.SomeError . show) $

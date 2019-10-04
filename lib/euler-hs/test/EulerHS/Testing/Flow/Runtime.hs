@@ -9,7 +9,9 @@ type FlowRtInitializer = IO FlowRuntime
 
 initDefaultFlowRt :: FlowRtInitializer
 initDefaultFlowRt = do
-  manager <- newMVar =<< newManager defaultManagerSettings
-  options <- newMVar mempty
-  lrt <- createVoidLoggerRuntime
-  pure $ FlowRuntime lrt manager options
+  manager       <- newMVar =<< newManager defaultManagerSettings
+  options       <- newMVar mempty
+  loggerRuntime <- createVoidLoggerRuntime
+  coreRuntime   <- createCoreRuntime loggerRuntime
+
+  pure $ FlowRuntime coreRuntime manager options

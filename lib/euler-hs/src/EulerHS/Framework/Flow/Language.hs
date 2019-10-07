@@ -49,7 +49,7 @@ data FlowMethod next where
     -> (T.DBResult a -> next)
     -> FlowMethod next
 
-  RunKVDBEither :: KVDB (KVDBAnswer a) -> (KVDBAnswer a -> next) -> FlowMethod next
+  RunKVDB :: KVDB a -> (KVDBAnswer a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
@@ -76,7 +76,7 @@ instance Functor FlowMethod where
 
   fmap f (RunDB conn dbAct next)              = RunDB conn dbAct (f . next)
 
-  fmap f (RunKVDBEither act next)             = RunKVDBEither act (f . next)
+  fmap f (RunKVDB act next)                   = RunKVDB act (f . next)
 
 type Flow = F FlowMethod
 
@@ -136,35 +136,35 @@ forkFlow description flow = do
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
-runKVDBEither :: KVDB (KVDBAnswer a) -> Flow (KVDBAnswer a)
-runKVDBEither act = liftFC $ RunKVDBEither act id
+runKVDB :: KVDB a -> Flow (KVDBAnswer a)
+runKVDB act = liftFC $ RunKVDB act id
 
-setKV :: KVDBKey -> KVDBValue -> Flow (KVDBAnswer KVDB.Status)
-setKV key value = runKVDBEither $ KVDB.set key value
+-- setKV :: KVDBKey -> KVDBValue -> Flow (KVDBAnswer KVDB.Status)
+-- setKV key value = runKVDBEither $ KVDB.set key value
 
-getKV :: KVDBKey -> Flow (KVDBAnswer (Maybe ByteString))
-getKV key = runKVDBEither $ KVDB.get key
+-- getKV :: KVDBKey -> Flow (KVDBAnswer (Maybe ByteString))
+-- getKV key = runKVDBEither $ KVDB.get key
 
-existsKV :: KVDBKey -> Flow (KVDBAnswer Bool)
-existsKV key = runKVDBEither $ KVDB.exists key
+-- existsKV :: KVDBKey -> Flow (KVDBAnswer Bool)
+-- existsKV key = runKVDBEither $ KVDB.exists key
 
-delKV :: [KVDBKey] -> Flow (KVDBAnswer Integer)
-delKV keys = runKVDBEither $ KVDB.del keys
+-- delKV :: [KVDBKey] -> Flow (KVDBAnswer Integer)
+-- delKV keys = runKVDBEither $ KVDB.del keys
 
-expireKV :: KVDBKey -> KVDBDuration -> Flow (KVDBAnswer Bool)
-expireKV key time = runKVDBEither $ KVDB.expire key time
+-- expireKV :: KVDBKey -> KVDBDuration -> Flow (KVDBAnswer Bool)
+-- expireKV key time = runKVDBEither $ KVDB.expire key time
 
-incrKV :: KVDBKey -> Flow (KVDBAnswer Integer)
-incrKV key = runKVDBEither $ KVDB.incr key
+-- incrKV :: KVDBKey -> Flow (KVDBAnswer Integer)
+-- incrKV key = runKVDBEither $ KVDB.incr key
 
-hsetKV :: KVDBKey -> KVDBField -> KVDBValue -> Flow (KVDBAnswer Bool)
-hsetKV key field value = runKVDBEither $ KVDB.hset key field value
+-- hsetKV :: KVDBKey -> KVDBField -> KVDBValue -> Flow (KVDBAnswer Bool)
+-- hsetKV key field value = runKVDBEither $ KVDB.hset key field value
 
-hgetKV :: KVDBKey -> KVDBField -> Flow (KVDBAnswer (Maybe ByteString))
-hgetKV key field = runKVDBEither $ KVDB.hget key field
+-- hgetKV :: KVDBKey -> KVDBField -> Flow (KVDBAnswer (Maybe ByteString))
+-- hgetKV key field = runKVDBEither $ KVDB.hget key field
 
-publishKV :: KVDBChannel -> KVDBMessage -> Flow (KVDBAnswer Integer)
-publishKV chan msg = runKVDBEither $ KVDB.publish chan msg
+-- publishKV :: KVDBChannel -> KVDBMessage -> Flow (KVDBAnswer Integer)
+-- publishKV chan msg = runKVDBEither $ KVDB.publish chan msg
 
 -- TODO: port
 -- callAPI

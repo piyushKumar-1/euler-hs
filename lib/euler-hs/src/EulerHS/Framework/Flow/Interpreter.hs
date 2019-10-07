@@ -98,19 +98,12 @@ interpretFlowMethod rt (L.RunDB conn dbm next) =
           commit
           return res
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunKVDBEither act next) = do
-  next <$> run
-    where
-      run = do
-        conns <- readMVar _connections
-        let conn = Map.lookup "redis" conns
-        case conn of
-          Just (R.Redis a) -> do
-            res <- try (R.runKVDB a act)
-            case res of
-              Left err -> pure $ Left (ExceptionMessage (fromString $ (displayException :: RD.ConnectionLostException -> String) err))
-              Right resp -> pure resp
-          _ -> pure $ Left $ ExceptionMessage "No such key"
+interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
+  next <$> do
+    connections <- readMVar _connections
+    case Map.lookup "redis" connections of
+      Just (R.Redis a) -> R.runKVDB a act
+      Nothing -> pure $ Left $ ExceptionMessage "No such key"
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()
 forkF rt flow = void $ forkIO $ void $ runFlow rt flow

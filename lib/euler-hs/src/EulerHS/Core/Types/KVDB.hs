@@ -8,7 +8,7 @@ data KVDBReply = SingleLine ByteString
                | Integer Integer
                | Bulk (Maybe ByteString)
                | MultiBulk (Maybe [KVDBReply])
-               | ExceptionMessage ByteString
+               | ExceptionMessage String
          deriving (Eq, Show, Generic)
 
 hedisReplyToKVDBReplyMono :: RD.Reply -> KVDBReply
@@ -17,3 +17,7 @@ hedisReplyToKVDBReplyMono (RD.Error s) = Err s
 hedisReplyToKVDBReplyMono (RD.Integer s) = Integer s
 hedisReplyToKVDBReplyMono (RD.Bulk s) = Bulk s
 hedisReplyToKVDBReplyMono (RD.MultiBulk s) = MultiBulk (map (hedisReplyToKVDBReplyMono <$>) s)
+
+
+exceptionToKVDBReply :: Exception e => e -> KVDBReply
+exceptionToKVDBReply e = ExceptionMessage $ displayException e

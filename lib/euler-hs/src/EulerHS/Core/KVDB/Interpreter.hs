@@ -1,39 +1,41 @@
 module EulerHS.Core.KVDB.Interpreter where
 
-import qualified Database.Redis             as RD
-import qualified EulerHS.Core.KVDB.Language as L
-import           EulerHS.Core.Types.KVDB
 import           EulerHS.Prelude
 
-interpretKVDBMethod :: RD.Connection -> L.KVDBMethod b -> IO b
+import qualified Database.Redis             as R
+import qualified EulerHS.Core.KVDB.Language as L
+import           EulerHS.Core.Types.KVDB
+-- import           EulerHS.Prelude
 
-interpretKVDBMethod connection (L.Set k v next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.set k v))
+interpretKVDBMethod :: L.KVDBMethod b -> ExceptT R.Reply R.Redis b
+interpretKVDBMethod (L.Set k v next) =
+  fmap next $ ExceptT $ R.set k v
 
-interpretKVDBMethod connection (L.Get k next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.get k))
+interpretKVDBMethod (L.Get k next) =
+  fmap next $ ExceptT $ R.get k
 
-interpretKVDBMethod connection (L.Exists k next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.exists k))
+interpretKVDBMethod (L.Exists k next) =
+  fmap next $ ExceptT $ R.exists k
 
-interpretKVDBMethod connection (L.Del ks next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.del ks))
+interpretKVDBMethod (L.Del ks next) =
+  fmap next $ ExceptT $ R.del ks
 
-interpretKVDBMethod connection (L.Expire k sec next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.expire k sec))
+interpretKVDBMethod (L.Expire k sec next) =
+  fmap next $ ExceptT $ R.expire k sec
 
-interpretKVDBMethod connection (L.Incr k next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.incr k))
+interpretKVDBMethod (L.Incr k next) =
+  fmap next $ ExceptT $ R.incr k
 
-interpretKVDBMethod connection (L.HSet k field value next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.hset k field value))
+interpretKVDBMethod (L.HSet k field value next) =
+  fmap next $ ExceptT $ R.hset k field value
 
-interpretKVDBMethod connection (L.HGet k field next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.hget k field))
+interpretKVDBMethod (L.HGet k field next) =
+  fmap next $ ExceptT $ R.hget k field
 
-interpretKVDBMethod connection (L.Publish chan msg next) = do
-  next <$> ((first hedisReplyToKVDBReplyMono) <$> (RD.runRedis connection $ RD.publish chan msg))
+interpretKVDBMethod (L.Publish chan msg next) =
+  fmap next $ ExceptT $ R.publish chan msg
 
+------
 -- interpretKVDBMethod _ (L.Subscribe chan next) = do
 --   next <$> (pure $ RD.subscribe chan)
 --
@@ -43,5 +45,6 @@ interpretKVDBMethod connection (L.Publish chan msg next) = do
 -- interpretKVDBMethod connection (L.SubHandle sub callback next) = do
 --   next <$> (RD.runRedis connection $ RD.pubSub sub callback)
 
-runKVDB :: RD.Connection -> L.KVDB b -> IO b
-runKVDB conn = foldF (interpretKVDBMethod conn)
+runKVDB :: R.Connection -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB conn = fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
+  R.runRedis conn . fmap (first hedisReplyToKVDBReplyMono) . runExceptT . foldF interpretKVDBMethod

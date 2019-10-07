@@ -1,15 +1,17 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module EulerHS.Core.KVDB.Language ( module X, KVDB, KVDBAnswer, KVDBMethod(..)
-                                       , KVDBKey, KVDBValue, KVDBDuration, KVDBField
-                                       , KVDBChannel, KVDBMessage
-                                       , set, get, exists, del, expire, incr, hset, hget
-                                       , publish) where
+module EulerHS.Core.KVDB.Language
+  ( KVDB
+  , KVDBAnswer
+  , KVDBMethod(..)
+  , KVDBKey, KVDBValue, KVDBDuration, KVDBField , KVDBChannel, KVDBMessage
+  , set, get, exists, del, expire, incr, hset, hget , publish
+  ) where
 
-import           Database.Redis  as X (Message (..), PubSub, Status (..))
-import           EulerHS.Prelude hiding (get)
-import           EulerHS.Core.Types.KVDB
+import            EulerHS.Prelude hiding (get)
+import qualified  Database.Redis  as R
+import            EulerHS.Core.Types.KVDB
 
 type KVDBAnswer res = Either KVDBReply res
 
@@ -21,15 +23,15 @@ type KVDBChannel = ByteString
 type KVDBMessage = ByteString
 
 data KVDBMethod next where
-  Set :: KVDBKey -> KVDBValue -> (KVDBAnswer X.Status -> next) -> KVDBMethod next
-  Get :: KVDBKey -> (KVDBAnswer (Maybe ByteString) -> next) -> KVDBMethod next
-  Exists :: KVDBKey -> (KVDBAnswer Bool -> next) -> KVDBMethod next
-  Del :: [KVDBKey] -> (KVDBAnswer Integer -> next) -> KVDBMethod next
-  Expire :: KVDBKey -> KVDBDuration -> (KVDBAnswer Bool -> next) -> KVDBMethod next
-  Incr :: KVDBKey -> (KVDBAnswer Integer -> next) -> KVDBMethod next
-  HSet :: KVDBKey -> KVDBField -> KVDBValue -> (KVDBAnswer Bool -> next) -> KVDBMethod next
-  HGet :: KVDBKey -> KVDBField -> (KVDBAnswer (Maybe ByteString) -> next) -> KVDBMethod next
-  Publish :: KVDBChannel -> KVDBMessage -> (KVDBAnswer Integer -> next) -> KVDBMethod next
+  Set :: KVDBKey -> KVDBValue -> (R.Status -> next) -> KVDBMethod next
+  Get :: KVDBKey -> (Maybe ByteString -> next) -> KVDBMethod next
+  Exists :: KVDBKey -> (Bool -> next) -> KVDBMethod next
+  Del :: [KVDBKey] -> (Integer -> next) -> KVDBMethod next
+  Expire :: KVDBKey -> KVDBDuration -> (Bool -> next) -> KVDBMethod next
+  Incr :: KVDBKey -> (Integer -> next) -> KVDBMethod next
+  HSet :: KVDBKey -> KVDBField -> KVDBValue -> (Bool -> next) -> KVDBMethod next
+  HGet :: KVDBKey -> KVDBField -> (Maybe ByteString -> next) -> KVDBMethod next
+  Publish :: KVDBChannel -> KVDBMessage -> (Integer -> next) -> KVDBMethod next
   -- Subscribe :: [ByteString] -> (X.PubSub -> next) -> KVDBMethod next
   -- Unsubscribe :: [ByteString] -> (X.PubSub -> next) -> KVDBMethod next
   -- SubHandle :: X.PubSub -> (X.Message -> IO X.PubSub) -> (() -> next) -> KVDBMethod next
@@ -50,31 +52,31 @@ instance Functor KVDBMethod where
 
 type KVDB = F KVDBMethod
 
-set :: KVDBKey -> KVDBValue -> KVDB (KVDBAnswer X.Status)
+set :: KVDBKey -> KVDBValue -> KVDB R.Status
 set key value = liftFC $ Set key value id
 
-get :: KVDBKey -> KVDB (KVDBAnswer (Maybe ByteString))
+get :: KVDBKey -> KVDB (Maybe ByteString)
 get key = liftFC $ Get key id
 
-exists :: KVDBKey -> KVDB (KVDBAnswer Bool)
+exists :: KVDBKey -> KVDB Bool
 exists key = liftFC $ Exists key id
 
-del :: [KVDBKey] -> KVDB (KVDBAnswer Integer)
+del :: [KVDBKey] -> KVDB Integer
 del ks = liftFC $ Del ks id
 
-expire :: KVDBKey -> KVDBDuration -> KVDB (KVDBAnswer Bool)
+expire :: KVDBKey -> KVDBDuration -> KVDB Bool
 expire key sec = liftFC $ Expire key sec id
 
-incr :: KVDBKey -> KVDB (KVDBAnswer Integer)
+incr :: KVDBKey -> KVDB Integer
 incr key = liftFC $ Incr key id
 
-hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB (KVDBAnswer Bool)
+hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB Bool
 hset key field value = liftFC $ HSet key field value id
 
-hget :: KVDBKey -> KVDBField -> KVDB (KVDBAnswer (Maybe ByteString))
+hget :: KVDBKey -> KVDBField -> KVDB (Maybe ByteString)
 hget key field = liftFC $ HGet key field id
 
-publish :: KVDBChannel -> KVDBMessage -> KVDB (KVDBAnswer Integer)
+publish :: KVDBChannel -> KVDBMessage -> KVDB Integer
 publish chan msg = liftFC $ Publish chan msg id
 
 -- subscribe :: [ByteString] -> KVDB X.PubSub

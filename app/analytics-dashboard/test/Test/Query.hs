@@ -28,10 +28,10 @@ testQuery = QT.Query (QT.Selection [(Just QT.SUM, QT.Field "amount")])
                      (QT.GroupBy ["gateway", "card_type"])
 
 testResultRow :: QT.QueryResultRow
-testResultRow = QT.QueryResultRow ts1 ts2 [QT.FloatValue 75557.0]
+testResultRow = QT.QueryResultRow ts1 ts2 [QT.FloatValue 58084.0]
   where
-    ts1 = QT.Timestamp . fromJust . parseISO8601 $ "2019-09-27T10:05:00Z"
-    ts2 = QT.Timestamp . fromJust . parseISO8601 $ "2019-09-27T10:10:00Z"
+    ts1 = QT.Timestamp . fromJust . parseISO8601 $ "2019-09-27T10:00:00Z"
+    ts2 = QT.Timestamp . fromJust . parseISO8601 $ "2019-09-27T10:05:00Z"
 
 incorrectQuery :: QT.Query
 incorrectQuery = QT.Query (QT.Selection
@@ -52,7 +52,7 @@ specs = describe "Query API" $ do
 
       it "should return a queryresult when a query is given" $ do
         result <- runClientM (queryClient testQuery) clientEnv
-        map (\(QT.QueryResult (x:xs)) -> x) result `shouldBe` Right testResultRow
+        map (\(QT.QueryResult xs) -> minimum xs) result `shouldBe` Right testResultRow
 
       -- FIXME: Use hspec-wai and check for a 400 here and responseBody
       it "should return a failure when an incorrect query is given" $ do

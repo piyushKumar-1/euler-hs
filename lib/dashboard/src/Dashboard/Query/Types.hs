@@ -39,11 +39,11 @@ newtype Selection =
 
 newtype Timestamp =
   Timestamp UTCTime
-  deriving (Generic, Show, Eq)
+  deriving (Generic, Show, Eq, Ord)
 
 newtype Milliseconds =
   Milliseconds { unMs :: Int }
-  deriving (Generic, Show, Eq)
+  deriving (Generic, Show, Eq, Ord)
 
 data Interval =
   Interval
@@ -52,7 +52,7 @@ data Interval =
     , step  :: Maybe Milliseconds
     , field :: FieldName
     }
-  deriving (Generic, Show, Eq)
+  deriving (Generic, Show, Eq, Ord)
 
 -- Needs to be any supported data type, not just String
 data Value
@@ -91,6 +91,12 @@ data QueryResultRow =
     , columns :: [Value]
     }
   deriving (Generic, Show, Eq)
+
+instance Ord QueryResultRow where
+  compare (QueryResultRow s1 e1 _) (QueryResultRow s2 e2 _) =
+    if s1 /= s2
+       then compare s1 s2
+       else compare e1 e2
 
 newtype QueryResult
   = QueryResult [QueryResultRow]

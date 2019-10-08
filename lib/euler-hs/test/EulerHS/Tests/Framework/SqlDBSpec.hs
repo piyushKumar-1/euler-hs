@@ -25,17 +25,15 @@ import Database.Beam ((==.), (&&.), (<-.), (/=.))
 -- sqlite3 db
 -- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
 
-data UserT f
-  = User
-    {_userId        :: B.C f Int
-    ,_userFirstName :: B.C f Text
-    ,_userLastName  :: B.C f Text
+data UserT f = User
+    { _userId        :: B.C f Int
+    , _userFirstName :: B.C f Text
+    , _userLastName  :: B.C f Text
     } deriving (Generic, B.Beamable)
 
 instance B.Table UserT where
   data PrimaryKey UserT f =
     UserId (B.C f Int) deriving (Generic, B.Beamable)
-
   primaryKey = UserId . _userId
 
 type User = UserT Identity
@@ -44,17 +42,39 @@ type UserId = B.PrimaryKey UserT Identity
 deriving instance Show User
 deriving instance Eq User
 
-data EulerDb f
-  = EulerDb
-    {_users :: f (B.TableEntity UserT)
+data EulerDb f = EulerDb
+    { _users :: f (B.TableEntity UserT)
     } deriving (Generic, B.Database be)
 
 eulerDb :: B.DatabaseSettings be EulerDb
 eulerDb = B.defaultDbSettings
 
+
+
+data SqliteSequenceT f = SqliteSequence
+    { _name :: B.C f Text
+    , _seq  :: B.C f Int
+    } deriving (Generic, B.Beamable)
+
+instance B.Table SqliteSequenceT where
+  data PrimaryKey SqliteSequenceT f =
+    SqliteSequenceId (B.C f Text) deriving (Generic, B.Beamable)
+  primaryKey = SqliteSequenceId . _name
+
+type SqliteSequence = SqliteSequenceT Identity
+type SqliteSequenceId = B.PrimaryKey SqliteSequenceT Identity
+
+
+data SqliteSequenceDb f = SqliteSequenceDb
+    { _sqlite_sequence :: f (B.TableEntity SqliteSequenceT)
+    } deriving (Generic, B.Database be)
+
+sqliteSequenceDb :: B.DatabaseSettings be SqliteSequenceDb
+sqliteSequenceDb = B.defaultDbSettings
+
+
 testDBName :: T.DBName
 testDBName = "test.db"
-
 
 connectOrFail :: T.DBConfig -> Flow T.SqlConn
 connectOrFail cfg = L.connect cfg >>= \case
@@ -65,8 +85,12 @@ deleteTestValues :: L.Flow ()
 deleteTestValues = do
   conn <- connectOrFail $ T.SQLiteConfig testDBName
   void $ L.runDB conn
-      $ L.runDelete
-      $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
+      $ L.runDelete $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
+  void $ L.runDB conn
+    $ L.runUpdate
+    $ B.update (_sqlite_sequence sqliteSequenceDb)
+          (\(SqliteSequence {..}) -> mconcat [_seq <-. B.val_ 0])
+          (\(SqliteSequence {..}) -> _name ==. B.val_ "users")
 
 insertTestValues :: L.Flow ()
 insertTestValues = do
@@ -82,10 +106,6 @@ insertTestValues = do
               ( B.val_ "Doe"  )
               ( B.val_ "John" )
           ]
-
-prepareTestDataFlow :: L.Flow ()
-prepareTestDataFlow = deleteTestValues >> insertTestValues
-
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
@@ -159,9 +179,12 @@ updateAndSelectDbScript = do
 
 withEmptyDB :: (R.FlowRuntime -> IO ()) -> IO ()
 withEmptyDB act = withFlowRuntime Nothing (\rt -> do
-  try (runFlow rt prepareTestDataFlow) >>= \case
+  try (runFlow rt $ deleteTestValues >> insertTestValues) >>= \case
     Left (e :: SomeException) -> error $ "Deleting rows from DB failed. " <> show e
-    Right _ -> act rt)
+    Right _ -> do
+      act rt
+      runFlow rt deleteTestValues
+    )
 
 someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
 someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l

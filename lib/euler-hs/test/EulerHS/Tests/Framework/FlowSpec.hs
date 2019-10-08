@@ -15,7 +15,7 @@ import           Servant.Client                  (BaseUrl(..), Scheme(..))
 import           EulerHS.Types
 import           EulerHS.Interpreters
 import           EulerHS.Language
-import           EulerHS.Runtime
+import           EulerHS.Runtime (withFlowRuntime)
 
 import           EulerHS.TestData.Types
 import           EulerHS.TestData.API.Client
@@ -23,7 +23,6 @@ import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
 
 import           EulerHS.Testing.Types (MockedValues'(..), MockedValues)
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
-import           EulerHS.Testing.Flow.Runtime (initDefaultFlowRt)
 
 user :: Any
 user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
@@ -45,15 +44,12 @@ scenario1MockedValues = MockedValues'
   }
 
 
-withDefaultFlowRt :: (FlowRuntime -> IO ()) -> IO ()
-withDefaultFlowRt = bracket initDefaultFlowRt (const (pure ()))
-
 runServer :: IO ()
 runServer = void $ forkIO $ run port (serve api server)
 
 spec :: Spec
 spec = do
-  around withDefaultFlowRt $ do
+  around (withFlowRuntime Nothing) $ do
 
     describe "EulerHS flow language tests" $ do
 

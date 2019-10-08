@@ -11,6 +11,7 @@ import           Servant.Client (ClientM, ClientError, BaseUrl)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, SqlDB, logMessage')
 import qualified EulerHS.Framework.Types as T
+import qualified EulerHS.Framework.Types.API as T
 
 type Description = Text
 

@@ -36,11 +36,11 @@ class Transform a b where
 
 instance Transform AT.Transaction DT.Transaction where
   transform apiTxn = DT.Transaction 
-      <$> (OrderId <$> (ifTransformed (fieldWithName @"order_id" apiTxn) (appValidators  textNotEmpty))) -- :: OrderId                -- ^
-      <*> (MerchantId <$> (ifTransformed (fieldWithName @"merchant_id" apiTxn) (appValidators textNotEmpty))) -- :: MerchantId 
+      <$> (OrderId <$> ((fieldWithName @"order_id" apiTxn) <@*> textNotEmpty)) -- :: OrderId                -- ^
+      <*> (MerchantId <$> ((fieldWithName @"merchant_id" apiTxn) <@*> textNotEmpty)) -- :: MerchantId 
       <*> (transform apiTxn) -- :: TransactionType
-      <*> (ifTransformed (fieldWithName @"redirect_after_payment" apiTxn) (appValidators alwaysValid)) -- :: Bool
-      <*> (ifTransformed (fieldWithName @"format" apiTxn) (appValidators  textNotEmpty)) -- :: Text
+      <*> (fieldWithName @"redirect_after_payment" apiTxn) <@*> alwaysValid -- :: Bool
+      <*> (fieldWithName @"format" apiTxn) <@*> textNotEmpty -- :: Text
 
 
 instance Transform AT.Transaction DT.TransactionType where
@@ -58,69 +58,79 @@ instance Transform AT.Transaction DT.TransactionType where
 
 instance Transform AT.Transaction ATMSeamlessPayment where
   transform apiTxn = ATMSeamlessPayment
-    <$> (ifTransformed (decodeTo @CardPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid ))  -- payment_method :: CPM.CardPaymentMethod
+    <$> (decodeTo @CardPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+        <@*> alwaysValid  -- payment_method :: CPM.CardPaymentMethod
     <*> (transform apiTxn) -- card_payment_type      :: CardPaymentType
-    <*> (ifTransformed (fromMaybe' @"auth_type" apiTxn) (appValidators atmCardAuthType))
+    <*> (fromMaybe' @"auth_type" apiTxn) <@*> isAtmCardAuthType
 
 instance Transform AT.Transaction ATMRedirectionPayment where
   transform apiTxn = ATMRedirectionPayment
-    <$> (ifTransformed (decodeTo @ATMCardPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid))
-    <*> (ifTransformed (fromMaybe' @"auth_type" apiTxn) (appValidators atmCardAuthType))
+    <$> (decodeTo @ATMCardPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+        <@*> alwaysValid
+    <*> (fromMaybe' @"auth_type" apiTxn) <@*> isAtmCardAuthType
 
 instance Transform AT.Transaction UPIPayment where
   transform apiTxn
     =   UPICollect
-        <$> (ifTransformed (decodeTo @UPIPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid))
-        <*> (ifTransformed (decodeTo @UPITxnType $ fromMaybe' @"txn_type" apiTxn) (appValidators isUPICollectTxnType))
-        <*> (ifTransformed (fromMaybe' @"upi_vpa" apiTxn) (appValidators textNotEmpty))
+        <$> (decodeTo @UPIPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+            <@*> alwaysValid
+        <*> (decodeTo @UPITxnType $ fromMaybe' @"txn_type" apiTxn)
+            <@*> isUPICollectTxnType
+        <*> (fromMaybe' @"upi_vpa" apiTxn) <@*> textNotEmpty
     <!> UPIPay
-        <$> (ifTransformed (decodeTo @UPIPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid))
-        <*> (ifTransformed (decodeTo @UPITxnType $ fromMaybe' @"txn_type" apiTxn) (appValidators isUPIPayTxnType))
+        <$> (decodeTo @UPIPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+            <@*> alwaysValid
+        <*> (decodeTo @UPITxnType $ fromMaybe' @"txn_type" apiTxn)
+            <@*> isUPIPayTxnType
 
 instance Transform AT.Transaction WalletPayment where
   transform apiTxn = WalletPayment
-    <$> (ifTransformed (decodeTo @WalletPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid ))
+    <$> (decodeTo @WalletPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+        <@*> alwaysValid
 
 instance Transform AT.Transaction DirectWalletPayment where
   transform apiTxn = DirectWalletPayment
-    <$> (ifTransformed (decodeTo @WalletDirectPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid ))
-    <*> (ifTransformed (fromMaybe' @"direct_wallet_token" apiTxn) (appValidators textNotEmpty ))
+    <$> (decodeTo @WalletDirectPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+        <@*> alwaysValid
+    <*> (fromMaybe' @"direct_wallet_token" apiTxn) <@*> textNotEmpty
 
 instance Transform AT.Transaction NBPayment where
   transform apiTxn = NBPayment
-    <$> (ifTransformed ( decodeTo @NBPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid ))
+    <$> ( decodeTo @NBPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+        <@*> alwaysValid
 
 instance Transform AT.Transaction CardPayment where
   transform apiTxn = CardPayment
-    <$> (ifTransformed (decodeTo @CardPaymentMethod $ fromMaybe' @"payment_method" apiTxn) (appValidators alwaysValid ))  -- payment_method :: CPM.CardPaymentMethod
+    <$> (decodeTo @CardPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
+        <@*> alwaysValid  -- payment_method :: CPM.CardPaymentMethod
     <*> (transform apiTxn) -- card_payment_type      :: CardPaymentType
-    <*> (ifPresent (fieldWithName @"is_emi" apiTxn ) (appValidators alwaysValid))
-    <*> (ifPresent (fieldWithName @"emi_bank" apiTxn) (appValidators textNotEmpty))
-    <*> (ifPresent (fieldWithName @"emi_tenure" apiTxn) (appValidators alwaysValid))
-    <*> (ifPresent (fieldWithName @"auth_type" apiTxn) (appValidators regularCardAuthType))
+    <*> (fieldWithName @"is_emi" apiTxn ) <?*> alwaysValid
+    <*> (fieldWithName @"emi_bank" apiTxn) <?*> textNotEmpty
+    <*> (fieldWithName @"emi_tenure" apiTxn) <?*> alwaysValid
+    <*> (fieldWithName @"auth_type" apiTxn) <?*> isRegularCardAuthType
 
 instance Transform AT.Transaction CardPaymentType where
   transform apiTxn 
     =   SavedCardPayment 
-          <$> (ifTransformed (fromMaybe' @"card_token" apiTxn) (appValidators textNotEmpty))
-          <*> (ifTransformed (fromMaybe' @"card_security_code" apiTxn) (appValidators textNotEmpty))
+          <$> (fromMaybe' @"card_token" apiTxn) <@*> textNotEmpty
+          <*> (fromMaybe' @"card_security_code" apiTxn) <@*> textNotEmpty
     <!> NewCardPayment
-          <$> (ifTransformed (fromMaybe' @"card_number" apiTxn) (appValidators cardNumberValidators ))
-          <*> (ifTransformed (fromMaybe' @"name_on_card" apiTxn ) (appValidators textNotEmpty))
-          <*> (ifTransformed (fromMaybe' @"card_exp_month" apiTxn ) (appValidators textNotEmpty))
-          <*> (ifTransformed (fromMaybe' @"card_exp_year" apiTxn ) (appValidators textNotEmpty))
-          <*> (ifTransformed (fromMaybe' @"card_security_code" apiTxn ) (appValidators textNotEmpty))
-          <*> (ifTransformed (fromMaybe' @"save_to_locker" apiTxn ) (appValidators alwaysValid))
+          <$> (fromMaybe' @"card_number" apiTxn) <@*> cardNumberValidators
+          <*> (fromMaybe' @"name_on_card" apiTxn ) <@*> textNotEmpty
+          <*> (fromMaybe' @"card_exp_month" apiTxn ) <@*> textNotEmpty
+          <*> (fromMaybe' @"card_exp_year" apiTxn ) <@*> textNotEmpty
+          <*> (fromMaybe' @"card_security_code" apiTxn ) <@*> textNotEmpty
+          <*> (fromMaybe' @"save_to_locker" apiTxn ) <@*> alwaysValid
 
 
-regularCardAuthType :: NonEmpty (Text -> AuthType -> Validation [Text] AuthType)
-regularCardAuthType = mkValidator "inappropriate auth_type" (`elem` [THREE_DS, OTP, VISA_CHECKOUT])
+isRegularCardAuthType :: NonEmpty (Text -> AuthType -> Validation [Text] AuthType)
+isRegularCardAuthType = mkValidator "inappropriate auth_type" (`elem` [THREE_DS, OTP, VISA_CHECKOUT])
 
-atmCardAuthType:: NonEmpty (Text -> AuthType -> Validation [Text] AuthType)
-atmCardAuthType = mkValidator "inappropriate auth_type" (== ATMPIN)
+isAtmCardAuthType:: NonEmpty (Text -> AuthType -> Validation [Text] AuthType)
+isAtmCardAuthType = mkValidator "inappropriate auth_type" (== ATMPIN)
 
 cardNumberValidators :: NonEmpty (Text -> Text -> Validation [Text] Text)
-cardNumberValidators = textNotEmpty <> (tv1:| [tv2])
+cardNumberValidators = textNotEmpty <> testValidator1 <> testValidator2
 
 alwaysValid' :: Text -> t -> Validation [Text] t
 alwaysValid' _ v = _Success # v
@@ -131,11 +141,11 @@ alwaysValid = alwaysValid':|[]
 textNotEmpty :: NonEmpty (Text -> Text -> Validation [Text] Text)
 textNotEmpty = mkValidator "can't be empty" (not . T.null)
 
-tv1 :: Text -> t -> Validation [Text] t
-tv1 _ v = _Success # v
+testValidator1 :: NonEmpty (Text -> b -> Validation [Text] b)
+testValidator1  = mkValidator "always should pass" (const True)
 
-tv2 :: Text -> t -> Validation [Text] t
-tv2 _ v = _Success # v
+testValidator2 :: NonEmpty (Text -> b -> Validation [Text] b)
+testValidator2  = mkValidator "always should pass" (const True)
 
 isUPICollectTxnType :: NonEmpty (Text -> UPITxnType -> Validation [Text] UPITxnType)
 isUPICollectTxnType = mkValidator "inappropriate txn_type" (`elem` txns)
@@ -170,17 +180,29 @@ fieldWithName :: forall (f :: Symbol) v r
 fieldWithName r = (fieldName_ @f, Success $ getField @f r)
 
 ifPresent :: (Text, Validation [Text] (Maybe v))
-  -> (Text -> v -> Validation [Text] v)
+  -> NonEmpty((Text -> v -> Validation [Text] v)) --(Text -> v -> Validation [Text] v)
   -> Validation [Text] (Maybe v)
-ifPresent (fName, Success (Just v)) f = Just <$> (f fName v)
+ifPresent (fName, Success (Just v)) vs = Just <$> (appValidators vs fName v)
 ifPresent (_, Success Nothing) _ = Success Nothing
 ifPresent (_, Failure e) _ = Failure e
 
+infix 5 <?*>
+(<?*>) :: (Text, Validation [Text] (Maybe v))
+  -> NonEmpty((Text -> v -> Validation [Text] v)) --(Text -> v -> Validation [Text] v)
+  -> Validation [Text] (Maybe v)
+(<?*>) = ifPresent
+
 ifTransformed :: (Text, Validation [Text] v)
-  -> (Text -> v -> Validation [Text] v)
+  -> NonEmpty((Text -> v -> Validation [Text] v)) --(Text -> v -> Validation [Text] v)
   -> Validation [Text] v
 ifTransformed (_, Failure e) _ = Failure e
-ifTransformed (fName, Success a) f = f fName a
+ifTransformed (fName, Success a) vs = appValidators vs fName a
+
+infix 5 <@*>
+(<@*>) :: (Text, Validation [Text] v)
+  -> NonEmpty((Text -> v -> Validation [Text] v)) --(Text -> v -> Validation [Text] v)
+  -> Validation [Text] v
+(<@*>) = ifTransformed
 
 appValidators ::  NonEmpty((Text -> v -> Validation [Text] v)) -> Text -> v -> Validation [Text] v
 appValidators validators fName v = foldr1 (<*) $ map (($ (fName, v)).uncurry) validators

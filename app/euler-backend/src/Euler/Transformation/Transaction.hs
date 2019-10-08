@@ -36,11 +36,11 @@ class Transform a b where
 
 instance Transform AT.Transaction DT.Transaction where
   transform apiTxn = DT.Transaction 
-      <$> (OrderId <$> ((fieldWithName @"order_id" apiTxn) <@*> textNotEmpty)) -- :: OrderId                -- ^
-      <*> (MerchantId <$> ((fieldWithName @"merchant_id" apiTxn) <@*> textNotEmpty)) -- :: MerchantId 
+      <$> (OrderId <$> ((takeField @"order_id" apiTxn) <@*> textNotEmpty)) -- :: OrderId                -- ^
+      <*> (MerchantId <$> ((takeField @"merchant_id" apiTxn) <@*> textNotEmpty)) -- :: MerchantId 
       <*> (transform apiTxn) -- :: TransactionType
-      <*> (fieldWithName @"redirect_after_payment" apiTxn) <@*> alwaysValid -- :: Bool
-      <*> (fieldWithName @"format" apiTxn) <@*> textNotEmpty -- :: Text
+      <*> (takeField @"redirect_after_payment" apiTxn) <@*> alwaysValid -- :: Bool
+      <*> (takeField @"format" apiTxn) <@*> textNotEmpty -- :: Text
 
 
 instance Transform AT.Transaction DT.TransactionType where
@@ -104,10 +104,10 @@ instance Transform AT.Transaction CardPayment where
     <$> (decodeTo @CardPaymentMethod $ fromMaybe' @"payment_method" apiTxn)
         <@*> alwaysValid  -- payment_method :: CPM.CardPaymentMethod
     <*> (transform apiTxn) -- card_payment_type      :: CardPaymentType
-    <*> (fieldWithName @"is_emi" apiTxn ) <?*> alwaysValid
-    <*> (fieldWithName @"emi_bank" apiTxn) <?*> textNotEmpty
-    <*> (fieldWithName @"emi_tenure" apiTxn) <?*> alwaysValid
-    <*> (fieldWithName @"auth_type" apiTxn) <?*> isRegularCardAuthType
+    <*> (takeField @"is_emi" apiTxn ) <?*> alwaysValid
+    <*> (takeField @"emi_bank" apiTxn) <?*> textNotEmpty
+    <*> (takeField @"emi_tenure" apiTxn) <?*> alwaysValid
+    <*> (takeField @"auth_type" apiTxn) <?*> isRegularCardAuthType
 
 instance Transform AT.Transaction CardPaymentType where
   transform apiTxn 
@@ -132,11 +132,8 @@ isAtmCardAuthType = mkValidator "inappropriate auth_type" (== ATMPIN)
 cardNumberValidators :: NonEmpty (Text -> Text -> Validation [Text] Text)
 cardNumberValidators = textNotEmpty <> testValidator1 <> testValidator2
 
-alwaysValid' :: Text -> t -> Validation [Text] t
-alwaysValid' _ v = _Success # v
-
 alwaysValid :: NonEmpty (Text -> t -> Validation [Text] t)
-alwaysValid = alwaysValid':|[]
+alwaysValid = mkValidator "always should pass" (const True)
 
 textNotEmpty :: NonEmpty (Text -> Text -> Validation [Text] Text)
 textNotEmpty = mkValidator "can't be empty" (not . T.null)
@@ -148,12 +145,12 @@ testValidator2 :: NonEmpty (Text -> b -> Validation [Text] b)
 testValidator2  = mkValidator "always should pass" (const True)
 
 isUPICollectTxnType :: NonEmpty (Text -> UPITxnType -> Validation [Text] UPITxnType)
-isUPICollectTxnType = mkValidator "inappropriate txn_type" (`elem` txns)
-  where txns = [UPI.UPI_COLLECT]
+isUPICollectTxnType = mkValidator "inappropriate txn_type" (`elem` txnTypes)
+  where txnTypes = [UPI.UPI_COLLECT]
 
 isUPIPayTxnType :: NonEmpty (Text -> UPITxnType -> Validation [Text] UPITxnType)
-isUPIPayTxnType = mkValidator "inappropriate txn_type" (`elem` txns)
-  where txns = [UPI.UPI_PAY, UPI.BHARAT_PAY]
+isUPIPayTxnType = mkValidator "inappropriate txn_type" (`elem` txnTypes)
+  where txnTypes = [UPI.UPI_PAY, UPI.BHARAT_PAY]
 
 -- #### helpers
 
@@ -174,10 +171,10 @@ fromMaybe' r = ((fieldName_ @f) , isPresent' (fieldName_ @f) $ getField @f r)
 isPresent' :: Text -> Maybe t -> Validation [Text] t
 isPresent' f v = maybe (_Failure # [f <> " not present"]) (_Success # ) v
 
-fieldWithName :: forall (f :: Symbol) v r
+takeField :: forall (f :: Symbol) v r
   .(Generic r, HasField' f r v, KnownSymbol f) 
   =>  r -> (Text, Validation [Text] v)
-fieldWithName r = (fieldName_ @f, Success $ getField @f r)
+takeField r = (fieldName_ @f, Success $ getField @f r)
 
 ifPresent :: (Text, Validation [Text] (Maybe v))
   -> NonEmpty((Text -> v -> Validation [Text] v)) --(Text -> v -> Validation [Text] v)

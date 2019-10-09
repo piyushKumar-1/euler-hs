@@ -31,3 +31,4 @@ dashboard.cabal
 analytics-dashboard.cabal
 credit-platform.cabal
 euler-hs.cabal
+euler-backend.cabal

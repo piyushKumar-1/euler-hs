@@ -1,3 +1,4 @@
+{-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module Euler.Transformation.Transaction where
 
@@ -6,7 +7,6 @@ import EulerHS.Prelude
 import Data.Generics.Product.Fields
 import Data.Validation
 import Data.Functor.Alt
-import Control.Lens hiding (transform)
 import qualified Euler.Product.Domain.Transaction as DT
 import Euler.Product.Domain.CardPayment
 import Euler.Product.Domain.NBPayment
@@ -46,7 +46,6 @@ instance Transform AT.Transaction DT.TransactionType where
     (AT.WALLET, _  , Nothing) -> DT.WalletTransaction <$> transform apiTxn
     (AT.WALLET, _  ,  Just _) -> DT.WalletDirectDebitTransaction <$> transform apiTxn
     (AT.UPI,    _        , _) -> DT.UPITransaction <$> transform apiTxn
-    _ -> _Failure # ["transaction not supported, check fields"]
 
 instance Transform AT.Transaction ATMSeamlessPayment where
   transform apiTxn = ATMSeamlessPayment

@@ -1,3 +1,4 @@
+{-# OPTIONS -fno-warn-deprecations #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module Euler.Transformation.Transform
   ( Transform(..)
@@ -14,17 +15,15 @@ module Euler.Transformation.Transform
 
   ) where
 
-import EulerHS.Prelude hiding (pack, pred, or)
+import EulerHS.Prelude hiding ( pred, or)
 import qualified Prelude as P
 
 import Data.Generics.Product.Fields
 import Data.Validation
-import Data.Functor.Alt
 import GHC.TypeLits
 import Type.Reflection
 import Control.Lens hiding (transform, cons)
 import qualified Data.Text as T
-import Data.List.NonEmpty (cons)
 import Data.Data hiding (typeRep)
 
 class Transform a b where

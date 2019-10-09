@@ -14,6 +14,8 @@ ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_check
                                    , TableConfiguration [ ("amount", FloatType)
                                                         , ("gateway", StringType)
                                                         , ("card_type", StringType)
+                                                        , ("payment_method", StringType)
+                                                        , ("payment_method_type", StringType)
                                                         , ("merchant_id", StringType)
                                                         , ("order_last_modified", StringType)
                                                         ]

@@ -422,6 +422,111 @@ domainNetbankingTxn = DT.Transaction
   , _format = "format"
   }
 
+-- Netbanking empty text fields
+
+apiNBTxnEmptyTextFields = AT.Transaction
+  { order_id               = ""    -- :: Text                -- TASK: https://www.notion.so/065d5a12d1be491c960f5a4dcb81b783?v=972782d46f8b4c69a15b1e057a97006f&p=20f6558b4b1441afb1b63128f5cc08d6
+  , merchant_id            = "" -- :: Text                -- ^
+  , payment_method_type    = AT.NB       -- :: PaymentMethodType   -- ^
+  , payment_method         = Just "NB_AXIS"   -- :: Maybe Text
+  , redirect_after_payment = True          -- :: Bool                -- ^
+  , format                 = ""      -- :: Text                -- ^
+
+  , auth_type              = Nothing       --Just "auth_type" -- :: Maybe Text
+  , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
+  , card_security_code     = Nothing -- :: Maybe Text
+  , card_number            = Nothing      -- :: Maybe Text
+  , card_exp_month         = Nothing   -- :: Maybe Text
+  , card_exp_year          = Nothing    -- :: Maybe Text
+  , name_on_card           = Nothing -- :: Maybe Text
+  , save_to_locker         = Nothing           -- :: Maybe Bool
+  , is_emi                 = Nothing           -- :: Maybe Bool
+  , emi_bank               = Nothing --Just "emi_bank"     -- :: Maybe Text
+  , emi_tenure             = Nothing              -- :: Maybe Int
+  , upi_vpa                = Nothing      -- :: Maybe Text
+  , txn_type               = Nothing     -- :: Maybe Text
+  , direct_wallet_token    = Nothing -- :: Maybe Text
+  }
+
+-- Direct WALLET incorrect payment method
+
+apiDirectWalletTxnIncorrectPM = AT.Transaction
+  { order_id               = "some_order_id"    -- :: Text                -- TASK: https://www.notion.so/065d5a12d1be491c960f5a4dcb81b783?v=972782d46f8b4c69a15b1e057a97006f&p=20f6558b4b1441afb1b63128f5cc08d6
+  , merchant_id            = "merchant_id" -- :: Text                -- ^
+  , payment_method_type    = AT.WALLET       -- :: PaymentMethodType   -- ^
+  , payment_method         = Just "IncorrectPM"   -- :: Maybe Text
+  , redirect_after_payment = True          -- :: Bool                -- ^
+  , format                 = "format"      -- :: Text                -- ^
+
+  , auth_type              = Nothing       --Just "auth_type" -- :: Maybe Text
+  , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
+  , card_security_code     = Nothing -- :: Maybe Text
+  , card_number            = Nothing      -- :: Maybe Text
+  , card_exp_month         = Nothing   -- :: Maybe Text
+  , card_exp_year          = Nothing    -- :: Maybe Text
+  , name_on_card           = Nothing -- :: Maybe Text
+  , save_to_locker         = Nothing           -- :: Maybe Bool
+  , is_emi                 = Nothing           -- :: Maybe Bool
+  , emi_bank               = Nothing --Just "emi_bank"     -- :: Maybe Text
+  , emi_tenure             = Nothing              -- :: Maybe Int
+  , upi_vpa                = Nothing      -- :: Maybe Text
+  , txn_type               = Nothing     -- :: Maybe Text
+  , direct_wallet_token    = Just "direct_wallet_token" -- :: Maybe Text
+  }
+
+
+-- Direct WALLET missing mandatory field
+
+apiDirectWalletTxnNoMandatoryField = AT.Transaction
+  { order_id               = "some_order_id"    -- :: Text                -- TASK: https://www.notion.so/065d5a12d1be491c960f5a4dcb81b783?v=972782d46f8b4c69a15b1e057a97006f&p=20f6558b4b1441afb1b63128f5cc08d6
+  , merchant_id            = "merchant_id" -- :: Text                -- ^
+  , payment_method_type    = AT.WALLET       -- :: PaymentMethodType   -- ^
+  , payment_method         = Nothing   -- :: Maybe Text
+  , redirect_after_payment = True          -- :: Bool                -- ^
+  , format                 = "format"      -- :: Text                -- ^
+
+  , auth_type              = Nothing       --Just "auth_type" -- :: Maybe Text
+  , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
+  , card_security_code     = Nothing -- :: Maybe Text
+  , card_number            = Nothing      -- :: Maybe Text
+  , card_exp_month         = Nothing   -- :: Maybe Text
+  , card_exp_year          = Nothing    -- :: Maybe Text
+  , name_on_card           = Nothing -- :: Maybe Text
+  , save_to_locker         = Nothing           -- :: Maybe Bool
+  , is_emi                 = Nothing           -- :: Maybe Bool
+  , emi_bank               = Nothing --Just "emi_bank"     -- :: Maybe Text
+  , emi_tenure             = Nothing              -- :: Maybe Int
+  , upi_vpa                = Nothing      -- :: Maybe Text
+  , txn_type               = Nothing     -- :: Maybe Text
+  , direct_wallet_token    = Just "direct_wallet_token" -- :: Maybe Text
+  }
+
+-- regular new CARD
+
+apiRegularNewCardTxnFewFailures = AT.Transaction
+  { order_id               = "some_order_id"    -- :: Text                -- TASK: https://www.notion.so/065d5a12d1be491c960f5a4dcb81b783?v=972782d46f8b4c69a15b1e057a97006f&p=20f6558b4b1441afb1b63128f5cc08d6
+  , merchant_id            = "" -- :: Text                -- ^
+  , payment_method_type    = AT.CARD       -- :: PaymentMethodType   -- ^
+  , payment_method         = Just "MISsA"   -- :: Maybe Text
+  , redirect_after_payment = True          -- :: Bool                -- ^
+  , format                 = "format"      -- :: Text                -- ^
+
+  , auth_type              = Just AT.VISA_CHECKOUT       --Just "auth_type" -- :: Maybe Text
+  , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
+  , card_security_code     = Nothing -- :: Maybe Text
+  , card_number            = Just ""      -- :: Maybe Text
+  , card_exp_month         = Just "card_exp_month"   -- :: Maybe Text
+  , card_exp_year          = Just "card_exp_year"    -- :: Maybe Text
+  , name_on_card           = Just "name_on_card" -- :: Maybe Text
+  , save_to_locker         = Just True           -- :: Maybe Bool
+  , is_emi                 = Just True           -- :: Maybe Bool
+  , emi_bank               = Just "emi_bank"     -- :: Maybe Text
+  , emi_tenure             = Just 5              -- :: Maybe Int
+  , upi_vpa                = Nothing      -- :: Maybe Text
+  , txn_type               = Nothing     -- :: Maybe Text
+  , direct_wallet_token    = Nothing -- :: Maybe Text
+  }
+
 spec :: Spec
 spec = 
   describe "Transaction transformations tests" $ do
@@ -466,4 +571,18 @@ spec =
       let (res :: (Validation [Text] DT.Transaction)) = transform apiNetbankingTxn
       res `shouldBe` (Success domainNetbankingTxn)
 
+    it "API Netbanking Txn fail with empty text fields" $  do
+      let (res :: (Validation [Text] DT.Transaction)) = transform apiNBTxnEmptyTextFields
+      res `shouldBe` (Failure ["order_id can't be empty","merchant_id can't be empty","format can't be empty"])
 
+    it "API Direct Wallet Txn fail with incorrect PM" $  do
+      let (res :: (Validation [Text] DT.Transaction)) = transform apiDirectWalletTxnIncorrectPM
+      res `shouldBe` (Failure ["Can't decode IncorrectPM from field payment_method, should be one of [MOBIKWIK,PAYTM,FREECHARGE,OLAMONEY]"])
+
+    it "API Netbanking Txn fail with missing mandatory field" $  do
+      let (res :: (Validation [Text] DT.Transaction)) = transform apiDirectWalletTxnNoMandatoryField
+      res `shouldBe` (Failure ["payment_method not present"])
+
+    it "API Regular New Card Txn fail with few Failures" $  do
+      let (res :: (Validation [Text] DT.Transaction)) = transform apiRegularNewCardTxnFewFailures
+      res `shouldBe` (Failure ["merchant_id can't be empty","Can't decode MISsA from field payment_method, should be one of [VISA,MASTERCARD,MAESTRO,AMEX,RUPAY]","card_number can't be empty","card_security_code not present"])

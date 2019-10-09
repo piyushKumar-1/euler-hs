@@ -1,13 +1,12 @@
 module Main where
 
-import EulerHS.Prelude
-
 import Console.API (app)
 import Console.Env (allowCors)
 import Dashboard.Query.Types
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors (CorsResourcePolicy(..), cors, corsRequestHeaders, simpleCorsResourcePolicy)
+import Universum
 
 ecQueryConf :: QueryConfiguration
 ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_checkout20190927"

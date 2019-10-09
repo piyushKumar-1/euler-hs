@@ -41,7 +41,6 @@ dependencies:
 - containers
 - dashboard
 - errors
-- euler-hs
 - extra
 - hashable
 - mtl
@@ -110,8 +109,6 @@ executables:
     - -O2
     - -fspec-constr-recursive=10
     - -fno-ignore-asserts
-    dependencies:
-    - euler-hs
 
   analytics-dashboard-gen-ps:
     main:                GeneratePS.hs
@@ -143,5 +140,4 @@ tests:
     - tasty-quickcheck
     - hspec
     - warp
-    - euler-hs
     - analytics-dashboard

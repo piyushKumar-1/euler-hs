@@ -84,6 +84,7 @@ dependencies:
 - servant-swagger
 - servant-docs
 - wai
+- wai-cors
 - warp
 - servant-xml
 - xmlbf

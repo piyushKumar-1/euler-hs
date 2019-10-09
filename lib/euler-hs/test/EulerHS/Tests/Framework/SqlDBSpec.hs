@@ -10,7 +10,7 @@ import           Data.Aeson               (encode)
 import qualified Data.ByteString.Lazy as BSL
 import           Unsafe.Coerce
 
-import           EulerHS.Types
+import           EulerHS.Types hiding (error)
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import           EulerHS.Runtime (withFlowRuntime)

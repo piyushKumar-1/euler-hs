@@ -13,7 +13,7 @@ initDefaultFlowRt :: FlowRtInitializer
 initDefaultFlowRt = do
   manager <- newMVar =<< newManager defaultManagerSettings
   options <- newMVar mempty
-  lrt <- createVoidLoggerRuntime
+  coreRuntime <- createCoreRuntime =<< createVoidLoggerRuntime
   conn <- checkedConnect defaultConnectInfo
   connPool <- newMVar (singleton "redis" $ Redis conn)
-  pure $ FlowRuntime lrt manager options connPool
+  pure $ FlowRuntime coreRuntime manager options connPool

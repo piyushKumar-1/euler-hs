@@ -1,7 +1,7 @@
 module EulerHS.Framework.Runtime where
 
 import           EulerHS.Prelude
-import           Data.Map            (Map)
+import           Data.Map            (Map, empty)
 import           Network.HTTP.Client (Manager, newManager, defaultManagerSettings)
 
 import qualified Database.Redis as RD (Connection)
@@ -24,8 +24,8 @@ createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
-  connections <- newEmptyMVar
-  pure $ FlowRuntime loggerRt managerVar optionsVar connections
+  connections <- newMVar Data.Map.empty
+  pure $ FlowRuntime coreRt managerVar optionsVar connections
 
 createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
 createFlowRuntime' mbLoggerCfg =

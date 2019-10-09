@@ -23,8 +23,13 @@ import qualified EulerHS.Framework.Language as L
 executeWithLog :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO()
 executeWithLog log conn q = SQLite.execute_ conn q >> (log $ show q)
 
+beginTransaction :: (String -> IO ()) -> SQLite.Connection -> IO ()
 beginTransaction    log conn = executeWithLog log conn "BEGIN TRANSACTION"
+
+commitTransaction :: (String -> IO ()) -> SQLite.Connection -> IO ()
 commitTransaction   log conn = executeWithLog log conn "COMMIT TRANSACTION"
+
+rollbackTransaction :: (String -> IO ()) -> SQLite.Connection -> IO ()
 rollbackTransaction log conn = executeWithLog log conn "ROLLBACK TRANSACTION"
 
 
@@ -39,8 +44,9 @@ connect (T.SQLiteConfig dbName) = do
 
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
-interpretFlowMethod _ (L.CallAPI _ next) = error "CallAPI not yet supported."
-interpretFlowMethod (R.FlowRuntime _ managerVar _ _) (L.CallServantAPI bUrl clientAct next) = do
+interpretFlowMethod _ (L.CallAPI _ _) = error "CallAPI not yet supported."
+
+interpretFlowMethod (R.FlowRuntime _ managerVar _) (L.CallServantAPI bUrl clientAct next) = do
   manager <- takeMVar managerVar
   result <- next <$> catchAny (S.runClientM clientAct (S.mkClientEnv manager bUrl)) (pure . Left . S.ConnectionError)
   putMVar managerVar manager
@@ -79,10 +85,10 @@ interpretFlowMethod rt (L.Fork _ _ flow next) =
 interpretFlowMethod _ (L.ThrowException ex next) =
   next <$> throwIO ex
 
-interpretFlowMethod rt (L.Connect cfg next) =
+interpretFlowMethod _ (L.Connect cfg next) =
   next <$> connect cfg
 
-interpretFlowMethod rt (L.RunDB conn dbm next) =
+interpretFlowMethod _ (L.RunDB conn dbm next) =
   next <$> case conn of
     T.MockedConn -> error "not implemented MockedSql"
 

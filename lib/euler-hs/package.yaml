@@ -1,7 +1,7 @@
 name:                euler-hs
 version:             0.0.1.0
 github:              "https://bitbucket.org/juspay/euler-hs"
-license:             Private
+license:             OtherLicense
 author:              "Juspay Technologies Pvt Ltd"
 copyright:           "Juspay Technologies Pvt Ltd 2019"
 

@@ -7,7 +7,7 @@ import           Network.HTTP.Client (Manager, newManager, defaultManagerSetting
 import qualified Database.Redis as RD (Connection)
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
-import qualified EulerHS.Framework.Types as T
+import           EulerHS.Framework.Types ()
 
 data Connection = Redis RD.Connection
 

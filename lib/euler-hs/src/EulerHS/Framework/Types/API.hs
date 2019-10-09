@@ -1,6 +1,6 @@
 module EulerHS.Framework.Types.API
-  ( RestEndpoint
-  , APIResult(..)
+  ( RestEndpoint(..)
+  , APIResult
   , ErrorPayload(..)
   , ErrorResponse
   , Method(..)
@@ -19,7 +19,7 @@ module EulerHS.Framework.Types.API
   -- , responsePayload
   ) where
 
-import EulerHS.Prelude hiding (Headers, Response, Header)
+import EulerHS.Prelude
 
 -- TODO: port
 

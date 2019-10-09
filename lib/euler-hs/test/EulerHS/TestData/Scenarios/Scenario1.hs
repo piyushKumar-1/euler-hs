@@ -1,3 +1,4 @@
+{-# OPTIONS -fno-warn-deprecations #-}
 module EulerHS.TestData.Scenarios.Scenario1 where
 
 import           EulerHS.Prelude hiding (getOption)

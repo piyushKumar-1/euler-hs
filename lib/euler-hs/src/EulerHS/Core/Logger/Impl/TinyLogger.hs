@@ -12,10 +12,8 @@ import           EulerHS.Prelude
 
 import qualified System.Logger             as Log
 import qualified System.Logger.Message     as LogMsg
-import           System.Logger.Message     ((~~))
 
 import qualified EulerHS.Core.Types        as D
-import qualified EulerHS.Core.Language     as L
 
 type LogChan = TChan D.PendingMsg
 
@@ -65,7 +63,7 @@ createVoidLogger = pure VoidLoggerHandle
 
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
-createLogger (D.LoggerConfig format isAsync level logFileName isConsoleLog isFileLog) = do
+createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = do
     let consoleSettings = Log.setBufSize 1 $ Log.setOutput Log.StdOut Log.defSettings
     let fileSettings    = Log.setBufSize 1 $ Log.setOutput (Log.Path logFileName) Log.defSettings
     let fileH           = [Log.new fileSettings    | isFileLog]

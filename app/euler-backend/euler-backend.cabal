@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cce9622f3b444be1d1687602c8e898c71a5853bd72014d0914db2d70f5fd7b4f
+-- hash: 01149451439e34662f6fbe70057c24c04d95bddc5fa498bebc8f34792d76f4b2
 
 name:           euler-backend
 version:        0.0.1.0
@@ -39,6 +39,7 @@ library
       Euler.Product.Domain.UPIPayment
       Euler.Product.Domain.WalletPayment
       Euler.Transformation.Transaction
+      Euler.Transformation.Transform
       Main
   other-modules:
       Paths_euler_backend
@@ -125,6 +126,7 @@ executable euler-backend
       Euler.Product.Domain.UPIPayment
       Euler.Product.Domain.WalletPayment
       Euler.Transformation.Transaction
+      Euler.Transformation.Transform
       Paths_euler_backend
   hs-source-dirs:
       src/

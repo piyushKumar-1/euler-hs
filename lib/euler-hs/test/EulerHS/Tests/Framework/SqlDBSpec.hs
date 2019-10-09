@@ -74,7 +74,10 @@ sqliteSequenceDb = B.defaultDbSettings
 
 
 testDBName :: T.DBName
-testDBName = "test.db"
+testDBName = "./test/EulerHS/TestData/test.db"
+
+testDBTemplateName :: T.DBName
+testDBTemplateName = "./test/EulerHS/TestData/test.db.template"
 
 connectOrFail :: T.DBConfig -> Flow T.SqlConn
 connectOrFail cfg = L.connect cfg >>= \case
@@ -91,6 +94,15 @@ deleteTestValues = do
     $ B.update (_sqlite_sequence sqliteSequenceDb)
           (\(SqliteSequence {..}) -> mconcat [_seq <-. B.val_ 0])
           (\(SqliteSequence {..}) -> _name ==. B.val_ "users")
+
+rmTestDB :: L.Flow ()
+rmTestDB = void $ L.runSysCmd $ "rm -f " <> testDBName
+
+prepareTestDB :: L.Flow ()
+prepareTestDB = do
+  rmTestDB
+  void $ L.runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
+  insertTestValues
 
 insertTestValues :: L.Flow ()
 insertTestValues = do
@@ -179,11 +191,11 @@ updateAndSelectDbScript = do
 
 withEmptyDB :: (R.FlowRuntime -> IO ()) -> IO ()
 withEmptyDB act = withFlowRuntime Nothing (\rt -> do
-  try (runFlow rt $ deleteTestValues >> insertTestValues) >>= \case
-    Left (e :: SomeException) -> error $ "Deleting rows from DB failed. " <> show e
-    Right _ -> do
-      act rt
-      runFlow rt deleteTestValues
+  try (runFlow rt prepareTestDB) >>= \case
+    Left (e :: SomeException) ->
+      runFlow rt rmTestDB
+      `finally` error ("Preparing test values failed: " <> show e)
+    Right _ -> act rt `finally` runFlow rt rmTestDB
     )
 
 someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
@@ -195,7 +207,6 @@ spec = do
   around withEmptyDB $ do
 
     describe "EulerHS SQL DB tests" $ do
-
       it "Unique Constraint Violation" $ \rt -> do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
         eRes `shouldBe` (Left (DBError SomeError "SQLite3 returned ErrorConstraint while attempting to perform step: UNIQUE constraint failed: users.id"))

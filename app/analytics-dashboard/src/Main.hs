@@ -11,12 +11,14 @@ import Universum
 ecQueryConf :: QueryConfiguration
 ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_checkout20190927"
                                    , TableConfiguration [ ("amount", FloatType)
-                                                        , ("gateway", StringType)
+                                                        , ("card_issuer_bank_name", StringType)
                                                         , ("card_type", StringType)
-                                                        , ("payment_method", StringType)
-                                                        , ("payment_method_type", StringType)
+                                                        , ("gateway", StringType)
                                                         , ("merchant_id", StringType)
                                                         , ("order_last_modified", StringType)
+                                                        , ("order_status", StringType)
+                                                        , ("payment_method", StringType)
+                                                        , ("payment_method_type", StringType)
                                                         ]
                                    )
                                  ]

@@ -13,7 +13,6 @@ import           System.Process (shell, readCreateProcess)
 import qualified Database.SQLite.Simple as SQLite
 import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Interpreters as R
 import qualified EulerHS.Framework.Runtime as R
@@ -46,7 +45,7 @@ connect (T.SQLiteConfig dbName) = do
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod _ (L.CallAPI _ _) = error "CallAPI not yet supported."
 
-interpretFlowMethod (R.FlowRuntime _ managerVar _) (L.CallServantAPI bUrl clientAct next) = do
+interpretFlowMethod (R.FlowRuntime _ managerVar _ _) (L.CallServantAPI bUrl clientAct next) = do
   manager <- takeMVar managerVar
   result <- next <$> catchAny (S.runClientM clientAct (S.mkClientEnv manager bUrl)) (pure . Left . S.ConnectionError)
   putMVar managerVar manager

@@ -9,9 +9,8 @@ import           EulerHS.Prelude
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB, KVDBAnswer, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage)
+import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB, KVDBAnswer)
 import qualified EulerHS.Framework.Types as T
-import qualified EulerHS.Core.KVDB.Language as KVDB
 
 type Description = Text
 

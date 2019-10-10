@@ -6,7 +6,7 @@ import           EulerHS.Types
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
 import           EulerHS.Runtime (withFlowRuntime, FlowRuntime(..), Connection(Redis))
-import           Database.Redis (checkedConnect, defaultConnectInfo)
+import           Database.Redis (checkedConnect, defaultConnectInfo, TxResult(TxSuccess))
 import           Data.Map (insert)
 
 withRedisConnection :: (FlowRuntime -> IO()) -> IO()
@@ -53,3 +53,17 @@ spec = around withRedisConnection $ do
       result <- runFlow rt $ L.runKVDB $ do
         del ["zzz", "yyy"]
       result `shouldBe` Right 0
+
+    it "get a correct key from transaction" $ \rt -> do
+      result <- runFlow rt $ L.runKVDB $ multiExec $ do
+        setTx "aaa" "bbb"
+        res <- getTx "aaa"
+        delTx ["aaa"]
+        pure res
+      result `shouldBe` Right (TxSuccess (Just "bbb"))
+
+    it "get incorrect key from transaction" $ \rt -> do
+      result <- runFlow rt $ L.runKVDB $ multiExec $ do
+        res <- getTx "aaababababa"
+        pure res
+      result `shouldBe` Right (TxSuccess Nothing)

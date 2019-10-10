@@ -50,14 +50,14 @@ toQueryResult queryConf query queryResponse = QT.QueryResult $ rowToResult <$> r
     -- FIXME: Write as idiomatic lens code
     rows      = queryResponse ^. BQT.qRows
     rowCells  = fmap (^. BQT.trF) rows
-    rowValues = fmap (fromJust . (^. BQT.tcV)) <$> rowCells
+    rowValues = fmap (^. BQT.tcV) <$> rowCells
 
     rowToResult r =
       case r of
            (t:vs) ->
              -- Interval is 'start + delta' if there is a step, else just 'end'
              -- from the query
-             let startUtc = parseTimestamp t
+             let startUtc = parseTimestamp . fromJust $ t
                  start    = QT.Timestamp startUtc
                  step     = fmap ((`quot` 1000) . QT.unMs) . QT.step . QT.interval $ query
                  end      = case step of
@@ -78,7 +78,14 @@ toQueryResult queryConf query queryResponse = QT.QueryResult $ rowToResult <$> r
             (Aeson.decodeV . encodeUtf8 $ s)
     parseTimestamp v = error $ "Invalid timestamp value: " <> show v
 
-    jsonToQValue (fieldType, Aeson.String s) =
+    -- Deal with nulls in the db
+    jsonToQValue (fieldType, Nothing) =
+      case fieldType of
+           QT.IntType -> QT.IntValue 0
+           QT.FloatType -> QT.FloatValue 0.0
+           QT.StringType -> QT.StringValue "Unknown"
+    -- BigQuery returns all actual values as strings in JSON
+    jsonToQValue (fieldType, Just (Aeson.String s)) =
       fromMaybe (error $ "Could not parse value: " <> s) v
       where
         s' = encodeUtf8 s
@@ -86,4 +93,5 @@ toQueryResult queryConf query queryResponse = QT.QueryResult $ rowToResult <$> r
                  QT.IntType    -> QT.IntValue <$> Aeson.decodeV s'
                  QT.FloatType  -> QT.FloatValue <$> Aeson.decodeV s'
                  QT.StringType -> Just . QT.StringValue . T.unpack $ s
+    -- We don't expect to get here
     jsonToQValue v = error $ "Invalid value: " <> show v

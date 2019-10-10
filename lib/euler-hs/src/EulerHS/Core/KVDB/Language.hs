@@ -1,13 +1,12 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module EulerHS.Core.KVDB.Language where
-  -- ( KVDB
-  -- , KVDBAnswer
-  -- , KVDBMethod(..)
-  -- , KVDBKey, KVDBValue, KVDBDuration, KVDBField , KVDBChannel, KVDBMessage
-  -- , set, get, exists, del, expire, incr, hset, hget, publish, multiExec, setTx, getTx, delTx,
-  -- ) where
+module EulerHS.Core.KVDB.Language
+  ( KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage
+  , KVDBF(..), KeyValueF(..), TransactionF(..)
+  , set, get, exists, del, expire, incr, hset, hget, multiExec
+  , setTx, getTx, delTx
+  ) where
 
 import            EulerHS.Prelude hiding (get)
 import qualified  Database.Redis  as R

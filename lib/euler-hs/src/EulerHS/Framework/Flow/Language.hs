@@ -9,7 +9,7 @@ import           EulerHS.Prelude
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB, KVDBAnswer)
+import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB)
 import qualified EulerHS.Framework.Types as T
 
 type Description = Text
@@ -48,7 +48,7 @@ data FlowMethod next where
     -> (T.DBResult a -> next)
     -> FlowMethod next
 
-  RunKVDB :: KVDB a -> (KVDBAnswer a -> next) -> FlowMethod next
+  RunKVDB :: KVDB a -> (T.KVDBAnswer a -> next) -> FlowMethod next
 
 instance Functor FlowMethod where
   fmap f (CallAPI req next) = CallAPI req (f . next)
@@ -135,35 +135,8 @@ forkFlow description flow = do
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
-runKVDB :: KVDB a -> Flow (KVDBAnswer a)
+runKVDB :: KVDB a -> Flow (T.KVDBAnswer a)
 runKVDB act = liftFC $ RunKVDB act id
-
--- setKV :: KVDBKey -> KVDBValue -> Flow (KVDBAnswer KVDB.Status)
--- setKV key value = runKVDBEither $ KVDB.set key value
-
--- getKV :: KVDBKey -> Flow (KVDBAnswer (Maybe ByteString))
--- getKV key = runKVDBEither $ KVDB.get key
-
--- existsKV :: KVDBKey -> Flow (KVDBAnswer Bool)
--- existsKV key = runKVDBEither $ KVDB.exists key
-
--- delKV :: [KVDBKey] -> Flow (KVDBAnswer Integer)
--- delKV keys = runKVDBEither $ KVDB.del keys
-
--- expireKV :: KVDBKey -> KVDBDuration -> Flow (KVDBAnswer Bool)
--- expireKV key time = runKVDBEither $ KVDB.expire key time
-
--- incrKV :: KVDBKey -> Flow (KVDBAnswer Integer)
--- incrKV key = runKVDBEither $ KVDB.incr key
-
--- hsetKV :: KVDBKey -> KVDBField -> KVDBValue -> Flow (KVDBAnswer Bool)
--- hsetKV key field value = runKVDBEither $ KVDB.hset key field value
-
--- hgetKV :: KVDBKey -> KVDBField -> Flow (KVDBAnswer (Maybe ByteString))
--- hgetKV key field = runKVDBEither $ KVDB.hget key field
-
--- publishKV :: KVDBChannel -> KVDBMessage -> Flow (KVDBAnswer Integer)
--- publishKV chan msg = runKVDBEither $ KVDB.publish chan msg
 
 -- TODO: port
 -- callAPI

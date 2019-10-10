@@ -11,12 +11,14 @@ data KVDBReply = SingleLine ByteString
                | ExceptionMessage String
          deriving (Eq, Show, Generic)
 
-hedisReplyToKVDBReplyMono :: RD.Reply -> KVDBReply
-hedisReplyToKVDBReplyMono (RD.SingleLine s) = SingleLine s
-hedisReplyToKVDBReplyMono (RD.Error s) = Err s
-hedisReplyToKVDBReplyMono (RD.Integer s) = Integer s
-hedisReplyToKVDBReplyMono (RD.Bulk s) = Bulk s
-hedisReplyToKVDBReplyMono (RD.MultiBulk s) = MultiBulk (map (hedisReplyToKVDBReplyMono <$>) s)
+type KVDBAnswer = Either KVDBReply
+
+hedisReplyToKVDBReply :: RD.Reply -> KVDBReply
+hedisReplyToKVDBReply (RD.SingleLine s) = SingleLine s
+hedisReplyToKVDBReply (RD.Error s) = Err s
+hedisReplyToKVDBReply (RD.Integer s) = Integer s
+hedisReplyToKVDBReply (RD.Bulk s) = Bulk s
+hedisReplyToKVDBReply (RD.MultiBulk s) = MultiBulk (map (hedisReplyToKVDBReply <$>) s)
 
 
 exceptionToKVDBReply :: Exception e => e -> KVDBReply

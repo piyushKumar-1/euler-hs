@@ -27,7 +27,7 @@ spec = around withRedisConnection $ do
         res <- get "aaa"
         del ["aaa"]
         pure res
-      result `shouldBe` (Right (Just "bbb"))
+      result `shouldBe` Right (Just "bbb")
 
     it "get a wrong key" $ \rt -> do
       result <- runFlow rt $ L.runKVDB $ do
@@ -35,21 +35,21 @@ spec = around withRedisConnection $ do
         res <- get "aaac"
         del ["aaa"]
         pure res
-      result `shouldBe` (Right Nothing)
+      result `shouldBe` Right Nothing
 
     it "delete existing keys" $ \rt -> do
       result <- runFlow rt $ L.runKVDB $ do
         set "aaa" "bbb"
         set "ccc" "ddd"
         del ["aaa", "ccc"]
-      result `shouldBe` (Right 2)
+      result `shouldBe` Right 2
 
     it "delete keys (w/ no keys)" $ \rt -> do
       result <- runFlow rt $ L.runKVDB $ do
         del []
-      result `shouldBe` (Left (Err "ERR wrong number of arguments for 'del' command"))
+      result `shouldBe` Right 0
 
     it "delete missing keys" $ \rt -> do
       result <- runFlow rt $ L.runKVDB $ do
         del ["zzz", "yyy"]
-      result `shouldBe` (Right 0)
+      result `shouldBe` Right 0

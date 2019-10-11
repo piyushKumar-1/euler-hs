@@ -6,9 +6,19 @@ module Euler.Server where
 
 import           EulerHS.Prelude
 
+import           Network.Socket (SockAddr(..), hostAddressToTuple, hostAddress6ToTuple)
+import           Numeric (showHex)
 import           Servant
+import           Servant.API.RemoteHost
+import           Servant.API.Raw
+import           Text.Show (showString)
+import           Data.Coerce (coerce)
+import           Data.Time
+
+import Euler.API.RouteParameters
 
 import qualified Data.Aeson as A
+import qualified Data.Map as Map
 import qualified Data.Text  as Text
 
 import qualified EulerHS.Interpreters                   as R
@@ -35,19 +45,31 @@ import           WebService.PostRewrite
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
+import qualified Euler.Storage.Types.MerchantAccount    as Merchant
+import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+import qualified Euler.Product.OLTP.Order.CreateUpdate  as OrderCreateUpdate
+import qualified Euler.Storage.Types.MerchantAccount    as MACC
+import qualified Euler.Product.OLTP.Services.AuthenticationService as AS
+import qualified Control.Exception.Safe as CES (catches, Handler(..))
+
+import qualified Euler.Storage.Types.SqliteTest as SQLITE
+import qualified Euler.Storage.DBConfig as DB
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text
   :<|> "txns" :> ReqBody '[JSON] ApiTxn.Transaction :> Post '[JSON] ApiTxn.TransactionResponse
 -- order status
-  :<|> "orders" :> Capture "orderId" Text :> Header "Authorization" Text :> Get '[JSON] ApiOrder.OrderStatusResponse
+  :<|> "orders" :> OrderStatusGetEndpoint -- Capture "orderId" Text :> Header "Authorization" Text :> Get '[JSON] ApiOrder.OrderStatusResponse
 -- order create
-  :<|> "orders" :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderCreateResponse
+  :<|> "orders" :> OrderCreateEndpoint --  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderCreateResponse
 -- order update
   :<|> "orders" :> Capture "orderId" Text :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderStatusResponse
 -- payment status endpoint (flexible casing showcase)
   :<|> "orders" :> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse
   :<|> "metrics" :> Get '[OctetStream] ByteString
+  :<|> "getMA" :> Capture "mid" Int :> Get '[JSON] MACC.MerchantAccount
+--  :<|> "getTest" :> Get '[JSON] SQLITE.TestTable
+  :<|> "remoteip" :> Header "User-Agent" Text :> RemoteHost :> Get '[JSON] Text
   :<|> EmptyAPI
 
 eulerAPI :: Proxy EulerAPI
@@ -74,6 +96,9 @@ eulerServer' =
     orderUpdate   :<|>
     paymentStatus :<|>
     metrics       :<|>
+    getMA         :<|>
+--    getT          :<|>
+    remoteip      :<|>
     emptyServer
 
 ----------------------------------------------------------------------
@@ -85,7 +110,7 @@ eulerServer_ api serv env = hoistServer api (f env) serv
     f env' r = do
       eResult <- liftIO $ (runExceptT $ runReaderT r env')
       case eResult of
-        Left err  -> throwError err -- TODO: error reporting (internal server error & output to console, to log)
+        Left err  -> throwError err
         Right res -> pure res
 
 eulerServer :: Env -> Server EulerAPI
@@ -101,8 +126,11 @@ eulerBackendApp env =
   in
     flexCaseMiddleware (serve eulerAPI (eulerServer env))
 
-runFlow :: (ToJSON a) => PB.FlowTag -> A.Value -> L.Flow a -> FlowHandler a
-runFlow flowTag req flow = do
+-- emptyRPs :: RouteParameters
+-- emptyRPs = coerce $ Map.empty
+
+runFlow :: (ToJSON a) => PB.FlowTag -> RouteParameters -> A.Value -> L.Flow a -> FlowHandler a
+runFlow flowTag rps req flow = do
   Env {..} <- ask
   runningMode <- case envRecorderParams of
     Nothing -> pure T.RegularMode
@@ -115,16 +143,20 @@ runFlow flowTag req flow = do
   let mc = PB.MethodConfigs
         { mcRawBody = ""
         , mcQueryParams = mempty
-        , mcRouteParams = mempty
+        , mcRouteParams = coerce rps
         , mcRawHeaders = mempty
         , mcMethodUrl = ""
         , mcSourceIP = ""
         , mcUserAgent = ""
         }
-  res <- try $ lift $ lift $ R.runFlow newRt flow
-  let jsonRes = case res of
-        Left err ->  toJSON @String $ show err
-        Right r ->  toJSON r
+  res <- (lift $ lift $ R.runFlow newRt flow) `CES.catches` -- TODO: error reporting (internal server error & output to console, to log)
+    [ CES.Handler(\(e :: ServerError ) -> do
+          putTextLn $"Catched ServerError!\n" <> show e
+          throwError e)
+    , CES.Handler(\(e :: SomeException) -> do
+          putTextLn $ "Catched SomeException!\n" <> show e
+          throwError err500 {errBody = "Sorry! Something went wrong :-("})
+    ]
   _ <- lift $ lift $ case (runningMode, envRecorderParams) of
     (T.RecordingMode T.RecorderRuntime{..}, Just envParams) -> do
       entries' <- T.awaitRecording $ recording
@@ -178,7 +210,7 @@ getMethod f _ p = f p
 test :: FlowHandler Text
 test = do
   liftIO $ putStrLn ("Test method called." :: String)
-  void $ runFlow "testFlow2" noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
+  runFlow "testFlow2" emptyRPs noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
   pure "Test."
 
 txns :: ApiTxn.Transaction -> FlowHandler ApiTxn.TransactionResponse
@@ -200,28 +232,84 @@ txns _ = do
   --       , Txn.params         = ""
   --       }
 
-orderStatus :: Text -> Maybe Text -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus _ apiKey' = do
-  res <- case apiKey' of
-           Nothing -> do
-            liftIO $ putStrLn ("No apikey header" :: String)
-            throwError err403 { errBody = " no api key " }
-           Just _ -> do
-            pure ApiOrder.defaultOrderStatusResponse
+type OrderStatusGetEndpoint =
+  -- Route vals
+     Capture "orderId" OrderId
+  -- Headers
+  :> Header "Authorization" Authorization
+  :>  Header "X-Forwarded-For" XForwardedFor
+  :> Get '[JSON] ApiOrder.OrderStatusResponse
+
+orderStatus ::
+     OrderId
+  -> Maybe Authorization
+  -> Maybe XForwardedFor
+  -> FlowHandler ApiOrder.OrderStatusResponse
+orderStatus orderId auth xforwarderfor = do
+  let (rps :: RouteParameters) = collectRPs
+              orderId
+              auth
+              xforwarderfor
+  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
   pure res
 
-orderCreate :: ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderCreateResponse
-orderCreate _ = do
+type OrderCreateEndpoint =
+  --  Headers
+      Header "Authorization" Authorization
+  :>  Header "Version" Version
+  :>  Header "User-Agent" UserAgent
+  :>  Header "X-Auth-Scope" XAuthScope
+  :>  Header "X-Forwarded-For" XForwardedFor
+  --  Remote host
+  :>  RemoteHost
+  --  POST Body
+  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+  --  Response
+  :>  Post '[JSON] ApiOrder.OrderCreateResponse
+
+orderCreate :: -- Headers
+               Maybe Authorization
+            -> Maybe Version
+            -> Maybe UserAgent
+            -> Maybe XAuthScope
+            -> Maybe XForwardedFor
+            -- Remote IP
+            -> SockAddr
+            -- Response
+            -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderCreateResponse
+orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
+  let rps = collectRPs
+               auth
+               version
+               uagent
+               xauthscope
+               xforwarderfor
+               (sockAddrToSourceIP sockAddr)
   res <- do
     liftIO $ putStrLn ("orderCreateStart" :: String)
-    pure ApiOrder.defaultOrderCreateResponse
+    liftIO $ putTextLn (show $ lookupRP @Version rps )
+    liftIO $ putTextLn (show rps)
+    start <- liftIO getCurrentTime
+    r <- runFlow "orderCreate" rps (toJSON ordReq) $ (AS.withMacc OrderCreateUpdate.orderCreate ordReq rps)
+    end <- liftIO getCurrentTime
+    liftIO $ print $ diffUTCTime end start
+    pure r
   pure res
+
+-- withMacc :: forall req resp . (req -> RouteParameters -> MACC.MerchantAccount -> L.Flow  resp) -> req -> RouteParameters -> L.Flow resp
+-- withMacc f req rp = do
+--   ma <- AS.authenticateRequest rp
+--   f req rp ma
 
 orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate _ _ = do
   res <- do
     liftIO $ putStrLn ("orderUpdateStart" :: String)
-    pure ApiOrder.defaultOrderStatusResponse
+    start <- liftIO getCurrentTime
+    r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdate.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
+    end <- liftIO getCurrentTime
+    liftIO $ print $ diffUTCTime end start
+    pure r
   pure res
 
 paymentStatus ::
@@ -242,3 +330,24 @@ paymentStatus _ _ _ _ = throwError err500
 
 metrics :: FlowHandler ByteString
 metrics = BSL.toStrict <$> P.exportMetricsAsText
+
+getMA :: Int -> FlowHandler MACC.MerchantAccount
+getMA mid = do
+  res <- do
+    liftIO $ putStrLn ("MACC START" :: String)
+    r <- runFlow "getMA" emptyRPs noReqBodyJSON $ AS.getMACC mid
+    pure r
+  pure res
+
+--getT :: FlowHandler SQLITE.TestTable
+--getT = do
+--  res <- do
+--    liftIO $ putStrLn ("MACC START" :: String)
+--    r <- runFlow "getT" noReqBodyJSON $ AS.getTest
+--    pure r
+--  pure res
+
+remoteip :: Maybe Text -> SockAddr -> FlowHandler Text
+remoteip uagent remIp =
+  pure $ show uagent <> " \n " <> (show $ sockAddrToSourceIP remIp)
+

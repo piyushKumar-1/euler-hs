@@ -1,4 +1,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
+<<<<<<< HEAD
+=======
+{-# LANGUAGE StandaloneDeriving #-}
+>>>>>>> [WIP]
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Euler.Storage.Types.EulerDB
@@ -33,7 +37,6 @@ import qualified Euler.Storage.Types.ServiceConfiguration      as SServiceConfig
 import qualified Euler.Storage.Types.TxnCardInfo               as STxnCardInfo
 import qualified Euler.Storage.Types.TxnDetail                 as STxnDetail
 import qualified Euler.Storage.Types.TxnRiskCheck              as STxnRiskCheck
-
 import qualified Euler.Storage.Types.SqliteTest as SSQLite
 
 
@@ -62,7 +65,6 @@ data EulerDb f = EulerDb
   , txn_detail ::  f (B.TableEntity STxnDetail.TxnDetailT)
   , txn_risk_check ::  f (B.TableEntity STxnRiskCheck.TxnRiskCheckT)
   , test_table :: f (B.TableEntity SSQLite.TestTableT)
-
   } deriving (Generic, B.Database be)
 
 eulerDb :: B.DatabaseSettings be EulerDb

@@ -1,5 +1,7 @@
-{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Euler.Storage.Types.Feature
   ( FeatureT(..)
@@ -11,6 +13,7 @@ module Euler.Storage.Types.Feature
 
 import EulerHS.Prelude hiding (id)
 import Data.Time
+import Euler.Common.Types.DefaultDate
 import qualified Database.Beam as B
 
 

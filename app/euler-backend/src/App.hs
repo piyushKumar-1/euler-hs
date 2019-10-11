@@ -24,6 +24,18 @@ maxTotalConns = 8
 sqliteConn :: IsString a => a
 sqliteConn = "sqlite"
 
+mySQLCfg :: T.MySQLConfig
+mySQLCfg = T.MySQLConfig
+  { connectHost     = "localhost"
+  , connectPort     = 3306
+  , connectUser     = "cloud"
+  , connectPassword = "scape"
+  , connectDatabase = "jdb"
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
+
 eulerApiPort :: Int
 eulerApiPort = 8080
 
@@ -47,7 +59,7 @@ redisConnConfig = T.RedisConfig
 prepareDBConnections :: L.Flow ()
 prepareDBConnections = do
   ePool <- L.initSqlDBConnection
-    $ T.mkSQLitePoolConfig sqliteConn "tmp/test.db"
+    $ T.mkSQLitePoolConfig sqliteConn "/tmp/test.db" -- T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg --
     $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
   redis <- L.initKVDBConnection
     $ T.mkKVDBConfig redisConn
@@ -72,7 +84,7 @@ runEulerBackendApp' settings = do
   R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do
     putStrLn @String "Runtime created."
     putStrLn @String "Initializing DB connections..."
-    try (R.runFlow flowRt prepareDBConnections') >>= \case
+    try (R.runFlow flowRt prepareDBConnections) >>= \case
       Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
       Right _ -> do
         putStrLn @String "Initializing ART..."

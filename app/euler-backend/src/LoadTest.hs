@@ -8,7 +8,8 @@ import App
 import Control.Concurrent.MVar (modifyMVar, modifyMVar_)
 import Euler.API.Order
 import Network.HTTP.Client
-import Network.Wai.Handler.Warp (setPort, defaultSettings, setBeforeMainLoop)
+import Network.Socket (SockAddr(..))
+import Network.Wai.Handler.Warp (run, Settings, setPort, defaultSettings, runSettings, setBeforeMainLoop)
 
 import qualified Data.List as L (partition)
 import qualified Euler.Server as Server
@@ -83,7 +84,7 @@ main = do
         , gateway_id                        = Just "8"
         }
 
-  orderCreateVar <- runSuit $ runClient $ orderCreate orderCreateBody
+  orderCreateVar <- runSuit $ runClient $ orderCreate Nothing Nothing Nothing Nothing Nothing  orderCreateBody
   -- metricsVar     <- runSuit $ runClient metrics
 
   let mainLoop = do

@@ -63,7 +63,7 @@ data MethodRecordingSource
 data MethodConfigs = MethodConfigs
   { mcRawBody         :: String
   , mcQueryParams     :: Map String String
-  , mcRouteParams     :: Map String String
+  , mcRouteParams     :: Map Text Text
  -- , headers         :: EitherEx String Headers  -- TODO
   , mcRawHeaders      :: Map String String
   -- , httpMethod      :: Method  -- TODO

@@ -4,8 +4,10 @@ module Euler.Product.Domain.Order where
 
 import EulerHS.Prelude
 import Data.Time
-import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature)
+import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature, OrderType)
 import Euler.Common.Types.DefaultDate
+--import Euler.Common.Types.Promotion
+--import Euler.Common.Types.Address
 
 -- Previously: OrderReference
 -- should fields be "Maybe" ?
@@ -97,11 +99,7 @@ defaultOrder = Order
 
 
 
-data OrderType
-  = MANDATE_REGISTER
-  | MANDATE_PAYMENT
-  | ORDER_PAYMENT
-  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
+
 
 
 

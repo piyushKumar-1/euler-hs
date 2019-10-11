@@ -9,14 +9,19 @@ import           EulerHS.Language
 import           EulerHS.Runtime
 import           EulerHS.Types
 
-import           Control.Exception       (throwIO)
-import           Network.HTTP.Client     (newManager)
+import           Data.Coerce (coerce)
+import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Data.Aeson             as A   (Result(..), fromJSON)
 import qualified Control.Exception.Safe as CES (catches, Handler(..))
 
+
+import Euler.API.RouteParameters
 import Euler.Playback.Types
+
+import qualified Euler.Product.OLTP.Services.AuthenticationService as AS (withMacc)
+import qualified Euler.Product.OLTP.Order.CreateUpdate  as OrderCreateUpdate
 
 
 runMethodPlayer
@@ -25,13 +30,14 @@ runMethodPlayer
   -> PlayerParams
   -> IO MethodPlayerResult
 runMethodPlayer "testFlow2"        = withMethodPlayer (getMethod testFlow2)
+runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreateUpdate.orderCreate)
 runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 
 getMethod :: ( FromJSON resp) => (t1 -> Flow resp) -> () -> t1 -> Flow resp
 getMethod f _ p = f p
 
-testFlow2 ::  Map String String -> Flow Text
+testFlow2 ::  RouteParameters -> Flow Text
 testFlow2  _ = do
   void $ runSysCmd "echo hello"
   forkFlow "f1" $ logInfo tag "hellofrom forked flow"
@@ -45,7 +51,7 @@ testFlow2  _ = do
 
 withMethodPlayer
   :: (FromJSON req, FromJSON resp, ToJSON resp, Eq resp, Show resp)
-  =>  ( req -> Map String String -> Flow resp)
+  =>  ( req -> RouteParameters -> Flow resp)
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
@@ -83,8 +89,8 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
             , _runMode = ReplayingMode playerRt
             , _sqldbConnections = sqldbConnectionsVar
             }
-      let method = methodF req mempty -- mr.parameters
-      eResult :: Either SomeException resp <- try $ runFlow flowRt method
+      let method = methodF req (coerce mcRouteParams) -- mr.parameters
+      eResult <- try $ runFlow flowRt method
       case eResult of
         Right eResult' -> do
 

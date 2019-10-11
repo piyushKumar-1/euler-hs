@@ -97,6 +97,11 @@ dependencies:
 - unordered-containers
 - uuid
 - validation
+- semigroupoids
+- case-insensitive
+- http-media
+- servant-client-core
+- servant-server
 - vector
 
 library:

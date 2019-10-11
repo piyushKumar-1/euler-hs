@@ -3,10 +3,19 @@
 module Euler.API.Order where
 
 import EulerHS.Prelude
+import Data.Aeson
 import Data.Time
-import Web.FormUrlEncoded (FromForm, ToForm)
+import Servant
+import Web.FormUrlEncoded
 
-import Euler.Common.Types.Order (OrderStatus(..))
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Prelude as P
+
+import Euler.Common.Types.Order (OrderStatus(..), MandateFeature)
 import Euler.Common.Types.Promotion
 
 
@@ -55,14 +64,135 @@ data OrderCreateRequest = OrderCreateRequest
   , udf10                             :: Maybe Text
   , metaData                          :: Maybe Text
   , gateway_id                        :: Maybe Text -- converted to Int, why Text?
- -- , "options.create_mandate" :: Maybe MandateFeature
- -- why not options_optionName
+  , options_create_mandate            :: Maybe MandateFeature
   , mandate_max_amount                :: Maybe Text
   , auto_refund                       :: Maybe Bool
- -- , "options.get_client_auth_token" :: Maybe Bool
- -- why not options_optionName
+  , options_get_client_auth_token     :: Maybe Bool
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
+  deriving (Show, Eq, Ord, Generic, ToJSON, ToForm)
+
+instance FromForm OrderCreateRequest where
+  fromForm f = do
+    let metaData' = foldl appendOnlyJust []
+          $ map (\(k,v) -> (T.stripPrefix "metadata." k, listToMaybe v))
+          $ HM.toList
+          $ HM.filterWithKey (\k _ -> T.isPrefixOf "metadata." k) $ unForm f
+    metaData <- case metaData' of
+      [] -> pure Nothing
+      l -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
+    order_id <- parseUnique "order_id" f
+    amount <- parseUnique "amount" f
+    currency <- parseMaybe "currency" f
+    customer_id <- parseMaybe "customer_id" f
+    customer_email <- parseMaybe "customer_email" f
+    customer_phone <- parseMaybe "customer_phone" f
+    description <- parseMaybe "description" f
+    return_url <- parseMaybe "return_url" f
+    product_id <- parseMaybe "product_id" f
+    billing_address_first_name <- parseMaybe "billing_address_first_name" f
+    billing_address_last_name <- parseMaybe "billing_address_last_name" f
+    billing_address_line1 <- parseMaybe "billing_address_line1" f
+    billing_address_line2 <- parseMaybe "billing_address_line2" f
+    billing_address_line3 <- parseMaybe "billing_address_line3" f
+    billing_address_city <- parseMaybe "billing_address_city" f
+    billing_address_state <- parseMaybe "billing_address_state" f
+    billing_address_country <- parseMaybe "billing_address_country" f
+    billing_address_postal_code <- parseMaybe "billing_address_postal_code" f
+    billing_address_phone <- parseMaybe "billing_address_phone" f
+    billing_address_country_code_iso <- parseMaybe "billing_address_country_code_iso" f
+    shipping_address_first_name <- parseMaybe "shipping_address_first_name" f
+    shipping_address_last_name <- parseMaybe "shipping_address_last_name" f
+    shipping_address_line1 <- parseMaybe "shipping_address_line1" f
+    shipping_address_line2 <- parseMaybe "shipping_address_line2" f
+    shipping_address_line3 <- parseMaybe "shipping_address_line3" f
+    shipping_address_city <- parseMaybe "shipping_address_city" f
+    shipping_address_state <- parseMaybe "shipping_address_state" f
+    shipping_address_country <- parseMaybe "shipping_address_country" f
+    shipping_address_postal_code <- parseMaybe "shipping_address_postal_code" f
+    shipping_address_phone <- parseMaybe "shipping_address_phone" f
+    shipping_address_country_code_iso <- parseMaybe "shipping_address_country_code_iso" f
+    udf1 <- parseMaybe "udf1" f
+    udf2 <- parseMaybe "udf2" f
+    udf3 <- parseMaybe "udf3" f
+    udf4 <- parseMaybe "udf4" f
+    udf5 <- parseMaybe "udf5" f
+    udf6 <- parseMaybe "udf6" f
+    udf7 <- parseMaybe "udf7" f
+    udf8 <- parseMaybe "udf8" f
+    udf9 <- parseMaybe "udf9" f
+    udf10 <- parseMaybe "udf10" f
+    gateway_id <- parseMaybe "gateway_id" f
+    mandate_max_amount <- parseMaybe "mandate_max_amount" f
+    auto_refund <- parseMaybe "auto_refund" f
+    options_create_mandate <- liftA2 (<|>) (parseMaybe "options.create_mandate" f) (parseMaybe "options_create_mandate" f)
+    options_get_client_auth_token <- liftA2 (<|>) (parseMaybe "options.get_client_auth_token" f) (parseMaybe "options_get_client_auth_token" f)
+    pure OrderCreateRequest{..}
+
+instance FromJSON OrderCreateRequest where
+  parseJSON = withObject "OrderCreateRequest" $ \o -> do
+    let metaData' = foldl appendOnlyJust []
+          $ map (\(k,v) -> (T.stripPrefix "metadata." k, fromStrValue v))
+          $ HM.toList
+          $ HM.filterWithKey (\k _ -> T.isPrefixOf "metadata." k) o
+    metaData <- case metaData' of
+      [] -> pure Nothing
+      l -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
+    order_id <- o .: "order_id"
+    amount <- o .: "amount"
+    currency <- o .: "currency"
+    customer_id <- o .: "customer_id"
+    customer_email <- o .: "customer_email"
+    customer_phone <- o .: "customer_phone"
+    description <- o .: "description"
+    return_url <- o .: "return_url"
+    product_id <- o .: "product_id"
+    billing_address_first_name <- o .: "billing_address_first_name"
+    billing_address_last_name <- o .: "billing_address_last_name"
+    billing_address_line1 <- o .: "billing_address_line1"
+    billing_address_line2 <- o .: "billing_address_line2"
+    billing_address_line3 <- o .: "billing_address_line3"
+    billing_address_city <- o .: "billing_address_city"
+    billing_address_state <- o .: "billing_address_state"
+    billing_address_country <- o .: "billing_address_country"
+    billing_address_postal_code <- o .: "billing_address_postal_code"
+    billing_address_phone <- o .: "billing_address_phone"
+    billing_address_country_code_iso <- o .: "billing_address_country_code_iso"
+    shipping_address_first_name <- o .: "shipping_address_first_name"
+    shipping_address_last_name <- o .: "shipping_address_last_name"
+    shipping_address_line1 <- o .: "shipping_address_line1"
+    shipping_address_line2 <- o .: "shipping_address_line2"
+    shipping_address_line3 <- o .: "shipping_address_line3"
+    shipping_address_city <- o .: "shipping_address_city"
+    shipping_address_state <- o .: "shipping_address_state"
+    shipping_address_country <- o .: "shipping_address_country"
+    shipping_address_postal_code <- o .: "shipping_address_postal_code"
+    shipping_address_phone <- o .: "shipping_address_phone"
+    shipping_address_country_code_iso <- o .: "shipping_address_country_code_iso"
+    udf1 <- o .: "udf1"
+    udf2 <- o .: "udf2"
+    udf3 <- o .: "udf3"
+    udf4 <- o .: "udf4"
+    udf5 <- o .: "udf5"
+    udf6 <- o .: "udf6"
+    udf7 <- o .: "udf7"
+    udf8 <- o .: "udf8"
+    udf9 <- o .: "udf9"
+    udf10 <- o .: "udf10"
+    gateway_id <- o .: "gateway_id"
+    mandate_max_amount <- o .: "mandate_max_amount"
+    auto_refund <- o .: "auto_refund"
+    options_create_mandate <- o .: "options.create_mandate" <|> o .: "options_create_mandate"
+    options_get_client_auth_token <- o .: "options.get_client_auth_token" <|> o .: "options_get_client_auth_token"
+    pure OrderCreateRequest{..}
+
+fromStrValue :: Value -> Maybe Text
+fromStrValue s = case s of
+  String x -> Just x
+  _        -> Nothing
+
+appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
+appendOnlyJust xs (Just k, Just v) = (k,v) : xs
+appendOnlyJust xs _ = xs
 
 -- instance FromFormUrlEncoded OrderCreateRequest where
 --   fromFormUrlEncoded inputs =
@@ -103,23 +233,23 @@ src/Types/Communication/OLTP/Order.js
 -- should be decoded with custom FromJSON instance
 -- to avoid duplicate fields
 data OrderStatusRequest = OrderStatusRequest
-  { txn_uuid :: Maybe Text
+  { txn_uuid    :: Maybe Text
   , merchant_id :: Maybe Text
-  , order_id :: Maybe Text
-  , txnUuid :: Maybe Text
-  , merchantId :: Maybe Text
-  , orderId :: Maybe Text
+  , order_id    :: Maybe Text
+  , txnUuid     :: Maybe Text
+  , merchantId  :: Maybe Text
+  , orderId     :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 defaultOrderStatusRequest :: OrderStatusRequest
 defaultOrderStatusRequest  = OrderStatusRequest
-  { txn_uuid = Nothing -- :: Maybe Text
+  { txn_uuid     = Nothing -- :: Maybe Text
   , merchant_id  = Nothing -- :: Maybe Text
-  , order_id  = Nothing -- :: Maybe Text
-  , txnUuid  = Nothing -- :: Maybe Text
-  , merchantId  = Nothing -- :: Maybe Text
-  , orderId  = Nothing -- :: Maybe Text
+  , order_id     = Nothing -- :: Maybe Text
+  , txnUuid      = Nothing -- :: Maybe Text
+  , merchantId   = Nothing -- :: Maybe Text
+  , orderId      = Nothing -- :: Maybe Text
   }
 
 --  Previously OrderAPIResponse
@@ -195,7 +325,7 @@ data Paymentlinks = Paymentlinks
 defaultPaymentlinks :: Paymentlinks
 defaultPaymentlinks = Paymentlinks
   { iframe = Nothing
-  , web = Nothing
+  , web    = Nothing
   , mobile = Nothing
   }
 
@@ -321,48 +451,48 @@ defaultOrderStatusResponse = OrderStatusResponse
 
 -- from src/Externals/EC/Common.purs
 data Card = Card
-  {  expiry_year :: Maybe Text
-  ,  card_reference :: Maybe Text
-  ,  saved_to_locker :: Maybe Bool
-  ,  expiry_month :: Maybe Text
-  ,  name_on_card :: Maybe Text
-  ,  card_issuer :: Maybe Text
+  {  expiry_year      :: Maybe Text
+  ,  card_reference   :: Maybe Text
+  ,  saved_to_locker  :: Maybe Bool
+  ,  expiry_month     :: Maybe Text
+  ,  name_on_card     :: Maybe Text
+  ,  card_issuer      :: Maybe Text
   ,  last_four_digits :: Maybe Text
   ,  using_saved_card :: Maybe Bool
   ,  card_fingerprint :: Maybe Text
-  ,  card_isin :: Maybe Text
-  ,  card_type :: Maybe Text
-  ,  card_brand :: Maybe Text
+  ,  card_isin        :: Maybe Text
+  ,  card_type        :: Maybe Text
+  ,  card_brand       :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Chargeback' = Chargeback'
-  {  id :: Maybe Text
-  ,  amount :: Maybe Double
+  {  id                  :: Maybe Text
+  ,  amount              :: Maybe Double
   ,  object_reference_id :: Maybe Text
-  ,  txn :: Maybe TxnDetail'
-  ,  date_resolved :: Maybe LocalTime
-  ,  date_created :: Maybe LocalTime
-  ,  last_updated :: Maybe LocalTime
-  ,  object :: Maybe Text
-  ,  dispute_status :: Maybe Text
+  ,  txn                 :: Maybe TxnDetail'
+  ,  date_resolved       :: Maybe LocalTime
+  ,  date_created        :: Maybe LocalTime
+  ,  last_updated        :: Maybe LocalTime
+  ,  object              :: Maybe Text
+  ,  dispute_status      :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Refund' = Refund'
-  {  id :: Maybe Text -- Foreign
-  ,  amount :: Double
-  ,  unique_request_id :: Maybe Text
-  ,  ref :: Maybe Text -- Foreign
-  ,  created :: Text
-  ,  status :: RefundStatus -- Refund.RefundStatus
-  ,  error_message :: Maybe Text
-  ,  sent_to_gateway :: Maybe Bool
-  ,  arn :: Maybe Text
-  ,  initiated_by :: Maybe Text
+  {  id                    :: Maybe Text -- Foreign
+  ,  amount                :: Double
+  ,  unique_request_id     :: Maybe Text
+  ,  ref                   :: Maybe Text -- Foreign
+  ,  created               :: Text
+  ,  status                :: RefundStatus -- Refund.RefundStatus
+  ,  error_message         :: Maybe Text
+  ,  sent_to_gateway       :: Maybe Bool
+  ,  arn                   :: Maybe Text
+  ,  initiated_by          :: Maybe Text
   ,  internal_reference_id :: Maybe Text
-  ,  refund_source :: Maybe Text -- Foreign
-  ,  refund_type :: Maybe Text
+  ,  refund_source         :: Maybe Text -- Foreign
+  ,  refund_type           :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Storage/EC/Refund.purs
@@ -370,9 +500,9 @@ data RefundStatus = FAILURE | MANUAL_REVIEW | PENDING | SUCCESS | TXN_FAILURE
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Storage/EC/Mandate/Types.purs
 data Mandate' = Mandate'
-  { mandate_token :: Text
+  { mandate_token  :: Text
   , mandate_status :: Maybe Text
-  , mandate_id :: Text
+  , mandate_id     :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -381,73 +511,73 @@ data Mandate' = Mandate'
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Risk = Risk
-  { provider :: Maybe Text -- Foreign
-  , status :: Maybe Text -- Foreign
-  , message :: Maybe Text -- Foreign
-  , flagged :: Maybe Text -- Foreign
-  , recommended_action :: Maybe Text -- Foreign
-  , ebs_risk_level :: Maybe Text -- Foreign
-  , ebs_payment_status :: Maybe Text -- Foreign
-  , ebs_bin_country :: Maybe Text -- Foreign
+  { provider            :: Maybe Text -- Foreign
+  , status              :: Maybe Text -- Foreign
+  , message             :: Maybe Text -- Foreign
+  , flagged             :: Maybe Text -- Foreign
+  , recommended_action  :: Maybe Text -- Foreign
+  , ebs_risk_level      :: Maybe Text -- Foreign
+  , ebs_payment_status  :: Maybe Text -- Foreign
+  , ebs_bin_country     :: Maybe Text -- Foreign
   , ebs_risk_percentage :: Maybe Text -- Foreign
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data TxnDetail' = TxnDetail'
-  { txn_id :: Text
-  , order_id :: Text
-  , txn_uuid :: Maybe Text
-  , gateway_id :: Maybe Int
-  , status :: Text
-  , gateway :: Maybe Text
+  { txn_id           :: Text
+  , order_id         :: Text
+  , txn_uuid         :: Maybe Text
+  , gateway_id       :: Maybe Int
+  , status           :: Text
+  , gateway          :: Maybe Text
   , express_checkout :: Maybe Bool
-  , redirect :: Maybe Bool
-  , net_amount :: Maybe Text -- Foreign
+  , redirect         :: Maybe Bool
+  , net_amount       :: Maybe Text -- Foreign
   , surcharge_amount :: Maybe Text -- Foreign
-  , tax_amount :: Maybe Text -- Foreign
-  , txn_amount :: Maybe Text -- Foreign
-  , currency :: Maybe Text
-  , error_message :: Maybe Text
-  , error_code :: Maybe Text -- Foreign
-  , txn_object_type :: Maybe Text
-  , source_object :: Maybe (Text)
+  , tax_amount       :: Maybe Text -- Foreign
+  , txn_amount       :: Maybe Text -- Foreign
+  , currency         :: Maybe Text
+  , error_message    :: Maybe Text
+  , error_code       :: Maybe Text -- Foreign
+  , txn_object_type  :: Maybe Text
+  , source_object    :: Maybe (Text)
   , source_object_id :: Maybe Text
-  , created :: Maybe LocalTime
+  , created          :: Maybe LocalTime
 }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data MerchantPaymentGatewayResponse' = MerchantPaymentGatewayResponse'
-  {  resp_code :: Maybe Text
-  ,  rrn :: Maybe Text
-  ,  created :: Maybe Text
-  ,  epg_txn_id :: Maybe Text
-  ,  resp_message :: Maybe Text
-  ,  auth_id_code :: Maybe Text
-  ,  txn_id :: Maybe Text
-  ,  offer :: Maybe Text
-  ,  offer_type :: Maybe Text
-  ,  offer_availed :: Maybe Text -- Foreign
-  ,  discount_amount :: Maybe Text -- Foreign
+  {  resp_code            :: Maybe Text
+  ,  rrn                  :: Maybe Text
+  ,  created              :: Maybe Text
+  ,  epg_txn_id           :: Maybe Text
+  ,  resp_message         :: Maybe Text
+  ,  auth_id_code         :: Maybe Text
+  ,  txn_id               :: Maybe Text
+  ,  offer                :: Maybe Text
+  ,  offer_type           :: Maybe Text
+  ,  offer_availed        :: Maybe Text -- Foreign
+  ,  discount_amount      :: Maybe Text -- Foreign
   ,  offer_failure_reason :: Maybe Text
-  ,  gateway_response :: Maybe Text -- Foreign
+  ,  gateway_response     :: Maybe Text -- Foreign
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
-  {   resp_code :: Maybe Text -- Foreign
-   ,  rrn :: Maybe Text -- Foreign
-   ,  created :: Maybe Text -- Foreign
-   ,  epg_txn_id :: Maybe Text -- Foreign
-   ,  resp_message :: Maybe Text -- Foreign
-   ,  auth_id_code :: Maybe Text -- Foreign
-   ,  txn_id :: Maybe Text -- Foreign
-   ,  offer :: Maybe Text
-   ,  offer_type :: Maybe Text
-   ,  offer_availed :: Maybe Text -- Foreign
-   ,  discount_amount :: Maybe Text -- Foreign
+  {   resp_code            :: Maybe Text -- Foreign
+   ,  rrn                  :: Maybe Text -- Foreign
+   ,  created              :: Maybe Text -- Foreign
+   ,  epg_txn_id           :: Maybe Text -- Foreign
+   ,  resp_message         :: Maybe Text -- Foreign
+   ,  auth_id_code         :: Maybe Text -- Foreign
+   ,  txn_id               :: Maybe Text -- Foreign
+   ,  offer                :: Maybe Text
+   ,  offer_type           :: Maybe Text
+   ,  offer_availed        :: Maybe Text -- Foreign
+   ,  discount_amount      :: Maybe Text -- Foreign
    ,  offer_failure_reason :: Maybe Text
-   ,  gateway_response :: Maybe Text -- Foreign
+   ,  gateway_response     :: Maybe Text -- Foreign
    }
    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -468,12 +598,3 @@ type FeatureAll a =
   | a
   }
 -}
-data Feature = Feature
-  { version :: Int
-  , enabled :: Bool
-  , name :: Text
-  , merchantId :: Maybe Text
-  , disabledUntil :: Maybe LocalTime
-  , id :: Maybe Int
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

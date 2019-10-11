@@ -8,12 +8,16 @@ import qualified Euler.Tests.FlexApis.SampleApiSpec         as FlexApis.SampleAp
 import qualified Euler.Tests.Encryption.EncryptionSpec      as Encryption
 import qualified Euler.Tests.Money.MoneySpec                as MoneySpec
 import qualified Euler.Tests.API.AuthRSA                    as AuthRSA
+import qualified Euler.Tests.API.OrderSpec                  as Order
+import qualified Euler.Tests.Transformation.TransactionSpec as TxnTransform
+import qualified Euler.Tests.FlexApis.SampleApiSpec         as FlexApis.SampleApiSpec
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
+    describe "Order spec"                                 Order.spec
     describe "Txn transformation"                         TxnTransform.spec
     describe "Flex casing and content-types: sample API"  FlexApis.SampleApiSpec.spec
     describe "Encryption"                                 Encryption.spec

@@ -41,9 +41,13 @@ data CardPaymentType
 
 
 data ATMSeamlessPayment = ATMSeamlessPayment
-  { payment_method    :: CPM.CardPaymentMethod
-  , card_payment_type :: CardPaymentType
+  { payment_method         :: CPM.CardPaymentMethod
+  , card_payment_type      :: CardPaymentType
   , auth_type              :: AuthType
+
+  -- , payment_method_type    :: PaymentMethodType   -- ^ it's CARD here
+  -- , redirect_after_payment :: Bool                -- ^ These types are not about domain
+  -- , format                 :: Text                -- ^ These types are not about domain
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

@@ -18,6 +18,7 @@ module EulerHS.Framework.Flow.Language
   , deinitSqlDBConnection
   , getSqlDBConnection
   , runDB
+  , withDB
   -- *** KVDB
   , initKVDBConnection
   , deinitKVDBConnection
@@ -58,7 +59,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BSL
 import           Servant.Client (ClientError, BaseUrl)
 import           Type.Reflection
-
+import           Servant.Server (err500)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
 import qualified EulerHS.Core.Language as L
@@ -404,11 +405,35 @@ runDB
     ( T.JSONEx a
     , T.BeamRunner beM
     , T.BeamRuntime be beM
+ --   , B.FromBackendRow be a
     )
   => T.SqlConn beM
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct id
+
+-- | Extracting existing connection from FlowRuntime
+-- by given db config and runs sql query (described using BEAM syntax).
+-- Acts like 'getSqlDBConnection' + 'runDB'
+withDB ::
+  ( T.JSONEx a
+  , T.BeamRunner beM
+  , T.BeamRuntime be beM
+  )
+  => T.DBConfig beM -> L.SqlDB beM a -> Flow a
+withDB dbConf act = do
+  mConn <- getSqlDBConnection dbConf
+  conn <- case mConn of
+    Right c -> pure c
+    Left err -> do
+      logError @Text "SqlDB connect" $ show err
+      throwException err500
+  res <- runDB conn act
+  case res of
+    Left dbError -> do
+     logError @Text "SqlDB interraction" $ show dbError
+     throwException err500
+    Right r -> pure r
 
 -- | Fork given flow.
 --

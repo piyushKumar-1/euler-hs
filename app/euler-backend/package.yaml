@@ -105,12 +105,12 @@ dependencies:
 - x509
 - x509-store
 - cryptostore
+- base64-bytestring
 - beam-core
 - beam-postgres
 - beam-sqlite
 - beam-mysql
 - beam-migrate
-- base64-bytestring
 
 library:
   source-dirs:

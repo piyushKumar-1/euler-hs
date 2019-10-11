@@ -22,6 +22,7 @@ module EulerHS.Core.Types.DB
   , DBResult
   -- ** Methods
   , bemToNative
+  , nativeToBem
   , mkSqlConn
   , mkSQLiteConfig
   , mkSQLitePoolConfig

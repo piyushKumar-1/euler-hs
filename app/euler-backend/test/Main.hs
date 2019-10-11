@@ -11,7 +11,6 @@ import qualified Euler.Tests.FlexApis.SampleApiSpec as FlexApis.SampleApiSpec
 import qualified Euler.Tests.Transformation.TransactionSpec as TxnTransform
 import qualified Euler.Tests.Money.MoneySpec                as MoneySpec
 import qualified Euler.Tests.API.AuthRSA                    as AuthRSA
-import           Test.Hspec
 
 
 main :: IO ()

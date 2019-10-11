@@ -14,6 +14,7 @@ import           Data.Coerce (coerce)
 import Euler.API.RouteParameters
 
 import qualified Data.Aeson as A
+import qualified Data.Map as Map
 import qualified Data.Text  as Text
 
 import qualified EulerHS.Interpreters                   as R
@@ -257,18 +258,18 @@ type OrderStatusGetEndpoint
   :>  Header "X-Forwarded-For" XForwardedFor
   :> Get '[JSON] ApiOrder.OrderStatusResponse
 
-orderStatus
-  :: OrderId
+orderStatus ::
+     OrderId
   -> Maybe Authorization
   -> Maybe XForwardedFor
   -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId auth xforwarderfor = undefined --do
---  let (rps :: RouteParameters) = collectRPs
---              orderId
---              auth
---              xforwarderfor
---  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
---  pure res
+orderStatus orderId auth xforwarderfor = do
+  let (rps :: RouteParameters) = collectRPs
+              orderId
+              auth
+              xforwarderfor
+  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
+  pure res
 
 -- EHS: Extract from here.
 type OrderCreateEndpoint

@@ -199,6 +199,15 @@ fromStrValue s = case s of
 
 appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
 appendOnlyJust xs (Just k, Just v) = (k,v) : xs
+appendOnlyJust xs _ = xs
+
+fromStrValue :: Value -> Maybe Text
+fromStrValue s = case s of
+  String x -> Just x
+  _        -> Nothing
+
+appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
+appendOnlyJust xs (Just k, Just v) = (k,v) : xs
 appendOnlyJust xs _                = xs
 
 -- instance FromFormUrlEncoded Order where

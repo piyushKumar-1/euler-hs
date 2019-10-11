@@ -4,7 +4,8 @@ module Euler.API.Transaction where
 
 import           EulerHS.Prelude
 
-import           Euler.API.Types (PaymentMethodType, AuthType)
+import           Euler.API.Types (PaymentMethodType)
+import Euler.Common.Transaction (AuthType)
 
 -- TODO: what is this?
 -- foreign import modifyRequestBody :: Foreign -> Foreign

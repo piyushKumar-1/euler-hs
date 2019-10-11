@@ -1,0 +1,12 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
+module Euler.Common.Transaction where
+
+import EulerHS.Prelude
+
+data AuthType 
+  = ATMPIN
+  | THREE_DS
+  | OTP
+  | VISA_CHECKOUT
+  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)

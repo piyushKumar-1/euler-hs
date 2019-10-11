@@ -22,7 +22,7 @@ import Euler.Product.Domain.PaymentMethod.WalletDirect
 import Euler.Product.Domain.PaymentMethod.UPI
 import qualified Euler.API.Transaction as AT
 import qualified Euler.API.Types as AT
-import Euler.API.Types
+import Euler.Common.Transaction (AuthType(..))
 
 instance Transform AT.Transaction DT.Transaction where
   transform apiTxn = DT.Transaction

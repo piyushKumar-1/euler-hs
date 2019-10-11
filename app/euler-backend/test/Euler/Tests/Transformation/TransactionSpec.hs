@@ -19,6 +19,8 @@ import qualified Euler.Product.Domain.PaymentMethod.Wallet as W
 import qualified Euler.Product.Domain.PaymentMethod.WalletDirect as WD
 import Euler.Product.Domain.PaymentMethod.UPI
 import Euler.API.Validators.Transaction
+import Euler.Common.Transaction (AuthType(..))
+import Data.Validation
 
 
 -- regular new CARD
@@ -31,7 +33,7 @@ apiRegularNewCardTxn = AT.Transaction
   , redirect_after_payment = True          -- :: Bool                -- ^
   , format                 = "format"      -- :: Text                -- ^
 
-  , auth_type              = Just AT.VISA_CHECKOUT       --Just "auth_type" -- :: Maybe Text
+  , auth_type              = Just VISA_CHECKOUT       --Just "auth_type" -- :: Maybe Text
   , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
   , card_security_code     = Just "card_security_code" -- :: Maybe Text
   , card_number            = Just "1234567890"      -- :: Maybe Text
@@ -65,7 +67,7 @@ domainRegularNewCardTxn = DT.Transaction
       , is_emi = Just True
       , emi_bank = Just "emi_bank"
       , emi_tenure = Just 5
-      , auth_type = Just AT.VISA_CHECKOUT
+      , auth_type = Just VISA_CHECKOUT
       })
   , _redirect_after_payment = True
   , _format = "format"}
@@ -124,7 +126,7 @@ apiSeamlessNewCardTxn = AT.Transaction
   , redirect_after_payment = True          -- :: Bool                -- ^
   , format                 = "format"      -- :: Text                -- ^
 
-  , auth_type              = Just AT.ATMPIN       --Just "auth_type" -- :: Maybe Text
+  , auth_type              = Just ATMPIN       --Just "auth_type" -- :: Maybe Text
   , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
   , card_security_code     = Just "card_security_code" -- :: Maybe Text
   , card_number            = Just "1234567890"      -- :: Maybe Text
@@ -155,7 +157,7 @@ domainSeamlessNewCardTxn = DT.Transaction
             , card_security_code = "card_security_code"
             , save_to_locker = True
             }
-      , auth_type = AT.ATMPIN
+      , auth_type = ATMPIN
       })
   , _redirect_after_payment = True
   , _format = "format"}
@@ -170,7 +172,7 @@ apiSeamlessSavedCardTxn = AT.Transaction
   , redirect_after_payment = True          -- :: Bool                -- ^
   , format                 = "format"      -- :: Text                -- ^
 
-  , auth_type              = Just AT.ATMPIN      --Just "auth_type" -- :: Maybe Text
+  , auth_type              = Just ATMPIN      --Just "auth_type" -- :: Maybe Text
   , card_token             = Just "card_token"       -- Just "card_token" -- :: Maybe Text
   , card_security_code     = Just "card_security_code" -- :: Maybe Text
   , card_number            = Nothing      -- :: Maybe Text
@@ -195,7 +197,7 @@ domainSeamlessSavedCardTxn = DT.Transaction
       { card_token = "card_token"
       , card_security_code = "card_security_code"
       }
-    , auth_type = AT.ATMPIN
+    , auth_type = ATMPIN
     })
   , _redirect_after_payment = True
   , _format = "format"}
@@ -211,7 +213,7 @@ apiATMRedirectCardTxn = AT.Transaction
   , redirect_after_payment = True          -- :: Bool                -- ^
   , format                 = "format"      -- :: Text                -- ^
 
-  , auth_type              = Just AT.ATMPIN      --Just "auth_type" -- :: Maybe Text
+  , auth_type              = Just ATMPIN      --Just "auth_type" -- :: Maybe Text
   , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
   , card_security_code     = Nothing -- :: Maybe Text
   , card_number            = Nothing      -- :: Maybe Text
@@ -232,7 +234,7 @@ domainATMRedirectCardTxn = DT.Transaction
   , _merchant_id = DT.MerchantId "merchant_id"
   , _transaction_type = DT.ATMRedirectionTransaction (ATMRedirectionPayment
     { payment_method = ATM_CARD_BOB
-    , auth_type = AT.ATMPIN
+    , auth_type = ATMPIN
     })
   , _redirect_after_payment = True
   , _format = "format"}
@@ -510,7 +512,7 @@ apiRegularNewCardTxnFewFailures = AT.Transaction
   , redirect_after_payment = True          -- :: Bool                -- ^
   , format                 = "format"      -- :: Text                -- ^
 
-  , auth_type              = Just AT.VISA_CHECKOUT       --Just "auth_type" -- :: Maybe Text
+  , auth_type              = Just VISA_CHECKOUT       --Just "auth_type" -- :: Maybe Text
   , card_token             = Nothing       -- Just "card_token" -- :: Maybe Text
   , card_security_code     = Nothing -- :: Maybe Text
   , card_number            = Just ""      -- :: Maybe Text

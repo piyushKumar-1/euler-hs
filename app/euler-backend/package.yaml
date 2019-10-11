@@ -91,7 +91,7 @@ dependencies:
 - semigroupoids
 - generic-lens
 - validation
-
+- http-api-data
 
 library:
   source-dirs:

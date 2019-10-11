@@ -9,8 +9,11 @@ import           EulerHS.Prelude
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, SqlDB, logMessage', KVDB)
+import          EulerHS.Core.Language (Logger, logMessage', KVDB)
+import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Framework.Types as T
+import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
 
 type Description = Text
 
@@ -38,15 +41,11 @@ data FlowMethod next where
 
   ThrowException ::forall a e next. Exception e => e -> (a -> next) -> FlowMethod next
 
-  -- TODO: Disconnect :: _ -> FlowMethod next
+  -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
 
-  Connect :: T.DBConfig -> (T.DBResult T.SqlConn -> next) -> FlowMethod next
+  InitSqlDBConnection :: T.DBConfig beM -> (T.DBResult (T.SqlConn beM) -> next) -> FlowMethod next
 
-  RunDB
-    :: T.SqlConn
-    -> SqlDB T.DbBackend a
-    -> (T.DBResult a -> next)
-    -> FlowMethod next
+  RunDB :: T.SqlConn beM -> L.SqlDB beM a -> (T.DBResult a -> next) -> FlowMethod next
 
   RunKVDB :: KVDB a -> (T.KVDBAnswer a -> next) -> FlowMethod next
 
@@ -71,9 +70,9 @@ instance Functor FlowMethod where
 
   fmap f (SetOption k v next)                 = SetOption k v (f . next)
 
-  fmap f (Connect cfg next)                   = Connect cfg (f . next)
+  fmap f (InitSqlDBConnection cfg next)       = InitSqlDBConnection cfg (f . next)
 
-  fmap f (RunDB conn dbAct next)              = RunDB conn dbAct (f . next)
+  fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
   fmap f (RunKVDB act next)                   = RunKVDB act (f . next)
 
@@ -81,6 +80,9 @@ type Flow = F FlowMethod
 
 callServantAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
+
+callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
+callAPI = callServantAPI
 
 evalLogger' :: Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id
@@ -116,11 +118,17 @@ generateGUID = liftFC $ GenerateGUID id
 runSysCmd :: String -> Flow String
 runSysCmd cmd = liftFC $ RunSysCmd cmd id
 
-connect :: T.DBConfig -> Flow (T.DBResult T.SqlConn)
-connect cfg = liftFC $ Connect cfg id
+initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
+initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 
-runDB :: T.SqlConn -> SqlDB T.DbBackend a -> Flow (T.DBResult a)
+runDB
+  :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
+  => T.SqlConn beM
+  -> L.SqlDB beM a
+  -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct id
+
+
 
 forkFlow :: (ToJSON s, FromJSON s) => Text -> Flow s -> Flow ()
 forkFlow description flow = do

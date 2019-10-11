@@ -79,18 +79,19 @@ testDBName = "./test/EulerHS/TestData/test.db"
 testDBTemplateName :: T.DBName
 testDBTemplateName = "./test/EulerHS/TestData/test.db.template"
 
-connectOrFail :: T.DBConfig -> Flow T.SqlConn
-connectOrFail cfg = L.connect cfg >>= \case
+connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
     Left e     -> error $ show e -- L.throwException $ toException $ show e
     Right conn -> pure conn
 
 deleteTestValues :: L.Flow ()
 deleteTestValues = do
-  conn <- connectOrFail $ T.SQLiteConfig testDBName
+  conn <- connectOrFail $ T.mkSQLiteConfig testDBName
   void $ L.runDB conn
-      $ L.runDelete $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
+    $ L.deleteRows
+    $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
   void $ L.runDB conn
-    $ L.runUpdate
+    $ L.updateRows
     $ B.update (_sqlite_sequence sqliteSequenceDb)
           (\(SqliteSequence {..}) -> mconcat [_seq <-. B.val_ 0])
           (\(SqliteSequence {..}) -> _name ==. B.val_ "users")
@@ -106,9 +107,9 @@ prepareTestDB = do
 
 insertTestValues :: L.Flow ()
 insertTestValues = do
-  conn <- connectOrFail $ T.SQLiteConfig testDBName
+  conn <- connectOrFail $ T.mkSQLiteConfig testDBName
   void $ L.runDB conn
-    $ L.runInsert
+    $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertExpressions
           [ User B.default_
@@ -121,48 +122,54 @@ insertTestValues = do
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
-  connection <- connectOrFail $ T.SQLiteConfig testDBName
+  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
   L.runDB connection
-    $ L.runInsert
+    $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
 
   L.runDB connection
-    $ L.runInsert
+    $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
 
 
 selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript = do
-  connection <- connectOrFail $ T.SQLiteConfig testDBName
+  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "Unknown"
 
-    L.runSelectOne $ B.select $
-        B.limit_ 1 $ B.filter_ predicate $ B.all_ (_users eulerDb)
+    L.findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (_users eulerDb)
 
-insertAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
-insertAndSelectDbScript = do
-  connection <- connectOrFail $ T.SQLiteConfig testDBName
+selectOneDbScript :: L.Flow (T.DBResult (Maybe User))
+selectOneDbScript = do
+  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "John"
 
-    L.runSelectOne $ B.select $
-        B.limit_ 1 $ B.filter_ predicate $ B.all_ (_users eulerDb)
+    L.findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (_users eulerDb)
 
 
 updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
 updateAndSelectDbScript = do
-  connection <- connectOrFail $ T.SQLiteConfig testDBName
+  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
   L.runDB connection $ do
     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
 
-    L.runUpdate $ B.update (_users eulerDb)
+    L.updateRows $ B.update (_users eulerDb)
       (\User {..} -> mconcat
         [ _userFirstName <-. B.val_ "Leo"
         , _userLastName  <-. B.val_ "San"
@@ -171,8 +178,11 @@ updateAndSelectDbScript = do
       predicate1
 
     let predicate2 User {..} = _userFirstName ==. B.val_ "Leo"
-    L.runSelectOne $ B.select $
-      B.limit_ 1 $ B.filter_ predicate2 $ B.all_ (_users eulerDb)
+    L.findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate2
+      $ B.all_ (_users eulerDb)
 
 
 -- innerJoinDbScript :: L.Flow ()
@@ -202,6 +212,59 @@ someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
 someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l
 someUser _ _ _ = False
 
+
+--
+-- testDb' :: L.Flow ()
+-- testDb' = do
+--
+--   sqliteConn <- L.initSqlDBConnection (T.mkSQLiteConfig testDBName) >>= \case
+--     Left e     -> error $ show e
+--     Right conn' -> pure conn'
+--
+--   testDb'' sqliteConn
+--
+--   let pgConf = T.mkPostgresConfig $ T.PostgresConfig "" 1 ""  "" ""
+--   pgConn <- L.initSqlDBConnection pgConf >>= \case
+--     Left e     -> error $ show e
+--     Right conn' -> pure conn'
+--
+--   testDb'' pgConn
+--
+-- testDb'' conn = do
+--
+--   let predicate User {..} = _userFirstName ==. B.val_ "John"
+--
+--   void $ L.runDB conn
+--     $ L.insert'
+--     $ B.insert (_users eulerDb)
+--     $ B.insertExpressions
+--           [ User B.default_
+--               ( B.val_ "John" )
+--               ( B.val_ "Doe"  )
+--           , User B.default_
+--               ( B.val_ "Doe"  )
+--               ( B.val_ "John" )
+--           ]
+--
+--   L.runDB conn
+--     $ L.update'
+--     $ B.update (_users eulerDb)
+--       (\User {..} -> mconcat
+--         [ _userFirstName <-. B.val_ "Leo"
+--         , _userLastName  <-. B.val_ "San"
+--         ]
+--       )
+--       predicate
+--
+--   L.runDB conn
+--       $ L.delete'
+--       $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
+--
+--   void $ L.runDB conn $
+--     L.selectOne' $ B.select $
+--         B.limit_ 1 $ B.filter_ predicate $ B.all_ (_users eulerDb)
+
+
 spec :: Spec
 spec = do
   around withEmptyDB $ do
@@ -211,14 +274,14 @@ spec = do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
         eRes `shouldBe` (Left (DBError SomeError "SQLite3 returned ErrorConstraint while attempting to perform step: UNIQUE constraint failed: users.id"))
 
-      it "Insert / Select, row not found" $ \rt -> do
+      it "Select one, row not found" $ \rt -> do
         eRes <- runFlow rt selectUnknownDbScript
         eRes `shouldBe` (Right Nothing)
 
-      it "Insert / Select, row found" $ \rt -> do
-        eRes <- runFlow rt insertAndSelectDbScript
+      it "Select one, row found" $ \rt -> do
+        eRes <- runFlow rt selectOneDbScript
         eRes `shouldSatisfy` (someUser "John" "Doe")
 
-      it "Insert / Update / Select, row found & changed" $ \rt -> do
+      it "Update / Select, row found & changed" $ \rt -> do
         eRes <- runFlow rt updateAndSelectDbScript
         eRes `shouldSatisfy` (someUser "Leo" "San")

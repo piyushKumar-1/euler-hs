@@ -7,31 +7,18 @@ module EulerHS.Core.SqlDB.Interpreter where
 import EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
--- import qualified EulerHS.Core.Types as T
+import qualified EulerHS.Core.Types as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 
 
-interpretSqlDBAction :: (B.BeamSqlBackend be, B.MonadBeam be beM) => L.SqlDBAction be a -> beM a
--- interpretSqlDBAction (L.RawQuery q next) =
---   error "not implemented"
+interpretSqlDBMethod
+  :: T.SqlConn beM
+  -> (String -> IO ())
+  -> L.SqlDBMethodF beM a
+  -> IO a
+interpretSqlDBMethod conn logger (L.SqlDBMethod runner next) =
+  next <$> runner conn logger
 
-interpretSqlDBAction (L.RunSelect a next) =
-  fmap next $ B.runSelectReturningList a
-
-interpretSqlDBAction (L.RunSelectOne a next) =
-  fmap next $ B.runSelectReturningOne a
-
-interpretSqlDBAction (L.RunInsert a next) =
-  fmap next $ B.runInsert a
-
-interpretSqlDBAction (L.RunUpdate a next) =
-  fmap next $ B.runUpdate a
-
-interpretSqlDBAction (L.RunDelete a next) =
-  fmap next $ B.runDelete a
-
-
-runSqlDB :: (B.BeamSqlBackend be, B.MonadBeam be beM) => L.SqlDB be a -> beM a
-runSqlDB = foldF interpretSqlDBAction
-
+runSqlDB  :: T.SqlConn beM -> (String -> IO ()) -> L.SqlDB beM a -> IO a
+runSqlDB sqlConn logger = foldF (interpretSqlDBMethod sqlConn logger)

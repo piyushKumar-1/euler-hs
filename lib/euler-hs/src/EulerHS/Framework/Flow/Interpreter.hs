@@ -19,27 +19,30 @@ import qualified EulerHS.Framework.Runtime as R
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
 
-executeWithLog :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO()
-executeWithLog log conn q = SQLite.execute_ conn q >> (log $ show q)
+-- TODO
+import qualified EulerHS.Core.SqlDB.Language as L
 
-beginTransaction :: (String -> IO ()) -> SQLite.Connection -> IO ()
-beginTransaction    log conn = executeWithLog log conn "BEGIN TRANSACTION"
+executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO()
+executeWithLogSQLite log conn q = SQLite.execute_ conn q >> (log $ show q)
 
-commitTransaction :: (String -> IO ()) -> SQLite.Connection -> IO ()
-commitTransaction   log conn = executeWithLog log conn "COMMIT TRANSACTION"
+beginTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
+beginTransactionSQLite    log conn = executeWithLogSQLite log conn "BEGIN TRANSACTION"
 
-rollbackTransaction :: (String -> IO ()) -> SQLite.Connection -> IO ()
-rollbackTransaction log conn = executeWithLog log conn "ROLLBACK TRANSACTION"
+commitTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
+commitTransactionSQLite   log conn = executeWithLogSQLite log conn "COMMIT TRANSACTION"
+
+rollbackTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
+rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRANSACTION"
 
 
-connect :: T.DBConfig -> IO (T.DBResult T.SqlConn)
-connect T.MockConfig  = pure $ Right $ T.MockedConn
-
+connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect (T.SQLiteConfig dbName) = do
   eConn <- try $ SQLite.open dbName
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right $ T.SQLiteConn conn
+connect T.MockConfig  = pure $ Right $ T.MockedConn
+connect (T.PostgresConf pgConf) = error "Postgres connect not implemented"
 
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
@@ -84,24 +87,29 @@ interpretFlowMethod rt (L.Fork _ _ flow next) =
 interpretFlowMethod _ (L.ThrowException ex next) =
   next <$> throwIO ex
 
-interpretFlowMethod _ (L.Connect cfg next) =
+interpretFlowMethod _ (L.InitSqlDBConnection cfg next) =
   next <$> connect cfg
 
-interpretFlowMethod _ (L.RunDB conn dbm next) =
+interpretFlowMethod _ (L.RunDB conn sqlDbMethod next) =
   next <$> case conn of
     T.MockedConn -> error "not implemented MockedSql"
 
-    T.SQLiteConn connection ->
-      let
-        begin    = beginTransaction      putStrLn connection
-        commit   = commitTransaction     putStrLn connection
-        rollback = rollbackTransaction   putStrLn connection
-        run      = BS.runBeamSqliteDebug putStrLn connection
-      in map (first $ T.DBError T.SomeError . show) $
+    -- N.B. Beam runner should correspond to the real runtime
+    -- TODO: move begin / commit / rollback into the runner
+    T.SQLiteConn connection -> do
+      let begin    = beginTransactionSQLite      putStrLn connection
+      let commit   = commitTransactionSQLite     putStrLn connection
+      let rollback = rollbackTransactionSQLite   putStrLn connection
+
+      map (first $ T.DBError T.SomeError . show) $
         try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-          res <- run $ R.runSqlDB dbm
+          res <- R.runSqlDB conn putStrLn sqlDbMethod
           commit
           return res
+
+    -- N.B. Beam runner should correspond to the real runtime
+    -- TODO: move begin / commit / rollback into the runner
+    T.PostgresConn connection -> error "Postgres not implemented."
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   next <$> do

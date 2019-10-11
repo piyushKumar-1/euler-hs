@@ -7,7 +7,10 @@ import EulerHS.Prelude
 
 import qualified Database.SQLite.Simple as SQLite
 import qualified Database.Beam.Sqlite as BS
--- import qualified Database.Beam.Postgres as BP
+import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
+import qualified Database.Beam.Sqlite.Connection as SQLite
+import qualified Database.Beam.Postgres as BP
 
 -- data MockedSqlConn  = MockedSqlConn String
 --   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
@@ -15,26 +18,67 @@ import qualified Database.Beam.Sqlite as BS
 data MockedKVDBConn = MockedKVDBConn String
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-type DbBackend  = BS.Sqlite
-type DbBackendM = BS.SqliteM
+class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
+  | be -> beM, beM -> be where
+  rtSelectReturningList :: B.FromBackendRow be a => B.SqlSelect be a -> beM [a]
+  rtSelectReturningOne :: B.FromBackendRow be a => B.SqlSelect be a -> beM (Maybe a)
+  rtInsert :: B.SqlInsert be table -> beM ()
+  rtUpdate :: B.SqlUpdate be table -> beM ()
+  rtDelete :: B.SqlDelete be table -> beM ()
 
-data SqlConn
+-- TODO: move somewhere (it's implementation)
+instance BeamRuntime BS.Sqlite BS.SqliteM where
+  rtSelectReturningList = B.runSelectReturningList
+  rtSelectReturningOne = B.runSelectReturningOne
+  rtInsert = B.runInsert
+  rtUpdate = B.runUpdate
+  rtDelete = B.runDelete
+
+-- TODO: move somewhere (it's implementation)
+instance BeamRuntime BP.Postgres BP.Pg where
+  rtSelectReturningList = B.runSelectReturningList
+  rtSelectReturningOne = B.runSelectReturningOne
+  rtInsert = B.runInsert
+  rtUpdate = B.runUpdate
+  rtDelete = B.runDelete
+
+class BeamRunner beM where
+  getBeamDebugRunner :: SqlConn beM -> beM a -> ((String -> IO ()) -> IO a)
+
+-- TODO: move somewhere (it's implementation)
+instance BeamRunner BS.SqliteM where
+  getBeamDebugRunner (SQLiteConn conn) beM = \logger -> SQLite.runBeamSqliteDebug logger conn beM
+  getBeamDebugRunner _ _ = \_ -> error "Invalid connection"
+
+-- TODO: move somewhere (it's implementation)
+instance BeamRunner BP.Pg where
+  getBeamDebugRunner (PostgresConn conn) beM = \logger -> BP.runBeamPostgresDebug logger conn beM
+  getBeamDebugRunner _ _ = \_ -> error "Invalid connection"
+
+
+
+data SqlConn beM
   = MockedConn
   | SQLiteConn SQLite.Connection
-  -- | PostgresConn BP.Connection
+  | PostgresConn BP.Connection
 
+data DBConfig beM
+  = SQLiteConfig DBName
+  | MockConfig
+  | PostgresConf PostgresConfig
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mkSQLiteConfig :: DBName -> DBConfig BS.SqliteM
+mkSQLiteConfig = SQLiteConfig
+
+mkPostgresConfig :: PostgresConfig -> DBConfig BP.Pg
+mkPostgresConfig = PostgresConf
 
 data KVDBConn
   = MockedKVDB MockedKVDBConn
   -- | Redis SimpleConn
 
 type DBName = String
-
-data DBConfig
-  = SQLiteConfig DBName
-  | MockConfig
-  -- | PostgresConfig ConnectInfo
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- TODO: more informative typed error.
 data DBErrorType
@@ -48,49 +92,13 @@ data DBError
 
 type DBResult a = Either DBError a
 
--- data ConnectInfo
---   = ConnectInfo
---     { connectHost :: String
---     , connectPort :: Word16
---     , connectUser :: String
---     , connectPassword :: String
---     , connectDatabase :: String
---     } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+data PostgresConfig = PostgresConfig
+  { connectHost :: String
+  , connectPort :: Word16
+  , connectUser :: String
+  , connectPassword :: String
+  , connectDatabase :: String
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
--- toBeamPostgresConnectInfo :: ConnectInfo -> BP.ConnectInfo
--- toBeamPostgresConnectInfo (ConnectInfo {..}) = BP.ConnectInfo {..}
-
---- OR
-
--- newtype ConnectInfo' a
---   = ConnectInfo' a
---   deriving (Show, Eq, Ord, Generic)
-
--- unpackCI :: ConnectInfo' a -> a
--- unpackCI (ConnectInfo' a) = a
-
--- packCI :: a -> ConnectInfo' a
--- packCI a = ConnectInfo' a
-
--- mapCI :: (a -> b) -> ConnectInfo' a -> ConnectInfo' b
--- mapCI f = packCI . f . unpackCI
-
--- type ConnectInfo = ConnectInfo' BP.ConnectInfo
-
--- instance ToJSON ConnectInfo where
---   toJSON = outer . mapCI inner
---     where
---       outer :: ConnectInfo' A.Value -> A.Value
---       outer = A.genericToJSON A.defaultOptions
-
---       inner :: BP.ConnectInfo -> A.Value
---       inner = A.genericToJSON A.defaultOptions
-
--- instance FromJSON ConnectInfo where
---   parseJSON = fmap packCI . inner . unpackCI <=< outer
---     where
---       outer :: A.Value -> A.Parser (ConnectInfo' A.Value)
---       outer = A.genericParseJSON A.defaultOptions
-
---       inner :: A.Value -> A.Parser BP.ConnectInfo
---       inner = A.genericParseJSON A.defaultOptions
+toBeamPostgresConnectInfo :: PostgresConfig -> BP.ConnectInfo
+toBeamPostgresConnectInfo (PostgresConfig {..}) = BP.ConnectInfo {..}

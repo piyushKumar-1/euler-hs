@@ -74,8 +74,8 @@ interpretFlowMethod (R.FlowRuntime _ managerVar _ _ _) (L.CallServantAPI bUrl cl
 interpretFlowMethod (R.FlowRuntime coreRt _ _ _ _) (L.EvalLogger loggerAct next) =
   next <$> R.runLogger (R._loggerRuntime coreRt) loggerAct
 
-interpretFlowMethod _ (L.RunIO ioAct next) =
-  next <$> ioAct
+interpretFlowMethod R.FlowRuntime {..} (L.RunIO ioAct next) =
+  next <$> withRunMode _runMode P.mkRunIOEntry ioAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
   next <$> withRunMode _runMode (P.mkGetOptionEntry k) maybeValue

@@ -60,6 +60,7 @@ initPlayerRT recEntries = do
 
 cmdScript = do
   guid <- generateGUID
+  _ <- L.runIO $ pure ("Some IO 1" :: String)
   -- logInfo $ "Generated guid is: " ++ guid
   forkFlow "forked test flow" cmdScript2
   runSysCmd "echo hello"
@@ -85,7 +86,7 @@ spec =
       case _runMode rt of
         P.RecordingMode rrt -> do
           recs <- readMVar (P.recordingMVar rrt)
-          (V.length recs) `shouldBe` 4
+          (V.length recs) `shouldBe` 5
           res `shouldBe` "hello\n"
         _ -> fail "wrong mode"
 

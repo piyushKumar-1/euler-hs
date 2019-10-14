@@ -98,6 +98,9 @@ library:
   - EulerHS.Prelude
   - EulerHS.Types
   - EulerHS.Runtime
+
+  - EulerHS.Framework.Playback.Types
+  - EulerHS.Framework.Playback.Entries
   ghc-options:
   - -Wall
   # - -Werror

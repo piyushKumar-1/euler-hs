@@ -9,6 +9,10 @@ import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Framework.Types ()
 
+import qualified EulerHS.Framework.Playback.Machine as P
+import qualified EulerHS.Framework.Playback.Types   as P
+import qualified EulerHS.Framework.Playback.Entries as P
+
 data Connection = Redis RD.Connection
 
 type DBName = ByteString
@@ -18,6 +22,7 @@ data FlowRuntime = FlowRuntime
   , _httpClientManager :: MVar Manager
   , _options :: MVar (Map ByteString ByteString)
   , _connections :: MVar (Map DBName T.KVDBConn)
+  , _runMode :: P.RunMode
   }
 
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
@@ -25,7 +30,7 @@ createFlowRuntime coreRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
   connections <- newMVar Data.Map.empty
-  pure $ FlowRuntime coreRt managerVar optionsVar connections
+  pure $ FlowRuntime coreRt managerVar optionsVar connections P.RegularMode
 
 createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
 createFlowRuntime' mbLoggerCfg =

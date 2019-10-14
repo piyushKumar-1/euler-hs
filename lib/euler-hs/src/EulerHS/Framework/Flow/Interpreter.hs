@@ -26,6 +26,11 @@ import qualified EulerHS.Framework.Language as L
 -- TODO: no explicit dependencies from languages.
 import qualified EulerHS.Core.SqlDB.Language as L
 import qualified EulerHS.Core.Logger.Language as L
+import qualified EulerHS.Framework.Playback.Machine as P
+import qualified EulerHS.Framework.Playback.Types   as P
+import qualified EulerHS.Framework.Playback.Entries as P
+import qualified Data.Vector as V
+import qualified Data.Text as T
 
 executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO ()
 executeWithLogSQLite log conn q = SQLite.execute_ conn q >> (log $ show q)
@@ -60,41 +65,50 @@ connect (T.PostgresConf pgConf) = error "Postgres connect not implemented"
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod _ (L.CallAPI _ _) = error "CallAPI not yet supported."
 
-interpretFlowMethod (R.FlowRuntime _ managerVar _ _) (L.CallServantAPI bUrl clientAct next) = do
+interpretFlowMethod (R.FlowRuntime _ managerVar _ _ _) (L.CallServantAPI bUrl clientAct next) = do
   manager <- takeMVar managerVar
   result <- next <$> catchAny (S.runClientM clientAct (S.mkClientEnv manager bUrl)) (pure . Left . S.ConnectionError)
   putMVar managerVar manager
   pure result
 
-interpretFlowMethod (R.FlowRuntime coreRt _ _ _) (L.EvalLogger loggerAct next) =
+interpretFlowMethod (R.FlowRuntime coreRt _ _ _ _) (L.EvalLogger loggerAct next) =
   next <$> R.runLogger (R._loggerRuntime coreRt) loggerAct
 
 interpretFlowMethod _ (L.RunIO ioAct next) =
   next <$> ioAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
-  next <$> maybeValue
+  next <$> withRunMode _runMode (P.mkGetOptionEntry k) maybeValue
   where
     maybeValue = do
       m <- readMVar _options
       pure $ decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ encode k) m
 
 interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
-  next <$> set
+  next <$> withRunMode _runMode (P.mkSetOptionEntry k v) set
   where
     set = do
       m <- takeMVar _options
       let newMap = Map.insert (BSL.toStrict $ encode k) (BSL.toStrict $ encode v) m
       putMVar _options newMap
 
-interpretFlowMethod _ (L.GenerateGUID next) =
-  next . UUID.toText <$> UUID.nextRandom
+interpretFlowMethod R.FlowRuntime {..} (L.GenerateGUID next) =
+  next <$> withRunMode _runMode P.mkGenerateGUIDEntry
+    (UUID.toText <$> UUID.nextRandom)
 
-interpretFlowMethod _ (L.RunSysCmd cmd next) =
-  next <$> (readCreateProcess (shell cmd) "")
+interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
+  next <$> withRunMode _runMode
+    (P.mkRunSysCmdEntry cmd)
+    (readCreateProcess (shell cmd) "")
 
-interpretFlowMethod rt (L.Fork _ _ flow next) =
-  next <$> forkF rt flow
+interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
+  mbForkedRt <- forkBackendRuntime flowGUID rt
+  void $ withRunMode (R._runMode rt) (P.mkForkEntry desc flowGUID)
+    (case mbForkedRt of
+      Nothing -> putStrLn (flowGUID <> " Failed to fork flow.") *> pure ()
+      Just forkedBrt -> forkF forkedBrt flow *> pure ())
+  pure $ next ()
+
 
 interpretFlowMethod _ (L.ThrowException ex next) =
   next <$> throwIO ex
@@ -159,3 +173,76 @@ forkF rt flow = void $ forkIO $ void $ runFlow rt flow
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)
+
+
+
+withRunMode
+  :: P.RRItem rrItem
+  => P.MockedResult rrItem native
+  => P.RunMode
+  -> (native -> rrItem)
+  -> IO native
+  -> IO native
+
+withRunMode P.RegularMode _ act = act
+
+withRunMode (P.RecordingMode recorderRt) mkRRItem act
+  = P.record recorderRt mkRRItem act
+
+withRunMode (P.ReplayingMode playerRt) mkRRItem act
+  = P.replay playerRt mkRRItem act
+
+forkPlayerRt :: Text -> P.PlayerRuntime -> IO (Maybe P.PlayerRuntime)
+forkPlayerRt newFlowGUID_ P.PlayerRuntime{..} =
+  case Map.lookup newFlowGUID forkedFlowRecordings of
+    Nothing -> do
+      let missedRecsErr = Just $ P.PlaybackError
+            { errorType    = P.ForkedFlowRecordingsMissed
+            , errorMessage = "No recordings found for forked flow: " <> newFlowGUID
+            }
+      forkedFlowErrors <- takeMVar forkedFlowErrorsVar
+      let forkedFlowErrors' = Map.insert newFlowGUID missedRecsErr forkedFlowErrors
+      putMVar forkedFlowErrorsVar forkedFlowErrors'
+      pure Nothing
+    Just recording' -> do
+      stepVar'  <- newMVar 0
+      errorVar' <- newEmptyMVar
+      pure $ Just P.PlayerRuntime
+        { flowGUID = newFlowGUID
+        , stepMVar = stepVar'
+        , errorMVar = errorVar'
+        , recording = recording'
+        , ..
+        }
+  where
+      newFlowGUID :: String
+      newFlowGUID = T.unpack newFlowGUID_
+
+forkRecorderRt :: Text -> P.RecorderRuntime -> IO P.RecorderRuntime
+forkRecorderRt newFlowGUID_ P.RecorderRuntime{..} = do
+  recordingVar <- newMVar V.empty
+  forkedRecs   <- takeMVar forkedRecordingsVar
+  let newFlowGUID = T.unpack newFlowGUID_
+  let forkedRecs' = Map.insert newFlowGUID recordingVar forkedRecs
+  putMVar forkedRecordingsVar forkedRecs'
+  pure P.RecorderRuntime
+    { flowGUID = newFlowGUID
+    , recordingMVar = recordingVar
+    , ..
+    }
+
+forkBackendRuntime :: Text -> R.FlowRuntime -> IO (Maybe R.FlowRuntime)
+forkBackendRuntime flowGUID R.FlowRuntime{..} = do
+  mbForkedMode <- case _runMode of
+    P.RegularMode              -> pure $ Just P.RegularMode
+    P.RecordingMode recorderRt -> Just . P.RecordingMode <$> forkRecorderRt flowGUID recorderRt
+    P.ReplayingMode playerRt   -> do
+      mbRt <- forkPlayerRt flowGUID playerRt
+      pure $ P.ReplayingMode <$> mbRt
+
+  case mbForkedMode of
+    Nothing         -> pure Nothing
+    Just forkedMode -> pure $ Just $ R.FlowRuntime
+          { _runMode = forkedMode
+          , ..
+          }

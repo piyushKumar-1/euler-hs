@@ -15,31 +15,73 @@ import qualified EulerHS.Framework.Types as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 
+import qualified EulerHS.Framework.Playback.Types   as P
+import qualified EulerHS.Framework.Playback.Entries as P
+
 type Description = Text
 
 type ForkGUID = Text
 
 -- | Flow language.
 data FlowMethod next where
-  CallAPI :: T.RestEndpoint req resp => req -> (T.APIResult resp -> next) -> FlowMethod next
+  CallAPI
+    :: T.RestEndpoint req resp
+    => req
+    -> (T.APIResult resp -> next)
+    -> FlowMethod next
 
-  CallServantAPI :: BaseUrl -> ClientM a -> (Either ClientError a -> next) -> FlowMethod next
+  CallServantAPI
+    :: BaseUrl
+    -> ClientM a
+    -> (Either ClientError a -> next)
+    -> FlowMethod next
 
-  EvalLogger :: Logger a -> (a -> next) -> FlowMethod next
+  EvalLogger
+    :: Logger a
+    -> (a -> next)
+    -> FlowMethod next
 
-  RunIO :: (ToJSON s, FromJSON s) => IO s -> (s -> next) -> FlowMethod next
+  RunIO
+    :: (ToJSON s, FromJSON s)
+    => IO s
+    -> (s -> next)
+    -> FlowMethod next
 
-  GetOption :: T.OptionEntity k v => k -> (Maybe v -> next) -> FlowMethod next
+  GetOption
+    :: T.OptionEntity k v
+    => k
+    -> (Maybe v -> next)
+    -> FlowMethod next
 
-  SetOption :: T.OptionEntity k v => k -> v -> (() -> next) -> FlowMethod next
+  SetOption
+    :: T.OptionEntity k v
+    => k
+    -> v
+    -> (() -> next)
+    -> FlowMethod next
 
-  GenerateGUID :: (Text -> next) -> FlowMethod next
+  GenerateGUID
+    :: (Text -> next)
+    -> FlowMethod next
 
-  RunSysCmd :: String -> (String -> next) -> FlowMethod next
+  RunSysCmd
+    :: String
+    -> (String -> next)
+    -> FlowMethod next
 
-  Fork :: Description -> ForkGUID -> Flow s -> (() -> next) -> FlowMethod next
+  Fork
+    :: Description
+    -> ForkGUID
+    -> Flow s
+    -> (() -> next)
+    -> FlowMethod next
 
-  ThrowException ::forall a e next. Exception e => e -> (a -> next) -> FlowMethod next
+  ThrowException
+    :: forall a e next
+     . Exception e
+    => e
+    -> (a -> next)
+    -> FlowMethod next
 
   -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
 
@@ -47,10 +89,13 @@ data FlowMethod next where
 
   RunDB :: T.SqlConn beM -> L.SqlDB beM a -> (T.DBResult a -> next) -> FlowMethod next
 
-  RunKVDB :: KVDB a -> (T.KVDBAnswer a -> next) -> FlowMethod next
+  RunKVDB
+    :: KVDB a
+    -> (T.KVDBAnswer a -> next)
+    -> FlowMethod next
 
 instance Functor FlowMethod where
-  fmap f (CallAPI req next) = CallAPI req (f . next)
+  fmap f (CallAPI req next)                   = CallAPI req (f . next)
 
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
 

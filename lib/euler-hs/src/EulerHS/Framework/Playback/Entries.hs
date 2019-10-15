@@ -109,22 +109,6 @@ instance MockedResult CallServantAPIEntry (Either S.ClientError a) where
 
 ----------------------------------------------------------------------
 
--- MOCK, TODO!
-
-data CallApiEntry = CallApiEntry
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-mkCallApiEntry :: a -> CallApiEntry
-mkCallApiEntry _ = CallApiEntry
-
-instance RRItem CallApiEntry where
-  getTag _ = "CallApiEntry"
-
-instance MockedResult CallApiEntry () where
-  getMock _ = Just ()
-
-----------------------------------------------------------------------
-
 data SetOptionEntry = SetOptionEntry
   { key   :: String
   , value :: String

@@ -1,12 +1,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Framework.Playback.Types where
+module EulerHS.Core.Types.Playback where
+
 
 import EulerHS.Prelude
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as BSL
+-- import qualified Data.Binary.Builder as B
+-- import qualified GHC.Generics as G
 
 
 type EntryIndex = Int
@@ -25,11 +28,15 @@ data EntryReplayingMode = Normal | NoVerify | NoMock
 
 
 
-class (Eq rrItem, ToJSON rrItem, FromJSON rrItem)
-  => RRItem rrItem where
+class (Eq rrItem, ToJSON rrItem, FromJSON rrItem) => RRItem rrItem where
   toRecordingEntry   :: rrItem -> Int -> EntryReplayingMode -> RecordingEntry
+  toRecordingEntry rrItem idx mode = RecordingEntry idx mode (getTag (Proxy :: Proxy rrItem)) $ encodeToStr rrItem
+
   fromRecordingEntry :: RecordingEntry -> Maybe rrItem
-  getTag             :: Proxy rrItem -> String
+  fromRecordingEntry (RecordingEntry _ _ _ payload) = decodeFromStr payload
+
+  getTag :: Proxy rrItem -> String
+  {-# MINIMAL getTag #-}
 
 class RRItem rrItem => MockedResult rrItem native where
   getMock :: rrItem -> Maybe native
@@ -85,6 +92,9 @@ encodeToStr = BS.unpack . BSL.toStrict . A.encode
 
 decodeFromStr :: FromJSON a => String -> Maybe a
 decodeFromStr = A.decode . BSL.fromStrict . BS.pack
+
+-- gEncodeToStr :: (Generic a, A.GToEncoding A.Zero (G.Rep a)) => a -> String
+-- gEncodeToStr = BS.unpack . BSL.toStrict . B.toLazyByteString . A.fromEncoding . A.genericToEncoding A.defaultOptions
 
 note :: forall a b. a -> Maybe b -> Either a b
 note a Nothing = Left a

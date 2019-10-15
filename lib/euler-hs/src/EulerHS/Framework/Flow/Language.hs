@@ -15,21 +15,12 @@ import qualified EulerHS.Framework.Types as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 
-import qualified EulerHS.Framework.Playback.Types   as P
-import qualified EulerHS.Framework.Playback.Entries as P
-
 type Description = Text
 
 type ForkGUID = Text
 
 -- | Flow language.
 data FlowMethod next where
-  CallAPI
-    :: T.RestEndpoint req resp
-    => req
-    -> (T.APIResult resp -> next)
-    -> FlowMethod next
-
   CallServantAPI
     :: BaseUrl
     -> ClientM a
@@ -95,8 +86,6 @@ data FlowMethod next where
     -> FlowMethod next
 
 instance Functor FlowMethod where
-  fmap f (CallAPI req next)                   = CallAPI req (f . next)
-
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
 
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
@@ -123,7 +112,10 @@ instance Functor FlowMethod where
 
 type Flow = F FlowMethod
 
-callServantAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
+callServantAPI
+  :: BaseUrl
+  -> ClientM a
+  -> Flow (Either ClientError a)
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
 callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)

@@ -1,11 +1,10 @@
-module EulerHS.Framework.Playback.Machine where
+module EulerHS.Core.Playback.Machine where
 
 import EulerHS.Prelude hiding (note)
-import EulerHS.Framework.Playback.Types
+import EulerHS.Types
 import qualified Data.Vector as V
 import Data.Vector as V ((!?))
 import Control.Exception (throwIO)
-import Data.Aeson (encode)
 
 
 showInfo :: String -> String -> String

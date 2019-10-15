@@ -4,9 +4,10 @@ module EulerHS.Tests.Framework.ArtSpec where
 
 import EulerHS.Prelude
 import Test.Hspec
+import EulerHS.Types as T
 -- import qualified EulerHS.Framework.Playback.Machine as P
-import qualified EulerHS.Framework.Playback.Types   as P
-import qualified EulerHS.Framework.Playback.Entries as P
+-- import qualified EulerHS.Framework.Playback.Types   as P
+-- import qualified EulerHS.Framework.Playback.Entries as P
 import           EulerHS.Runtime
 import           EulerHS.Language as L
 import           EulerHS.Interpreters
@@ -17,14 +18,14 @@ initRegularRT = do
   opts <- newMVar Map.empty
   flowRt <- withFlowRuntime Nothing pure
   pure $ flowRt
-   { _runMode = P.RegularMode
+   { _runMode = T.RegularMode
    }
 
 initRecorderRT = do
   recMVar <- newMVar V.empty
   forkedRecMvar <- newMVar Map.empty
   opts <- newMVar Map.empty
-  let recRt = P.RecorderRuntime
+  let recRt = T.RecorderRuntime
         { flowGUID = "testFlow"
         , recordingMVar = recMVar
         , forkedRecordingsVar = forkedRecMvar
@@ -32,7 +33,7 @@ initRecorderRT = do
         }
   flowRt <- withFlowRuntime Nothing pure
   pure $ flowRt
-    { _runMode = P.RecordingMode recRt
+    { _runMode = T.RecordingMode recRt
     }
 
 
@@ -41,7 +42,7 @@ initPlayerRT recEntries = do
   step <- newMVar 0
   errMVar <- newMVar Nothing
   ffEV <- newMVar Map.empty
-  let pRt = P.PlayerRuntime
+  let pRt = T.PlayerRuntime
         { recording = recEntries
         , stepMVar = step
         , errorMVar = errMVar
@@ -55,7 +56,7 @@ initPlayerRT recEntries = do
         }
   flowRt <- withFlowRuntime Nothing pure
   pure $ flowRt
-    { _runMode = P.ReplayingMode pRt
+    { _runMode = T.ReplayingMode pRt
     }
 
 cmdScript = do
@@ -84,9 +85,9 @@ spec =
       rt <- initRecorderRT
       res <- runFlow rt cmdScript
       case _runMode rt of
-        P.RecordingMode rrt -> do
-          recs <- readMVar (P.recordingMVar rrt)
-          (V.length recs) `shouldBe` 5
+        T.RecordingMode rrt -> do
+          recs <- readMVar (T.recordingMVar rrt)
+          (V.length recs) `shouldBe` 6
           res `shouldBe` "hello\n"
         _ -> fail "wrong mode"
 
@@ -94,13 +95,13 @@ spec =
       rt <- initRecorderRT
       res <- runFlow rt cmdScript
       case _runMode rt of
-        P.RecordingMode rrt -> do
-          entries <- readMVar (P.recordingMVar rrt)
+        T.RecordingMode rrt -> do
+          entries <- readMVar (T.recordingMVar rrt)
           pRt <- initPlayerRT entries
           res2 <- runFlow pRt cmdScript
           res `shouldBe` res2
           case _runMode pRt of
-            P.ReplayingMode prtm -> do
-              errors <- readMVar (P.errorMVar prtm)
+            T.ReplayingMode prtm -> do
+              errors <- readMVar (T.errorMVar prtm)
               errors `shouldBe` Nothing
         _ -> fail "wrong mode"

@@ -1,3 +1,6 @@
+
+{-# LANGUAGE DeriveAnyClass #-}
+
 module EulerHS.Framework.Types.API
   ( RestEndpoint(..)
   , APIResult
@@ -31,30 +34,35 @@ class RestEndpoint a b | a -> b, b -> a where
 
 type HeaderField = String
 type HeaderValue = String
+
 data Header = Header HeaderField HeaderValue
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 newtype Headers = Headers [Header]
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 type URL = String
 
 data Method = POST | GET | PUT | DELETE
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data Request = Request
   { method :: Method
   , url :: URL
   , payload :: String
   , headers :: Headers
-  }
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data Response a = Response
   { code :: Int
   , status :: String
   , response :: a
-  }
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data ErrorPayload = ErrorPayload
   { error :: Bool
   , errorMessage :: String
   , userMessage :: String
-  }
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 type ErrorResponse = Response ErrorPayload

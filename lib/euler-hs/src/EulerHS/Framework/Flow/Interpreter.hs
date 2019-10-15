@@ -110,8 +110,8 @@ interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
   fmap next $ withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
 
-interpretFlowMethod _ (L.InitSqlDBConnection cfg next) =
-  next <$> connect cfg
+interpretFlowMethod R.FlowRuntime {_runMode} (L.InitSqlDBConnection cfg next) =
+  fmap next $ withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let errLogger   = R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)

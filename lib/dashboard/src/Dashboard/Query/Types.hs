@@ -106,6 +106,7 @@ data FieldType
   = IntType
   | FloatType
   | StringType
+  | DateTimeType
   deriving (Generic,Show,Eq)
 
 newtype TableConfiguration =

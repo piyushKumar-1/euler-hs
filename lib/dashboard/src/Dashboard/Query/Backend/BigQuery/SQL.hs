@@ -23,23 +23,30 @@ fmtSelectField s =
        All        -> "*"
        (Field sf) -> sf
 
+fmtDateTime :: Bool -> FieldName -> Fmt.Builder
+fmtDateTime dateIsString field =
+  let field' = if dateIsString
+                  then "PARSE_TIMESTAMP('%F %T', " +| field |+ ")"
+                  else "TIMESTAMP(" +| field |+ ")"
+  in "UNIX_SECONDS(" <> field' <> ")"
+
 -- Includes a trailing comma assuming if there's an interval, we have other
 -- select fields as well
 -- (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)), 15)) AS ts
-fmtIntervalSelection :: Interval -> Fmt.Builder
-fmtIntervalSelection (Interval _ _ step intervalField) =
+fmtIntervalSelection :: Bool -> Interval -> Fmt.Builder
+fmtIntervalSelection dateIsString (Interval _ _ step intervalField) =
   Fmt.maybeF . fmap fmt' $ step
 
   where
     fmt' :: Milliseconds -> Fmt.Builder
     fmt' (Milliseconds duration) =
-      "UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " +| intervalField ++ "))" |+
-        " - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " +| intervalField |+ ")), " +|
+      fmtDateTime dateIsString intervalField |+
+        " - MOD(" +| fmtDateTime dateIsString intervalField |+ ", " +|
            (duration `quot` 1000) |+ ") AS " <> timeStampField
 
-fmtSelection :: Selection -> Interval -> Fmt.Builder
-fmtSelection (Selection selections) interval =
-  "SELECT " +| fmtIntervalSelection interval |+
+fmtSelection :: Bool -> Selection -> Interval -> Fmt.Builder
+fmtSelection dateIsString (Selection selections) interval =
+  "SELECT " +| fmtIntervalSelection dateIsString interval |+
     ", " +| fmtCommaSepSelections selections
 
   where
@@ -59,11 +66,11 @@ fmtSelection (Selection selections) interval =
 fmtFrom :: String -> Fmt.Builder
 fmtFrom table = "FROM `" +| table |+ "`"
 
-fmtIntervalFilter :: Interval -> Fmt.Builder
-fmtIntervalFilter (Interval (Timestamp start) (Timestamp end) _ field) =
+fmtIntervalFilter :: Bool -> Interval -> Fmt.Builder
+fmtIntervalFilter dateIsString (Interval (Timestamp start) (Timestamp end) _ field) =
   -- UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)) BETWEEN 1569456045 AND 1569457470
-  "(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', " +| field |+
-    ")) BETWEEN " +| toPOSIXSeconds start |+ " AND " +| toPOSIXSeconds end |+ ")"
+  "(" +| fmtDateTime dateIsString field |+
+    " BETWEEN " +| toPOSIXSeconds start |+ " AND " +| toPOSIXSeconds end |+ ")"
 
 fmtValue :: Value -> Fmt.Builder
 fmtValue value =
@@ -76,9 +83,9 @@ fmtFilterOp :: FilterOp -> Fmt.Builder
 fmtFilterOp EQUAL = "="
 fmtFilterOp NOT_EQUAL = "<>"
 
-fmtFilter :: Interval -> Filter -> Fmt.Builder
-fmtFilter interval (Filter fs) =
-  "WHERE " +| fmtIntervalFilter interval |+
+fmtFilter :: Bool -> Interval -> Filter -> Fmt.Builder
+fmtFilter dateIsString interval (Filter fs) =
+  "WHERE " +| fmtIntervalFilter dateIsString interval |+
   foldMap
     (\(filterField, filterOp, filterValue) ->
        " AND " +| filterField |+ " " +| fmtFilterOp filterOp |+ " " +| fmtValue filterValue)
@@ -90,11 +97,10 @@ fmtGroup (GroupBy gs) step =
   in
     "GROUP BY " <> (mconcat . intersperse ", " $ fmap Fmt.build gs <> maybeToList timeField)
 
--- FIXME: Return Text instead of String?
-printSQL :: Query -> Text
-printSQL (Query selection table interval filter group) =
-  fmtSelection selection interval |+
+printSQL :: Bool -> Query -> Text
+printSQL dateIsString (Query selection table interval filter group) =
+  fmtSelection dateIsString selection interval |+
   " " +| fmtFrom table |+
-  " " +| fmtFilter interval filter |+
+  " " +| fmtFilter dateIsString interval filter |+
   " " +| fmtGroup group (step interval) |+
   ";"

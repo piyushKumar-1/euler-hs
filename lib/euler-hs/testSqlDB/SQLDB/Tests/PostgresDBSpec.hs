@@ -2,7 +2,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module EulerHS.Tests.Framework.SQLiteDBSpec where
+module SQLDB.Tests.PostgresDBSpec where
 
 import           EulerHS.Prelude   hiding (getOption)
 import           Test.Hspec        hiding (runIO)
@@ -22,8 +22,6 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
--- sqlite3 db
--- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
 
 data UserT f = User
     { _userId        :: B.C f Int
@@ -49,80 +47,23 @@ data EulerDb f = EulerDb
 eulerDb :: B.DatabaseSettings be EulerDb
 eulerDb = B.defaultDbSettings
 
+pgConfig = mkPostgresConfig $ T.PostgresConfig
+  { connectHost = "localhost" --String
+  , connectPort = 5432 --Word16
+  , connectUser = "postgres" -- String
+  , connectPassword = "postgres" -- String
+  , connectDatabase = "testdb" --  String
+  }
 
+conPGorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+conPGorFail cfg = L.initSqlDBConnection cfg >>= \case
+  Left e     -> error $ show e -- L.throwException $ toException $ show e
+  Right conn -> pure conn
 
-data SqliteSequenceT f = SqliteSequence
-    { _name :: B.C f Text
-    , _seq  :: B.C f Int
-    } deriving (Generic, B.Beamable)
-
-instance B.Table SqliteSequenceT where
-  data PrimaryKey SqliteSequenceT f =
-    SqliteSequenceId (B.C f Text) deriving (Generic, B.Beamable)
-  primaryKey = SqliteSequenceId . _name
-
-type SqliteSequence = SqliteSequenceT Identity
-type SqliteSequenceId = B.PrimaryKey SqliteSequenceT Identity
-
-
-data SqliteSequenceDb f = SqliteSequenceDb
-    { _sqlite_sequence :: f (B.TableEntity SqliteSequenceT)
-    } deriving (Generic, B.Database be)
-
-sqliteSequenceDb :: B.DatabaseSettings be SqliteSequenceDb
-sqliteSequenceDb = B.defaultDbSettings
-
-
-testDBName :: T.DBName
-testDBName = "./test/EulerHS/TestData/test.db"
-
-testDBTemplateName :: T.DBName
-testDBTemplateName = "./test/EulerHS/TestData/test.db.template"
-
-connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
-    Left e     -> error $ show e -- L.throwException $ toException $ show e
-    Right conn -> pure conn
-
-deleteTestValues :: L.Flow ()
-deleteTestValues = do
-  conn <- connectOrFail $ T.mkSQLiteConfig testDBName
-  void $ L.runDB conn
-    $ L.deleteRows
-    $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
-  void $ L.runDB conn
-    $ L.updateRows
-    $ B.update (_sqlite_sequence sqliteSequenceDb)
-          (\(SqliteSequence {..}) -> mconcat [_seq <-. B.val_ 0])
-          (\(SqliteSequence {..}) -> _name ==. B.val_ "users")
-
-rmTestDB :: L.Flow ()
-rmTestDB = void $ L.runSysCmd $ "rm -f " <> testDBName
-
-prepareTestDB :: L.Flow ()
-prepareTestDB = do
-  rmTestDB
-  void $ L.runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
-  insertTestValues
-
-insertTestValues :: L.Flow ()
-insertTestValues = do
-  conn <- connectOrFail $ T.mkSQLiteConfig testDBName
-  void $ L.runDB conn
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertExpressions
-          [ User B.default_
-              ( B.val_ "John" )
-              ( B.val_ "Doe"  )
-          , User B.default_
-              ( B.val_ "Doe"  )
-              ( B.val_ "John" )
-          ]
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
-  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
+  connection <- conPGorFail $ pgConfig
 
   L.runDB connection
     $ L.insertRows
@@ -137,7 +78,7 @@ uniqueConstraintViolationDbScript = do
 
 selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript = do
-  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
+  connection <- conPGorFail $ pgConfig
 
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "Unknown"
@@ -150,8 +91,18 @@ selectUnknownDbScript = do
 
 selectOneDbScript :: L.Flow (T.DBResult (Maybe User))
 selectOneDbScript = do
-  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
-
+  connection <- conPGorFail $ pgConfig
+  L.runDB connection
+    $ L.insertRows
+    $ B.insert (_users eulerDb)
+    $ B.insertExpressions
+          [ User B.default_
+              ( B.val_ "John" )
+              ( B.val_ "Doe"  )
+          , User B.default_
+              ( B.val_ "Doe"  )
+              ( B.val_ "John" )
+          ]
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "John"
 
@@ -164,7 +115,7 @@ selectOneDbScript = do
 
 updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
 updateAndSelectDbScript = do
-  connection <- connectOrFail $ T.mkSQLiteConfig testDBName
+  connection <- conPGorFail $ pgConfig
 
   L.runDB connection $ do
     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
@@ -185,29 +136,6 @@ updateAndSelectDbScript = do
       $ B.all_ (_users eulerDb)
 
 
--- innerJoinDbScript :: L.Flow ()
--- innerJoinDbScript = do
---   connection <- connectOrFail $ T.SQLiteConfig testDBName
---
---   L.runDB connection $ do
---     insertTestValues
---
---       -- INNER JOIN
---     L.runSelect $ B.select $ do
---       user1 <- B.all_ (_users eulerDb)
---       user2 <- B.all_ (_users eulerDb)
---       pure (user1, user2)
-
-
-withEmptyDB :: (R.FlowRuntime -> IO ()) -> IO ()
-withEmptyDB act = withFlowRuntime Nothing (\rt -> do
-  try (runFlow rt prepareTestDB) >>= \case
-    Left (e :: SomeException) ->
-      runFlow rt rmTestDB
-      `finally` error ("Preparing test values failed: " <> show e)
-    Right _ -> act rt `finally` runFlow rt rmTestDB
-    )
-
 someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
 someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l
 someUser _ _ _ = False
@@ -215,12 +143,12 @@ someUser _ _ _ = False
 
 spec :: Spec
 spec =
-  around withEmptyDB $
+  around (withFlowRuntime Nothing) $
 
-    describe "EulerHS SQLite DB tests" $ do
+    describe "EulerHS Postgres DB tests" $ do
       it "Unique Constraint Violation" $ \rt -> do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
-        eRes `shouldBe` (Left (DBError SomeError "SQLite3 returned ErrorConstraint while attempting to perform step: UNIQUE constraint failed: users.id"))
+        eRes `shouldBe` (Left (DBError SomeError "SqlError {sqlState = \"23505\", sqlExecStatus = FatalError, sqlErrorMsg = \"duplicate key value violates unique constraint \\\"users_pk\\\"\", sqlErrorDetail = \"Key (id)=(1) already exists.\", sqlErrorHint = \"\"}"))
 
       it "Select one, row not found" $ \rt -> do
         eRes <- runFlow rt selectUnknownDbScript

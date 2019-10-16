@@ -10,6 +10,7 @@ import           EulerHS.Prelude
 
 import qualified Database.Beam                   as B
 import qualified Database.Beam.Backend.SQL       as B
+import qualified Database.Beam.MySQL             as BM
 import qualified Database.Beam.Postgres          as BP
 import qualified Database.Beam.Sqlite            as BS
 import qualified Database.Beam.Sqlite.Connection as SQLite
@@ -17,11 +18,9 @@ import qualified Database.MySQL.Base             as MySQL
 import qualified Database.SQLite.Simple          as SQLite
 import           EulerHS.Core.Types.MySQL        (MySQLConfig)
 
+import qualified EulerHS.Core.Types.Postgres as CP
 -- data MockedSqlConn  = MockedSqlConn String
 --   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-data MockedKVDBConn = MockedKVDBConn String
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   | be -> beM, beM -> be where
@@ -47,6 +46,13 @@ instance BeamRuntime BP.Postgres BP.Pg where
   rtUpdate = B.runUpdate
   rtDelete = B.runDelete
 
+instance BeamRuntime BM.MySQL BM.MySQLM where
+  rtSelectReturningList = B.runSelectReturningList
+  rtSelectReturningOne = B.runSelectReturningOne
+  rtInsert = B.runInsert
+  rtUpdate = B.runUpdate
+  rtDelete = B.runDelete
+
 class BeamRunner beM where
   getBeamDebugRunner :: SqlConn beM -> beM a -> ((String -> IO ()) -> IO a)
 
@@ -60,6 +66,9 @@ instance BeamRunner BP.Pg where
   getBeamDebugRunner (PostgresConn conn) beM = \logger -> BP.runBeamPostgresDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
+instance BeamRunner BM.MySQLM where
+  getBeamDebugRunner (MySQLConn conn) beM = \logger -> BM.runBeamMySQLDebug logger conn beM
+  getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
 
 data SqlConn beM
@@ -71,19 +80,19 @@ data SqlConn beM
 data DBConfig beM
   = MockConfig
   | SQLiteConfig DBName
-  | PostgresConf PostgresConfig
+  | PostgresConf CP.PostgresConfig
   | MySQLConf MySQLConfig
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 mkSQLiteConfig :: DBName -> DBConfig BS.SqliteM
 mkSQLiteConfig = SQLiteConfig
 
-mkPostgresConfig :: PostgresConfig -> DBConfig BP.Pg
+mkPostgresConfig :: CP.PostgresConfig -> DBConfig BP.Pg
 mkPostgresConfig = PostgresConf
 
--- data KVDBConn
---   = MockedKVDB MockedKVDBConn
-  -- | Redis SimpleConn
+mkMySQLConfig :: MySQLConfig -> DBConfig BM.MySQLM
+mkMySQLConfig = MySQLConf
+
 
 type DBName = String
 
@@ -99,13 +108,13 @@ data DBError
 
 type DBResult a = Either DBError a
 
-data PostgresConfig = PostgresConfig
-  { connectHost     :: String
-  , connectPort     :: Word16
-  , connectUser     :: String
-  , connectPassword :: String
-  , connectDatabase :: String
-  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-toBeamPostgresConnectInfo :: PostgresConfig -> BP.ConnectInfo
-toBeamPostgresConnectInfo PostgresConfig {..} = BP.ConnectInfo {..}
+-- data PostgresConfig = PostgresConfig
+--   { connectHost :: String
+--   , connectPort :: Word16
+--   , connectUser :: String
+--   , connectPassword :: String
+--   , connectDatabase :: String
+--   } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+-- 
+-- toBeamPostgresConnectInfo :: PostgresConfig -> BP.ConnectInfo
+-- toBeamPostgresConnectInfo (PostgresConfig {..}) = BP.ConnectInfo {..}

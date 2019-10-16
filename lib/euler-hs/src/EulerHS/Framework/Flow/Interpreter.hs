@@ -27,6 +27,8 @@ import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Core.SqlDB.Language as L
 import qualified EulerHS.Core.Logger.Language as L
 
+import qualified Database.PostgreSQL.Simple as PGS
+
 executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO ()
 executeWithLogSQLite log conn q = SQLite.execute_ conn q >> (log $ show q)
 
@@ -54,8 +56,11 @@ connect (T.SQLiteConfig dbName) = do
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right $ T.SQLiteConn conn
-connect (T.PostgresConf pgConf) = error "Postgres connect not implemented"
-
+connect (T.PostgresConf pgConf) = do -- error "Postgres connect not implemented"
+    eConn <- try $ T.createPostgresConn pgConf
+    case eConn of
+      Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
+      Right conn -> pure $ Right $ T.PostgresConn conn
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod _ (L.CallAPI _ _) = error "CallAPI not yet supported."
@@ -145,7 +150,16 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
           return res
 
     -- TODO: move begin / commit / rollback into the runner
-    T.PostgresConn connection -> error "Postgres not implemented."
+    T.PostgresConn connection -> do
+      let begin    = PGS.begin connection
+      let commit   = PGS.commit connection
+      let rollback = PGS.rollback connection
+
+      map (first $ T.DBError T.SomeError . show) $
+        try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+          res <- R.runSqlDB conn dbgLogger sqlDbMethod
+          commit
+          return res -- error "Postgres not implemented."
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   next <$> do

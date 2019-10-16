@@ -2,7 +2,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module EulerHS.Tests.Framework.SqlDBSpec where
+module EulerHS.Tests.Framework.SQLiteDBSpec where
 
 import           EulerHS.Prelude   hiding (getOption)
 import           Test.Hspec        hiding (runIO)
@@ -213,63 +213,11 @@ someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l
 someUser _ _ _ = False
 
 
---
--- testDb' :: L.Flow ()
--- testDb' = do
---
---   sqliteConn <- L.initSqlDBConnection (T.mkSQLiteConfig testDBName) >>= \case
---     Left e     -> error $ show e
---     Right conn' -> pure conn'
---
---   testDb'' sqliteConn
---
---   let pgConf = T.mkPostgresConfig $ T.PostgresConfig "" 1 ""  "" ""
---   pgConn <- L.initSqlDBConnection pgConf >>= \case
---     Left e     -> error $ show e
---     Right conn' -> pure conn'
---
---   testDb'' pgConn
---
--- testDb'' conn = do
---
---   let predicate User {..} = _userFirstName ==. B.val_ "John"
---
---   void $ L.runDB conn
---     $ L.insert'
---     $ B.insert (_users eulerDb)
---     $ B.insertExpressions
---           [ User B.default_
---               ( B.val_ "John" )
---               ( B.val_ "Doe"  )
---           , User B.default_
---               ( B.val_ "Doe"  )
---               ( B.val_ "John" )
---           ]
---
---   L.runDB conn
---     $ L.update'
---     $ B.update (_users eulerDb)
---       (\User {..} -> mconcat
---         [ _userFirstName <-. B.val_ "Leo"
---         , _userLastName  <-. B.val_ "San"
---         ]
---       )
---       predicate
---
---   L.runDB conn
---       $ L.delete'
---       $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
---
---   void $ L.runDB conn $
---     L.selectOne' $ B.select $
---         B.limit_ 1 $ B.filter_ predicate $ B.all_ (_users eulerDb)
-
-
 spec :: Spec
-spec = do
-  around withEmptyDB $ do
+spec =
+  around withEmptyDB $
 
-    describe "EulerHS SQL DB tests" $ do
+    describe "EulerHS SQLite DB tests" $ do
       it "Unique Constraint Violation" $ \rt -> do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
         eRes `shouldBe` (Left (DBError SomeError "SQLite3 returned ErrorConstraint while attempting to perform step: UNIQUE constraint failed: users.id"))

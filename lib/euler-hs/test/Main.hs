@@ -1,13 +1,13 @@
 module Main where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 import           Test.Hspec
 
-import qualified EulerHS.Tests.Framework.FlowSpec as Framework
-import qualified EulerHS.Tests.Framework.SqlDBSpec as SqlDB
-import qualified EulerHS.Tests.Framework.KvdbSpec as Kvdb
+import qualified EulerHS.Tests.Framework.FlowSpec     as Framework
+import qualified EulerHS.Tests.Framework.KvdbSpec     as Kvdb
+import qualified EulerHS.Tests.Framework.SQLiteDBSpec as SQLiteDB
 
 main = hspec $ do
   Framework.spec
-  SqlDB.spec
+  SQLiteDB.spec
   Kvdb.spec

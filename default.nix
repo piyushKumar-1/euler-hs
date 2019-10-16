@@ -35,7 +35,7 @@ let
           dashboard =
             self.callCabal2nix "dashboard" ./lib/dashboard { };
           analytics-dashboard =
-            self.callCabal2nixWithOptions "analytics-dashboard" ./app/analytics-dashboard "--no-check" { };
+            self.callCabal2nix "analytics-dashboard" ./app/analytics-dashboard { };
         };
       };
     };

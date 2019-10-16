@@ -6,7 +6,7 @@ import           EulerHS.Runtime
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
 import           Database.Redis (checkedConnect, defaultConnectInfo, Redis(..))
 import           Data.Map (singleton)
-
+import qualified EulerHS.Types as T
 type FlowRtInitializer = IO FlowRuntime
 
 initDefaultFlowRt :: FlowRtInitializer
@@ -15,5 +15,5 @@ initDefaultFlowRt = do
   options <- newMVar mempty
   coreRuntime <- createCoreRuntime =<< createVoidLoggerRuntime
   conn <- checkedConnect defaultConnectInfo
-  connPool <- newMVar (singleton "redis" $ Redis conn)
+  connPool <- newMVar (singleton "redis" $ T.Redis  conn)
   pure $ FlowRuntime coreRuntime manager options connPool

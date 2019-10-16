@@ -16,7 +16,7 @@ import           EulerHS.Runtime (withFlowRuntime)
 import           EulerHS.TestData.Types
 import           EulerHS.TestData.API.Client
 import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
-import           EulerHS.Testing.Types (MockedValues'(..))
+import           EulerHS.Testing.Types (FlowMockedValues'(..))
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
 
 user :: Any
@@ -29,8 +29,8 @@ lhost :: BSL.ByteString
 lhost = encode ("localhost" :: String)
 
 
-scenario1MockedValues :: MockedValues'
-scenario1MockedValues = MockedValues'
+scenario1MockedValues :: FlowMockedValues'
+scenario1MockedValues = FlowMockedValues'
   { mockedCallServantAPI = [user]
   , mockedRunIO = [localGUID]
   , mockedGetOption = [lhost]

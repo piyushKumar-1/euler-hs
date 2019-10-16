@@ -74,8 +74,8 @@ mkSQLiteConfig = SQLiteConfig
 mkPostgresConfig :: PostgresConfig -> DBConfig BP.Pg
 mkPostgresConfig = PostgresConf
 
-data KVDBConn
-  = MockedKVDB MockedKVDBConn
+-- data KVDBConn
+--   = MockedKVDB MockedKVDBConn
   -- | Redis SimpleConn
 
 type DBName = String

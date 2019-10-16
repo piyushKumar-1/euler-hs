@@ -115,8 +115,8 @@ interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   next <$> do
     connections <- readMVar _connections
     case Map.lookup "redis" connections of
-      Just (R.Redis a) -> R.runKVDB a act
-      Nothing -> pure $ Left $ ExceptionMessage "No such key"
+      Just (kvdbconn) -> R.runKVDB kvdbconn act
+      Nothing -> pure $ Left $ ExceptionMessage "Can't find redis connection"
 
 forkF :: R.FlowRuntime -> L.Flow a -> IO ()
 forkF rt flow = void $ forkIO $ void $ runFlow rt flow

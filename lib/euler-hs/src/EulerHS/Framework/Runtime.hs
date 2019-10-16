@@ -17,7 +17,7 @@ data FlowRuntime = FlowRuntime
   { _coreRuntime :: R.CoreRuntime
   , _httpClientManager :: MVar Manager
   , _options :: MVar (Map ByteString ByteString)
-  , _connections :: MVar (Map DBName Connection)
+  , _connections :: MVar (Map DBName T.KVDBConn)
   }
 
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime

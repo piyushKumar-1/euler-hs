@@ -85,6 +85,7 @@ dependencies:
 - beam-migrate
 - sqlite-simple
 - hedis
+- generic-lens
 
 library:
   source-dirs:

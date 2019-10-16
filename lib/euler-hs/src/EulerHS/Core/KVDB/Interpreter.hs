@@ -1,3 +1,7 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module EulerHS.Core.KVDB.Interpreter(runKVDB) where
 
 import           EulerHS.Prelude
@@ -5,6 +9,66 @@ import           EulerHS.Prelude
 import qualified Database.Redis             as R
 import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Core.Types.KVDB
+
+import Data.Generics.Product.Fields
+import GHC.Generics
+import GHC.TypeLits
+import Type.Reflection (typeRep)
+import Unsafe.Coerce
+
+takeMockedVal ::forall (f :: Symbol) a r
+  .  (KnownSymbol f, Typeable r, HasField' f r [a])
+  => MVar r -> IO a
+takeMockedVal mmv = do
+  mv <- takeMVar mmv
+  (v,t) <- case (getField @f mv) of
+    [] -> error $ "empty " <> (show $ typeRep @f) <> " in " <> (show $ typeRep @r)
+    (x:xs) -> pure (x,xs)
+  putMVar mmv $ setField @f t mv
+  pure v
+
+interpretMockTX :: KVDBMockedValues -> L.TransactionF a -> IO a
+interpretMockTX mv (L.MultiExec a next)= do
+  (v :: R.TxResult Any) <- takeMockedVal @"kvdbTX" mv
+  case v of
+    R.TxAborted -> fmap next $ pure $ pure R.TxAborted
+    R.TxSuccess a -> fmap next $ pure $ pure $ R.TxSuccess (unsafeCoerce  a)
+    R.TxError str -> fmap next $ pure $ pure $ R.TxError str
+
+
+interpretMockKV ::  KVDBMockedValues -> L.KeyValueF (Either R.Reply) a -> IO a
+
+interpretMockKV mv (L.Exists k next) = do
+  v <- takeMockedVal @"kvdbExists" mv
+  fmap next $ pure $ Right True
+
+interpretMockKV mv (L.Del x next) = do
+  v <- takeMockedVal @"kvdbDel" mv
+  fmap next $ pure $ Right v
+
+interpretMockKV mv (L.Set k v next) = do
+  x <- takeMockedVal @"kvdbSet" mv
+  fmap next $ pure $ Right x
+
+interpretMockKV mv (L.Get x next) = do
+  v <- takeMockedVal @"kvdbGet" mv
+  fmap next $ pure $ Right v
+
+interpretMockKV mv (L.Expire k sec next) = do
+  v <- takeMockedVal @"kvdbExpire" mv
+  fmap next $ pure $ Right v
+
+interpretMockKV mv (L.Incr x next) = do
+  v <- takeMockedVal @"kvdbIncr" mv
+  fmap next $ pure $ Right v
+
+interpretMockKV mv (L.HSet k field value next) = do
+  v <- takeMockedVal @"kvdbHSet" mv
+  fmap next $ pure $ Right v
+
+interpretMockKV mv (L.HGet k field next) = do
+  v <- takeMockedVal @"kvdbHGet" mv
+  fmap next $ pure $ Right v
 
 interpretKeyValue_F :: (Applicative f, R.RedisCtx m f) => L.KeyValueF f a -> m a
 interpretKeyValue_F (L.Set k v next) =
@@ -48,9 +112,16 @@ interpretDbF :: L.KVDBF a -> R.Redis a
 interpretDbF (L.KV f) = interpretKeyValueF f
 interpretDbF (L.TX f) = interpretTransactionF f
 
-runKVDB :: R.Connection -> L.KVDB a -> IO (Either KVDBReply a)
-runKVDB conn =
-  fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
-    R.runRedis conn . fmap (first hedisReplyToKVDBReply) . foldF interpretDbF . runExceptT
+
+
+interpretMockedConn :: KVDBMockedValues -> L.KVDBF a -> IO a
+interpretMockedConn mv (L.KV f ) = interpretMockKV mv f
+interpretMockedConn mv (L.TX f) = interpretMockTX mv f
+
+runKVDB :: KVDBConn -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB kvdbconn = case kvdbconn of
+  Mocked mv -> fmap (first hedisReplyToKVDBReply) .foldF (interpretMockedConn mv) . runExceptT  --go
+  Redis conn -> fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
+            R.runRedis conn . fmap (first hedisReplyToKVDBReply) . foldF interpretDbF . runExceptT
 
 

@@ -1,7 +1,28 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module EulerHS.Core.Types.KVDB where
 
-import qualified Database.Redis  as RD (Reply (..))
+import qualified Database.Redis  as RD (Reply (..), Connection, Status, TxResult)
 import           EulerHS.Prelude
+
+data KVDBConn
+  = Mocked KVDBMockedValues
+  | Redis RD.Connection
+
+data KVDBMockedValues' = KVDBMockedValues'
+  { kvdbSet    :: [ RD.Status]
+  , kvdbGet    :: [ (Maybe ByteString)]
+  , kvdbExists :: [ Bool]
+  , kvdbDel    :: [ Integer]
+  , kvdbExpire :: [ Bool]
+  , kvdbIncr   :: [ Integer]
+  , kvdbHSet   :: [ Bool]
+  , kvdbHGet   :: [ (Maybe ByteString)]
+  , kvdbTX     :: [RD.TxResult Any]
+  } deriving (Generic, Typeable)
+
+
+type KVDBMockedValues = MVar (KVDBMockedValues' )
+
 
 data KVDBReply = SingleLine ByteString
                | Err ByteString

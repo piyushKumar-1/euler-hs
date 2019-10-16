@@ -79,9 +79,11 @@ dependencies:
 - tinylog
 - natural-transformation
 - uuid
+- mysql
 - beam-core
 - beam-postgres
 - beam-sqlite
+- beam-mysql
 - beam-migrate
 - sqlite-simple
 - hedis

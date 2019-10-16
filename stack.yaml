@@ -13,3 +13,23 @@ extra-deps:
 - gogol-bigquery-0.5.0@sha256:47ba01fd655f0b8e8789b10949e70a308041bc9db7892a0c7ab26ec4bcf174d4,2698
 - git: https://github.com/shmish111/purescript-bridge.git
   commit: 0042602f8a195b1fe185138f9ccca02020b8dd62
+- git: https://github.com/graninas/beam-mysql
+  commit: 5cac4b785a16e78eece81e00d7031c534b9f225f
+
+# MySQL
+# MacOS:
+# Problem: MacOS build failure
+# >   Configuring mysql-0.1.7...
+# >   setup: Missing dependencies on foreign libraries:
+# >   * Missing (or bad) C libraries: ssl, crypto
+# Possible solution:
+# https://github.com/depressed-pho/HsOpenSSL/issues/41
+# TODO: how to make it portable?
+extra-include-dirs:
+- /usr/local/opt/openssl/include
+extra-lib-dirs:
+- /usr/local/opt/openssl/lib
+
+# Linux:
+# sudo apt install mysql-client
+# sudo apt-get install libmysqlclient-dev

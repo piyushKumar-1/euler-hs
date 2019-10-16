@@ -1,3 +1,6 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module EulerHS.Framework.Flow.Interpreter where
 
 import           EulerHS.Prelude
@@ -11,6 +14,7 @@ import qualified Servant.Client                  as S
 import           System.Process (shell, readCreateProcess)
 
 import qualified Database.SQLite.Simple as SQLite
+import qualified Database.MySQL.Base as MySQL
 import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Core.Types.KVDB
 import qualified EulerHS.Core.Runtime as R
@@ -19,10 +23,11 @@ import qualified EulerHS.Framework.Runtime as R
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
 
--- TODO
+-- TODO: no explicit dependencies from languages.
 import qualified EulerHS.Core.SqlDB.Language as L
+import qualified EulerHS.Core.Logger.Language as L
 
-executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO()
+executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO ()
 executeWithLogSQLite log conn q = SQLite.execute_ conn q >> (log $ show q)
 
 beginTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
@@ -36,12 +41,19 @@ rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRA
 
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
+connect T.MockConfig  = pure $ Right T.MockedConn
+
+connect (T.MySQLConf cfg) = do
+  eConn <- try $ MySQL.connect $ T.toMySQLConnectInfo cfg
+  case eConn of
+    Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
+    Right conn -> pure $ Right $ T.MySQLConn conn
+
 connect (T.SQLiteConfig dbName) = do
   eConn <- try $ SQLite.open dbName
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right $ T.SQLiteConn conn
-connect T.MockConfig  = pure $ Right $ T.MockedConn
 connect (T.PostgresConf pgConf) = error "Postgres connect not implemented"
 
 
@@ -90,24 +102,48 @@ interpretFlowMethod _ (L.ThrowException ex next) =
 interpretFlowMethod _ (L.InitSqlDBConnection cfg next) =
   next <$> connect cfg
 
-interpretFlowMethod _ (L.RunDB conn sqlDbMethod next) =
+interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
+  let errLogger   = R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)
+                  . L.logMessage' T.Error ("RUNTIME" :: String)
+                  . show
+  let dbgLogger   = R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)
+                  . L.logMessage' T.Debug ("RUNTIME" :: String)
+                  . show
+
   next <$> case conn of
     T.MockedConn -> error "not implemented MockedSql"
 
-    -- N.B. Beam runner should correspond to the real runtime
+    -- N.B. Beam runner should correspond to the real runtime.
+    -- TODO: check for this correspondence or make it unavoidable.
+
+
     -- TODO: move begin / commit / rollback into the runner
-    T.SQLiteConn connection -> do
-      let begin    = beginTransactionSQLite      putStrLn connection
-      let commit   = commitTransactionSQLite     putStrLn connection
-      let rollback = rollbackTransactionSQLite   putStrLn connection
+    -- TODO: MySQL has autocommit mode on by default.
+    -- This makes changes to be commited immediately.
+    -- TODO: check for what's to do with transactions.
+    T.MySQLConn mySQLConn -> do
+      let begin    = pure ()              -- Seems no begin transaction in MySQL
+      let commit   = MySQL.commit mySQLConn
+      let rollback = MySQL.rollback mySQLConn
 
       map (first $ T.DBError T.SomeError . show) $
         try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-          res <- R.runSqlDB conn putStrLn sqlDbMethod
+          res <- R.runSqlDB conn dbgLogger sqlDbMethod
           commit
           return res
 
-    -- N.B. Beam runner should correspond to the real runtime
+    -- TODO: move begin / commit / rollback into the runner
+    T.SQLiteConn sqliteConn -> do
+      let begin    = beginTransactionSQLite      errLogger sqliteConn
+      let commit   = commitTransactionSQLite     errLogger sqliteConn
+      let rollback = rollbackTransactionSQLite   errLogger sqliteConn
+
+      map (first $ T.DBError T.SomeError . show) $
+        try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+          res <- R.runSqlDB conn dbgLogger sqlDbMethod
+          commit
+          return res
+
     -- TODO: move begin / commit / rollback into the runner
     T.PostgresConn connection -> error "Postgres not implemented."
 

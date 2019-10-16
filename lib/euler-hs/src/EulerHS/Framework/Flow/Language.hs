@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE DeriveAnyClass        #-}
 
 module EulerHS.Framework.Flow.Language where
 
@@ -28,7 +29,8 @@ data FlowMethod next where
     -> FlowMethod next
 
   EvalLogger
-    :: Logger a
+    :: (ToJSON a, FromJSON a)
+    => Logger a
     -> (a -> next)
     -> FlowMethod next
 
@@ -76,9 +78,17 @@ data FlowMethod next where
 
   -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
 
-  InitSqlDBConnection :: T.DBConfig beM -> (T.DBResult (T.SqlConn beM) -> next) -> FlowMethod next
+  InitSqlDBConnection
+    :: T.DBConfig beM
+    -> (T.DBResult (T.SqlConn beM) -> next)
+    -> FlowMethod next
 
-  RunDB :: T.SqlConn beM -> L.SqlDB beM a -> (T.DBResult a -> next) -> FlowMethod next
+  RunDB
+    :: (ToJSON a, FromJSON a)
+    => T.SqlConn beM
+    -> L.SqlDB beM a
+    -> (T.DBResult a -> next)
+    -> FlowMethod next
 
   RunKVDB
     :: KVDB a
@@ -121,7 +131,7 @@ callServantAPI url cl = liftFC $ CallServantAPI url cl id
 callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
 callAPI = callServantAPI
 
-evalLogger' :: Logger a -> Flow a
+evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id
 
 -- | Log message with Info level.
@@ -159,7 +169,7 @@ initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 
 runDB
-  :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
+  :: (ToJSON a, FromJSON a, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => T.SqlConn beM
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
@@ -180,7 +190,9 @@ forkFlow description flow = do
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
-runKVDB :: KVDB a -> Flow (T.KVDBAnswer a)
+runKVDB
+  :: KVDB a
+  -> Flow (T.KVDBAnswer a)
 runKVDB act = liftFC $ RunKVDB act id
 
 -- TODO: port

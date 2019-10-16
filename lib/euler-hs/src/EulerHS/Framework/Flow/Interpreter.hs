@@ -27,7 +27,7 @@ import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Core.SqlDB.Language as L
 import qualified EulerHS.Core.Logger.Language as L
 import qualified EulerHS.Core.Playback.Machine as P
-import qualified EulerHS.Framework.Playback.Entries as P
+import qualified EulerHS.Framework.Flow.Entries as P
 import qualified Data.Vector as V
 import qualified Data.Text as T
 
@@ -62,7 +62,7 @@ connect (T.PostgresConf pgConf) = error "Postgres connect not implemented"
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod R.FlowRuntime {..} (L.CallServantAPI bUrl clientAct next) =
-  fmap next $ withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
+  fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
     manager <- takeMVar _httpClientManager
     result <- catchAny
       (S.runClientM clientAct (S.mkClientEnv manager bUrl))
@@ -72,35 +72,35 @@ interpretFlowMethod R.FlowRuntime {..} (L.CallServantAPI bUrl clientAct next) =
 
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
-  fmap next $ withRunMode _runMode P.mkEvalLoggerEntry $
-    R.runLogger (R._loggerRuntime _coreRuntime) loggerAct
+  fmap next $ -- P.withRunMode _runMode P.mkEvalLoggerEntry $
+    R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunIO ioAct next) =
-  next <$> withRunMode _runMode P.mkRunIOEntry ioAct
+  next <$> P.withRunMode _runMode P.mkRunIOEntry ioAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
-  fmap next $ withRunMode _runMode (P.mkGetOptionEntry k) $ do
+  fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do
     m <- readMVar _options
     pure $ decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ encode k) m
 
 interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
-  fmap next $ withRunMode _runMode (P.mkSetOptionEntry k v) $ do
+  fmap next $ P.withRunMode _runMode (P.mkSetOptionEntry k v) $ do
     m <- takeMVar _options
     let newMap = Map.insert (BSL.toStrict $ encode k) (BSL.toStrict $ encode v) m
     putMVar _options newMap
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.GenerateGUID next) =
-  next <$> withRunMode _runMode P.mkGenerateGUIDEntry
+  next <$> P.withRunMode _runMode P.mkGenerateGUIDEntry
     (UUID.toText <$> UUID.nextRandom)
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
-  next <$> withRunMode _runMode
+  next <$> P.withRunMode _runMode
     (P.mkRunSysCmdEntry cmd)
     (readCreateProcess (shell cmd) "")
 
 interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
   mbForkedRt <- forkBackendRuntime flowGUID rt
-  void $ withRunMode (R._runMode rt) (P.mkForkEntry desc flowGUID)
+  void $ P.withRunMode (R._runMode rt) (P.mkForkEntry desc flowGUID)
     (case mbForkedRt of
       Nothing -> putStrLn (flowGUID <> " Failed to fork flow.") *> pure ()
       Just forkedBrt -> forkF forkedBrt flow *> pure ())
@@ -108,20 +108,21 @@ interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
 
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
-  fmap next $ withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
+  fmap next $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.InitSqlDBConnection cfg next) =
-  fmap next $ withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
+  fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
-  let errLogger   = R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)
-                  . L.logMessage' T.Error ("RUNTIME" :: String)
-                  . show
-  let dbgLogger   = R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)
-                  . L.logMessage' T.Debug ("RUNTIME" :: String)
-                  . show
+  let runMode   = (R._runMode flowRt)
+  let errLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+                . L.logMessage' T.Error ("RUNTIME" :: String)
+                . show
+  let dbgLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+                . L.logMessage' T.Debug ("RUNTIME" :: String)
+                . show
 
-  fmap next $ withRunMode (R._runMode flowRt) P.mkRunDBEntry $ case conn of
+  fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
     T.MockedConn -> error "not implemented MockedSql"
 
     -- N.B. Beam runner should correspond to the real runtime.
@@ -159,7 +160,7 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
     T.PostgresConn connection -> error "Postgres not implemented."
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
-  fmap next $ withRunMode _runMode P.mkRunKVDBEntry $ do
+  fmap next $ P.withRunMode _runMode P.mkRunKVDBEntry $ do
     connections <- readMVar _connections
     case Map.lookup "redis" connections of
       Just (kvdbconn) -> R.runKVDB kvdbconn act
@@ -170,24 +171,6 @@ forkF rt flow = void $ forkIO $ void $ runFlow rt flow
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)
-
-
-
-withRunMode
-  :: T.RRItem rrItem
-  => T.MockedResult rrItem native
-  => T.RunMode
-  -> (native -> rrItem)
-  -> IO native
-  -> IO native
-
-withRunMode T.RegularMode _ act = act
-
-withRunMode (T.RecordingMode recorderRt) mkRRItem act
-  = P.record recorderRt mkRRItem act
-
-withRunMode (T.ReplayingMode playerRt) mkRRItem act
-  = P.replay playerRt mkRRItem act
 
 forkPlayerRt :: Text -> T.PlayerRuntime -> IO (Maybe T.PlayerRuntime)
 forkPlayerRt newFlowGUID_ T.PlayerRuntime{..} =

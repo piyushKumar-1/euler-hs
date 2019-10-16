@@ -37,10 +37,14 @@ instance B.Table UserT where
   primaryKey = UserId . _userId
 
 type User = UserT Identity
+
+
 type UserId = B.PrimaryKey UserT Identity
 
 deriving instance Show User
 deriving instance Eq User
+deriving instance ToJSON User
+deriving instance FromJSON User
 
 data EulerDb f = EulerDb
     { _users :: f (B.TableEntity UserT)

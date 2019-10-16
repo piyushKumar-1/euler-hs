@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Framework.Playback.Entries where
+module EulerHS.Framework.Flow.Entries where
 
 
 import EulerHS.Prelude
@@ -12,43 +12,36 @@ import qualified Servant.Client as S
 
 ----------------------------------------------------------------------
 
--- MOCK, TODO!
-
 data RunDBEntry = RunDBEntry
   -- { jsonConnection :: String
-  -- , jsonResult     :: String
-  -- }
+  { jsonResult     :: String
+  }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
--- mkRunDBEntry :: ToJSON a => T.SqlConn -> a -> RunDBEntry
--- mkRunDBEntry conn res = RunDBEntry (encodeToStr conn) (encodeToStr res)
-mkRunDBEntry :: a -> RunDBEntry
-mkRunDBEntry _ = RunDBEntry
+mkRunDBEntry :: ToJSON a => a -> RunDBEntry
+mkRunDBEntry = RunDBEntry . encodeToStr
 
 instance RRItem RunDBEntry where
   getTag _ = "RunDBEntry"
 
-instance MockedResult RunDBEntry a where
-  getMock _ = Just $
-    error "Not Implemented MockedResult RunDBEntry"
+instance FromJSON a => MockedResult RunDBEntry a where
+  getMock RunDBEntry {jsonResult} = decodeFromStr jsonResult
 
 
 ----------------------------------------------------------------------
 
--- MOCK, TODO!
+-- data EvalLoggerEntry = EvalLoggerEntry
+--   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data EvalLoggerEntry = EvalLoggerEntry
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+-- mkEvalLoggerEntry :: a -> EvalLoggerEntry
+-- mkEvalLoggerEntry _ = EvalLoggerEntry
 
-mkEvalLoggerEntry :: a -> EvalLoggerEntry
-mkEvalLoggerEntry _ = EvalLoggerEntry
+-- instance RRItem EvalLoggerEntry where
+--   getTag _ = "EvalLoggerEntry"
 
-instance RRItem EvalLoggerEntry where
-  getTag _ = "EvalLoggerEntry"
-
-instance MockedResult EvalLoggerEntry a where
-  getMock _ = Just $
-    error "Not Implemented MockedResult EvalLoggerEntry"
+-- instance MockedResult EvalLoggerEntry a where
+--   getMock _ = Just $
+--     error "Not Implemented MockedResult EvalLoggerEntry"
 
 ----------------------------------------------------------------------
 

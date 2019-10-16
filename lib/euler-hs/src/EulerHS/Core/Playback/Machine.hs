@@ -152,8 +152,6 @@ replay playerRt@PlayerRuntime{..} mkRRItem ioAct
           Right stepInfo@(_, _, r) -> pure r
         NoMock -> ioAct
 
-
-
 record
   ::forall rrItem native
    . RRItem rrItem
@@ -167,3 +165,17 @@ record recorderRt@RecorderRuntime{..} mkRRItem ioAct = do
   when (tag `notElem` disableEntries)
     $ pushRecordingEntry recorderRt $ toRecordingEntry (mkRRItem native) 0 Normal
   pure native
+
+
+withRunMode
+  :: RRItem rrItem
+  => MockedResult rrItem native
+  => RunMode
+  -> (native -> rrItem)
+  -> IO native
+  -> IO native
+withRunMode RegularMode _ act = act
+withRunMode (RecordingMode recorderRt) mkRRItem act =
+  record recorderRt mkRRItem act
+withRunMode (ReplayingMode playerRt) mkRRItem act =
+  replay playerRt mkRRItem act

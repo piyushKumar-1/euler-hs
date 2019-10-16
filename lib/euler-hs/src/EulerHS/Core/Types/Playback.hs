@@ -99,3 +99,5 @@ decodeFromStr = A.decode . BSL.fromStrict . BS.pack
 note :: forall a b. a -> Maybe b -> Either a b
 note a Nothing = Left a
 note _ (Just b) = Right b
+
+

@@ -14,16 +14,6 @@ data FlowMockedValues' = FlowMockedValues'
   , mockedRunSysCmd :: [String]
   } deriving (Generic, Typeable)
 
-data KVDBMockedValues' = KVDBMockedValues'
-  { kvdbSet    :: [ R.Status]
-  , kvdbGet    :: [ (Maybe ByteString)]
-  , kvdbExists :: [ Bool]
-  , kvdbDel    :: [ Integer]
-  , kvdbExpire :: [ Bool]
-  , kvdbIncr   :: [ Integer]
-  , kvdbHSet   :: [ Bool]
-  , kvdbHGet   :: [ (Maybe ByteString)]
-  } deriving (Generic, Typeable)
+
 
 type FlowMockedValues = MVar FlowMockedValues'
-type KVDBMockedValues = MVar (KVDBMockedValues' )

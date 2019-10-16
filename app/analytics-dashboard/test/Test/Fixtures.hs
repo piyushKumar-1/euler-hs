@@ -24,7 +24,7 @@ ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_check
 
 withConsoleServer :: IO () -> IO ()
 withConsoleServer action = do
-  backend <- newBigQueryBackend "godel-big-q"
+  backend <- newBigQueryBackend "godel-big-q" Nothing
   bracket (liftIO $ C.forkIO $ Warp.run testPort $ app backend ecQueryConf)
     C.killThread
     (const action)

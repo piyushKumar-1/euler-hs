@@ -25,7 +25,7 @@ ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_check
 
 main :: IO ()
 main = do
-  backend  <- newBigQueryBackend "godel-big-q"
+  backend  <- newBigQueryBackend "godel-big-q" Nothing
   wantCors <- allowCors
   run 8080 .
     middleware wantCors $

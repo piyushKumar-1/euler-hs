@@ -7,15 +7,17 @@ import Universum hiding ((^.))
 import Control.Lens ((?~), (^.))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Utils as Aeson
+import Data.ByteString.Lazy.Char8 as B hiding (zip)
 import Data.List (lookup)
 import Data.Maybe (fromJust)
 import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Network.Google (Env, LogLevel(..), getApplicationDefault, newEnvWith, newLogger, newManager, runGoogle, runResourceT, send, tlsManagerSettings)
+import Network.Google.Auth.ApplicationDefault (fromJSONCredentials)
+import Network.Google.BigQuery (QueryResponse)
 import qualified Network.Google.BigQuery.Types as BQT
 import Network.Google.Resource.BigQuery.Jobs.Query (jobsQuery)
-import Network.Google (Env, LogLevel(..), getApplicationDefault, newEnvWith, newLogger, newManager, runGoogle, runResourceT, send, tlsManagerSettings)
-import Network.Google.BigQuery (QueryResponse)
 
 import Dashboard.Query.Backend.BigQuery.SQL (printSQL)
 import Dashboard.Query.Backend (QueryBackend, runQuery)
@@ -25,13 +27,19 @@ data BigQueryBackend = BigQueryBackend { project :: Text
                                        , env     :: Env '["https://www.googleapis.com/auth/bigquery"]
                                        }
 
-newBigQueryBackend :: Text -> IO BigQueryBackend
-newBigQueryBackend project = do
+newBigQueryBackend :: Text -> Maybe Text -> IO BigQueryBackend
+newBigQueryBackend project jsonCreds = do
   manager <- newManager tlsManagerSettings
-  creds   <- getApplicationDefault manager
+  creds   <- case readCreds jsonCreds of
+                  Just c  -> return c
+                  Nothing -> getApplicationDefault manager
   logger  <- newLogger Debug stderr
   env     <- newEnvWith creds logger manager
+
   return $ BigQueryBackend project env
+
+  where
+    readCreds j = join $ rightToMaybe . fromJSONCredentials . B.fromStrict . encodeUtf8 <$> j
 
 instance QueryBackend BigQueryBackend where
   runQuery (BigQueryBackend project env) queryConf query = do

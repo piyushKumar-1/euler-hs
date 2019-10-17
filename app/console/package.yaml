@@ -1,4 +1,4 @@
-name:                analytics-dashboard
+name:                console
 version:             0.0.1.0
 github:              "https://bitbucket.org/juspay/euler-hs"
 license:             OtherLicense
@@ -52,7 +52,7 @@ library:
   # - -Werror
 
 executables:
-  analytics-dashboard:
+  console:
     main:                Main.hs
     source-dirs:         src/
     ghc-options:
@@ -64,7 +64,7 @@ executables:
     - -fspec-constr-recursive=10
     - -fno-ignore-asserts
 
-  analytics-dashboard-gen-ps:
+  console-gen-ps:
     main:                GeneratePS.hs
     source-dirs:         gen/
     ghc-options:
@@ -92,4 +92,4 @@ tests:
     - tasty-hspec
     - tasty-hunit
     - warp
-    - analytics-dashboard
+    - console

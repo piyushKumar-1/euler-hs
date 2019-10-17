@@ -27,8 +27,8 @@ dist-newstyle
 stack.yaml.lock
 client/
 
-dashboard.cabal
-analytics-dashboard.cabal
+console.cabal
 credit-platform.cabal
+dashboard.cabal
 euler-hs.cabal
 euler-backend.cabal

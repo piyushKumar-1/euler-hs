@@ -65,4 +65,4 @@ genTypes writeTo = writePSTypesWith genOptions writeTo (buildBridge typeBridge) 
     typeBridge = pairBridge <|> tripleBridge <|> utcTimeBridge <|> defaultBridge
 
 main :: IO ()
-main = genTypes "client/analytics-dashboard/src"
+main = genTypes "client/console/src"

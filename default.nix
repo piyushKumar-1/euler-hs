@@ -34,8 +34,8 @@ let
             self.callCabal2nix "credit-platform" ./app/credit-platform { };
           dashboard =
             self.callCabal2nix "dashboard" ./lib/dashboard { };
-          analytics-dashboard =
-            self.callCabal2nix "analytics-dashboard" ./app/analytics-dashboard { };
+          console =
+            self.callCabal2nix "console" ./app/console { };
         };
       };
     };
@@ -48,5 +48,5 @@ in {
   credit-platform = pkgs.haskellPackages.credit-platform;
   euler-backend = pkgs.haskellPackages.euler-backend;
   dashboard = pkgs.haskellPackages.dashboard;
-  analytics-dashboard = pkgs.haskellPackages.analytics-dashboard;
+  console = pkgs.haskellPackages.console;
 }

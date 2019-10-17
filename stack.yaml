@@ -3,8 +3,8 @@ resolver: lts-14.4
 packages:
 - lib/euler-hs
 - lib/dashboard
+- app/console
 - app/credit-platform
-- app/analytics-dashboard
 - app/euler-backend
 
 extra-deps:

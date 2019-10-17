@@ -12,7 +12,7 @@ import Universum hiding (All)
 -- | IMPORTANT
 -- | These types are used in JSON API on servers in this repository as well as
 -- | clients _outside_ this repo, in the form of generated purescript code (see
--- | the analytics-dashboard-gen-ps target).
+-- | the console-dashboard-gen-ps target).
 -- |
 -- | If you make any changes to these types, make sure that all clients talking
 -- | to newer servers are also updated. This currently only includes the

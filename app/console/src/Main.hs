@@ -1,6 +1,6 @@
 module Main where
 
-import Console.API (app)
+import Console.HTTPServer (app)
 import Console.Env (allowCors)
 import Dashboard.Query.Types
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)

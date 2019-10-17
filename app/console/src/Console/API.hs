@@ -37,11 +37,3 @@ queryHandler qb qc q =
       let queryError = B.pack . intercalate ", " $ showQueryValidationError <$> validationErrors
       in err400 {errBody = queryError}
 
-server :: QueryBackend qb => qb -> QueryConfiguration -> Server QueryAPI
-server = queryHandler
-
-queryAPI :: Proxy QueryAPI
-queryAPI = Proxy
-
-app :: QueryBackend qb => qb -> QueryConfiguration -> Application
-app qb qc = serve queryAPI $ server qb qc

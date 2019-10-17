@@ -2,10 +2,11 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module SQLDB.Tests.PostgresDBSpec where
+module SQLDB.Tests.PostgresDBPoolSpec where
 
 import           EulerHS.Prelude   hiding (getOption)
 import           Test.Hspec        hiding (runIO)
+import qualified Test.Hspec as HSPEC
 import           Data.Aeson               (encode)
 import qualified Data.ByteString.Lazy as BSL
 import           Unsafe.Coerce
@@ -13,7 +14,6 @@ import           Unsafe.Coerce
 import           EulerHS.Types hiding (error)
 import           EulerHS.Interpreters
 import           EulerHS.Language
-import           EulerHS.Runtime (withFlowRuntime)
 
 import qualified EulerHS.Language as L
 import qualified EulerHS.Runtime as R
@@ -21,8 +21,12 @@ import qualified EulerHS.Types as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
+import qualified Database.Beam.Postgres          as BP
 
+import qualified Data.Map as Map
 
+import qualified SQLDB.Testing.Runtime as TR
+{-
 data UserT f = User
     { _userId        :: B.C f Int
     , _userFirstName :: B.C f Text
@@ -39,8 +43,6 @@ type UserId = B.PrimaryKey UserT Identity
 
 deriving instance Show User
 deriving instance Eq User
-deriving instance ToJSON User
-deriving instance FromJSON User
 
 data EulerDb f = EulerDb
     { _users :: f (B.TableEntity UserT)
@@ -49,7 +51,10 @@ data EulerDb f = EulerDb
 eulerDb :: B.DatabaseSettings be EulerDb
 eulerDb = B.defaultDbSettings
 
-pgCfg' = T.PostgresConfig
+
+pgDB = mkPGDBName "pg"
+
+pgConfig' = T.PostgresConfig
   { connectHost = "localhost" --String
   , connectPort = 5432 --Word16
   , connectUser = "postgres" -- String
@@ -57,25 +62,31 @@ pgCfg' = T.PostgresConfig
   , connectDatabase = "testdb" --  String
   }
 
-pgCfg = mkPostgresConfig "eulerPGDB" pgCfg'
+poolConfig = T.PoolConfig
+  { stripes = 1
+  , keepAlive = 10
+  , resourcesPerStripe = 50
+  }
 
 
-conPGorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-conPGorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ show e -- L.throwException $ toException $ show e
-  Right conn -> pure conn
+pgCfg = mkPostgresConfig pgConfig'
+
+-- conPGorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+--conPGorFail  = pure pgDB -- L.initSqlDBConnection cfg >>= \case
+ -- Left e     -> error $ show e -- L.throwException $ toException $ show e
+ -- Right conn -> pure conn
 
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
-  connection <- conPGorFail $ pgCfg
+ -- connection <- conPGorFail -- $ pgPoolCfg
 
-  L.runDB connection
+  L.runDB pgDB
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
 
-  L.runDB connection
+  L.runDB pgDB
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
@@ -83,9 +94,9 @@ uniqueConstraintViolationDbScript = do
 
 selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript = do
-  connection <- conPGorFail $ pgCfg
+ -- connection <- conPGorFail -- $ pgPoolCfg
 
-  L.runDB connection $ do
+  L.runDB pgDB $ do
     let predicate User {..} = _userFirstName ==. B.val_ "Unknown"
 
     L.findRow
@@ -96,8 +107,8 @@ selectUnknownDbScript = do
 
 selectOneDbScript :: L.Flow (T.DBResult (Maybe User))
 selectOneDbScript = do
-  connection <- conPGorFail $ pgCfg
-  L.runDB connection
+ -- connection <- conPGorFail -- $ pgPoolCfg
+  L.runDB pgDB
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertExpressions
@@ -108,7 +119,7 @@ selectOneDbScript = do
               ( B.val_ "Doe"  )
               ( B.val_ "John" )
           ]
-  L.runDB connection $ do
+  L.runDB pgDB $ do
     let predicate User {..} = _userFirstName ==. B.val_ "John"
 
     L.findRow
@@ -120,9 +131,9 @@ selectOneDbScript = do
 
 updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
 updateAndSelectDbScript = do
-  connection <- conPGorFail $ pgCfg
+ -- connection <- conPGorFail -- $ pgPoolCfg
 
-  L.runDB connection $ do
+  L.runDB pgDB $ do
     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
 
     L.updateRows $ B.update (_users eulerDb)
@@ -147,10 +158,13 @@ someUser _ _ _ = False
 
 
 spec :: Spec
-spec =
-  around (withFlowRuntime Nothing) $
+spec = do
+  pgPool <- HSPEC.runIO $ do
+    p <- mkNativeConnPool poolConfig pgCfg
+    pure $ Map.singleton "pg" p
+  around (TR.withFlowRuntime pgPool Nothing) $
 
-    describe "EulerHS Postgres DB tests" $ do
+    describe "EulerHS Postgres DB with Pool tests" $ do
       it "Unique Constraint Violation" $ \rt -> do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
         eRes `shouldBe` (Left (DBError SomeError "SqlError {sqlState = \"23505\", sqlExecStatus = FatalError, sqlErrorMsg = \"duplicate key value violates unique constraint \\\"users_pk\\\"\", sqlErrorDetail = \"Key (id)=(1) already exists.\", sqlErrorHint = \"\"}"))
@@ -166,3 +180,5 @@ spec =
       it "Update / Select, row found & changed" $ \rt -> do
         eRes <- runFlow rt updateAndSelectDbScript
         eRes `shouldSatisfy` (someUser "Leo" "San")
+
+        -}

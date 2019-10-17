@@ -83,6 +83,11 @@ data FlowMethod next where
     -> (T.DBResult (T.SqlConn beM) -> next)
     -> FlowMethod next
 
+  DeinitSqlDBConnection
+    :: T.SqlConn beM
+    -> (() -> next)
+    -> FlowMethod next
+
   RunDB
     :: (ToJSON a, FromJSON a)
     => T.SqlConn beM
@@ -115,6 +120,8 @@ instance Functor FlowMethod where
   fmap f (SetOption k v next)                 = SetOption k v (f . next)
 
   fmap f (InitSqlDBConnection cfg next)       = InitSqlDBConnection cfg (f . next)
+
+  fmap f (DeinitSqlDBConnection conn next)    = DeinitSqlDBConnection conn (f.next)
 
   fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
@@ -167,6 +174,9 @@ runSysCmd cmd = liftFC $ RunSysCmd cmd id
 
 initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
+
+deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
+deinitSqlDBConnection conn = liftFC $ DeinitSqlDBConnection conn id
 
 runDB
   :: (ToJSON a, FromJSON a, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)

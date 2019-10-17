@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module EulerHS.Framework.Flow.Interpreter where
 
@@ -13,9 +14,12 @@ import qualified Data.UUID.V4                    as UUID (nextRandom)
 import qualified Servant.Client                  as S
 import           System.Process (shell, readCreateProcess)
 
+import Data.Coerce (coerce)
+import qualified Data.Pool              as DP
 import qualified Database.SQLite.Simple as SQLite
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.Beam.Sqlite as BS
+import qualified Database.Beam.Postgres as BP
 import           EulerHS.Core.Types.KVDB
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Interpreters as R
@@ -33,6 +37,9 @@ import qualified Data.Text as T
 
 import qualified Database.PostgreSQL.Simple as PGS
 
+import Data.Text as Text (pack)
+import Data.Generics.Product.Positions (getPosition)
+
 executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO ()
 executeWithLogSQLite log conn q = SQLite.execute_ conn q >> (log $ show q)
 
@@ -46,24 +53,21 @@ rollbackTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
 rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRANSACTION"
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
-connect T.MockConfig  = pure $ Right T.MockedConn
-
-connect (T.MySQLConf cfg) = do
-  eConn <- try $ MySQL.connect $ T.toMySQLConnectInfo cfg
+connect cfg = do
+  eConn <- try $ T.mkSqlConn cfg
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
-    Right conn -> pure $ Right $ T.MySQLConn conn
+    Right conn -> pure $ Right conn
 
-connect (T.SQLiteConfig dbName) = do
-  eConn <- try $ SQLite.open dbName
-  case eConn of
-    Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
-    Right conn -> pure $ Right $ T.SQLiteConn conn
-connect (T.PostgresConf pgConf) = do -- error "Postgres connect not implemented"
-    eConn <- try $ T.createPostgresConn pgConf
-    case eConn of
-      Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
-      Right conn -> pure $ Right $ T.PostgresConn conn
+
+disconnect :: T.SqlConn beM ->   IO ()
+disconnect (T.MockedConn _)         = pure ()
+disconnect (T.SQLiteConn _ conn)   = SQLite.close conn
+disconnect (T.PostgresConn _ conn) = BP.close conn
+disconnect (T.MySQLConn _ conn)    = MySQL.close conn
+disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
+disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
+disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod R.FlowRuntime {..} (L.CallServantAPI bUrl clientAct next) =
@@ -131,10 +135,33 @@ interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
   fmap next $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
-
+{-
 interpretFlowMethod R.FlowRuntime {_runMode} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
+-}
 
+interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) = do
+  let connTag = getPosition @1 cfg --T.getConnTag cfg
+  connMap <- takeMVar _sqlConn
+  res <- case (Map.lookup connTag connMap) of
+    Just _ -> do
+      pure $ Left $ T.DBError T.ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
+    Nothing -> connect cfg
+  case res of
+    Right conn -> putMVar _sqlConn $ Map.insert connTag (T.bemToNative conn) connMap
+    Left _ -> putMVar _sqlConn connMap
+  next <$> pure res
+
+interpretFlowMethod R.FlowRuntime {..} (L.DeinitSqlDBConnection conn next) = do
+  connMap <- takeMVar _sqlConn
+  let connTag = getPosition @1 conn
+  res <- case (Map.lookup connTag connMap) of
+    Nothing -> putMVar _sqlConn connMap
+    Just _ -> do
+      disconnect conn
+      putMVar _sqlConn $ Map.delete connTag connMap
+  
+  next <$> pure res
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = (R._runMode flowRt)
   let errLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
@@ -145,50 +172,83 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
                 . show
 
   fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
-    T.MockedConn -> error "not implemented MockedSql"
+          -- N.B. Beam runner should correspond to the real runtime.
+          -- TODO: check for this correspondence or make it unavoidable.
+          -- TODO: move begin / commit / rollback into the runner
+          -- TODO: MySQL has autocommit mode on by default.
+          -- This makes changes to be commited immediately.
+          -- TODO: check for what's to do with transactions.
+          (T.MySQLConn _ mySQLConn) -> do
+            let begin    = pure ()              -- Seems no begin transaction in MySQL
+            let commit   = MySQL.commit mySQLConn
+            let rollback = MySQL.rollback mySQLConn
+          
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+                res <- R.runSqlDB conn dbgLogger sqlDbMethod
+                commit
+                return res
+              
+                
+          -- TODO: move begin / commit / rollback into the runner
+          (T.SQLiteConn _ sqliteConn) -> do
+            let begin    = beginTransactionSQLite      errLogger sqliteConn
+            let commit   = commitTransactionSQLite     errLogger sqliteConn
+            let rollback = rollbackTransactionSQLite   errLogger sqliteConn
+          
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+                res <- R.runSqlDB conn dbgLogger sqlDbMethod
+                commit
+                return res
+              
+          -- TODO: move begin / commit / rollback into the runner
+          (T.PostgresConn _ c) -> do
+            let begin    = PGS.begin c
+            let commit   = PGS.commit c
+            let rollback = PGS.rollback c
+          
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+                res <- R.runSqlDB conn dbgLogger sqlDbMethod
+                commit
+                return res
 
-    -- N.B. Beam runner should correspond to the real runtime.
-    -- TODO: check for this correspondence or make it unavoidable.
+          (T.PostgresPool _ pool) -> DP.withResource pool $ \connection -> do
+            let begin    = PGS.begin connection
+            let commit   = PGS.commit connection
+            let rollback = PGS.rollback connection
+
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+                res <- R.runSqlDB conn dbgLogger sqlDbMethod
+                commit
+                return res
+
+          (T.MySQLPool _ pool) -> DP.withResource pool $ \connection -> do
+            let begin    = pure ()
+            let commit   = MySQL.commit connection
+            let rollback = MySQL.rollback connection
+
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+                res <- R.runSqlDB conn dbgLogger sqlDbMethod
+                commit
+                return res
+
+          (T.SQLitePool _ pool) -> DP.withResource pool $ \connection -> do
+            let begin    = beginTransactionSQLite      errLogger connection
+            let commit   = commitTransactionSQLite     errLogger connection
+            let rollback = rollbackTransactionSQLite   errLogger connection
+
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
+                res <- R.runSqlDB conn dbgLogger sqlDbMethod
+                commit
+                return res
 
 
-    -- TODO: move begin / commit / rollback into the runner
-    -- TODO: MySQL has autocommit mode on by default.
-    -- This makes changes to be commited immediately.
-    -- TODO: check for what's to do with transactions.
-    T.MySQLConn mySQLConn -> do
-      let begin    = pure ()              -- Seems no begin transaction in MySQL
-      let commit   = MySQL.commit mySQLConn
-      let rollback = MySQL.rollback mySQLConn
-
-      map (first $ T.DBError T.SomeError . show) $
-        try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-          res <- R.runSqlDB conn dbgLogger sqlDbMethod
-          commit
-          return res
-
-    -- TODO: move begin / commit / rollback into the runner
-    T.SQLiteConn sqliteConn -> do
-      let begin    = beginTransactionSQLite      errLogger sqliteConn
-      let commit   = commitTransactionSQLite     errLogger sqliteConn
-      let rollback = rollbackTransactionSQLite   errLogger sqliteConn
-
-      map (first $ T.DBError T.SomeError . show) $
-        try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-          res <- R.runSqlDB conn dbgLogger sqlDbMethod
-          commit
-          return res
-
-    -- TODO: move begin / commit / rollback into the runner
-    T.PostgresConn connection -> do
-      let begin    = PGS.begin connection
-      let commit   = PGS.commit connection
-      let rollback = PGS.rollback connection
-
-      map (first $ T.DBError T.SomeError . show) $
-        try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-          res <- R.runSqlDB conn dbgLogger sqlDbMethod
-          commit
-          return res -- error "Postgres not implemented."
+          (T.MockedConn _) -> error $ "MockedSqlConn not implemented"
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   fmap next $ P.withRunMode _runMode P.mkRunKVDBEntry $ do

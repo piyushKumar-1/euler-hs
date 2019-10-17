@@ -12,6 +12,13 @@ import Data.Time.Clock (NominalDiffTime)
 -- mkPostgresConfig :: PostgresConfig -> DBConfig BP.Pg
 -- mkPostgresConfig = PostgresConf
 
+data PostgresPoolConfig = PostgresPoolConfig
+  { pgConfig :: PostgresConfig
+  , stripes :: Int
+  , keepAlive :: NominalDiffTime
+  , resourcesPerStripe :: Int
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 data PostgresConfig = PostgresConfig
   { connectHost :: String
   , connectPort :: Word16
@@ -29,7 +36,7 @@ createPostgresConn = BP.connect . toBeamPostgresConnectInfo
 closePostgresConn :: BP.Connection -> IO ()
 closePostgresConn = BP.close
 
-createPGConnPool ::  PostgresConfig -> Int -> NominalDiffTime -> Int -> IO (DP.Pool BP.Connection)
-createPGConnPool pgConf stripes keepAlive resourcesPerStripe
-  = DP.createPool (createPostgresConn pgConf) closePostgresConn stripes keepAlive resourcesPerStripe
+createPGConnPool ::  PostgresPoolConfig -> IO (DP.Pool BP.Connection)
+createPGConnPool PostgresPoolConfig{..} 
+  = DP.createPool (createPostgresConn pgConfig) closePostgresConn stripes keepAlive resourcesPerStripe
 

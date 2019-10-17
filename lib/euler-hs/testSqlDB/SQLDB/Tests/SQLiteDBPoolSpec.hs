@@ -2,10 +2,12 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module SQLDB.Tests.SQLiteDBSpec where
+module SQLDB.Tests.SQLiteDBPoolSpec where
 
 import           EulerHS.Prelude   hiding (getOption)
 import           Test.Hspec        hiding (runIO)
+
+import qualified Test.Hspec as HSPEC
 import           Data.Aeson               (encode)
 import qualified Data.ByteString.Lazy as BSL
 import           Unsafe.Coerce
@@ -13,7 +15,7 @@ import           Unsafe.Coerce
 import           EulerHS.Types hiding (error)
 import           EulerHS.Interpreters
 import           EulerHS.Language
-import           EulerHS.Runtime (withFlowRuntime)
+
 
 import qualified EulerHS.Language as L
 import qualified EulerHS.Runtime as R
@@ -22,10 +24,12 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Sqlite as BS
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
+import qualified Data.Map as Map
 
+import qualified SQLDB.Testing.Runtime as TR
 -- sqlite3 db
 -- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
-
+{-
 data UserT f = User
     { _userId        :: B.C f Int
     , _userFirstName :: B.C f Text
@@ -38,14 +42,10 @@ instance B.Table UserT where
   primaryKey = UserId . _userId
 
 type User = UserT Identity
-
-
 type UserId = B.PrimaryKey UserT Identity
 
 deriving instance Show User
 deriving instance Eq User
-deriving instance ToJSON User
-deriving instance FromJSON User
 
 data EulerDb f = EulerDb
     { _users :: f (B.TableEntity UserT)
@@ -84,7 +84,16 @@ testDBName = "./test/EulerHS/TestData/test.db"
 testDBTemplateName :: String
 testDBTemplateName = "./test/EulerHS/TestData/test.db.template"
 
-sqliteCfg = T.mkSQLiteConfig "eulerSQliteDB" testDBName
+sqliteCfg = T.mkSQLiteConfig testDBName
+
+poolConfig = T.PoolConfig
+  { stripes = 1
+  , keepAlive = 10
+  , resourcesPerStripe = 1
+  }
+
+
+sqliteDB = mkSQLiteDBName "sqlite"
 
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
@@ -93,11 +102,11 @@ connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
 
 deleteTestValues :: L.Flow ()
 deleteTestValues = do
-  conn <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
-  void $ L.runDB conn
+ -- conn <- connectOrFail $ T.mkSQLiteConfig testDBName
+  void $ L.runDB sqliteDB
     $ L.deleteRows
     $ B.delete (_users eulerDb) (\u -> _userId u /=. B.val_ 0)
-  void $ L.runDB conn
+  void $ L.runDB sqliteDB
     $ L.updateRows
     $ B.update (_sqlite_sequence sqliteSequenceDb)
           (\(SqliteSequence {..}) -> mconcat [_seq <-. B.val_ 0])
@@ -114,8 +123,8 @@ prepareTestDB = do
 
 insertTestValues :: L.Flow ()
 insertTestValues = do
-  conn <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
-  void $ L.runDB conn
+ -- conn <- connectOrFail $ T.mkSQLiteConfig testDBName
+  void $ L.runDB sqliteDB
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertExpressions
@@ -126,18 +135,17 @@ insertTestValues = do
               ( B.val_ "Doe"  )
               ( B.val_ "John" )
           ]
-  L.deinitSqlDBConnection conn
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+ -- connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
-  L.runDB connection
+  L.runDB sqliteDB
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
 
-  L.runDB connection
+  L.runDB sqliteDB
     $ L.insertRows
     $ B.insert (_users eulerDb)
     $ B.insertValues [User 1 "Eve" "Beon"]
@@ -145,9 +153,9 @@ uniqueConstraintViolationDbScript = do
 
 selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+ -- connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
-  L.runDB connection $ do
+  L.runDB sqliteDB $ do
     let predicate User {..} = _userFirstName ==. B.val_ "Unknown"
 
     L.findRow
@@ -158,9 +166,9 @@ selectUnknownDbScript = do
 
 selectOneDbScript :: L.Flow (T.DBResult (Maybe User))
 selectOneDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+ -- connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
-  L.runDB connection $ do
+  L.runDB sqliteDB $ do
     let predicate User {..} = _userFirstName ==. B.val_ "John"
 
     L.findRow
@@ -172,9 +180,9 @@ selectOneDbScript = do
 
 updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
 updateAndSelectDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+ -- connection <- connectOrFail $ T.mkSQLiteConfig testDBName
 
-  L.runDB connection $ do
+  L.runDB sqliteDB $ do
     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
 
     L.updateRows $ B.update (_users eulerDb)
@@ -207,8 +215,8 @@ updateAndSelectDbScript = do
 --       pure (user1, user2)
 
 
-withEmptyDB :: (R.FlowRuntime -> IO ()) -> IO ()
-withEmptyDB act = withFlowRuntime Nothing (\rt -> do
+withEmptyDB :: Map Text T.SqlConnPool -> (R.FlowRuntime -> IO ()) -> IO ()
+withEmptyDB p act = TR.withFlowRuntime p Nothing (\rt -> do
   try (runFlow rt prepareTestDB) >>= \case
     Left (e :: SomeException) ->
       runFlow rt rmTestDB
@@ -222,8 +230,11 @@ someUser _ _ _ = False
 
 
 spec :: Spec
-spec =
-  around withEmptyDB $
+spec = do
+  sqlitePool <- HSPEC.runIO $ do
+    p <- mkNativeConnPool poolConfig sqliteCfg
+    pure $ Map.singleton "sqlite" p
+  around (withEmptyDB sqlitePool) $
 
     describe "EulerHS SQLite DB tests" $ do
       it "Unique Constraint Violation" $ \rt -> do
@@ -241,3 +252,5 @@ spec =
       it "Update / Select, row found & changed" $ \rt -> do
         eRes <- runFlow rt updateAndSelectDbScript
         eRes `shouldSatisfy` (someUser "Leo" "San")
+
+        -}

@@ -10,7 +10,8 @@ import qualified Database.Beam             as B
 import qualified Database.Beam.Backend.SQL as B
 import qualified Database.Beam.Sqlite      as BS
 import qualified Database.MySQL.Base       as MySQL
-
+import qualified Data.Pool as DP
+import           Data.Time.Clock (NominalDiffTime)
 
 type Seconds = MySQL.Seconds
 
@@ -73,6 +74,24 @@ data MySQLConfig = MySQLConfig
   , connectSSL      :: Maybe SSLInfo
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data MySQLPoolConfig = MySQLPoolConfig
+  { mySqlConfig :: MySQLConfig
+  , stripes :: Int
+  , keepAlive :: NominalDiffTime
+  , resourcesPerStripe :: Int
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+createMySQLConn :: MySQLConfig -> IO MySQL.Connection
+createMySQLConn = MySQL.connect . toMySQLConnectInfo
+
+closeMySQLConn :: MySQL.Connection -> IO ()
+closeMySQLConn = MySQL.close
+
+createMySQLConnPool ::  MySQLPoolConfig -> IO (DP.Pool MySQL.Connection)
+createMySQLConnPool MySQLPoolConfig{..} 
+  = DP.createPool (createMySQLConn mySqlConfig) closeMySQLConn stripes keepAlive resourcesPerStripe
+
 
 toMySQLProtocol :: MySqlProtocol -> MySQL.Protocol
 toMySQLProtocol TCP    = MySQL.TCP

@@ -14,13 +14,15 @@ import qualified Database.Beam.MySQL             as BM
 import qualified Database.Beam.Postgres          as BP
 import qualified Database.Beam.Sqlite            as BS
 import qualified Database.Beam.Sqlite.Connection as SQLite
+import qualified Data.Pool                       as DP
 import qualified Database.MySQL.Base             as MySQL
 import qualified Database.SQLite.Simple          as SQLite
-import           EulerHS.Core.Types.MySQL        (MySQLConfig)
+import           Data.Time.Clock                    (NominalDiffTime)
 
-import qualified EulerHS.Core.Types.Postgres as CP
--- data MockedSqlConn  = MockedSqlConn String
---   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+import           EulerHS.Core.Types.MySQL        (MySQLConfig, MySQLPoolConfig, createMySQLConn)
+import           EulerHS.Core.Types.Postgres     (PostgresConfig, PostgresPoolConfig, createPostgresConn)
+
+
 
 class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   | be -> beM, beM -> be where
@@ -58,47 +60,113 @@ class BeamRunner beM where
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRunner BS.SqliteM where
-  getBeamDebugRunner (SQLiteConn conn) beM = \logger -> SQLite.runBeamSqliteDebug logger conn beM
+  getBeamDebugRunner (SQLiteConn _ conn) beM = \logger -> SQLite.runBeamSqliteDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRunner BP.Pg where
-  getBeamDebugRunner (PostgresConn conn) beM = \logger -> BP.runBeamPostgresDebug logger conn beM
+  getBeamDebugRunner (PostgresConn _ conn) beM = \logger -> BP.runBeamPostgresDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
 instance BeamRunner BM.MySQLM where
-  getBeamDebugRunner (MySQLConn conn) beM = \logger -> BM.runBeamMySQLDebug logger conn beM
+  getBeamDebugRunner (MySQLConn _ conn) beM = \logger -> BM.runBeamMySQLDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
+-- ###
 
+data NativeSqlConn
+  = NativePGConn BP.Connection
+  | NativeMySQLConn MySQL.Connection
+  | NativeSQLiteConn SQLite.Connection
+  | NativePGPool (DP.Pool BP.Connection)
+  | NativeMySQLPool (DP.Pool MySQL.Connection)
+  | NativeSQLitePool (DP.Pool SQLite.Connection)
+  | NativeMockedConn
+
+bemToNative :: SqlConn beM -> NativeSqlConn
+bemToNative (MockedConn _) = NativeMockedConn
+bemToNative (SQLiteConn _ conn) = NativeSQLiteConn conn
+bemToNative (PostgresConn _ conn) = NativePGConn conn
+bemToNative (MySQLConn _ conn) = NativeMySQLConn conn
+bemToNative (PostgresPool _ conn) = NativePGPool conn
+bemToNative (MySQLPool _ conn) = NativeMySQLPool conn
+bemToNative (SQLitePool _ conn) = NativeSQLitePool conn
+
+
+mkSqlConn :: DBConfig beM -> IO (SqlConn beM)
+mkSqlConn (PostgresPoolConf connTag PoolConfig {..} cfg) =  PostgresPool connTag
+  <$> DP.createPool (createPostgresConn cfg) BP.close stripes keepAlive resourcesPerStripe
+
+mkSqlConn (MySQLPoolConf connTag PoolConfig {..} cfg) =  MySQLPool connTag
+  <$> DP.createPool (createMySQLConn cfg) MySQL.close stripes keepAlive resourcesPerStripe
+
+mkSqlConn (SQLitePoolConf connTag PoolConfig {..} dbname) =  SQLitePool connTag
+  <$> DP.createPool (SQLite.open dbname) SQLite.close stripes keepAlive resourcesPerStripe
+
+mkSqlConn (SQLiteConf connTag dbname) =  SQLiteConn connTag <$> SQLite.open dbname
+
+mkSqlConn (PostgresConf connTag cfg) =  PostgresConn connTag <$> createPostgresConn cfg
+
+mkSqlConn (MySQLConf connTag cfg) =  MySQLConn connTag <$> createMySQLConn cfg
+
+mkSqlConn (MockConfig connTag) = pure $ MockedConn connTag
+
+
+
+type ConnTag = Text
+
+type SQliteDBname = String
 
 data SqlConn beM
-  = MockedConn
-  | SQLiteConn SQLite.Connection
-  | PostgresConn BP.Connection
-  | MySQLConn MySQL.Connection
+  = MockedConn ConnTag
+  | SQLiteConn ConnTag SQLite.Connection
+  | PostgresConn ConnTag BP.Connection
+  | MySQLConn ConnTag MySQL.Connection
+  | PostgresPool ConnTag (DP.Pool BP.Connection)
+  | MySQLPool ConnTag (DP.Pool MySQL.Connection)
+  | SQLitePool ConnTag (DP.Pool SQLite.Connection)
+  deriving (Generic)
 
 data DBConfig beM
-  = MockConfig
-  | SQLiteConfig DBName
-  | PostgresConf CP.PostgresConfig
-  | MySQLConf MySQLConfig
+  = MockConfig ConnTag
+  | SQLiteConf ConnTag SQliteDBname
+  | PostgresConf ConnTag PostgresConfig
+  | PostgresPoolConf ConnTag PoolConfig PostgresConfig
+  | MySQLConf ConnTag MySQLConfig
+  | MySQLPoolConf ConnTag PoolConfig MySQLConfig
+  | SQLitePoolConf ConnTag PoolConfig SQliteDBname
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-mkSQLiteConfig :: DBName -> DBConfig BS.SqliteM
-mkSQLiteConfig = SQLiteConfig
 
-mkPostgresConfig :: CP.PostgresConfig -> DBConfig BP.Pg
+data PoolConfig = PoolConfig
+  { stripes :: Int
+  , keepAlive :: NominalDiffTime
+  , resourcesPerStripe :: Int
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mkSQLiteConfig :: ConnTag -> SQliteDBname -> DBConfig BS.SqliteM
+mkSQLiteConfig = SQLiteConf
+
+mkSQLitePoolConfig :: ConnTag -> PoolConfig -> SQliteDBname -> DBConfig BS.SqliteM
+mkSQLitePoolConfig = SQLitePoolConf
+
+mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
 mkPostgresConfig = PostgresConf
 
-mkMySQLConfig :: MySQLConfig -> DBConfig BM.MySQLM
+mkPostgresPoolConfig :: ConnTag -> PoolConfig -> PostgresConfig -> DBConfig BP.Pg
+mkPostgresPoolConfig = PostgresPoolConf
+
+mkMySQLConfig :: ConnTag -> MySQLConfig -> DBConfig BM.MySQLM
 mkMySQLConfig = MySQLConf
 
+mkMySQLPoolConfig :: ConnTag -> PoolConfig -> MySQLConfig -> DBConfig BM.MySQLM
+mkMySQLPoolConfig = MySQLPoolConf
 
-type DBName = String
+
 
 -- TODO: more informative typed error.
 data DBErrorType
   = ConnectionFailed
+  | ConnectionAlreadyExists
   | SomeError
   deriving (Show, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
 
@@ -108,13 +176,3 @@ data DBError
 
 type DBResult a = Either DBError a
 
--- data PostgresConfig = PostgresConfig
---   { connectHost :: String
---   , connectPort :: Word16
---   , connectUser :: String
---   , connectPassword :: String
---   , connectDatabase :: String
---   } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- 
--- toBeamPostgresConnectInfo :: PostgresConfig -> BP.ConnectInfo
--- toBeamPostgresConnectInfo (PostgresConfig {..}) = BP.ConnectInfo {..}

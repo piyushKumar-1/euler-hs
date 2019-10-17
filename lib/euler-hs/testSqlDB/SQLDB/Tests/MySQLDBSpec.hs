@@ -62,7 +62,8 @@ mySQLCfg = MySQLConfig
   , connectSSL      = Nothing
   }
 
-mysqlConfig = mkMySQLConfig $ mySQLCfg
+mysqlConfig = mkMySQLConfig "eulerMysqlDB" mySQLCfg
+
 connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
   Left e     -> error $ show e -- L.throwException $ toException $ show e
@@ -72,6 +73,7 @@ connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
   connection <- connMySQLorFail $ mysqlConfig
+
 
   L.runDB connection
     $ L.insertRows

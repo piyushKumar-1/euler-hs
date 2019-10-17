@@ -7,7 +7,7 @@ import Data.Time.ISO8601 (parseISO8601)
 import Test.Hspec
 
 import Test.Fixtures (testPort)
-import Console.API (queryAPI)
+import Console.HTTPServer (queryAPI)
 import qualified Dashboard.Query.Types as QT
 
 import Servant.Client (client, runClientM, mkClientEnv, parseBaseUrl)

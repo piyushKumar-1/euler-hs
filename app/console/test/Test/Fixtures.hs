@@ -7,7 +7,7 @@ import Dashboard.Query.Types
 import qualified Control.Concurrent as C
 import qualified Network.Wai.Handler.Warp as Warp
 
-import Console.API (app)
+import Console.HTTPServer (app)
 
 testPort = 8084
 

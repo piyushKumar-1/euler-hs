@@ -9,7 +9,8 @@ import qualified SQLDB.Tests.PostgresDBSpec as PGDB
 import qualified SQLDB.Tests.MySQLDBSpec as MySQL
 
 main = hspec $ do
-    SQLiteDB.spec
-    PGDB.spec
-    MySQL.spec
+   -- SQLiteDB.spec
+   -- PGDB.spec
+   -- MySQL.spec
+   pure ()
   

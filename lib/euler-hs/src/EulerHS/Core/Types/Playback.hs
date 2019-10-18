@@ -78,7 +78,7 @@ data PlayerRuntime = PlayerRuntime
   , entriesFiltered      :: Bool
   , flowGUID             :: String
   , forkedFlowRecordings :: Map String RecordingEntries
-  , forkedFlowErrorsVar  :: MVar (Map String (Maybe PlaybackError))
+  , forkedFlowErrorsVar  :: MVar (Map String (MVar (Maybe PlaybackError)))
   }
 
 data RunMode

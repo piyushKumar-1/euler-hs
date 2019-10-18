@@ -32,7 +32,7 @@ itemMismatch flowStep recordingEntry
   = PlaybackError ItemMismatch
   $ showInfo flowStep recordingEntry
 
-setReplayingError :: PlayerRuntime -> PlaybackError -> IO a
+setReplayingError :: PlayerRuntime -> PlaybackError -> IO e
 setReplayingError playerRt err = do
   void $ takeMVar $ errorMVar playerRt
   putMVar (errorMVar playerRt) (Just err)
@@ -56,7 +56,7 @@ popNextRecordingEntry PlayerRuntime{..} = do
   pure mbItem
 
 popNextRRItem
-  :: forall rrItem native
+  :: forall rrItem
    . RRItem rrItem
   => PlayerRuntime
   -> IO (Either PlaybackError (RecordingEntry, rrItem))
@@ -91,7 +91,7 @@ compareRRItems
   -> (RecordingEntry, rrItem, native)
   -> rrItem
   -> IO ()
-compareRRItems playerRt (recordingEntry, rrItem, mockedResult) flowRRItem = do
+compareRRItems playerRt (recordingEntry, rrItem, _) flowRRItem = do
   when (rrItem /= flowRRItem) $ do
     let flowStep = encodeToStr flowRRItem
     setReplayingError playerRt $ itemMismatch flowStep (show recordingEntry)
@@ -118,7 +118,7 @@ replayWithGlobalConfig playerRt  ioAct mkRRItem eNextRRItemRes = do
   case config of
     GlobalNoVerify -> case eNextRRItemRes of
       Left err -> setReplayingError playerRt err
-      Right stepInfo@(_, _, r) -> pure r
+      Right (_, _, r) -> pure r
     GlobalNormal    -> case eNextRRItemRes of
         Left err -> setReplayingError playerRt err
         Right stepInfo@(_, _, r) -> do
@@ -146,14 +146,15 @@ replay playerRt@PlayerRuntime{..} mkRRItem ioAct
       entryReplayMode <- getCurrentEntryReplayMode playerRt
       eNextRRItemRes <- popNextRRItemAndResult playerRt
       case entryReplayMode of
-        Normal -> replayWithGlobalConfig playerRt ioAct mkRRItem eNextRRItemRes
+        Normal -> do
+          replayWithGlobalConfig playerRt ioAct mkRRItem eNextRRItemRes
         NoVerify -> case eNextRRItemRes of
           Left err -> setReplayingError playerRt err
-          Right stepInfo@(_, _, r) -> pure r
+          Right (_, _, r) -> pure r
         NoMock -> ioAct
 
 record
-  ::forall rrItem native
+  :: forall rrItem native
    . RRItem rrItem
   => RecorderRuntime
   -> (native -> rrItem)

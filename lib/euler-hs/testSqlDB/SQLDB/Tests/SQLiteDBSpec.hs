@@ -2,7 +2,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module EulerHS.Tests.Framework.SQLiteDBSpec where
+module SQLDB.Tests.SQLiteDBSpec where
 
 import           EulerHS.Prelude   hiding (getOption)
 import           Test.Hspec        hiding (runIO)

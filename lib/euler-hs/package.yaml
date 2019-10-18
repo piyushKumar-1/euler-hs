@@ -89,6 +89,8 @@ dependencies:
 - hedis
 - generic-lens
 - binary
+- resource-pool
+- postgresql-simple
 
 library:
   source-dirs:
@@ -116,3 +118,10 @@ tests:
     - euler-hs
     - hspec
     - generic-lens
+
+  sql:
+    main: Main.hs
+    source-dirs: testSqlDB
+    dependencies:
+    - euler-hs
+    - hspec

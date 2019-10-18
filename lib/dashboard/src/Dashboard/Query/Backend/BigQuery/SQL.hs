@@ -34,15 +34,14 @@ fmtDateTime dateIsString field =
 -- select fields as well
 -- (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)), 15)) AS ts
 fmtIntervalSelection :: Bool -> Interval -> Fmt.Builder
-fmtIntervalSelection dateIsString (Interval _ _ step intervalField) =
-  Fmt.maybeF . fmap fmt' $ step
-
+fmtIntervalSelection dateIsString (Interval (Timestamp start) _ step intervalField) =
+  case step of
+    Just (Milliseconds duration) ->
+      fmtDateTime dateIsString intervalField <> fmtStepMod duration <> " AS " <> timeStampField
+    Nothing -> toPOSIXSeconds start |+ " AS " +| timeStampField
   where
-    fmt' :: Milliseconds -> Fmt.Builder
-    fmt' (Milliseconds duration) =
-      fmtDateTime dateIsString intervalField |+
-        " - MOD(" +| fmtDateTime dateIsString intervalField |+ ", " +|
-           (duration `quot` 1000) |+ ") AS " <> timeStampField
+    fmtStepMod duration =
+       " - MOD(" +| fmtDateTime dateIsString intervalField |+ ", " +| (duration `quot` 1000) |+ ")"
 
 fmtSelection :: Bool -> Selection -> Interval -> Fmt.Builder
 fmtSelection dateIsString (Selection selections) interval =
@@ -91,16 +90,14 @@ fmtFilter dateIsString interval (Filter fs) =
        " AND " +| filterField |+ " " +| fmtFilterOp filterOp |+ " " +| fmtValue filterValue)
     fs
 
-fmtGroup :: GroupBy -> Maybe Milliseconds -> Fmt.Builder
-fmtGroup (GroupBy gs) step =
-  let timeField = fmap (const timeStampField) step
-  in
-    "GROUP BY " <> (mconcat . intersperse ", " $ fmap Fmt.build gs <> maybeToList timeField)
+fmtGroup :: GroupBy -> Fmt.Builder
+fmtGroup (GroupBy gs) =
+  "GROUP BY " <> (mconcat . intersperse ", " $ fmap Fmt.build gs <> [timeStampField])
 
 printSQL :: Bool -> Query -> Text
 printSQL dateIsString (Query selection table interval filter group) =
   fmtSelection dateIsString selection interval |+
   " " +| fmtFrom table |+
   " " +| fmtFilter dateIsString interval filter |+
-  " " +| fmtGroup group (step interval) |+
+  " " +| fmtGroup group |+
   ";"

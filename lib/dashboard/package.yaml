@@ -53,3 +53,18 @@ library:
   - text
   - time
   - universum
+
+tests:
+  dashboard-tests:
+    main: Main.hs
+    source-dirs: test
+    dependencies:
+    - base >= 4.7 && < 5
+    - hspec
+    - iso8601-time
+    - tasty
+    - tasty-hspec
+    - tasty-hunit
+    - time
+    - universum
+    - dashboard

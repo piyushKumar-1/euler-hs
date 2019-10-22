@@ -215,5 +215,5 @@ instance RRItem (InitSqlDBConnectionEntry beM)  where
   getTag _ = "InitSqlDBConnectionEntry"
 
 instance MockedResult (InitSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
-  getMock (InitSqlDBConnectionEntry _) = Just $ Right $ T.MockedConn
+  getMock (InitSqlDBConnectionEntry _) = Just $ Right $ T.MockedConn ""
 

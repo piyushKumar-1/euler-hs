@@ -8,6 +8,7 @@ import EulerHS.Prelude
 import EulerHS.Types (RRItem(..), MockedResult(..), encodeToStr, decodeFromStr)
 import qualified EulerHS.Types as T
 import qualified Servant.Client as S
+import Data.Generics.Product.Positions (getPosition)
 
 
 ----------------------------------------------------------------------
@@ -216,4 +217,20 @@ instance RRItem (InitSqlDBConnectionEntry beM)  where
 
 instance MockedResult (InitSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
   getMock (InitSqlDBConnectionEntry _) = Just $ Right $ T.MockedConn ""
+
+
+----------------------------------------------------------------------
+
+data DeInitSqlDBConnectionEntry beM = DeInitSqlDBConnectionEntry
+  { connTag :: Text
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mkDeInitSqlDBConnectionEntry :: T.SqlConn beM -> a -> DeInitSqlDBConnectionEntry beM
+mkDeInitSqlDBConnectionEntry cfg _ = DeInitSqlDBConnectionEntry (getPosition @1 cfg)
+
+instance RRItem (DeInitSqlDBConnectionEntry beM) where
+  getTag _ = "DeInitSqlDBConnectionEntry"
+
+instance MockedResult (DeInitSqlDBConnectionEntry beM) () where
+  getMock (DeInitSqlDBConnectionEntry _) = Just ()
 

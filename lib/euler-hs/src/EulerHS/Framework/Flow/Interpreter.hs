@@ -135,10 +135,6 @@ interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
   fmap next $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
-{-
-interpretFlowMethod R.FlowRuntime {_runMode} (L.InitSqlDBConnection cfg next) =
-  fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
--}
 
 interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) = do
   let connTag = getPosition @1 cfg --T.getConnTag cfg
@@ -150,18 +146,20 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) = do
   case res of
     Right conn -> putMVar _sqlConn $ Map.insert connTag (T.bemToNative conn) connMap
     Left _ -> putMVar _sqlConn connMap
-  next <$> pure res
 
-interpretFlowMethod R.FlowRuntime {..} (L.DeinitSqlDBConnection conn next) = do
-  connMap <- takeMVar _sqlConn
-  let connTag = getPosition @1 conn
-  res <- case (Map.lookup connTag connMap) of
-    Nothing -> putMVar _sqlConn connMap
-    Just _ -> do
-      disconnect conn
-      putMVar _sqlConn $ Map.delete connTag connMap
-  
-  next <$> pure res
+  fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
+
+interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
+  fmap next $ P.withRunMode _runMode (P.mkDeInitSqlDBConnectionEntry conn) $ do
+    let connTag = getPosition @1 conn
+    connMap <- takeMVar _sqlConn
+    case (Map.lookup connTag connMap) of
+      Nothing -> putMVar _sqlConn connMap
+      Just _ -> do
+        disconnect conn
+        putMVar _sqlConn $ Map.delete connTag connMap
+
+
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = (R._runMode flowRt)
   let errLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
@@ -182,32 +180,31 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
             let begin    = pure ()              -- Seems no begin transaction in MySQL
             let commit   = MySQL.commit mySQLConn
             let rollback = MySQL.rollback mySQLConn
-          
+
             map (first $ T.DBError T.SomeError . show) $
               try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
                 res <- R.runSqlDB conn dbgLogger sqlDbMethod
                 commit
                 return res
-              
-                
+
           -- TODO: move begin / commit / rollback into the runner
           (T.SQLiteConn _ sqliteConn) -> do
             let begin    = beginTransactionSQLite      errLogger sqliteConn
             let commit   = commitTransactionSQLite     errLogger sqliteConn
             let rollback = rollbackTransactionSQLite   errLogger sqliteConn
-          
+
             map (first $ T.DBError T.SomeError . show) $
               try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
                 res <- R.runSqlDB conn dbgLogger sqlDbMethod
                 commit
                 return res
-              
+
           -- TODO: move begin / commit / rollback into the runner
           (T.PostgresConn _ c) -> do
             let begin    = PGS.begin c
             let commit   = PGS.commit c
             let rollback = PGS.rollback c
-          
+
             map (first $ T.DBError T.SomeError . show) $
               try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
                 res <- R.runSqlDB conn dbgLogger sqlDbMethod
@@ -246,7 +243,6 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
                 res <- R.runSqlDB conn dbgLogger sqlDbMethod
                 commit
                 return res
-
 
           (T.MockedConn _) -> error $ "MockedSqlConn not implemented"
 

@@ -43,16 +43,14 @@ mockedValues = KVDBMockedValues'
 withRedisConnection :: MVar KVDBMockedValues' -> (FlowRuntime -> IO()) -> IO()
 withRedisConnection mv next =
   withFlowRuntime Nothing $ \rt -> do
-    mVals <- newMVar mockedValues
     connections     <- takeMVar $ _connections rt
-    redisConnection <- checkedConnect defaultConnectInfo
     let newConnections = insert "redis" (Mocked mv) $ connections
     putMVar (_connections rt) newConnections
     next rt
 
 spec :: Spec
 spec = do
-  mv <- HS.runIO $newMVar mockedValues
+  mv <- HS.runIO $ newMVar mockedValues
   around (withRedisConnection mv) $ do
     describe "RunKVDB tests" $ do
       it "get a correct key" $ \rt -> do

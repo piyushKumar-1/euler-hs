@@ -11,7 +11,6 @@ module Euler.Transformation.Transform
   , (<<|>>)
   , showConstructors
   , getConstructors
-  , 
 
   ) where
 

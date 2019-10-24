@@ -17,6 +17,7 @@ printQueryValidationError (QueryValidationError qve _) =
     (FilterTypeMismatch name)    -> "Filter type mismatch on: " ++ name
     (IntervalFieldNotFound name) -> "Interval field not found: " ++ name
     (SelectOperationNotValid op) -> "Select operation invalid: " ++ show op
+    SelectEmpty                  -> "No fields selected"
 
 validateQuery :: QueryConfiguration -> Query -> Either [QueryValidationError] ()
 validateQuery qc q =
@@ -44,7 +45,9 @@ validateTable (QueryConfiguration queryConfig) (Query _ tableName _ _ _) =
 
 validateSelectFields :: TableConfiguration -> Query -> [QueryValidationError]
 validateSelectFields tableConfig (Query (Selection selections) _ _ _ _) =
-    lefts $ validateSelectField tableConfig <$> selections
+  if null selections
+     then [QueryValidationError SelectEmpty "Invalid selection"]
+     else lefts $ validateSelectField tableConfig <$> selections
 
 validateSelectField :: TableConfiguration -> (Maybe SelectOp, SelectField) -> Either QueryValidationError ()
 validateSelectField (TableConfiguration tableConfig) (op, Field fieldname) =

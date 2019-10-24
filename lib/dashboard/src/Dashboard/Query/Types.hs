@@ -130,6 +130,7 @@ data QueryErrorType
   | IntervalFieldNotFound FieldName
   | FilterTypeMismatch FieldName
   | SelectOperationNotValid SelectOp
+  | SelectEmpty
   deriving (Generic, Show, Eq)
 
 -- All the JSON instances

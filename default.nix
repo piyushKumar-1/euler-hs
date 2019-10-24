@@ -27,7 +27,7 @@ let
             self.callPackage ./nix/purescript-bridge.nix { };
           # Our own packages
           euler-hs =
-            self.callCabal2nixWithOptions "euler-hs" ./lib/euler-hs "--no-check --no-haddock" { };
+            self.callCabal2nix "euler-hs" ./lib/euler-hs { };
           euler-backend =
             self.callCabal2nix "euler-backend" ./app/euler-backend { };
           credit-platform =

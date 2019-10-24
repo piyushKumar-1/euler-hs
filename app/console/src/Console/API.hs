@@ -10,7 +10,7 @@ import Dashboard.Query.Types
 import Dashboard.Query.Validation
 
 type QueryAPI
-   = "dashboard" :> "query" :> ReqBody '[ JSON] Query :> Post '[ JSON] QueryResult
+   = "dashboard" :> "query" :> ReqBody '[JSON] Query :> Post '[JSON] QueryResult
 
 showQueryValidationError :: QueryValidationError -> String
 showQueryValidationError (QueryValidationError qve _) =

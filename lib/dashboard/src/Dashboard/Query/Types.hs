@@ -38,7 +38,7 @@ newtype Selection =
   deriving (Generic, Show, Eq)
 
 newtype Timestamp =
-  Timestamp UTCTime
+  Timestamp { utcTime :: UTCTime }
   deriving (Generic, Show, Eq, Ord)
 
 newtype Milliseconds =

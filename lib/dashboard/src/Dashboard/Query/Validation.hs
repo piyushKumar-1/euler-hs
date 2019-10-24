@@ -1,10 +1,22 @@
 module Dashboard.Query.Validation
-  ( validateQuery
+  ( printQueryValidationError
+  , validateQuery
   ) where
 
 import Data.List (lookup)
 import Dashboard.Query.Types
 import Universum hiding (All)
+
+printQueryValidationError :: QueryValidationError -> String
+printQueryValidationError (QueryValidationError qve _) =
+  "Validation failed: " ++ case qve of
+    (TableNotFound name)         -> "Table not found: " ++ name
+    (SelectFieldNotFound name)   -> "Select field not found " ++ name
+    (FilterFieldNotFound name)   -> "Filter field not found: " ++ name
+    (GroupByFieldNotFound name)  -> "Group by field not found" ++ name
+    (FilterTypeMismatch name)    -> "Filter type mismatch on: " ++ name
+    (IntervalFieldNotFound name) -> "Interval field not found: " ++ name
+    (SelectOperationNotValid op) -> "Select operation invalid: " ++ show op
 
 validateQuery :: QueryConfiguration -> Query -> Either [QueryValidationError] ()
 validateQuery qc q =

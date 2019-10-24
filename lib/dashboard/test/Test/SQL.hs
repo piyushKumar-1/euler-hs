@@ -19,23 +19,23 @@ stopTime :: QT.Timestamp
 stopTime = makeTimestamp "2019-09-27T12:00:00Z"
 
 testQuery :: QT.Query
-testQuery = QT.Query (QT.Selection [ (Just QT.SUM, QT.Field "f1")])
+testQuery = QT.Query (QT.Selection [ (Just QT.Sum, QT.Field "f1")])
                       "t"
                       (QT.Interval { start = startTime
                                    , stop  = stopTime
                                    , step  = Just . QT.Milliseconds $ 5 * 60 * 1000
                                    , field = "t1"
                                    })
-                      (QT.Filter [("s1", QT.EQUAL, QT.StringValue "foo")])
+                      (QT.Filter [("s1", QT.Equal, QT.StringValue "foo")])
                       (QT.GroupBy ["s2"])
 
 singleSelectionQuery :: QT.Query
 singleSelectionQuery = testQuery
 
 multipleSelectionQuery :: QT.Query
-multipleSelectionQuery = testQuery { QT.selection = QT.Selection [ (Just QT.COUNT, QT.All)
-                                                                 , (Just QT.SUM, QT.Field "f1")
-                                                                 , (Just QT.AVG, QT.Field "i1")
+multipleSelectionQuery = testQuery { QT.selection = QT.Selection [ (Just QT.Count, QT.All)
+                                                                 , (Just QT.Sum, QT.Field "f1")
+                                                                 , (Just QT.Average, QT.Field "i1")
                                                                  ]
                                    }
 
@@ -46,8 +46,8 @@ emptyFilterQuery :: QT.Query
 emptyFilterQuery = testQuery { QT.filter = QT.Filter []}
 
 multipleFilterQuery :: QT.Query
-multipleFilterQuery = testQuery { QT.filter = QT.Filter [ ("s1", QT.EQUAL, QT.StringValue "foo")
-                                                        , ("f1", QT.EQUAL, QT.FloatValue 1000.00)
+multipleFilterQuery = testQuery { QT.filter = QT.Filter [ ("s1", QT.Equal, QT.StringValue "foo")
+                                                        , ("f1", QT.Equal, QT.FloatValue 1000.00)
                                                         ]
                                 }
 

@@ -93,9 +93,9 @@ toQueryResult queryConf query queryResponse = QT.QueryResult $ rowToResult <$> r
     -- configuration, _if_ we are certain that the order of columns in the
     -- TableConfiguration is the same as what the database returns.
     queryTypes tc (QT.Selection s) = queryType tc <$> s
-    queryType _ (Just QT.COUNT, _)       = QT.IntType
-    queryType _ (Just QT.AVG, _)         = QT.FloatType
-    -- SUM will be IntType or FloatType depending on the input field
+    queryType _ (Just QT.Count, _)       = QT.IntType
+    queryType _ (Just QT.Average, _)     = QT.FloatType
+    -- Sum will be IntType or FloatType depending on the input field
     queryType tc (_, QT.Field fieldName) = fromJust $ lookup fieldName tc
     queryType _ (_, QT.All)              = error "Cannot provide values on 'All'"
 

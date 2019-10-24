@@ -28,9 +28,9 @@ data SelectField
 type TableName = String
 
 data SelectOp
-  = SUM
-  | COUNT
-  | AVG
+  = Average
+  | Count
+  | Sum
   deriving (Generic, Show, Eq)
 
 newtype Selection =
@@ -62,8 +62,8 @@ data Value
   deriving (Generic, Show, Eq)
 
 data FilterOp
-  = EQUAL
-  | NOT_EQUAL
+  = Equal
+  | NotEqual
   deriving (Generic, Show, Eq)
 
 newtype Filter =

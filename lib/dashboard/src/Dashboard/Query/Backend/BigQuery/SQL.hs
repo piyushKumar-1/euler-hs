@@ -7,7 +7,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Fmt ((+|), (|+))
 import qualified Fmt
-import Universum hiding (All, filter, group)
+import Universum hiding (All, Sum, filter, group)
 
 import Dashboard.Query.Types
 
@@ -58,9 +58,9 @@ fmtSelection dateIsString (Selection selections) interval =
 
     fmtSelectOp op =
       case op of
-           SUM   -> "SUM"
-           COUNT -> "COUNT"
-           AVG   -> "AVG"
+           Average -> "AVG"
+           Count   -> "COUNT"
+           Sum     -> "SUM"
 
 fmtFrom :: String -> Fmt.Builder
 fmtFrom table = "FROM `" +| table |+ "`"
@@ -79,8 +79,8 @@ fmtValue value =
        FloatValue filterVal  -> Fmt.build filterVal
 
 fmtFilterOp :: FilterOp -> Fmt.Builder
-fmtFilterOp EQUAL = "="
-fmtFilterOp NOT_EQUAL = "<>"
+fmtFilterOp Equal    = "="
+fmtFilterOp NotEqual = "<>"
 
 fmtFilter :: Bool -> Interval -> Filter -> Fmt.Builder
 fmtFilter dateIsString interval (Filter fs) =

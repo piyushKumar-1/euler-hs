@@ -17,8 +17,8 @@ makeTimestamp :: String -> QT.Timestamp
 makeTimestamp = QT.Timestamp . fromJust . parseISO8601
 
 testQuery :: QT.Query
-testQuery = QT.Query (QT.Selection [ (Just QT.SUM, QT.Field "price")
-                                   , (Just QT.AVG, QT.Field "price")
+testQuery = QT.Query (QT.Selection [ (Just QT.Sum, QT.Field "price")
+                                   , (Just QT.Average, QT.Field "price")
                                    , (Nothing, QT.Field "place_name")
                                    ])
                      "properati-data-public.properties_cl.properties_rent_201801"
@@ -27,7 +27,7 @@ testQuery = QT.Query (QT.Selection [ (Just QT.SUM, QT.Field "price")
                                   , step  = Just . QT.Milliseconds $ 6 * 60 * 60 * 1000
                                   , field = "created_on"
                                   })
-                     (QT.Filter [("state_name", QT.EQUAL, QT.StringValue "Región del Maule")])
+                     (QT.Filter [("state_name", QT.Equal, QT.StringValue "Región del Maule")])
                      (QT.GroupBy ["place_name"])
 
 testResultRow :: QT.QueryResultRow
@@ -38,7 +38,7 @@ testResultRow = QT.QueryResultRow ts1 ts2 [QT.FloatValue 1620000.0, QT.FloatValu
 
 incorrectQuery :: QT.Query
 incorrectQuery = QT.Query (QT.Selection
-                            [(Just QT.COUNT, QT.All)])
+                            [(Just QT.Count, QT.All)])
                             "bad_table"
                             (QT.Interval { start = makeTimestamp "1970-01-01T00:00:00Z"
                                          , stop  = makeTimestamp "1970-01-01T00:10:00Z"

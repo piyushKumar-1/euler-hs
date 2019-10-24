@@ -5,7 +5,7 @@ module Dashboard.Query.Validation
 
 import Data.List (lookup)
 import Dashboard.Query.Types
-import Universum hiding (All)
+import Universum hiding (All, Sum)
 
 printQueryValidationError :: QueryValidationError -> String
 printQueryValidationError (QueryValidationError qve _) =
@@ -60,10 +60,10 @@ validateSelectField _ (_, All) =
 validateSelectOperation :: Maybe SelectOp -> FieldType -> Either QueryValidationError ()
 validateSelectOperation op fieldtype =
   case (op, fieldtype) of
-    (Nothing, _)           -> Right ()
-    (Just SUM, StringType) -> Left $ QueryValidationError (SelectOperationNotValid SUM) "Invalid Operation"
-    (Just AVG, StringType) -> Left $ QueryValidationError (SelectOperationNotValid AVG) "Invalid Operation"
-    (_, _)                 -> Right ()
+    (Nothing, _)               -> Right ()
+    (Just Sum, StringType)     -> Left $ QueryValidationError (SelectOperationNotValid Sum) "Invalid Operation"
+    (Just Average, StringType) -> Left $ QueryValidationError (SelectOperationNotValid Average) "Invalid Operation"
+    (_, _)                     -> Right ()
 
 validateFilters :: TableConfiguration -> Query -> [QueryValidationError]
 validateFilters (TableConfiguration fieldData) (Query _ _ _ (Filter filters) _) =

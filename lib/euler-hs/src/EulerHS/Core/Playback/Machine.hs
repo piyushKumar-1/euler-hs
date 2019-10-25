@@ -32,34 +32,41 @@ itemMismatch flowStep recordingEntry
   = PlaybackError ItemMismatch
   $ showInfo flowStep recordingEntry
 
-setReplayingError :: PlayerRuntime -> PlaybackError -> IO e
+setReplayingError :: MonadIO m => PlayerRuntime -> PlaybackError -> m e
 setReplayingError playerRt err = do
-  void $ takeMVar $ errorMVar playerRt
-  putMVar (errorMVar playerRt) (Just err)
-  throwIO $ ReplayingException err
+  let PlayerRuntime{rerror = ReplayErrors{errorMVar}} = playerRt
+
+  void $ takeMVar errorMVar
+  putMVar errorMVar $ Just err
+
+  liftIO $ throwIO $ ReplayingException err
 
 pushRecordingEntry
-  :: RecorderRuntime
+  :: MonadIO m
+  => RecorderRuntime
   -> RecordingEntry
-  -> IO ()
-pushRecordingEntry recorderRt (RecordingEntry _ mode n p) = do
-  entries <- takeMVar $ recordingMVar recorderRt
-  let idx = (V.length entries)
-  let re = RecordingEntry idx mode n p
-  putMVar (recordingMVar recorderRt) $ V.snoc entries re
+  -> m ()
+pushRecordingEntry recorderRt@RecorderRuntime{recording} (RecordingEntry _ mode n p) = do
+  let recMVar = recordingMVar recording
+  entries <- takeMVar recMVar
+  let idx = V.length entries
+  let re  = RecordingEntry idx mode n p
 
-popNextRecordingEntry :: PlayerRuntime -> IO (Maybe RecordingEntry)
-popNextRecordingEntry PlayerRuntime{..} = do
+  putMVar recMVar $ V.snoc entries re
+
+popNextRecordingEntry :: MonadIO m => PlayerRuntime -> m (Maybe RecordingEntry)
+popNextRecordingEntry PlayerRuntime{resRecording = ResultRecording{..}, ..} = do
   cur <- takeMVar stepMVar
-  let mbItem = (!?) recording cur
+  let mbItem = recording !? cur
   when (isJust mbItem) $ putMVar stepMVar (cur + 1)
   pure mbItem
 
 popNextRRItem
-  :: forall rrItem
-   . RRItem rrItem
+  :: forall rrItem m
+   . MonadIO m
+  => RRItem rrItem
   => PlayerRuntime
-  -> IO (Either PlaybackError (RecordingEntry, rrItem))
+  -> m (Either PlaybackError (RecordingEntry, rrItem))
 popNextRRItem playerRt  = do
   mbRecordingEntry <- popNextRecordingEntry playerRt
   let flowStep = getTag $ Proxy @rrItem
@@ -70,11 +77,12 @@ popNextRRItem playerRt  = do
     pure (recordingEntry, rrItem)
 
 popNextRRItemAndResult
-  :: forall rrItem native
-   . RRItem rrItem
+  :: forall rrItem native m
+   . MonadIO m
+  => RRItem rrItem
   => MockedResult rrItem native
   => PlayerRuntime
-  -> IO (Either PlaybackError (RecordingEntry, rrItem, native))
+  -> m (Either PlaybackError (RecordingEntry, rrItem, native))
 popNextRRItemAndResult playerRt  = do
   let flowStep = getTag $ Proxy @rrItem
   eNextRRItem <- popNextRRItem playerRt
@@ -86,32 +94,34 @@ popNextRRItemAndResult playerRt  = do
 
 compareRRItems
   :: RRItem rrItem
+  => MonadIO m
   => MockedResult rrItem native
   => PlayerRuntime
   -> (RecordingEntry, rrItem, native)
   -> rrItem
-  -> IO ()
+  -> m ()
 compareRRItems playerRt (recordingEntry, rrItem, _) flowRRItem = do
   when (rrItem /= flowRRItem) $ do
     let flowStep = encodeToStr flowRRItem
     setReplayingError playerRt $ itemMismatch flowStep (show recordingEntry)
 
-getCurrentEntryReplayMode :: PlayerRuntime -> IO EntryReplayingMode
-getCurrentEntryReplayMode PlayerRuntime{..} = do
+getCurrentEntryReplayMode :: MonadIO m => PlayerRuntime -> m EntryReplayingMode
+getCurrentEntryReplayMode PlayerRuntime{resRecording = ResultRecording{..}, ..} = do
   cur <- readMVar stepMVar
   pure $ fromMaybe Normal $ do
-    (RecordingEntry _ mode _ _) <- (!?) recording cur
+    (RecordingEntry _ mode _ _) <- recording !? cur
     pure mode
 
 replayWithGlobalConfig
-  :: forall rrItem native
-   . RRItem rrItem
+  :: forall rrItem native m
+   . MonadIO m
+  => RRItem rrItem
   => MockedResult rrItem native
   => PlayerRuntime
-  -> IO native
+  -> m native
   -> (native -> rrItem)
   -> Either PlaybackError (RecordingEntry, rrItem, native)
-  -> IO native
+  -> m native
 replayWithGlobalConfig playerRt  ioAct mkRRItem eNextRRItemRes = do
   let tag = getTag $ Proxy @rrItem
   let config = checkForReplayConfig playerRt tag
@@ -133,13 +143,14 @@ checkForReplayConfig  PlayerRuntime{..} tag | tag `elem` disableMocking  = Globa
                                             | otherwise                  = GlobalNormal
 
 replay
-  :: forall rrItem native
-   . RRItem rrItem
+  :: forall rrItem native m
+   . MonadIO m
+  => RRItem rrItem
   => MockedResult rrItem native
   => PlayerRuntime
   -> (native -> rrItem)
-  -> IO native
-  -> IO native
+  -> m native
+  -> m native
 replay playerRt@PlayerRuntime{..} mkRRItem ioAct
   | getTag (Proxy @rrItem) `elem` skipEntries = ioAct
   | otherwise = do
@@ -154,12 +165,13 @@ replay playerRt@PlayerRuntime{..} mkRRItem ioAct
         NoMock -> ioAct
 
 record
-  :: forall rrItem native
-   . RRItem rrItem
+  :: forall rrItem native m
+   . MonadIO m
+  => RRItem rrItem
   => RecorderRuntime
   -> (native -> rrItem)
-  -> IO native
-  -> IO native
+  -> m native
+  -> m native
 record recorderRt@RecorderRuntime{..} mkRRItem ioAct = do
   native <- ioAct
   let tag = getTag $ Proxy @rrItem
@@ -169,12 +181,13 @@ record recorderRt@RecorderRuntime{..} mkRRItem ioAct = do
 
 
 withRunMode
-  :: RRItem rrItem
+  :: MonadIO m
+  => RRItem rrItem
   => MockedResult rrItem native
   => RunMode
   -> (native -> rrItem)
-  -> IO native
-  -> IO native
+  -> m native
+  -> m native
 withRunMode RegularMode _ act = act
 withRunMode (RecordingMode recorderRt) mkRRItem act =
   record recorderRt mkRRItem act

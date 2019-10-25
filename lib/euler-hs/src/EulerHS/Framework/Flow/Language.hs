@@ -23,21 +23,21 @@ type ForkGUID = Text
 -- | Flow language.
 data FlowMethod next where
   CallServantAPI
-    :: BaseUrl
+    :: T.JSONEx a
+    => BaseUrl
     -> ClientM a
     -> (Either ClientError a -> next)
     -> FlowMethod next
 
   EvalLogger
-    :: (ToJSON a, FromJSON a)
-    => Logger a
+    :: Logger a
     -> (a -> next)
     -> FlowMethod next
 
   RunIO
-    :: (ToJSON s, FromJSON s)
-    => IO s
-    -> (s -> next)
+    :: T.JSONEx a
+    => IO a
+    -> (a -> next)
     -> FlowMethod next
 
   GetOption
@@ -89,7 +89,7 @@ data FlowMethod next where
     -> FlowMethod next
 
   RunDB
-    :: (ToJSON a, FromJSON a)
+    :: T.JSONEx a
     => T.SqlConn beM
     -> L.SqlDB beM a
     -> (T.DBResult a -> next)
@@ -130,13 +130,14 @@ instance Functor FlowMethod where
 type Flow = F FlowMethod
 
 callServantAPI
-  :: BaseUrl
+  :: T.JSONEx a
+  => BaseUrl
   -> ClientM a
   -> Flow (Either ClientError a)
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
-callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
-callAPI = callServantAPI
+-- callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
+-- callAPI = callServantAPI
 
 evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id
@@ -157,7 +158,7 @@ logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 logWarning :: Show tag => tag -> T.Message -> Flow ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
-runIO :: (ToJSON s, FromJSON s) => IO s -> Flow s
+runIO :: T.JSONEx a => IO a -> Flow a
 runIO ioAct = liftFC $ RunIO ioAct id
 
 getOption :: T.OptionEntity k v => k -> Flow (Maybe v)
@@ -179,7 +180,12 @@ deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
 deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 
 runDB
-  :: (ToJSON a, FromJSON a, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
+  ::
+    ( T.JSONEx a
+    , T.BeamRunner beM
+    , T.BeamRuntime be beM
+    , B.FromBackendRow be a
+    )
   => T.SqlConn beM
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
@@ -187,7 +193,7 @@ runDB conn dbAct = liftFC $ RunDB conn dbAct id
 
 
 
-forkFlow :: (ToJSON s, FromJSON s) => Text -> Flow s -> Flow ()
+forkFlow :: T.JSONEx a => Text -> Flow a -> Flow ()
 forkFlow description flow = do
   flowGUID <- generateGUID
   unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID

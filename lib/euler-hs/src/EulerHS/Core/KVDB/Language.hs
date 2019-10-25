@@ -9,9 +9,8 @@ module EulerHS.Core.KVDB.Language
   ) where
 
 import            EulerHS.Prelude hiding (get)
-import qualified  Database.Redis  as R
-
-type RawKVDBAnswer = Either R.Reply
+import qualified Database.Redis     as R
+import qualified EulerHS.Core.Types as T
 
 type KVDBKey = ByteString
 type KVDBValue = ByteString
@@ -23,7 +22,7 @@ type KVDBMessage = ByteString
 ----------------------------------------------------------------------
 
 data KeyValueF f next where
-  Set :: KVDBKey -> KVDBValue -> (f R.Status -> next) -> KeyValueF f next
+  Set :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
   Get :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   Exists :: KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Del :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
@@ -48,8 +47,9 @@ type KVDBTx = F (KeyValueF R.Queued)
 
 data TransactionF next where
   MultiExec
-    :: KVDBTx (R.Queued a)
-    -> (RawKVDBAnswer (R.TxResult a) -> next)
+    :: T.JSONEx a
+    => KVDBTx (R.Queued a)
+    -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
 
 instance Functor TransactionF where
@@ -58,15 +58,15 @@ instance Functor TransactionF where
 ----------------------------------------------------------------------
 
 data KVDBF next
-  = KV (KeyValueF RawKVDBAnswer next)
+  = KV (KeyValueF T.KVDBAnswer next)
   | TX (TransactionF next)
   deriving Functor
 
-type KVDB next = ExceptT R.Reply (F KVDBF) next
+type KVDB next = ExceptT T.KVDBReply (F KVDBF) next
 
 ----------------------------------------------------------------------
 
-setTx :: KVDBKey -> KVDBValue -> KVDBTx (R.Queued R.Status)
+setTx :: KVDBKey -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
 setTx key value = liftFC $ Set key value id
 
 getTx :: KVDBKey -> KVDBTx (R.Queued (Maybe ByteString))
@@ -77,7 +77,7 @@ delTx ks = liftFC $ Del ks id
 
 ---
 
-set :: KVDBKey -> KVDBValue -> KVDB R.Status
+set :: KVDBKey -> KVDBValue -> KVDB T.KVDBStatus
 set key value = ExceptT $ liftFC $ KV $ Set key value id
 
 get :: KVDBKey -> KVDB (Maybe ByteString)
@@ -101,5 +101,5 @@ hset key field value = ExceptT $ liftFC $ KV $ HSet key field value id
 hget :: KVDBKey -> KVDBField -> KVDB (Maybe ByteString)
 hget key field = ExceptT $ liftFC $ KV $ HGet key field id
 
-multiExec :: KVDBTx (R.Queued a) -> KVDB (R.TxResult a)
+multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id

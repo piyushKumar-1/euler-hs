@@ -5,21 +5,24 @@ module EulerHS.Core.Types.Playback where
 
 
 import EulerHS.Prelude
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Aeson                      as A
+import qualified Data.ByteString.Char8           as BS
+import qualified Data.ByteString.Lazy            as BSL
+import qualified EulerHS.Core.Types.Serializable as S
+import qualified Data.Map                        as Map
 -- import qualified Data.Binary.Builder as B
 -- import qualified GHC.Generics as G
 
 
-type EntryIndex = Int
-type EntryName = String
-type EntryPayload = String
-data RecordingEntry = RecordingEntry EntryIndex EntryReplayingMode EntryName EntryPayload
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+data RecordingEntry = RecordingEntry
+  { _entryIndex      :: Int
+  , _entryReplayMode :: EntryReplayingMode
+  , _entryName       :: String
+  , _entryPayload    :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 type RecordingEntries = Vector RecordingEntry
-newtype Recording = Recording RecordingEntries
+
 
 data GlobalReplayingMode = GlobalNormal | GlobalNoVerify | GlobalNoMocking | GlobalSkip
 
@@ -30,10 +33,11 @@ data EntryReplayingMode = Normal | NoVerify | NoMock
 
 class (Eq rrItem, ToJSON rrItem, FromJSON rrItem) => RRItem rrItem where
   toRecordingEntry   :: rrItem -> Int -> EntryReplayingMode -> RecordingEntry
-  toRecordingEntry rrItem idx mode = RecordingEntry idx mode (getTag (Proxy :: Proxy rrItem)) $ encodeToStr rrItem
+  toRecordingEntry rrItem idx mode = RecordingEntry idx mode (getTag (Proxy :: Proxy rrItem)) $
+    toJSON rrItem
 
   fromRecordingEntry :: RecordingEntry -> Maybe rrItem
-  fromRecordingEntry (RecordingEntry _ _ _ payload) = decodeFromStr payload
+  fromRecordingEntry (RecordingEntry _ _ _ payload) = S.fromJSONMaybe payload
 
   getTag :: Proxy rrItem -> String
   {-# MINIMAL getTag #-}
@@ -49,36 +53,79 @@ data PlaybackErrorType
   | ItemMismatch
   | UnknownPlaybackError
   | ForkedFlowRecordingsMissed
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, Exception)
 
 data PlaybackError = PlaybackError
   { errorType    :: PlaybackErrorType
   , errorMessage :: String
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data ReplayingException = ReplayingException PlaybackError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 instance Exception ReplayingException
 
+
+----------------------------------------------------------------------
+
+data ResultRecording = ResultRecording
+  { recording        :: RecordingEntries
+  , forkedRecordings :: Map Text ResultRecording
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+data Recording = Recording
+  { recordingMVar       :: MVar RecordingEntries
+  , forkedRecordingsVar :: MVar (Map Text Recording)
+  }
+
+awaitRecording :: Recording -> IO ResultRecording
+awaitRecording Recording{..}= do
+  recording        <- readMVar recordingMVar
+  forkedRecordings <- traverse awaitRecording =<< readMVar forkedRecordingsVar
+  pure ResultRecording{..}
+
+----------------------------------------------------------------------
+
+data ReplayErrors = ReplayErrors
+  { errorMVar           :: MVar (Maybe PlaybackError)
+  , forkedFlowErrorsVar :: MVar (Map Text ReplayErrors)
+  }
+
+data ResultReplayError = ResultReplayError
+  { rerror      :: Maybe PlaybackError
+  , forkedError :: Map Text ResultReplayError
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+awaitErrors :: ReplayErrors -> IO ResultReplayError
+awaitErrors ReplayErrors{..}= do
+  rerror      <- readMVar errorMVar
+  forkedError <- traverse awaitErrors =<< readMVar forkedFlowErrorsVar
+  pure ResultReplayError{..}
+
+flattenErrors :: ResultReplayError -> [PlaybackError]
+flattenErrors = catMaybes . flattenErrors_
+  where
+    flattenErrors_ ResultReplayError{..} = rerror : (Map.elems forkedError >>= flattenErrors_)
+
+----------------------------------------------------------------------
+
+
 data RecorderRuntime = RecorderRuntime
-  { flowGUID            :: String
-  , recordingMVar       :: MVar RecordingEntries
-  , forkedRecordingsVar :: MVar (Map String (MVar RecordingEntries))
+  { flowGUID            :: Text
+  , recording           :: Recording
   , disableEntries      :: [String]
   }
 
+
 data PlayerRuntime = PlayerRuntime
-  { recording            :: RecordingEntries
+  { resRecording         :: ResultRecording
+  , rerror               :: ReplayErrors
   , stepMVar             :: MVar Int
-  , errorMVar            :: MVar (Maybe PlaybackError)
   , disableVerify        :: [String]
   , disableMocking       :: [String]
   , skipEntries          :: [String]
   , entriesFiltered      :: Bool
-  , flowGUID             :: String
-  , forkedFlowRecordings :: Map String RecordingEntries
-  , forkedFlowErrorsVar  :: MVar (Map String (MVar (Maybe PlaybackError)))
+  , flowGUID             :: Text
   }
 
 data RunMode

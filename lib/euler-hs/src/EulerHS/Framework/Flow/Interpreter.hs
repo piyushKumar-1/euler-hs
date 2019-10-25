@@ -1,12 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module EulerHS.Framework.Flow.Interpreter where
 
 import           EulerHS.Prelude
 import           Control.Exception               (throwIO)
-import           Data.Aeson                      (encode, decode)
+import qualified Data.Aeson                      as A
 import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.Map                        as Map
 import qualified Data.UUID                       as UUID (toText)
@@ -33,11 +34,10 @@ import qualified EulerHS.Core.Logger.Language as L
 import qualified EulerHS.Core.Playback.Machine as P
 import qualified EulerHS.Framework.Flow.Entries as P
 import qualified Data.Vector as V
-import qualified Data.Text as T
+import qualified Data.Text as Text
+-- import Data.ByteString.Builder
 
 import qualified Database.PostgreSQL.Simple as PGS
-
-import Data.Text as Text (pack)
 import Data.Generics.Product.Positions (getPosition)
 
 executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO ()
@@ -90,12 +90,12 @@ interpretFlowMethod R.FlowRuntime {..} (L.RunIO ioAct next) =
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do
     m <- readMVar _options
-    pure $ decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ encode k) m
+    pure $ A.decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ A.encode k) m
 
 interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
   fmap next $ P.withRunMode _runMode (P.mkSetOptionEntry k v) $ do
     m <- takeMVar _options
-    let newMap = Map.insert (BSL.toStrict $ encode k) (BSL.toStrict $ encode v) m
+    let newMap = Map.insert (BSL.toStrict $ A.encode k) (BSL.toStrict $ A.encode v) m
     putMVar _options newMap
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.GenerateGUID next) = do
@@ -107,31 +107,96 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
     (P.mkRunSysCmdEntry cmd)
     (readCreateProcess (shell cmd) "")
 
-interpretFlowMethod rt (L.Fork desc flowGUID flow next) = do
-  _ <- forkIO $ case R._runMode rt of
-    T.RegularMode              -> void $ runFlow rt flow
-    T.RecordingMode recorderRt -> do
-      (finalRecordingsMVar, forkedRecorderRt) <- forkRecorderRt flowGUID recorderRt
-      let newRt = rt {R._runMode = T.RecordingMode forkedRecorderRt}
-      _ <- runFlow newRt flow
-      recordings <- readMVar $ T.recordingMVar forkedRecorderRt
-      putMVar finalRecordingsMVar recordings
-      pure ()
+----------------------------------------------------------------------
+interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
+  case R._runMode rt of
+    T.RegularMode              -> void $ forkIO $ void $ runFlow rt flow
+    T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
+      finalRecordingMVar       <- newEmptyMVar
+      finalForkedRecordingsVar <- newEmptyMVar
+
+      forkRecordingMVar        <- newMVar V.empty
+      forkForkedRecordingsVar   <- newMVar Map.empty
+
+      let freshRecording = T.Recording forkRecordingMVar  forkForkedRecordingsVar
+      let emptyRecording = T.Recording finalRecordingMVar finalForkedRecordingsVar
+
+      let forkRuntime = T.RecorderRuntime
+            { flowGUID  = newFlowGUID
+            , recording = freshRecording
+            , ..
+            }
+
+      forkedRecs <- takeMVar $ forkedRecordingsVar
+      putMVar forkedRecordingsVar $
+        Map.insert newFlowGUID emptyRecording forkedRecs
+
+      let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
+
+      void $ forkIO $ do
+        _ <- runFlow newRt flow
+        putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
+        putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
+        pure ()
+
+----------------------------------------------------------------------
 
     T.ReplayingMode playerRt -> do
-      mres <- forkPlayerRt flowGUID playerRt
-      case mres of
-        Nothing -> putStrLn $ "Replay; Failed to fork Flow. No recordings for fork with guid: " <> flowGUID
-        Just (finalErrorsMVar, forkedPlayerRt) -> do
-          let newRt = rt {R._runMode = T.ReplayingMode forkedPlayerRt}
-          _ <- try @_ @SomeException $ runFlow newRt flow
-          errors <- readMVar $ T.errorMVar forkedPlayerRt
-          putMVar finalErrorsMVar errors
-          pure ()
+      let
+        T.PlayerRuntime
+          { rerror       = T.ReplayErrors   {..}
+          , resRecording = T.ResultRecording{ forkedRecordings }
+          , ..
+          } = playerRt
+
+      case Map.lookup newFlowGUID forkedRecordings of
+        Nothing -> do
+          let
+            err =
+              T.PlaybackError
+                { errorType    = T.ForkedFlowRecordingsMissed
+                , errorMessage = "No recordings found for forked flow: " <> Text.unpack newFlowGUID
+                }
+
+          takeMVar errorMVar *> putMVar errorMVar (Just err)
+          throwIO T.ForkedFlowRecordingsMissed
+
+        Just recording -> do
+          stepVar           <- newMVar 0
+
+          finalErrorMVar          <- newEmptyMVar
+          finalForkedFlowErrorVar <- newEmptyMVar
+
+          forkErrorMVar           <- newMVar Nothing
+          forkForkedFlowErrorVar  <- newMVar Map.empty
+
+          let freshReplayErrors = T.ReplayErrors forkErrorMVar  forkForkedFlowErrorVar
+          let finalReplayErrors = T.ReplayErrors finalErrorMVar finalForkedFlowErrorVar
+
+          let forkRuntime = T.PlayerRuntime
+                { flowGUID     = newFlowGUID
+                , stepMVar     = stepVar
+                , resRecording = recording
+                , rerror       = freshReplayErrors
+                , ..
+                }
+
+          forkedFlowErrs <- takeMVar forkedFlowErrorsVar
+
+          putMVar forkedFlowErrorsVar $
+            Map.insert newFlowGUID finalReplayErrors forkedFlowErrs
+
+          let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
+          void $ forkIO $ do
+            _ <- try @_ @SomeException $ runFlow newRt flow
+            putMVar finalErrorMVar          =<< readMVar forkErrorMVar
+            putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
+            pure ()
+
+----------------------------------------------------------------------
 
   fmap next $
-    P.withRunMode (R._runMode rt) (P.mkForkEntry desc flowGUID) (pure ())
-
+    P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
   fmap next $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
@@ -247,65 +312,37 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
           (T.MockedConn _) -> error $ "MockedSqlConn not implemented"
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
-  fmap next $ P.withRunMode _runMode P.mkRunKVDBEntry $ do
+  fmap next $ do
     connections <- readMVar _connections
     case Map.lookup "redis" connections of
-      Just (kvdbconn) -> R.runKVDB kvdbconn act
+      Just (kvdbconn) -> R.runKVDB _runMode kvdbconn act
       Nothing -> pure $ Left $ ExceptionMessage "Can't find redis connection"
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)
 
-forkPlayerRt :: Text -> T.PlayerRuntime -> IO (Maybe (MVar (Maybe T.PlaybackError), T.PlayerRuntime))
-forkPlayerRt newFlowGUID_ T.PlayerRuntime{..} =
-  case Map.lookup newFlowGUID forkedFlowRecordings of
-    Nothing -> do
-      filledErrorMVar <- newMVar $ Just $ T.PlaybackError
-        { errorType    = T.ForkedFlowRecordingsMissed
-        , errorMessage = "No recordings found for forked flow: " <> newFlowGUID
+
+forkRecorderRt :: Text -> T.RecorderRuntime -> IO (T.Recording, T.RecorderRuntime)
+forkRecorderRt newFlowGUID rrt = do
+  let T.RecorderRuntime
+        { recording = T.Recording{..}
+        , ..
+        } = rrt
+
+  freshRecording <- T.Recording <$> newMVar V.empty <*> newMVar Map.empty
+  emptyRecording <- T.Recording <$> newEmptyMVar    <*> newEmptyMVar
+
+  let forkRuntime = T.RecorderRuntime
+        { flowGUID        = newFlowGUID
+        , recording       = freshRecording
+        , ..
         }
 
-      forkedFlowErrors <- takeMVar forkedFlowErrorsVar
-      putMVar forkedFlowErrorsVar $
-        Map.insert newFlowGUID filledErrorMVar forkedFlowErrors
-      pure Nothing
+  forkedRecs <- takeMVar $ forkedRecordingsVar
+  putMVar forkedRecordingsVar $
+    Map.insert newFlowGUID emptyRecording forkedRecs
 
-    Just recording' -> do
-      stepVar'      <- newMVar 0
-      errorVar'     <- newMVar Nothing
-      emptyErrorVar <- newEmptyMVar
-
-      forkedFlowErrors <- takeMVar forkedFlowErrorsVar
-      putMVar forkedFlowErrorsVar $
-        Map.insert newFlowGUID emptyErrorVar forkedFlowErrors
-
-      pure $ Just
-        ( emptyErrorVar
-        , T.PlayerRuntime
-          { flowGUID = newFlowGUID
-          , stepMVar = stepVar'
-          , errorMVar = errorVar'
-          , recording = recording'
-          , ..
-          }
-        )
-  where
-    newFlowGUID :: String
-    newFlowGUID = T.unpack newFlowGUID_
-
-forkRecorderRt :: Text -> T.RecorderRuntime -> IO (MVar T.RecordingEntries, T.RecorderRuntime)
-forkRecorderRt newFlowGUID_ T.RecorderRuntime{..} = do
-  recordingVar <- newMVar V.empty
-  emptyRecordingVar <- newEmptyMVar
-  forkedRecs   <- takeMVar forkedRecordingsVar
-  let newFlowGUID = T.unpack newFlowGUID_
-  let forkedRecs' = Map.insert newFlowGUID emptyRecordingVar forkedRecs
-  putMVar forkedRecordingsVar forkedRecs'
   pure
-    ( emptyRecordingVar
-    , T.RecorderRuntime
-      { flowGUID = newFlowGUID
-      , recordingMVar = recordingVar
-      , ..
-      }
+    ( emptyRecording
+    , forkRuntime
     )

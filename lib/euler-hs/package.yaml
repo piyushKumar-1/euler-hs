@@ -93,6 +93,9 @@ dependencies:
 - postgresql-simple
 - validation
 - semigroupoids
+- case-insensitive
+- http-media
+- servant-client-core
 
 library:
   source-dirs:

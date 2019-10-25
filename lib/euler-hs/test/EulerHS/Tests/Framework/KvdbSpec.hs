@@ -3,7 +3,7 @@ module EulerHS.Tests.Framework.KvdbSpec where
 import           EulerHS.Prelude   hiding (getOption, get)
 import           Test.Hspec        hiding (runIO)
 import qualified Test.Hspec as HS
-import           EulerHS.Types
+import           EulerHS.Types as T
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
 import           EulerHS.Runtime (withFlowRuntime, FlowRuntime(..)) -- , Connection(Redis))
@@ -29,15 +29,15 @@ txnothing :: Any
 txnothing = unsafeCoerce (Nothing)
 
 mockedValues = KVDBMockedValues'
-  { kvdbSet    = [ Ok, Ok, Ok, Ok]
-  , kvdbGet    = [ Just "bbb", Nothing, Nothing, Nothing]
-  , kvdbExists = [ True ]
-  , kvdbDel    = [ 0,0,2, 0,0,4,5]
-  , kvdbExpire = [ ]
-  , kvdbIncr   = [ ]
-  , kvdbHSet   = [ ]
-  , kvdbHGet   = [ ]
-  , kvdbTX     = [TxSuccess justBBB, TxSuccess txnothing]
+  { kvdbSet    = [T.Ok, T.Ok, T.Ok, T.Ok]
+  , kvdbGet    = [Just "bbb", Nothing, Nothing, Nothing]
+  , kvdbExists = [True ]
+  , kvdbDel    = [0, 0, 2, 0, 0, 4, 5]
+  , kvdbExpire = []
+  , kvdbIncr   = []
+  , kvdbHSet   = []
+  , kvdbHGet   = []
+  , kvdbTX     = [T.TxSuccess justBBB, T.TxSuccess txnothing]
   }
 
 withRedisConnection :: MVar KVDBMockedValues' -> (FlowRuntime -> IO()) -> IO()
@@ -92,10 +92,10 @@ spec = do
           res <- getTx "aaa"
           delTx ["aaa"]
           pure res
-        result `shouldBe` Right (TxSuccess (Just "bbb"))
+        result `shouldBe` Right (T.TxSuccess (Just "bbb"))
 
       it "get incorrect key from transaction" $ \rt -> do
         result <- runFlow rt $ L.runKVDB $ multiExec $ do
           res <- getTx "aaababababa"
           pure res
-        result `shouldBe` Right (TxSuccess Nothing)
+        result `shouldBe` Right (T.TxSuccess Nothing)

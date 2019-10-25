@@ -2,7 +2,7 @@ module EulerHS.Tests.Framework.FlowSpec where
 
 import           EulerHS.Prelude hiding (getOption, get)
 import           Test.Hspec hiding (runIO)
-import           Network.Wai.Handler.Warp (run)
+import           Network.Wai.Handler.Warp
 import           Data.Aeson               (encode)
 import qualified Data.ByteString.Lazy as BSL
 import           Unsafe.Coerce
@@ -39,8 +39,16 @@ scenario1MockedValues = FlowMockedValues'
   }
 
 
-runServer :: IO ()
-runServer = void $ forkIO $ run port (serve api server)
+withServer :: IO () -> IO ()
+withServer action = do
+  serverStartupLock <- newEmptyMVar
+  let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $
+        setPort port defaultSettings
+  threadId          <- forkIO $ runSettings settings $ serve api server
+  readMVar serverStartupLock
+  action
+  killThread threadId
+
 
 spec :: Spec
 spec = do
@@ -55,7 +63,7 @@ spec = do
           res <- runFlowWithTestInterpreter mv rt testScenario1
           res `shouldBe` (User "John" "Snow" "00000000-0000-0000-0000-000000000000")
 
-      beforeAll_ runServer $ do
+      around_ withServer $ do
         describe "CallServantAPI tests" $ do
 
           it "Simple request (book)" $ \rt -> do

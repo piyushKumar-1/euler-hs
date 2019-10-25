@@ -91,6 +91,8 @@ dependencies:
 - binary
 - resource-pool
 - postgresql-simple
+- validation
+- semigroupoids
 
 library:
   source-dirs:
@@ -101,6 +103,7 @@ library:
   - EulerHS.Prelude
   - EulerHS.Types
   - EulerHS.Runtime
+  - EulerHS.Extra.Validation
   ghc-options:
   - -Wall
   # - -Werror

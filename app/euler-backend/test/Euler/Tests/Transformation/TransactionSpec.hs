@@ -2,6 +2,7 @@ module Euler.Tests.Transformation.TransactionSpec where
 
 import           EulerHS.Prelude
 import           Test.Hspec
+import           EulerHS.Extra.Validation
 
 import qualified Euler.API.Transaction as AT
 import qualified Euler.API.Types as AT
@@ -18,8 +19,6 @@ import qualified Euler.Product.Domain.PaymentMethod.Wallet as W
 import qualified Euler.Product.Domain.PaymentMethod.WalletDirect as WD
 import Euler.Product.Domain.PaymentMethod.UPI
 import Euler.Transformation.Transaction
-import Euler.Transformation.Transform
-import Data.Validation
 
 
 -- regular new CARD
@@ -48,11 +47,11 @@ apiRegularNewCardTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainRegularNewCardTxn = DT.Transaction 
+domainRegularNewCardTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
-  , _transaction_type = 
-    DT.CardTransaction (CardPayment 
+  , _transaction_type =
+    DT.CardTransaction (CardPayment
       {payment_method = VISA
       , card_payment_type =
           NewCardPayment
@@ -97,12 +96,12 @@ apiRegularSavedCardTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainRegularSavedCardTxn = DT.Transaction 
+domainRegularSavedCardTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
   , _transaction_type = DT.CardTransaction (CardPayment
     { payment_method = VISA
-    , card_payment_type = SavedCardPayment 
+    , card_payment_type = SavedCardPayment
       { card_token = "card_token"
       , card_security_code = "card_security_code"
       }
@@ -141,10 +140,10 @@ apiSeamlessNewCardTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainSeamlessNewCardTxn = DT.Transaction 
+domainSeamlessNewCardTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
-  , _transaction_type = 
+  , _transaction_type =
     DT.ATMSeamlessTransaction (ATMSeamlessPayment
       { payment_method = VISA
       , card_payment_type =
@@ -187,12 +186,12 @@ apiSeamlessSavedCardTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainSeamlessSavedCardTxn = DT.Transaction 
+domainSeamlessSavedCardTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
   , _transaction_type = DT.ATMSeamlessTransaction (ATMSeamlessPayment
     { payment_method = VISA
-    , card_payment_type = SavedCardPayment 
+    , card_payment_type = SavedCardPayment
       { card_token = "card_token"
       , card_security_code = "card_security_code"
       }
@@ -228,7 +227,7 @@ apiATMRedirectCardTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainATMRedirectCardTxn = DT.Transaction 
+domainATMRedirectCardTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
   , _transaction_type = DT.ATMRedirectionTransaction (ATMRedirectionPayment
@@ -264,10 +263,10 @@ apiUpiCollectTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainUpiCollectTxn = DT.Transaction 
+domainUpiCollectTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
-  , _transaction_type = DT.UPITransaction (UPICollect 
+  , _transaction_type = DT.UPITransaction (UPICollect
     { payment_method = UPI
     , txn_type = UPI_COLLECT
     , upi_vpa = "upi_vpa"
@@ -302,10 +301,10 @@ apiUpiPAYTxn = AT.Transaction
   , direct_wallet_token    = Nothing -- :: Maybe Text
   }
 
-domainUpiPAYTxn = DT.Transaction 
+domainUpiPAYTxn = DT.Transaction
   { _order_id = DT.OrderId "some_order_id"
   , _merchant_id = DT.MerchantId "merchant_id"
-  , _transaction_type = DT.UPITransaction (UPIPay 
+  , _transaction_type = DT.UPITransaction (UPIPay
     { payment_method = UPI
     , txn_type = UPI_PAY
     })
@@ -528,7 +527,7 @@ apiRegularNewCardTxnFewFailures = AT.Transaction
   }
 
 spec :: Spec
-spec = 
+spec =
   describe "Transaction transformations tests" $ do
 
     it "API Regular New Card Txn to Domain Regular New Card Txn" $  do

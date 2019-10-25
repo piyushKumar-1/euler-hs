@@ -1,12 +1,13 @@
 {-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module Euler.Transformation.Transaction where
+module Euler.API.Validators.Transaction where
 
 import EulerHS.Prelude
+import EulerHS.Extra.Validation
 
 import Data.Generics.Product.Fields
-import Data.Validation
 import Data.Functor.Alt
+import qualified Data.Text as T
 import qualified Euler.Product.Domain.Transaction as DT
 import Euler.Product.Domain.CardPayment
 import Euler.Product.Domain.NBPayment
@@ -19,17 +20,14 @@ import Euler.Product.Domain.PaymentMethod.NB
 import Euler.Product.Domain.PaymentMethod.Wallet
 import Euler.Product.Domain.PaymentMethod.WalletDirect
 import Euler.Product.Domain.PaymentMethod.UPI
-import qualified Data.Text as T
-
-import Euler.Transformation.Transform
 import qualified Euler.API.Transaction as AT
 import qualified Euler.API.Types as AT
 import Euler.API.Types
 
 instance Transform AT.Transaction DT.Transaction where
-  transform apiTxn = DT.Transaction 
+  transform apiTxn = DT.Transaction
       <$> (OrderId <$> ((takeField @"order_id" apiTxn) <!*> textNotEmpty)) -- :: OrderId                -- ^
-      <*> (MerchantId <$> ((takeField @"merchant_id" apiTxn) <!*> textNotEmpty)) -- :: MerchantId 
+      <*> (MerchantId <$> ((takeField @"merchant_id" apiTxn) <!*> textNotEmpty)) -- :: MerchantId
       <*> (transform apiTxn) -- :: TransactionType
       <*> (takeField @"redirect_after_payment" apiTxn) <!*> alwaysValid -- :: Bool
       <*> (takeField @"format" apiTxn) <!*> textNotEmpty -- :: Text
@@ -101,8 +99,8 @@ instance Transform AT.Transaction CardPayment where
     <*> (takeField @"auth_type" apiTxn) <?*> isRegularCardAuthType
 
 instance Transform AT.Transaction CardPaymentType where
-  transform apiTxn 
-    =   SavedCardPayment 
+  transform apiTxn
+    =   SavedCardPayment
           <$> (fromMaybe' @"card_token" apiTxn) <!*> textNotEmpty
           <*> (fromMaybe' @"card_security_code" apiTxn) <!*> textNotEmpty
     <!> NewCardPayment
@@ -142,4 +140,3 @@ isUPICollectTxnType = mkValidator "inappropriate txn_type" (`elem` txnTypes)
 isUPIPayTxnType :: NonEmpty (Text -> UPITxnType -> Validation [Text] UPITxnType)
 isUPIPayTxnType = mkValidator "inappropriate txn_type" (`elem` txnTypes)
   where txnTypes = [UPI.UPI_PAY, UPI.BHARAT_PAY]
-

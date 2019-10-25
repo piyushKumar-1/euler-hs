@@ -1,6 +1,6 @@
 {-# OPTIONS -fno-warn-deprecations #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module Euler.Transformation.Transform
+module EulerHS.Extra.Validation
   ( Transform(..)
   , mkValidator
   , decodeTo
@@ -11,7 +11,7 @@ module Euler.Transformation.Transform
   , (<<|>>)
   , showConstructors
   , getConstructors
-
+  , module X
   ) where
 
 import EulerHS.Prelude hiding ( pred, or)
@@ -19,11 +19,13 @@ import qualified Prelude as P
 
 import Data.Generics.Product.Fields
 import Data.Validation
+import Data.Validation as X
+import Data.Data hiding (typeRep)
 import GHC.TypeLits
 import Type.Reflection
 import Control.Lens hiding (transform, cons)
 import qualified Data.Text as T
-import Data.Data hiding (typeRep)
+
 
 class Transform a b where
   transform :: a -> Validation [Text] b
@@ -51,7 +53,7 @@ isPresent' f v = maybe (_Failure # [f <> " not present"]) (_Success # ) v
 
 --extract value and put it in 'Success'
 takeField :: forall (f :: Symbol) v r
-  .(Generic r, HasField' f r v, KnownSymbol f) 
+  .(Generic r, HasField' f r v, KnownSymbol f)
   =>  r -> (Text, Validation [Text] v)
 takeField r = (fieldName_ @f, Success $ getField @f r)
 
@@ -106,7 +108,7 @@ fieldName_ = T.pack $ ((filter (/='"'))) $ P.show $ typeRep @f
 -- It is used in situations when we try to create several variants at the same time
 -- and there is a probability of failure of all variants at once.
 -- In case of failure collects validation errors of all variants.
--- On the contrary <!> gives validation errors only from the first option 
+-- On the contrary <!> gives validation errors only from the first option
 or :: Semigroup err => Validation err a -> Validation err a -> Validation err a
 or (Failure e1) (Failure e2) =
     Failure (e1 <> e2)
@@ -123,4 +125,4 @@ infixl 3 <<|>>
 -- it is used in situations when we try to create several variants at the same time
 -- and there is a probability of failure of all variants at once.
 -- In case of failure returns validation errors only from the first option.
--- On the contrary <<|>> collects validation errors of all variants. 
+-- On the contrary <<|>> collects validation errors of all variants.

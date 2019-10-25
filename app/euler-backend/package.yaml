@@ -1,7 +1,7 @@
 name:                euler-backend
 version:             0.0.1.0
 github:              "https://bitbucket.org/juspay/euler-hs"
-license:             OtherLicense
+license:             Private
 author:              "Juspay Technologies Pvt Ltd"
 copyright:           "Juspay Technologies Pvt Ltd 2019"
 
@@ -88,16 +88,9 @@ dependencies:
 - xmlbf
 - xmlbf-xeno
 - natural-transformation
-- validation
-- generic-lens
 - semigroupoids
-
-library:
-  source-dirs:
-    - src
-  ghc-options:
-  - -Wall
-  # - -Werror
+- generic-lens
+- validation
 
 executables:
   euler-backend:
@@ -111,8 +104,6 @@ executables:
     - -O2
     - -fspec-constr-recursive=10
     - -fno-ignore-asserts
-    dependencies:
-    - euler-hs
 
 tests:
   hspec:
@@ -120,6 +111,4 @@ tests:
     source-dirs: test
     dependencies:
     - euler-backend
-    - euler-hs
     - hspec
-    - validation

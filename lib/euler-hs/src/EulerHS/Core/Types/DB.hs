@@ -61,15 +61,21 @@ class BeamRunner beM where
 -- TODO: move somewhere (it's implementation)
 instance BeamRunner BS.SqliteM where
   getBeamDebugRunner (SQLiteConn _ conn) beM = \logger -> SQLite.runBeamSqliteDebug logger conn beM
+  getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
+    $ \connection -> SQLite.runBeamSqliteDebug logger connection beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRunner BP.Pg where
   getBeamDebugRunner (PostgresConn _ conn) beM = \logger -> BP.runBeamPostgresDebug logger conn beM
+  getBeamDebugRunner (PostgresPool _ pool) beM = \logger -> DP.withResource pool
+    $ \connection -> BP.runBeamPostgresDebug logger connection beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
 instance BeamRunner BM.MySQLM where
   getBeamDebugRunner (MySQLConn _ conn) beM = \logger -> BM.runBeamMySQLDebug logger conn beM
+  getBeamDebugRunner (MySQLPool _ pool) beM = \logger -> DP.withResource pool
+    $ \connection -> BM.runBeamMySQLDebug logger connection beM
   getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 -- ###
 

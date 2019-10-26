@@ -114,7 +114,7 @@ prepareTestDB = do
 
 insertTestValues :: L.Flow ()
 insertTestValues = do
-  conn <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+  conn <- connectOrFail sqliteCfg
   void $ L.runDB conn
     $ L.insertRows
     $ B.insert (_users eulerDb)
@@ -130,7 +130,7 @@ insertTestValues = do
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+  connection <- connectOrFail sqliteCfg
 
   L.runDB connection
     $ L.insertRows
@@ -145,7 +145,7 @@ uniqueConstraintViolationDbScript = do
 
 selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+  connection <- connectOrFail sqliteCfg 
 
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "Unknown"
@@ -158,7 +158,7 @@ selectUnknownDbScript = do
 
 selectOneDbScript :: L.Flow (T.DBResult (Maybe User))
 selectOneDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+  connection <- connectOrFail sqliteCfg
 
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "John"
@@ -172,7 +172,7 @@ selectOneDbScript = do
 
 updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
 updateAndSelectDbScript = do
-  connection <- connectOrFail sqliteCfg -- $ T.mkSQLiteConfig testDBName
+  connection <- connectOrFail sqliteCfg
 
   L.runDB connection $ do
     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
@@ -191,20 +191,6 @@ updateAndSelectDbScript = do
       $ B.limit_ 1
       $ B.filter_ predicate2
       $ B.all_ (_users eulerDb)
-
-
--- innerJoinDbScript :: L.Flow ()
--- innerJoinDbScript = do
---   connection <- connectOrFail $ T.SQLiteConfig testDBName
---
---   L.runDB connection $ do
---     insertTestValues
---
---       -- INNER JOIN
---     L.runSelect $ B.select $ do
---       user1 <- B.all_ (_users eulerDb)
---       user2 <- B.all_ (_users eulerDb)
---       pure (user1, user2)
 
 
 withEmptyDB :: (R.FlowRuntime -> IO ()) -> IO ()

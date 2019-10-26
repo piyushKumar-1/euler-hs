@@ -66,7 +66,7 @@ mysqlConfig = mkMySQLConfig "eulerMysqlDB" mySQLCfg
 
 connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ show e -- L.throwException $ toException $ show e
+  Left e     -> error $ show e
   Right conn -> pure conn
 
 

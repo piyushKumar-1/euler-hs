@@ -15,7 +15,7 @@ import qualified SQLDB.Tests.MySQLDBPoolSpec as MySQLP
 main = hspec $ do
   SQLiteDB.spec
   SQLiteDBP.spec
-  PGDB.spec
-  PGDBP.spec
-  MySQL.spec
-  MySQLP.spec
+ -- PGDB.spec
+ -- PGDBP.spec
+ -- MySQL.spec
+ -- MySQLP.spec

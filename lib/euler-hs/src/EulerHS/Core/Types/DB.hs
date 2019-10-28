@@ -20,7 +20,7 @@ import qualified Database.SQLite.Simple          as SQLite
 import           Data.Time.Clock                    (NominalDiffTime)
 
 import           EulerHS.Core.Types.MySQL        (MySQLConfig, MySQLPoolConfig, createMySQLConn)
-import           EulerHS.Core.Types.Postgres     (PostgresConfig, PostgresPoolConfig, createPostgresConn)
+import           EulerHS.Core.Types.Postgres     (PostgresConfig, createPostgresConn)
 
 
 

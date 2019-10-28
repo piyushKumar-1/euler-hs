@@ -10,7 +10,6 @@ import qualified SQLDB.Tests.PostgresDBSpec as PGDB
 import qualified SQLDB.Tests.PostgresDBPoolSpec as PGDBP
 import qualified SQLDB.Tests.MySQLDBSpec as MySQL
 import qualified SQLDB.Tests.MySQLDBPoolSpec as MySQLP
--- import qualified SQLDB.Tests.RunDb2Spec as RD2
 
 main = hspec $ do
   SQLiteDB.spec

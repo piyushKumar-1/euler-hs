@@ -125,8 +125,8 @@ spec =
     it "RunSysCmd" $ do
       let value = "hello"
       res <- runFlowWithArt $ do
-        L.runSysCmd $ "echo -n " <> value
-      res `shouldBe` value
+        L.runSysCmd $ "echo " <> value
+      res `shouldBe` "hello\n"
 
     it "Logging" $ runFlowWithArt $ do
       L.logInfo    @String "Info"    "L.logInfo"

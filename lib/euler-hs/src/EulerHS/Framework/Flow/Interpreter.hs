@@ -35,7 +35,6 @@ import qualified EulerHS.Core.Playback.Machine as P
 import qualified EulerHS.Framework.Flow.Entries as P
 import qualified Data.Vector as V
 import qualified Data.Text as Text
--- import Data.ByteString.Builder
 
 import qualified Database.PostgreSQL.Simple as PGS
 import Data.Generics.Product.Positions (getPosition)
@@ -201,18 +200,17 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
   fmap next $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
 
-interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) = do
-  let connTag = getPosition @1 cfg --T.getConnTag cfg
-  connMap <- takeMVar _sqlConn
-  res <- case (Map.lookup connTag connMap) of
-    Just _ -> do
-      pure $ Left $ T.DBError T.ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
-    Nothing -> connect cfg
-  case res of
-    Right conn -> putMVar _sqlConn $ Map.insert connTag (T.bemToNative conn) connMap
-    Left _ -> putMVar _sqlConn connMap
-
-  fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ connect cfg
+interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
+  fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do
+    let connTag = getPosition @1 cfg
+    connMap <- takeMVar _sqlConn
+    res <- case (Map.lookup connTag connMap) of
+      Just _ -> pure $ Left $ T.DBError T.ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
+      Nothing -> connect cfg
+    case res of
+      Right conn -> putMVar _sqlConn $ Map.insert connTag (T.bemToNative conn) connMap
+      Left _ -> putMVar _sqlConn connMap
+    pure res
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitSqlDBConnectionEntry conn) $ do

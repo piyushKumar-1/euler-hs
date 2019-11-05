@@ -203,24 +203,24 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
 interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
-    connMap <- takeMVar _sqlConn
+    connMap <- takeMVar _sqldbConnections
     res <- case (Map.lookup connTag connMap) of
       Just _ -> pure $ Left $ T.DBError T.ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
       Nothing -> connect cfg
     case res of
-      Right conn -> putMVar _sqlConn $ Map.insert connTag (T.bemToNative conn) connMap
-      Left _ -> putMVar _sqlConn connMap
+      Right conn -> putMVar _sqldbConnections $ Map.insert connTag (T.bemToNative conn) connMap
+      Left _ -> putMVar _sqldbConnections connMap
     pure res
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitSqlDBConnectionEntry conn) $ do
     let connTag = getPosition @1 conn
-    connMap <- takeMVar _sqlConn
+    connMap <- takeMVar _sqldbConnections
     case (Map.lookup connTag connMap) of
-      Nothing -> putMVar _sqlConn connMap
+      Nothing -> putMVar _sqldbConnections connMap
       Just _ -> do
         disconnect conn
-        putMVar _sqlConn $ Map.delete connTag connMap
+        putMVar _sqldbConnections $ Map.delete connTag connMap
 
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
@@ -235,39 +235,16 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
           -- TODO: MySQL has autocommit mode on by default.
           -- This makes changes to be commited immediately.
           -- TODO: check for what's to do with transactions.
-        --  (T.MySQLConn _ _) -> do
-        --    map (first $ T.DBError T.SomeError . show) $
-        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
-
-        --  (T.SQLiteConn _ _) -> do
-        --    map (first $ T.DBError T.SomeError . show) $
-        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
-
-        --  (T.PostgresConn _ _) -> do
-        --    map (first $ T.DBError T.SomeError . show) $
-        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
-
-        --  (T.PostgresPool _ _) -> do
-        --    map (first $ T.DBError T.SomeError . show) $
-        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
-
-        --  (T.MySQLPool _ _) -> do
-        --    map (first $ T.DBError T.SomeError . show) $
-        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
-
-        --  (T.SQLitePool _ _) -> do
-        --    map (first $ T.DBError T.SomeError . show) $
-        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
           (T.MockedConn _) -> error $ "MockedSqlConn not implemented"
 
-          _                -> do
+          _                ->
             map (first $ T.DBError T.SomeError . show) $
               try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   fmap next $ do
-    connections <- readMVar _connections
+    connections <- readMVar _kvdbConnections
     case Map.lookup "redis" connections of
       Just (kvdbconn) -> R.runKVDB _runMode kvdbconn act
       Nothing -> pure $ Left $ ExceptionMessage "Can't find redis connection"

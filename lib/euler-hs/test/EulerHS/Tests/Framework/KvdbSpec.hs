@@ -43,9 +43,9 @@ mockedValues = KVDBMockedValues'
 withRedisConnection :: MVar KVDBMockedValues' -> (FlowRuntime -> IO()) -> IO()
 withRedisConnection mv next =
   withFlowRuntime Nothing $ \rt -> do
-    connections     <- takeMVar $ _connections rt
+    connections     <- takeMVar $ _kvdbConnections rt
     let newConnections = insert "redis" (Mocked mv) $ connections
-    putMVar (_connections rt) newConnections
+    putMVar (_kvdbConnections rt) newConnections
     next rt
 
 spec :: Spec

@@ -27,18 +27,18 @@ data FlowRuntime = FlowRuntime
   { _coreRuntime :: R.CoreRuntime
   , _httpClientManager :: MVar Manager
   , _options :: MVar (Map ByteString ByteString)
-  , _connections :: MVar (Map DBName T.KVDBConn)
+  , _kvdbConnections :: MVar (Map DBName T.KVDBConn)
   , _runMode :: T.RunMode
-  , _sqlConn :: MVar (Map T.ConnTag T.NativeSqlConn)
+  , _sqldbConnections :: MVar (Map T.ConnTag T.NativeSqlConn)
   }
 
 createFlowRuntime :: R.CoreRuntime -> IO (FlowRuntime )
 createFlowRuntime coreRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
-  connections <- newMVar Data.Map.empty
-  sqlConnPools <- newMVar Data.Map.empty
-  pure $ FlowRuntime coreRt managerVar optionsVar connections T.RegularMode sqlConnPools
+  kvdbConnections <- newMVar Data.Map.empty
+  sqldbConnections <- newMVar Data.Map.empty
+  pure $ FlowRuntime coreRt managerVar optionsVar kvdbConnections T.RegularMode sqldbConnections
 
 
 createFlowRuntime' :: Maybe T.LoggerConfig -> IO (FlowRuntime )

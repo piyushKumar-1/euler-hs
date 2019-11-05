@@ -247,37 +247,7 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
               try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
-  fmap next $ do
-    connections <- readMVar _kvdbConnections
-    case Map.lookup "redis" connections of
-      Just (kvdbconn) -> R.runKVDB _runMode kvdbconn act
-      Nothing -> pure $ Left $ ExceptionMessage "Can't find redis connection"
+  fmap next $ R.runKVDB _runMode _kvdbConnections act
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)
-
-
-forkRecorderRt :: Text -> T.RecorderRuntime -> IO (T.Recording, T.RecorderRuntime)
-forkRecorderRt newFlowGUID rrt = do
-  let T.RecorderRuntime
-        { recording = T.Recording{..}
-        , ..
-        } = rrt
-
-  freshRecording <- T.Recording <$> newMVar V.empty <*> newMVar Map.empty
-  emptyRecording <- T.Recording <$> newEmptyMVar    <*> newEmptyMVar
-
-  let forkRuntime = T.RecorderRuntime
-        { flowGUID        = newFlowGUID
-        , recording       = freshRecording
-        , ..
-        }
-
-  forkedRecs <- takeMVar $ forkedRecordingsVar
-  putMVar forkedRecordingsVar $
-    Map.insert newFlowGUID emptyRecording forkedRecs
-
-  pure
-    ( emptyRecording
-    , forkRuntime
-    )

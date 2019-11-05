@@ -167,6 +167,9 @@ mkHGetEntry k f r = HGetEntry
 
 -- ----------------------------------------------------------------------
 
+jsonExDecode :: forall a . T.JSONEx a => A.Value -> Maybe a
+jsonExDecode = T.resolveJSONEx @a T.jsonDecode T.fromJSONMaybe
+
 data MultiExecEntry = MultiExecEntry
   { jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
@@ -174,19 +177,21 @@ data MultiExecEntry = MultiExecEntry
 instance RRItem MultiExecEntry where
   getTag _ = "MultiExecEntry"
 
-instance T.JSONEx a => MockedResult MultiExecEntry (T.TxResult a) where
-  getMock MultiExecEntry {jsonResult} = case foo of
-    Nothing -> Nothing
-    Just (T.TxSuccess Nothing)  -> Nothing
-    Just (T.TxSuccess (Just a)) -> Just $ T.TxSuccess a
-    Just T.TxAborted            -> Just $ T.TxAborted
-    Just (T.TxError s)          -> Just $ T.TxError s
+instance T.JSONEx a => MockedResult MultiExecEntry (Either T.KVDBReply (T.TxResult a)) where
+  getMock MultiExecEntry {jsonResult} =
+    case temp of
+      Nothing                             -> Nothing
+      Just (Left e)                       -> Just $ Left e
+      Just (Right (T.TxSuccess Nothing )) -> Nothing
+      Just (Right (T.TxSuccess (Just a))) -> Just $ Right $ T.TxSuccess a
+      Just (Right (T.TxAborted         )) -> Just $ Right $ T.TxAborted
+      Just (Right (T.TxError s         )) -> Just $ Right $ T.TxError s
     where
-      foo :: Maybe (T.TxResult (Maybe a))
-      foo = fmap (fmap (T.resolveJSONEx @a T.jsonDecode T.fromJSONMaybe)) $
-        A.parseMaybe A.parseJSON1 jsonResult
+      temp :: Maybe (Either T.KVDBReply (T.TxResult (Maybe a)))
+      temp = fmap (fmap (fmap jsonExDecode)) $ jsonExDecode jsonResult
 
-mkMultiExecEntry :: forall a . T.JSONEx a => T.TxResult a -> MultiExecEntry
+
+mkMultiExecEntry :: forall a . T.JSONEx a => Either T.KVDBReply (T.TxResult a) -> MultiExecEntry
 mkMultiExecEntry r = MultiExecEntry $
-    A.toJSON1 $ fmap (T.resolveJSONEx @a T.jsonEncode toJSON) r
+    A.toJSON $ fmap (A.toJSON1 . fmap (T.resolveJSONEx @a T.jsonEncode toJSON)) r
 

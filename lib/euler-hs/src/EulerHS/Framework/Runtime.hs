@@ -25,7 +25,6 @@ import qualified Database.Beam.Sqlite.Connection as SQLite
 import qualified Database.Beam.Postgres          as BP
 -- data Connection = Redis RD.Connection
 
-type DBName = ByteString
 
 
 -- | FlowRuntime state and options.
@@ -36,7 +35,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Http manager, used for external api calls
   , _options :: MVar (Map ByteString ByteString)
   -- ^ Typed key-value storage
-  , _kvdbConnections :: MVar (Map DBName T.KVDBConn)
+  , _kvdbConnections :: MVar (Map ByteString T.KVDBConn)
   -- ^ Connections for key-value databases
   , _runMode :: T.RunMode
   -- ^ ART mode in which current flow runs

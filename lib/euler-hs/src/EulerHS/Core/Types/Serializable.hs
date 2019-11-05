@@ -81,9 +81,15 @@ instance JSONEx a => Serializable (Maybe a) where
 
     jsonDecode = resolveJSONEx @a
         (decodeWith jsonDecode)
-        (decodeWith $ A.parseMaybe parseJSON)
+        (decodeWith fromJSONMaybe)
         where
-            decodeWith dl = join . fmap dl . join . A.parseMaybe parseJSON
+          decodeWith dl val =
+            case fmap (fmap dl) $ fromJSONMaybe val of
+              Just (Just (Just v)) -> Just (Just v)
+              Just (Nothing)       -> Just (Nothing)
+              _                    -> Nothing
+
+
 
 
 

@@ -27,10 +27,11 @@ import qualified Database.Redis  as RD
 import qualified Data.Aeson      as A
 import qualified GHC.Generics    as G
 
+
+
 -- Key-value database connection
 data KVDBConn
-  = Mocked KVDBMockedValues
-  -- ^ Mocked connection.
+  = Mocked
   | Redis RD.Connection
   -- ^ Real connection.
 
@@ -117,7 +118,7 @@ data TxResult a
   = TxSuccess a
   | TxAborted
   | TxError String
-  deriving (Eq, Show, Functor, G.Generic1, A.ToJSON1, A.FromJSON1)
+  deriving (Eq, Show, Functor, Generic, G.Generic1, A.ToJSON1, A.FromJSON1, ToJSON, FromJSON)
 
 fromRdTxResult :: RD.TxResult a -> TxResult a
 fromRdTxResult (RD.TxSuccess a) = TxSuccess a

@@ -142,9 +142,9 @@ replayWithGlobalConfig playerRt  ioAct mkRRItem eNextRRItemRes = do
     GlobalSkip -> ioAct
 
 checkForReplayConfig :: PlayerRuntime -> String -> GlobalReplayingMode
-checkForReplayConfig  PlayerRuntime{..} tag | tag `elem` disableMocking  = GlobalNoMocking
-                                            | tag `elem` disableVerify   = GlobalNoVerify
-                                            | otherwise                  = GlobalNormal
+checkForReplayConfig  PlayerRuntime{..} tag | tag `elem` disableMocking = GlobalNoMocking
+                                            | tag `elem` disableVerify  = GlobalNoVerify
+                                            | otherwise                 = GlobalNormal
 
 replay
   :: forall rrItem native m

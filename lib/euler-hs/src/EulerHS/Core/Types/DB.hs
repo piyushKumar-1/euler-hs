@@ -14,9 +14,11 @@ import qualified Database.Beam.MySQL             as BM
 import qualified Database.Beam.Postgres          as BP
 import qualified Database.Beam.Sqlite            as BS
 import qualified Database.Beam.Sqlite.Connection as SQLite
+import qualified Database.SQLite.Simple          as SQLiteS
 import qualified Data.Pool                       as DP
 import qualified Database.MySQL.Base             as MySQL
 import qualified Database.SQLite.Simple          as SQLite
+import qualified Database.PostgreSQL.Simple      as PGS
 import           Data.Time.Clock                    (NominalDiffTime)
 
 import           EulerHS.Core.Types.MySQL        (MySQLConfig, MySQLPoolConfig, createMySQLConn)
@@ -58,25 +60,87 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
 class BeamRunner beM where
   getBeamDebugRunner :: SqlConn beM -> beM a -> ((String -> IO ()) -> IO a)
 
--- TODO: move somewhere (it's implementation)
-instance BeamRunner BS.SqliteM where
-  getBeamDebugRunner (SQLiteConn _ conn) beM = \logger -> SQLite.runBeamSqliteDebug logger conn beM
-  getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> SQLite.runBeamSqliteDebug logger connection beM
-  getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
 
--- TODO: move somewhere (it's implementation)
+instance BeamRunner BS.SqliteM where
+  getBeamDebugRunner (SQLiteConn _ conn) beM = \logger -> do
+    let begin    = beginTransactionSQLite      logger conn
+    let commit   = commitTransactionSQLite     logger conn
+    let rollback = rollbackTransactionSQLite   logger conn
+    bracketOnError begin (const rollback) $ const $ do
+      res <- SQLite.runBeamSqliteDebug logger conn beM
+      commit
+      return res
+    
+
+  getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
+    $ \connection -> do
+        let begin    = beginTransactionSQLite      logger connection
+        let commit   = commitTransactionSQLite     logger connection
+        let rollback = rollbackTransactionSQLite   logger connection
+        bracketOnError begin (const rollback) $ const $ do
+          res <- SQLite.runBeamSqliteDebug logger connection beM
+          commit
+          return res
+
+  getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
+
+executeWithLogSQLite :: (String -> IO ()) -> SQLiteS.Connection -> SQLiteS.Query -> IO ()
+executeWithLogSQLite log conn q = SQLiteS.execute_ conn q >> (log $ show q)
+
+beginTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
+beginTransactionSQLite    log conn = executeWithLogSQLite log conn "BEGIN TRANSACTION"
+
+commitTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
+commitTransactionSQLite   log conn = executeWithLogSQLite log conn "COMMIT TRANSACTION"
+
+rollbackTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
+rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRANSACTION"
+
+
 instance BeamRunner BP.Pg where
-  getBeamDebugRunner (PostgresConn _ conn) beM = \logger -> BP.runBeamPostgresDebug logger conn beM
+  getBeamDebugRunner (PostgresConn _ conn) beM = \logger -> do
+    let begin    = PGS.begin conn
+    let commit   = PGS.commit conn
+    let rollback = PGS.rollback conn
+    bracketOnError begin (const rollback) $ const $ do
+      res <- BP.runBeamPostgresDebug logger conn beM
+      commit
+      return res
+
   getBeamDebugRunner (PostgresPool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> BP.runBeamPostgresDebug logger connection beM
-  getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
+    $ \connection -> do
+        let begin    = PGS.begin connection
+        let commit   = PGS.commit connection
+        let rollback = PGS.rollback connection
+        bracketOnError begin (const rollback) $ const $ do
+          res <- BP.runBeamPostgresDebug logger connection beM
+          commit
+          return res
+
+  getBeamDebugRunner _ _ = \_ -> error "Not a Postgres connection"
 
 instance BeamRunner BM.MySQLM where
-  getBeamDebugRunner (MySQLConn _ conn) beM = \logger -> BM.runBeamMySQLDebug logger conn beM
+  getBeamDebugRunner (MySQLConn _ conn) beM = \logger -> do
+    let begin    = pure ()              -- Seems no begin transaction in MySQL
+    let commit   = MySQL.commit conn
+    let rollback = MySQL.rollback conn
+    bracketOnError begin (const rollback) $ const $ do
+      res <- BM.runBeamMySQLDebug logger conn beM
+      commit
+      return res
+      
+
   getBeamDebugRunner (MySQLPool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> BM.runBeamMySQLDebug logger connection beM
-  getBeamDebugRunner _ _ = \_ -> error "Invalid connection"   -- TODO: more informative error
+    $ \connection -> do
+        let begin    = pure ()
+        let commit   = MySQL.commit connection
+        let rollback = MySQL.rollback connection
+        bracketOnError begin (const rollback) $ const $ do
+          res <- BM.runBeamMySQLDebug logger connection beM
+          commit
+          return res
+
+  getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
 -- ###
 
 data NativeSqlConn

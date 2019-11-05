@@ -225,9 +225,6 @@ interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = (R._runMode flowRt)
-  let errLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-                . L.logMessage' T.Error ("RUNTIME" :: String)
-                . show
   let dbgLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                 . L.logMessage' T.Debug ("RUNTIME" :: String)
                 . show
@@ -235,79 +232,38 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
           -- N.B. Beam runner should correspond to the real runtime.
           -- TODO: check for this correspondence or make it unavoidable.
-          -- TODO: move begin / commit / rollback into the runner
           -- TODO: MySQL has autocommit mode on by default.
           -- This makes changes to be commited immediately.
           -- TODO: check for what's to do with transactions.
-          (T.MySQLConn _ mySQLConn) -> do
-            let begin    = pure ()              -- Seems no begin transaction in MySQL
-            let commit   = MySQL.commit mySQLConn
-            let rollback = MySQL.rollback mySQLConn
+        --  (T.MySQLConn _ _) -> do
+        --    map (first $ T.DBError T.SomeError . show) $
+        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-                res <- R.runSqlDB conn dbgLogger sqlDbMethod
-                commit
-                return res
+        --  (T.SQLiteConn _ _) -> do
+        --    map (first $ T.DBError T.SomeError . show) $
+        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
-          -- TODO: move begin / commit / rollback into the runner
-          (T.SQLiteConn _ sqliteConn) -> do
-            let begin    = beginTransactionSQLite      errLogger sqliteConn
-            let commit   = commitTransactionSQLite     errLogger sqliteConn
-            let rollback = rollbackTransactionSQLite   errLogger sqliteConn
+        --  (T.PostgresConn _ _) -> do
+        --    map (first $ T.DBError T.SomeError . show) $
+        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-                res <- R.runSqlDB conn dbgLogger sqlDbMethod
-                commit
-                return res
+        --  (T.PostgresPool _ _) -> do
+        --    map (first $ T.DBError T.SomeError . show) $
+        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
-          -- TODO: move begin / commit / rollback into the runner
-          (T.PostgresConn _ c) -> do
-            let begin    = PGS.begin c
-            let commit   = PGS.commit c
-            let rollback = PGS.rollback c
+        --  (T.MySQLPool _ _) -> do
+        --    map (first $ T.DBError T.SomeError . show) $
+        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-                res <- R.runSqlDB conn dbgLogger sqlDbMethod
-                commit
-                return res
-
-          (T.PostgresPool _ pool) -> DP.withResource pool $ \connection -> do
-            let begin    = PGS.begin connection
-            let commit   = PGS.commit connection
-            let rollback = PGS.rollback connection
-
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-                res <- R.runSqlDB conn dbgLogger sqlDbMethod
-                commit
-                return res
-
-          (T.MySQLPool _ pool) -> DP.withResource pool $ \connection -> do
-            let begin    = pure ()
-            let commit   = MySQL.commit connection
-            let rollback = MySQL.rollback connection
-
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-                res <- R.runSqlDB conn dbgLogger sqlDbMethod
-                commit
-                return res
-
-          (T.SQLitePool _ pool) -> DP.withResource pool $ \connection -> do
-            let begin    = beginTransactionSQLite      errLogger connection
-            let commit   = commitTransactionSQLite     errLogger connection
-            let rollback = rollbackTransactionSQLite   errLogger connection
-
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ bracketOnError begin (const rollback) $ const $ do
-                res <- R.runSqlDB conn dbgLogger sqlDbMethod
-                commit
-                return res
+        --  (T.SQLitePool _ _) -> do
+        --    map (first $ T.DBError T.SomeError . show) $
+        --      try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
           (T.MockedConn _) -> error $ "MockedSqlConn not implemented"
+
+          _                -> do
+            map (first $ T.DBError T.SomeError . show) $
+              try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   fmap next $ do

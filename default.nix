@@ -20,6 +20,10 @@ let
           # Overrides for broken packages in nix
           universum =
             self.callPackage ./nix/universum.nix { };
+          servant-xml =
+            self.callPackage ./nix/servant-xml.nix { };
+          xmlbf-xeno =
+            self.callPackage ./nix/xmlbf-xeno.nix { };
           beam-postgres =
             self.callPackage ./nix/beam-postgres.nix { };
           # We need a different upstream for purescript-bridge for now
@@ -48,5 +52,8 @@ in {
   credit-platform = pkgs.haskellPackages.credit-platform;
   euler-backend = pkgs.haskellPackages.euler-backend;
   dashboard = pkgs.haskellPackages.dashboard;
+  # some tests that run automatically during nix build do not work in
+  # an unprepared environment, so you can disable them as follows:
+  # console = pkgs.haskell.lib.dontCheck pkgs.haskellPackages.console;
   console = pkgs.haskellPackages.console;
 }

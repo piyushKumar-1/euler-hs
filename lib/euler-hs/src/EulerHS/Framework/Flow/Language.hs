@@ -184,7 +184,6 @@ runDB
     ( T.JSONEx a
     , T.BeamRunner beM
     , T.BeamRuntime be beM
-    , B.FromBackendRow be a
     )
   => T.SqlConn beM
   -> L.SqlDB beM a

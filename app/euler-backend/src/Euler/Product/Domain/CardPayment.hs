@@ -7,7 +7,7 @@ import           EulerHS.Prelude
 import qualified Euler.API.Types                            as AT
 import qualified Euler.Product.Domain.PaymentMethod.ATMCard as ATMCPM
 import qualified Euler.Product.Domain.PaymentMethod.Card    as CPM
-import Euler.Common.Transaction (AuthType)
+import Euler.Common.Types.Transaction (AuthType)
 
 -- Was Transaction
 data CardPayment = CardPayment

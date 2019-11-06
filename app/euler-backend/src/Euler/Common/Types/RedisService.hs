@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.RedisService where
+module Euler.Common.Types.RedisService where
 
 import EulerHS.Prelude
 

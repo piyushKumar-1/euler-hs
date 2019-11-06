@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Address where
+module Euler.Common.Types.Address where
 
 import EulerHS.Prelude hiding (id, state)
 

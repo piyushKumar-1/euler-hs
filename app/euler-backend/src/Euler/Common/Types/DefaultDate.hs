@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.DefaultDate where
+module Euler.Common.Types.DefaultDate where
 
 import EulerHS.Prelude
 import Data.Time

@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Gateway where
+module Euler.Common.Types.Gateway where
 
 import EulerHS.Prelude
 

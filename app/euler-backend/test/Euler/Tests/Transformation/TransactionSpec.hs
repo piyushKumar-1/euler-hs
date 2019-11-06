@@ -19,7 +19,7 @@ import qualified Euler.Product.Domain.PaymentMethod.Wallet as W
 import qualified Euler.Product.Domain.PaymentMethod.WalletDirect as WD
 import Euler.Product.Domain.PaymentMethod.UPI
 import Euler.API.Validators.Transaction
-import Euler.Common.Transaction (AuthType(..))
+import Euler.Common.Types.Transaction (AuthType(..))
 import Data.Validation
 
 

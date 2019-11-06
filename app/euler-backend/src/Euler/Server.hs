@@ -16,7 +16,7 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
 import qualified Euler.API.Order                        as ApiOrder
-import qualified Euler.Common.Merchant                  as Merchant
+import qualified Euler.Common.Types.Merchant                  as Merchant
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text

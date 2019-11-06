@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Merchant where
+module Euler.Common.Types.Merchant where
 
 import EulerHS.Prelude
 import Data.Time

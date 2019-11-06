@@ -1,12 +1,12 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Mandate where
+module Euler.Common.Types.Mandate where
 
 import EulerHS.Prelude
 import Data.Time
 
-import Euler.Common.Gateway (Gateway)
-import Euler.Common.DefaultDate
+import Euler.Common.Types.Gateway (Gateway)
+import Euler.Common.Types.DefaultDate
 
 
 -- from src/Types/Storage/EC/Mandate/Types.purs

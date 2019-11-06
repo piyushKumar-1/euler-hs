@@ -1,11 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Customer where
+module Euler.Common.Types.Customer where
 
 import EulerHS.Prelude
 import Data.Time
 
-import Euler.Common.DefaultDate
+import Euler.Common.Types.DefaultDate
 
 data Customer = Customer
   { id                :: Maybe Text

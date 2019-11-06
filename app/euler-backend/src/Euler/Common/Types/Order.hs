@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Order where
+module Euler.Common.Types.Order where
 
 import EulerHS.Prelude
 

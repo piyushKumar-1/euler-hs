@@ -4,7 +4,7 @@ module Euler.Product.Domain.OrderMetadataV2 where
 
 import EulerHS.Prelude
 import Data.Time
-import Euler.Common.DefaultDate
+import Euler.Common.Types.DefaultDate
 
 data OrderMetadataV2 = OrderMetadataV2
   { id               :: Maybe Int

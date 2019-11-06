@@ -22,8 +22,7 @@ import Euler.Product.Domain.PaymentMethod.WalletDirect
 import Euler.Product.Domain.PaymentMethod.UPI
 import qualified Euler.API.Transaction as AT
 import qualified Euler.API.Types as AT
-import Euler.Common.Transaction (AuthType(..))
-import Euler.API.Types
+import Euler.Common.Types.Transaction (AuthType(..))
 
 
 -- TODO Probably we can factor explicit apiTxn out with the help of ReaderT

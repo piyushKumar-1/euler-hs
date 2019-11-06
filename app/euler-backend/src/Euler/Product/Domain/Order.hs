@@ -4,10 +4,10 @@ module Euler.Product.Domain.Order where
 
 import EulerHS.Prelude
 import Data.Time
-import Euler.Common.Order (OrderStatus(NEW), MandateFeature)
-import Euler.Common.DefaultDate
-import Euler.Common.Promotion
-import Euler.Common.Address
+import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature)
+import Euler.Common.Types.DefaultDate
+import Euler.Common.Types.Promotion
+import Euler.Common.Types.Address
 
 -- Previously: OrderReference
 -- should fields be "Maybe" ?

@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Common.Transaction where
+module Euler.Common.Types.Transaction where
 
 import EulerHS.Prelude
 

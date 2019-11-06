@@ -7,8 +7,8 @@ import Data.Time
 import Servant
 import Web.FormUrlEncoded (FromForm, ToForm)
 
-import Euler.Common.Order (OrderStatus(..), MandateFeature)
-import Euler.Common.Promotion
+import Euler.Common.Types.Order (OrderStatus(..), MandateFeature)
+import Euler.Common.Types.Promotion
 
 
 -- Previously: OrderCreateReq

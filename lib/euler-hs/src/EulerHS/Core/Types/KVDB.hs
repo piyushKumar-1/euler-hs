@@ -9,9 +9,12 @@ import qualified Database.Redis  as RD
 import qualified Data.Aeson      as A
 import qualified GHC.Generics    as G
 
+-- Key-value database connection
 data KVDBConn
   = Mocked KVDBMockedValues
+  -- ^ Mocked connection.
   | Redis RD.Connection
+  -- ^ Real connection.
 
 data KVDBMockedValues' = KVDBMockedValues'
   { kvdbSet    :: [KVDBStatus]

@@ -65,41 +65,51 @@ data KVDBF next
 type KVDB next = ExceptT T.KVDBReply (F KVDBF) next
 
 ----------------------------------------------------------------------
-
+-- | Set the value of a key. Transaction version.
 setTx :: KVDBKey -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
 setTx key value = liftFC $ Set key value id
 
+-- | Get the value of a key. Transaction version.
 getTx :: KVDBKey -> KVDBTx (R.Queued (Maybe ByteString))
 getTx key = liftFC $ Get key id
 
+-- | Delete a keys. Transaction version.
 delTx :: [KVDBKey] -> KVDBTx (R.Queued Integer)
 delTx ks = liftFC $ Del ks id
 
 ---
-
+-- | Set the value of a key
 set :: KVDBKey -> KVDBValue -> KVDB T.KVDBStatus
 set key value = ExceptT $ liftFC $ KV $ Set key value id
 
+-- | Get the value of a key
 get :: KVDBKey -> KVDB (Maybe ByteString)
 get key = ExceptT $ liftFC $ KV $ Get key id
 
+-- | Determine if a key exists
 exists :: KVDBKey -> KVDB Bool
 exists key = ExceptT $ liftFC $ KV $ Exists key id
 
+-- | Delete a keys
 del :: [KVDBKey] -> KVDB Integer
 del ks = ExceptT $ liftFC $ KV $ Del ks id
 
+-- | Set a key's time to live in seconds
 expire :: KVDBKey -> KVDBDuration -> KVDB Bool
 expire key sec = ExceptT $ liftFC $ KV $ Expire key sec id
 
+-- | Increment the integer value of a key by one
 incr :: KVDBKey -> KVDB Integer
 incr key = ExceptT $ liftFC $ KV $ Incr key id
 
+-- | Set the value of a hash field
 hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB Bool
 hset key field value = ExceptT $ liftFC $ KV $ HSet key field value id
 
+-- | Get the value of a hash field
 hget :: KVDBKey -> KVDBField -> KVDB (Maybe ByteString)
 hget key field = ExceptT $ liftFC $ KV $ HGet key field id
 
+-- | Run commands inside a transaction.
 multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id

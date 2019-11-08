@@ -106,6 +106,7 @@ delete' = sqlDBMethod . delete''
 
 
 -- Convenience interface
+
 -- | Select many
 findRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)

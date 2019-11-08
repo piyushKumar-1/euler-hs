@@ -31,10 +31,13 @@ type Ctx = Text
 type Errors = [Text]
 
 -- TODO: Looks like Profunctor. Does it hold laws?
+-- | Represents Transformer from one type to another.
 type Transformer a b = a -> ReaderT Ctx (Either Errors) b
 
+-- | Represents the value parameter validator.
 type Validator a = Transformer a a
 
+-- | This class represents transformation abilities between types.
 class Transform a b where
   transform :: a -> Validation [Text] b
 

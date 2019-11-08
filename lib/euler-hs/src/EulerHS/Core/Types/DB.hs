@@ -21,7 +21,7 @@ import qualified Database.SQLite.Simple          as SQLite
 import qualified Database.PostgreSQL.Simple      as PGS
 import           Data.Time.Clock                    (NominalDiffTime)
 
-import           EulerHS.Core.Types.MySQL        (MySQLConfig, MySQLPoolConfig, createMySQLConn)
+import           EulerHS.Core.Types.MySQL        (MySQLConfig, createMySQLConn)
 import           EulerHS.Core.Types.Postgres     (PostgresConfig, createPostgresConn)
 
 

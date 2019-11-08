@@ -75,22 +75,15 @@ data MySQLConfig = MySQLConfig
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data MySQLPoolConfig = MySQLPoolConfig
-  { mySqlConfig :: MySQLConfig
-  , stripes :: Int
-  , keepAlive :: NominalDiffTime
-  , resourcesPerStripe :: Int
-  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+-- | Connect with the given config to the database.
 createMySQLConn :: MySQLConfig -> IO MySQL.Connection
 createMySQLConn = MySQL.connect . toMySQLConnectInfo
 
+-- | Close the given connection.
 closeMySQLConn :: MySQL.Connection -> IO ()
 closeMySQLConn = MySQL.close
 
-createMySQLConnPool ::  MySQLPoolConfig -> IO (DP.Pool MySQL.Connection)
-createMySQLConnPool MySQLPoolConfig{..} 
-  = DP.createPool (createMySQLConn mySqlConfig) closeMySQLConn stripes keepAlive resourcesPerStripe
 
 
 toMySQLProtocol :: MySqlProtocol -> MySQL.Protocol
@@ -128,6 +121,7 @@ toMySQLOption NoSchema                 = MySQL.NoSchema
 toMySQLSslInfo :: SSLInfo -> MySQL.SSLInfo
 toMySQLSslInfo SSLInfo {..} = MySQL.SSLInfo {..}
 
+-- | Transform MySQLConfig to the MySQL ConnectInfo.
 toMySQLConnectInfo :: MySQLConfig -> MySQL.ConnectInfo
 toMySQLConnectInfo MySQLConfig {..} = MySQL.ConnectInfo
   { MySQL.connectHost     = connectHost

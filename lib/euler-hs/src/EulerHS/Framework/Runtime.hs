@@ -22,16 +22,23 @@ import qualified Database.Beam.Postgres          as BP
 type DBName = ByteString
 
 
-
+-- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
   { _coreRuntime :: R.CoreRuntime
+  -- ^ Contains logger settings
   , _httpClientManager :: MVar Manager
+  -- ^ Http manager, used for external api calls
   , _options :: MVar (Map ByteString ByteString)
+  -- ^ Typed key-value storage
   , _kvdbConnections :: MVar (Map DBName T.KVDBConn)
+  -- ^ Connections for key-value databases
   , _runMode :: T.RunMode
+  -- ^ ART mode in which current flow runs
   , _sqldbConnections :: MVar (Map T.ConnTag T.NativeSqlConn)
+  -- ^ Connections for SQL databases
   }
 
+-- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO (FlowRuntime )
 createFlowRuntime coreRt = do
   managerVar <- newManager defaultManagerSettings >>= newMVar
@@ -48,12 +55,14 @@ createFlowRuntime'  mbLoggerCfg =
 clearFlowRuntime :: FlowRuntime  -> IO ()
 clearFlowRuntime _ = pure ()
 
+-- | Run flow with given logger config.
 withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime  -> IO a) -> IO a
 withFlowRuntime mbLoggerCfg actionF =
   bracket (createLoggerRuntime' mbLoggerCfg) R.clearLoggerRuntime $ \loggerRt ->
   bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt ->
   bracket (createFlowRuntime coreRt) clearFlowRuntime actionF
 
+-- | Create logger runtime with given configuration.
 createLoggerRuntime' :: Maybe T.LoggerConfig -> IO R.LoggerRuntime
 createLoggerRuntime' mbLoggerCfg = case mbLoggerCfg of
   Nothing        -> R.createVoidLoggerRuntime

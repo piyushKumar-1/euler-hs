@@ -141,17 +141,18 @@ instance BeamRunner BM.MySQLM where
           return res
 
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
--- ###
 
+-- | Representation of native DB connections that we store in FlowRuntime
 data NativeSqlConn
-  = NativePGConn BP.Connection
-  | NativeMySQLConn MySQL.Connection
-  | NativeSQLiteConn SQLite.Connection
-  | NativePGPool (DP.Pool BP.Connection)
-  | NativeMySQLPool (DP.Pool MySQL.Connection)
-  | NativeSQLitePool (DP.Pool SQLite.Connection)
+  = NativePGConn BP.Connection                   -- ^ Postgres connection
+  | NativeMySQLConn MySQL.Connection             -- ^ MySQL connection
+  | NativeSQLiteConn SQLite.Connection           -- ^ SQLite connection
+  | NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
+  | NativeMySQLPool (DP.Pool MySQL.Connection)   -- ^ 'Pool' with MySQL connections
+  | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
   | NativeMockedConn
 
+-- | Transform 'SqlConn' to 'NativeSqlConn'
 bemToNative :: SqlConn beM -> NativeSqlConn
 bemToNative (MockedConn _) = NativeMockedConn
 bemToNative (SQLiteConn _ conn) = NativeSQLiteConn conn
@@ -161,7 +162,7 @@ bemToNative (PostgresPool _ conn) = NativePGPool conn
 bemToNative (MySQLPool _ conn) = NativeMySQLPool conn
 bemToNative (SQLitePool _ conn) = NativeSQLitePool conn
 
-
+-- | Create 'SqlConn' from 'DBConfig'
 mkSqlConn :: DBConfig beM -> IO (SqlConn beM)
 mkSqlConn (PostgresPoolConf connTag PoolConfig {..} cfg) =  PostgresPool connTag
   <$> DP.createPool (createPostgresConn cfg) BP.close stripes keepAlive resourcesPerStripe
@@ -181,68 +182,98 @@ mkSqlConn (MySQLConf connTag cfg) =  MySQLConn connTag <$> createMySQLConn cfg
 mkSqlConn (MockConfig connTag) = pure $ MockedConn connTag
 
 
-
+-- | Tag for SQL connections
 type ConnTag = Text
 
+-- | Represents path to the SQLite DB
 type SQliteDBname = String
 
+-- | Represents SQL connection that we use in flow.
+--   Parametrised by BEAM monad corresponding to the certain DB (MySQL, Postgres, SQLite)
 data SqlConn beM
   = MockedConn ConnTag
   | SQLiteConn ConnTag SQLite.Connection
+  -- ^ SQLite connection
   | PostgresConn ConnTag BP.Connection
+  -- ^ Postgres connection
   | MySQLConn ConnTag MySQL.Connection
+  -- ^ MySQL connection
   | PostgresPool ConnTag (DP.Pool BP.Connection)
+  -- ^ 'Pool' with Postgres connections
   | MySQLPool ConnTag (DP.Pool MySQL.Connection)
+  -- ^ 'Pool' with MySQL connections
   | SQLitePool ConnTag (DP.Pool SQLite.Connection)
+ -- ^ 'Pool' with SQLite connections
   deriving (Generic)
 
+
+-- | Represents DB configurations
 data DBConfig beM
   = MockConfig ConnTag
   | SQLiteConf ConnTag SQliteDBname
+  -- ^ config for SQLite connection
   | PostgresConf ConnTag PostgresConfig
+  -- ^ config for Postgres connection
   | PostgresPoolConf ConnTag PoolConfig PostgresConfig
+  -- ^ config for 'Pool' with Postgres connections
   | MySQLConf ConnTag MySQLConfig
+  -- ^ config for MySQL connection
   | MySQLPoolConf ConnTag PoolConfig MySQLConfig
+  -- ^ config for 'Pool' with MySQL connections
   | SQLitePoolConf ConnTag PoolConfig SQliteDBname
+  -- ^ config for 'Pool' with SQLite connections
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
+-- | Represents 'Pool' parameters
 data PoolConfig = PoolConfig
   { stripes :: Int
+  -- ^ a number of sub-pools
   , keepAlive :: NominalDiffTime
+  -- ^ the amount of time the connection will be stored
   , resourcesPerStripe :: Int
-  } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  -- ^ maximum number of connections to be stored in each sub-pool
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+-- | Create SQLite 'DBConfig'
 mkSQLiteConfig :: ConnTag -> SQliteDBname -> DBConfig BS.SqliteM
 mkSQLiteConfig = SQLiteConf
 
+-- | Create SQLite 'Pool' 'DBConfig'
 mkSQLitePoolConfig :: ConnTag -> PoolConfig -> SQliteDBname -> DBConfig BS.SqliteM
 mkSQLitePoolConfig = SQLitePoolConf
 
+-- | Create Postgres 'DBConfig'
 mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
 mkPostgresConfig = PostgresConf
 
+-- | Create Postgres 'Pool' 'DBConfig'
 mkPostgresPoolConfig :: ConnTag -> PoolConfig -> PostgresConfig -> DBConfig BP.Pg
 mkPostgresPoolConfig = PostgresPoolConf
 
+-- | Create MySQL 'DBConfig'
 mkMySQLConfig :: ConnTag -> MySQLConfig -> DBConfig BM.MySQLM
 mkMySQLConfig = MySQLConf
 
+-- | Create MySQL 'Pool' 'DBConfig'
 mkMySQLPoolConfig :: ConnTag -> PoolConfig -> MySQLConfig -> DBConfig BM.MySQLM
 mkMySQLPoolConfig = MySQLPoolConf
 
 
 
 -- TODO: more informative typed error.
+-- | Represents failures that may occur while working with the database
 data DBErrorType
   = ConnectionFailed
   | ConnectionAlreadyExists
   | SomeError
   deriving (Show, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
 
+-- | Represents DB error
 data DBError
   = DBError DBErrorType Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+-- | Represents resulting type for DB actions
 type DBResult a = Either DBError a
 

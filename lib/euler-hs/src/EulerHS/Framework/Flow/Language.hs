@@ -129,11 +129,38 @@ instance Functor FlowMethod where
 
 type Flow = F FlowMethod
 
+
+-- | Takes remote url, servant client for this endpoint
+-- and return client error or result
+--
+-- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- > 
+-- > data Book = Book { author :: String, name :: String }
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- > 
+-- > type API = "user" :> Get '[JSON] User
+-- >       :<|> "book" :> Get '[JSON] Book
+-- > 
+-- > api :: Proxy API
+-- > api = Proxy
+-- > 
+-- > getUser :: ClientM User
+-- > getBook :: ClientM Book
+-- > (getUser :<|> getBook) = client api
+-- > 
+-- > url = BaseUrl Http "localhost" port ""
+-- > 
+-- > 
+-- > myFlow = do
+-- >   book <- callServantAPI url getBook
+-- >   user <- callServantAPI url getUser
+
 callServantAPI
   :: T.JSONEx a
-  => BaseUrl
-  -> ClientM a
-  -> Flow (Either ClientError a)
+  => BaseUrl                     -- ^ remote url 'BaseUrl'
+  -> ClientM a                   -- ^ servant client 'ClientM'
+  -> Flow (Either ClientError a) -- ^ result
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
 -- callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
@@ -158,27 +185,91 @@ logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 logWarning :: Show tag => tag -> T.Message -> Flow ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
+-- | run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
+-- because we have to collect it in recordings for ART system
+--
+-- > myFlow = do
+-- >   content <- runIO $ readFromFile file
+-- >   logDebug "content id" $ extractContentId content
+-- >   pure content
 runIO :: T.JSONEx a => IO a -> Flow a
 runIO ioAct = liftFC $ RunIO ioAct id
 
+
+-- *** getOption and setOption
+
+
+-- | Get stored option by typed key
 getOption :: T.OptionEntity k v => k -> Flow (Maybe v)
 getOption k = liftFC $ GetOption k id
 
+-- | Store given key/option pair in the storage
+--
+-- getOption and setOption are provides interface for runtime typed key-value storage.
+-- You can create special types for some options and use it as keys for stored data.
+-- It's safer than using strings as keys, because the compiler will let you know if you made typo.
+--
+-- >  data MerchantIdKey = MerchantIdKey
+-- >
+-- >  instance OptionEntity MerchantIdKey Text
+-- >  
+-- >  myFlow = do
+-- >    _ <- setOption MerchantIdKey "abc1234567"
+-- >    mKey <- getOption MerchantKey
+-- >    runIO $ putTextLn mKey
 setOption :: T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption k v id
 
+-- | Just generate version 4 UUIDs as specified in RFC 4122
+-- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611
+-- universally unique identifier (UUID)
+-- The term globally unique identifier (GUID) is also used, typically in software created by Microsoft.
 generateGUID :: Flow Text
 generateGUID = liftFC $ GenerateGUID id
 
+-- | Run system command end return output
+--
+-- > myFlow = do
+-- >   currentDir <- runSysCmd "pwd"
+-- >   logInfo "currentDir" $ toText currentDir
+-- >   ...
 runSysCmd :: String -> Flow String
 runSysCmd cmd = liftFC $ RunSysCmd cmd id
 
+-- | Takes SQL DB config and create connection that can be used in queries
 initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 
+-- | Deinit the given connection if you want to deny access over that connection.
 deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
 deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 
+-- | Takes connection, sql query (described using BEAM syntax) and make request.
+--
+-- > myFlow :: L.Flow (T.DBResult (Maybe User))
+-- > myFlow = do
+-- >   connection <- L.initSqlDBConnection postgresCfg
+-- > 
+-- >   res <- L.runDB connection $ do
+-- >     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
+-- > 
+-- >     L.updateRows $ B.update (_users eulerDb)
+-- >       (\User {..} -> mconcat
+-- >         [ _userFirstName <-. B.val_ "Leo"
+-- >         , _userLastName  <-. B.val_ "San"
+-- >         ]
+-- >       )
+-- >       predicate1
+-- > 
+-- >     let predicate2 User {..} = _userFirstName ==. B.val_ "Leo"
+-- >     L.findRow
+-- >       $ B.select
+-- >       $ B.limit_ 1
+-- >       $ B.filter_ predicate2
+-- >       $ B.all_ (_users eulerDb)
+-- > 
+-- >   L.deinitSqlDBConnection connection
+-- >   pure res
 runDB
   ::
     ( T.JSONEx a
@@ -190,8 +281,16 @@ runDB
   -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct id
 
-
-
+-- | Fork given flow
+--
+-- > myFlow1 = do
+-- >   logInfo "myflow1" "logFromMyFlow1"
+-- >   someAction
+-- >
+-- > myFlow2 = do
+-- >   res <- runIO someAction
+-- >   forkFlow "myFlow1 fork" myFlow1
+-- >   pure res
 forkFlow :: T.JSONEx a => Text -> Flow a -> Flow ()
 forkFlow description flow = do
   flowGUID <- generateGUID
@@ -202,11 +301,29 @@ forkFlow description flow = do
     tag :: Text
     tag = "ForkFlow"
 
+
+-- | Throw given exception
+--   in module Servant.Server you can find alot of predefined HTTP exceptions
+--   for different status codes.
+--
+-- > myFlow = do
+-- >   res <- authAction
+-- >   case res of
+-- >     Failure reason -> throwException err403 {errBody = reason}
+-- >     Success -> ...
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
+-- | Execute given kvdb actions
+--
+-- > myFlow = do
+-- >   kvres <- L.runKVDB $ do
+-- >     set "aaa" "bbb"
+-- >     res <- get "aaa"
+-- >     del ["aaa"]
+-- >     pure res
 runKVDB
-  :: KVDB a
+  :: KVDB a -- ^ KVDB action
   -> Flow (T.KVDBAnswer a)
 runKVDB act = liftFC $ RunKVDB act id
 

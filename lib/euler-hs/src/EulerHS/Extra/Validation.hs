@@ -38,13 +38,13 @@ type Validator a = Transformer a a
 class Transform a b where
   transform :: a -> Validation [Text] b
 
--- takes error message and predicate and return validation function
+-- | Takes error message and predicate and return validation function
 mkValidator :: Text -> (t -> Bool) -> Validator t
 mkValidator err pred v = ReaderT (\ctx -> if not $ pred v
   then Left [ctx <> " " <> err]
   else pure v)
 
--- trying to decode Text to target type
+-- | Trying to decode Text to target type
 decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
@@ -54,26 +54,29 @@ insideJust :: Transformer a b -> Transformer (Maybe a) (Maybe b)
 insideJust val Nothing  = pure Nothing
 insideJust val (Just a) = Just <$> val a
 
--- trying to extract the argument from Maybe type
--- if value is Nothing then raise Failure
+-- | Trying to extract the argument from Maybe type
+--   if value is Nothing then raise Failure
 extractJust :: Transformer (Maybe a) a
 extractJust r = ReaderT (\ctx -> maybe (Left [ctx <> " not present"]) Right r)
 
--- extract value and run validators on it
+-- | Extract value and run validators on it
 withField
   :: forall (f :: Symbol) v r a
    . (Generic r, HasField' f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
 
--- return text representation of constructors of a given type
+-- | Return text representation of constructors of a given type
 showConstructors :: forall t . Data t => Text
 showConstructors = T.pack $ show $ getConstructors @t
 
--- return list with constructors of a given type
+-- | Return list with constructors of a given type
 getConstructors :: forall t . Data t => [Constr]
 getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
 
+-- | Return given 'Symbol' as 'Text'
+-- >>> fieldName @"userId"
+-- "userId"
 fieldName_ :: forall (f :: Symbol) . KnownSymbol f => Text
 fieldName_ = T.pack $ ((filter (/='"'))) $ P.show $ typeRep @f
 

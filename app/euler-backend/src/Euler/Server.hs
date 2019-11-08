@@ -46,7 +46,7 @@ eulerServer env = hoistServer eulerAPI (f env) eulerServer'
     f env r = do
       eResult <- liftIO $ (runExceptT $ runReaderT r env ) 
       case eResult of
-        Left err  -> throwError err -- $ show err       -- TODO: error reporting (internal server error & output to console, to log)
+        Left err  -> throwError err -- TODO: error reporting (internal server error & output to console, to log)
         Right res -> pure res
 
 eulerBackendApp :: Env -> Application

@@ -106,31 +106,35 @@ delete' = sqlDBMethod . delete''
 
 
 -- Convenience interface
-
+-- | Select many
 findRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => B.SqlSelect be a
   -> SqlDB beM [a]
 findRows = select'
 
+-- | Select one
 findRow
   :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => B.SqlSelect be a
   -> SqlDB beM (Maybe a)
 findRow = selectOne'
 
+-- | Insert
 insertRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlInsert be table
   -> SqlDB beM ()
 insertRows = insert'
 
+-- | Update
 updateRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlUpdate be table
   -> SqlDB beM ()
 updateRows = update'
 
+-- | Delete
 deleteRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlDelete be table

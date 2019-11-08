@@ -4,7 +4,31 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE RecordWildCards            #-}
 
-module EulerHS.Core.Types.DB where
+module EulerHS.Core.Types.DB
+  (
+    -- * Core DB
+    -- ** Types
+    BeamRuntime(..)
+  , BeamRunner(..)
+  , NativeSqlConn(..)
+  , ConnTag
+  , SQliteDBname
+  , SqlConn(..)
+  , DBConfig
+  , PoolConfig(..)
+  , DBErrorType(..)
+  , DBError(..)
+  , DBResult
+  -- ** Methods
+  , bemToNative
+  , mkSqlConn
+  , mkSQLiteConfig
+  , mkSQLitePoolConfig
+  , mkPostgresConfig
+  , mkPostgresPoolConfig
+  , mkMySQLConfig
+  , mkMySQLPoolConfig
+  ) where
 
 import           EulerHS.Prelude
 

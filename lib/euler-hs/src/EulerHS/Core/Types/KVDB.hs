@@ -1,7 +1,25 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
-module EulerHS.Core.Types.KVDB where
+module EulerHS.Core.Types.KVDB
+  (
+    -- * Core KVDB
+    -- ** Types
+    KVDBConn(..)
+  , KVDBAnswer
+  , KVDBReply
+  , TxResult(..)
+  , KVDBStatus
+  , KVDBStatusF(..)
+  , KVDBMockedValues
+  , KVDBMockedValues'(..)
+  , KVDBReplyF(..)
+  -- ** Methods
+  , fromRdStatus
+  , fromRdTxResult
+  , exceptionToKVDBReply
+  , hedisReplyToKVDBReply
+  ) where
 
 import           EulerHS.Prelude
 import           EulerHS.Core.Types.Serializable

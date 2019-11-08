@@ -2,9 +2,22 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module EulerHS.Core.KVDB.Language
-  ( KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage
+  ( 
+  -- * KVDB language
+  -- ** Types
+    KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage
   , KVDBF(..), KeyValueF(..), TransactionF(..)
-  , set, get, exists, del, expire, incr, hset, hget, multiExec
+  -- ** Methods
+  -- *** Regular
+  -- **** For simple values
+  , set, get, incr
+  -- **** For hash values
+  , hset, hget
+  -- **** For both
+  , exists, del, expire
+  -- *** Transactional
+  -- | Used inside multiExec instead of regular
+  , multiExec
   , setTx, getTx, delTx
   ) where
 

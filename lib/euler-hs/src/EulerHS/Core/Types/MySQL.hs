@@ -2,7 +2,17 @@
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
-module EulerHS.Core.Types.MySQL where
+module EulerHS.Core.Types.MySQL
+  (
+    -- * Core MySQL
+    -- ** Types
+    MySQLConfig(..)
+  , MySqlOption(..)
+    -- ** Methods
+  , createMySQLConn
+    -- ** Defaults
+  , defaultMySQLConfig
+  ) where
 
 import           EulerHS.Prelude
 

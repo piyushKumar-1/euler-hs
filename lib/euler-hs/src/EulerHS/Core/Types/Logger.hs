@@ -1,6 +1,21 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module EulerHS.Core.Types.Logger where
+module EulerHS.Core.Types.Logger
+    (
+    -- * Core Logger
+    -- ** Types
+      LogLevel(..)
+    , Format
+    , LoggerConfig(..)
+    , Message
+    , Tag
+    , PendingMsg(..)
+    , LogEntry
+    , Log
+    -- ** defaults
+    , defaultLoggerConfig
+    , nullLoger
+    ) where
 
 import EulerHS.Prelude
 

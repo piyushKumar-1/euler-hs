@@ -1,4 +1,8 @@
-module EulerHS.Core.Playback.Machine where
+module EulerHS.Core.Playback.Machine
+  (
+    -- * Playback Machine
+    withRunMode
+  ) where
 
 import EulerHS.Prelude hiding (note)
 import EulerHS.Types

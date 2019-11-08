@@ -1,4 +1,14 @@
-module EulerHS.Core.Runtime where
+module EulerHS.Core.Runtime
+  (
+    -- * Core Runtime
+    CoreRuntime(..)
+  , LoggerRuntime(..)
+  , createCoreRuntime
+  , createVoidLoggerRuntime
+  , createLoggerRuntime
+  , clearCoreRuntime
+  , clearLoggerRuntime
+  ) where
 
 import EulerHS.Prelude
 

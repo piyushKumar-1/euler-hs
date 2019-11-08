@@ -3,7 +3,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
-module EulerHS.Framework.Flow.Interpreter where
+module EulerHS.Framework.Flow.Interpreter
+  (
+    -- * Flow Interpreter
+    runFlow
+  ) where
 
 import           EulerHS.Prelude
 import           Control.Exception               (throwIO)

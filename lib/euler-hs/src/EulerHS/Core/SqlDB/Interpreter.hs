@@ -2,7 +2,11 @@
 --{-# LANGUAGE DeriveAnyClass #-}
 --{-# LANGUAGE PartialTypeSignatures #-}
 
-module EulerHS.Core.SqlDB.Interpreter where
+module EulerHS.Core.SqlDB.Interpreter
+  (
+  -- * SQL DB Interpreter  
+  runSqlDB
+  ) where
 
 import EulerHS.Prelude
 

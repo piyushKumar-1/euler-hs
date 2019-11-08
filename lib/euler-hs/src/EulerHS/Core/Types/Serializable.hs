@@ -10,10 +10,15 @@
 
 
 module EulerHS.Core.Types.Serializable
-  ( Serializable(..)
+  (
+    -- * Core Serializable
+    -- ** Class
+    Serializable(..)
+    -- ** Bytestrings
   , ByteStringS
   , fromByteString
   , toByteString
+  -- ** JSONEx
   , JSONEx
   , resolveJSONEx
   , fromJSONMaybe

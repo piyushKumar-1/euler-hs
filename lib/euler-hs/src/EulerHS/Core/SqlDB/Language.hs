@@ -3,7 +3,19 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 
-module EulerHS.Core.SqlDB.Language where
+module EulerHS.Core.SqlDB.Language
+  (
+  -- * SQLDB language
+  -- ** Types
+    SqlDB
+  , SqlDBMethodF(..)
+  -- ** Methods
+  , findRow
+  , findRows
+  , insertRows
+  , updateRows
+  , deleteRows
+  ) where
 
 import           EulerHS.Prelude
 import qualified Database.Beam as B

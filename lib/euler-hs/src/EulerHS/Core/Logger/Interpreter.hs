@@ -1,4 +1,8 @@
 module EulerHS.Core.Logger.Interpreter
+  (
+    -- * Core Logger Interpreter
+    runLogger
+  )
 where
 
 import           EulerHS.Prelude

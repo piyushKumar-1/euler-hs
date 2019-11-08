@@ -1,5 +1,9 @@
 module EulerHS.Core.Logger.Impl.TinyLogger
-  ( LoggerHandle
+  ( 
+    -- * TinyLogger Implementation
+    -- ** Types
+    LoggerHandle
+    -- ** Methods
   , sendPendingMsg
   , createLogger
   , createVoidLogger

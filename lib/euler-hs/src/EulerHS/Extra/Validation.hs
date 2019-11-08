@@ -2,7 +2,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module EulerHS.Extra.Validation
-  ( Transform(..)
+  ( 
+    -- * Extra Validation
+    Transform(..)
   , mkValidator
   , Transformer
   , Validator

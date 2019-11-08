@@ -1,10 +1,37 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Core.Types.Playback where
+module EulerHS.Core.Types.Playback
+  (
+  -- * Core Playback
+  -- ** Types
+    RRItem(..)
+  , MockedResult(..)
+  , RecordingEntry(..)
+  , RecordingEntries
+  , GlobalReplayingMode(..)
+  , EntryReplayingMode(..)
+  , PlaybackErrorType(..)
+  , PlaybackError(..)
+  , ReplayingException(..)
+  , ResultRecording(..)
+  , Recording(..)
+  , ReplayErrors(..)
+  , ResultReplayError
+  , RecorderRuntime(..)
+  , PlayerRuntime(..)
+  , RunMode (..)
+  -- ** Methods
+  , awaitRecording
+  , awaitErrors
+  , flattenErrors
+  , note
+  , encodeToStr
+  , decodeFromStr
+  ) where
 
 
-import EulerHS.Prelude
+import EulerHS.Prelude hiding (note)
 import qualified Data.Aeson                      as A
 import qualified Data.ByteString.Char8           as BS
 import qualified Data.ByteString.Lazy            as BSL
@@ -136,14 +163,14 @@ flattenErrors = catMaybes . flattenErrors_
 
 ----------------------------------------------------------------------
 
--- Represents ART recorder state and parameters
+-- | Represents ART recorder state and parameters
 data RecorderRuntime = RecorderRuntime
   { flowGUID            :: Text
   , recording           :: Recording
   , disableEntries      :: [String]
   }
 
--- Represents ART player state and parameters
+-- | Represents ART player state and parameters
 data PlayerRuntime = PlayerRuntime
   { resRecording         :: ResultRecording
   , rerror               :: ReplayErrors

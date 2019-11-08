@@ -1,4 +1,10 @@
-module EulerHS.Framework.Runtime where
+module EulerHS.Framework.Runtime
+  (
+    -- * Framework Runtime
+    FlowRuntime(..)
+  , createFlowRuntime
+  , withFlowRuntime
+  ) where
 
 import           EulerHS.Prelude
 import           Data.Map            (Map, empty)

@@ -2,7 +2,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module EulerHS.Core.KVDB.Interpreter(runKVDB) where
+module EulerHS.Core.KVDB.Interpreter
+  ( 
+    -- * KVDB Interpreter
+    runKVDB
+  ) where
 
 import           EulerHS.Prelude
 

@@ -3,9 +3,43 @@
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE DeriveAnyClass        #-}
 
-module EulerHS.Framework.Flow.Language where
+module EulerHS.Framework.Flow.Language
+  (
+  -- * Flow language
+  -- ** Types
+    Description
+  , Flow
+  , ForkGUID
+  , FlowMethod(..)
+  -- ** Methods
+  -- *** SQLDB
+  , initSqlDBConnection
+  , deinitSqlDBConnection
+  , runDB
+  -- *** KVDB
+  , runKVDB
+  -- *** Logging
+  , logInfo
+  , logError
+  , logDebug
+  , logWarning
+    -- *** Typed options
+  -- | Store given key/option pair in the storage
+  -- getOption and setOption are provides interface for runtime typed key-value storage.
+  -- You can create special types for some options and use it as keys for stored data.
+  -- It's safer than using strings as keys, because the compiler will let you know if you made typo.
+  , getOption
+  , setOption
+  -- *** Other
+  , callServantAPI
+  , runIO
+  , generateGUID
+  , runSysCmd
+  , forkFlow
+  , throwException
+  ) where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (getOption)
 
 import           Servant.Client (ClientM, ClientError, BaseUrl)
 
@@ -131,7 +165,7 @@ type Flow = F FlowMethod
 
 
 -- | Takes remote url, servant client for this endpoint
--- and return client error or result
+-- and return client error or result.
 --
 -- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
 -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
@@ -185,8 +219,8 @@ logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 logWarning :: Show tag => tag -> T.Message -> Flow ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
--- | run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
--- because we have to collect it in recordings for ART system
+-- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
+-- because we have to collect it in recordings for ART system.
 --
 -- > myFlow = do
 -- >   content <- runIO $ readFromFile file
@@ -196,19 +230,11 @@ runIO :: T.JSONEx a => IO a -> Flow a
 runIO ioAct = liftFC $ RunIO ioAct id
 
 
--- *** getOption and setOption
-
-
--- | Get stored option by typed key
+-- | Get stored option by typed key.
 getOption :: T.OptionEntity k v => k -> Flow (Maybe v)
 getOption k = liftFC $ GetOption k id
 
--- | Store given key/option pair in the storage
---
--- getOption and setOption are provides interface for runtime typed key-value storage.
--- You can create special types for some options and use it as keys for stored data.
--- It's safer than using strings as keys, because the compiler will let you know if you made typo.
---
+
 -- >  data MerchantIdKey = MerchantIdKey
 -- >
 -- >  instance OptionEntity MerchantIdKey Text
@@ -221,13 +247,13 @@ setOption :: T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption k v id
 
 -- | Just generate version 4 UUIDs as specified in RFC 4122
--- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611
--- universally unique identifier (UUID)
+-- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
+-- Universally unique identifier (UUID).
 -- The term globally unique identifier (GUID) is also used, typically in software created by Microsoft.
 generateGUID :: Flow Text
 generateGUID = liftFC $ GenerateGUID id
 
--- | Run system command end return output
+-- | Run system command end return output.
 --
 -- > myFlow = do
 -- >   currentDir <- runSysCmd "pwd"
@@ -236,7 +262,7 @@ generateGUID = liftFC $ GenerateGUID id
 runSysCmd :: String -> Flow String
 runSysCmd cmd = liftFC $ RunSysCmd cmd id
 
--- | Takes SQL DB config and create connection that can be used in queries
+-- | Takes SQL DB config and create connection that can be used in queries.
 initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 
@@ -281,7 +307,7 @@ runDB
   -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct id
 
--- | Fork given flow
+-- | Fork given flow.
 --
 -- > myFlow1 = do
 -- >   logInfo "myflow1" "logFromMyFlow1"
@@ -302,8 +328,8 @@ forkFlow description flow = do
     tag = "ForkFlow"
 
 
--- | Throw given exception
---   in module Servant.Server you can find alot of predefined HTTP exceptions
+-- | Throw given exception.
+--   In module Servant.Server you can find alot of predefined HTTP exceptions
 --   for different status codes.
 --
 -- > myFlow = do
@@ -314,7 +340,7 @@ forkFlow description flow = do
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
--- | Execute given kvdb actions
+-- | Execute given kvdb actions.
 --
 -- > myFlow = do
 -- >   kvres <- L.runKVDB $ do

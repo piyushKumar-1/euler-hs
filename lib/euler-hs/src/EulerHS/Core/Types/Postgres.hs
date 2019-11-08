@@ -1,7 +1,14 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
-module EulerHS.Core.Types.Postgres where
+module EulerHS.Core.Types.Postgres
+  (
+    -- * Core Postgres
+    -- ** Types
+    PostgresConfig(..)
+    -- ** Methods
+  , createPostgresConn
+  ) where
 
 import EulerHS.Prelude
 

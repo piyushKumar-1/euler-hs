@@ -1,5 +1,8 @@
 module EulerHS.Framework.Types.Options
-  ( OptionEntity
+  ( 
+    -- * Options
+    -- | Determine the relationship between key & value
+    OptionEntity
   ) where
 
 import           EulerHS.Prelude

@@ -14,8 +14,8 @@ pipeline {
 
     stage('Dockerise console') {
       steps {
-        sh 'nix-store --export $(nix-store -qR $(readlink result)) > app/console/nix-store.out'
-        sh 'docker build -t asia.gcr.io/jp-k8s-internal/console:$(git rev-parse --short HEAD) --build-arg "NIX_STORE_PATH=$(readlink result)" app/console/'
+        sh 'nix-build nix/console-docker.nix --argstr version $(git rev-parse --short HEAD) --option sandbox false'
+        sh 'docker load -i result asia.gcr.io/jp-k8s-internal/console:$(git rev-parse --short HEAD)'
         sh 'docker push asia.gcr.io/jp-k8s-internal/console:$(git rev-parse --short HEAD)'
       }
       when {

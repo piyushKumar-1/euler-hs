@@ -22,6 +22,7 @@ pipeline {
         branch "master"
         anyOf {
           changeset "Jenkinsfile"
+          changeset "nix/console-docker.nix"
           changeset "lib/dashboard/**/*"
           changeset "app/console/**/*"
         }

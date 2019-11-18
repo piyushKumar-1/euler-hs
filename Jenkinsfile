@@ -15,7 +15,7 @@ pipeline {
     stage('Dockerise console') {
       steps {
         sh 'nix-build nix/console-docker.nix --argstr version $(git rev-parse --short HEAD) --option sandbox false'
-        sh 'docker load -i result asia.gcr.io/jp-k8s-internal/console:$(git rev-parse --short HEAD)'
+        sh 'docker load -i result'
         sh 'docker push asia.gcr.io/jp-k8s-internal/console:$(git rev-parse --short HEAD)'
       }
       when {

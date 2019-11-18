@@ -12,19 +12,42 @@ pipeline {
       }
     }
 
-    stage('Dockerise console') {
-      steps {
-        sh 'nix-build nix/console-docker.nix --argstr version $(git rev-parse --short HEAD) --option sandbox false'
-        sh 'docker load -i result'
-        sh 'docker push asia.gcr.io/jp-k8s-internal/console:$(git rev-parse --short HEAD)'
-      }
+    stage('Deploy Console') {
       when {
         branch "master"
         anyOf {
           changeset "Jenkinsfile"
           changeset "nix/console-docker.nix"
+          changeset "k8s-configs/console-deploy.yaml"
           changeset "lib/dashboard/**/*"
           changeset "app/console/**/*"
+        }
+      }
+
+      environment {
+         BUILD_VERSION="""${sh(
+               returnStdout: true,
+               script: 'git rev-parse --short HEAD'
+           )}"""
+      }
+
+      stages {
+        stage('Docker Build') {
+          steps {
+            sh 'nix-build nix/console-docker.nix --argstr version ${BUILD_VERSION} --option sandbox false'
+            sh 'docker load -i result'
+            sh 'docker push asia.gcr.io/jp-k8s-internal/console:${BUILD_VERSION}'
+          }
+        }
+
+        stage('Kubernetes Deploy') {
+          steps {
+            kubernetesDeploy(
+                  kubeconfigId: 'jenkins-user',
+                  configs: 'k8s-configs/console-deploy.yaml',
+                  enableConfigSubstitution: true
+                )
+          }
         }
       }
     }

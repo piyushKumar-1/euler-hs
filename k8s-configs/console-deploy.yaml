@@ -1,0 +1,64 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: console-master
+  namespace: ec-prod
+  labels:
+    app: console
+    version: master
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: console
+        version: master
+    spec:
+      containers:
+      - name: console
+        env:
+        - name: CONSOLE_ALLOW_CORS
+          value: "1"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/var/secrets/google/key.json"
+        volumeMounts:
+        - name: bq-key
+          mountPath: "/var/secrets/google"
+          readOnly: true
+        image: asia.gcr.io/jp-k8s-internal/console:$BUILD_VERSION
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2
+            memory: 2Gi
+        ports:
+        - containerPort: 8080
+          name: http
+      imagePullSecrets:
+      - name: jp-gcr
+      terminationGracePeriodSeconds: 60
+      restartPolicy: Always
+      volumes:
+      - name: bq-key
+        secret:
+          secretName: bq-key
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ec-prod
+  name: console
+  labels:
+    app: console
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: console

@@ -1,17 +1,30 @@
 
 # Haskell Style Guide
 
+This is a Style Guide for all the projects within the euler-hs repository.
+This is a nice-to-follow guide, still it's not pushed hardly to avoid
+unnecessary conflicts and friction. You should decide on your own
+about how to structure your code. Still remember that your code will be
+read by other people.
+
 ### Line Length
 
-Maximum line length is *80 characters*. Comments should be wrapped
-accordingly. There should be no trailing whitespace anywhere in your
-code. This makes git diff output look ugly and causes spurious merge
+- Recommended line length is *80 characters*.
+- Maximum line length is *120 characters*.
+
+Comments should be wrapped accordingly.
+There should be no trailing whitespace anywhere in your code.
+This makes git diff output look ugly and causes spurious merge
 conflicts.
 
 ### Indentation
 
-Tabs are illegal. Use spaces for indenting. Use *2 spaces* for each
-indentation level. The only exception is for code blocks inside
+- Tabs are illegal. Use spaces for indenting.
+- Recommended to use *2 spaces* for each indentation level.
+- Allowed to use *4 spaces* if this seems more appropriate
+  for certain situations.
+
+The only exception is for code blocks inside
 a definition, which should be indented with *4 spaces*. Indent the
 `where` keyword two spaces to set it apart from the rest of the code
 and indent the definitions in a `where` clause 2 spaces. Guards are
@@ -36,9 +49,41 @@ As a general rule, *indentation of a line should not depend on the
 length of any identifier in preceding lines*, only on layout
 constraints.
 
+### Hanging let-expressions
+
+Avoid hanging let-expressions in do blocks. This makes it harder to refactor
+and brings more unstructured noise into the code, as well as makes resolving
+conflicts in git harder.
+
+Avoid:
+
+```
+someFunc = do
+  let a = calcA 10
+      b = calcB 20
+  pure (a + b)
+
+someFunc = do
+  let 
+     a = calcA 10
+     b = calcB 20
+  pure (a + b)
+```
+Prefer:
+```
+someFunc = do
+  let a = calcA 10
+  let b = calcB 20
+  pure (a + b)
+```
+
 ### Blank Lines
 
-Two blank lines between top-level definitions, and a line of 78 "-" characters to delineate top-level definitions from each other. No blank lines between type signatures and function definitions. Add one blank line between functions in a type class instance declaration if the functions bodies are large. Use your judgment.
+Two blank lines between top-level definitions, and a line of 78 "-" characters
+to delineate top-level definitions from each other. No blank lines between
+type signatures and function definitions. Add one blank line between functions
+in a type class instance declaration if the functions bodies are large.
+Use your judgment.
 
 ### Whitespace
 
@@ -250,7 +295,7 @@ foo a b
 
 Imports should be listed in alphabetical order with no intervening
 blank lines, except for any explicit `Prelude` import, which must
-always come last. The reason for this exception is that some redundant
+always come first. The reason for this exception is that some redundant
 import warnings are sensitive to the order of the `Prelude` import.
 
 Always use explicit import lists or `qualified` imports for standard
@@ -331,6 +376,9 @@ data Record = Record
 
 ## Naming
 
+**N.B. This whole part is under construction. These regulations
+should be revisited and changed accordingly.**
+
 Use camel-case when naming values (`fooBar`) and data
 types (`FooBar`).
 
@@ -361,6 +409,8 @@ Use singular when naming modules e.g. use `Data.Map` and
 `Data.ByteString.Internals`.
 
 ### Lenses
+
+**N.B. This section is under construction.**
 
 Where appropriate, define lenses for all fields in a record. Use the
 `_` prefix to name fields. When using the [lens package][lens], use

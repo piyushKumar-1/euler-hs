@@ -38,7 +38,7 @@ spec:
         - containerPort: 8080
           name: http
       imagePullSecrets:
-      - name: jp-gcr
+      - name: jp-gcr-ec
       terminationGracePeriodSeconds: 60
       restartPolicy: Always
       volumes:

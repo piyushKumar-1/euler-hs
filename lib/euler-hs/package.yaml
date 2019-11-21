@@ -50,6 +50,7 @@ dependencies:
 - unordered-containers
 - lens
 - http-client
+- http-client-tls
 - messagepack
 - cereal
 - time

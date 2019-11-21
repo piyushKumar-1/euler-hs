@@ -51,6 +51,7 @@ dependencies:
 - unordered-containers
 - lens
 - http-client
+- http-client-tls
 - messagepack
 - cereal
 - time
@@ -92,6 +93,7 @@ dependencies:
 - generic-lens
 - validation
 - http-api-data
+- directory
 
 library:
   source-dirs:

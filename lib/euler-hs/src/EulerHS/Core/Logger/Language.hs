@@ -22,6 +22,14 @@ instance Functor LoggerMethod where
 
 type Logger = F LoggerMethod
 
-
 logMessage' :: Show tag => T.LogLevel -> tag -> T.Message -> Logger ()
 logMessage' lvl tag msg = liftFC $ LogMessage lvl (show tag) msg id
+{-# NOINLINE logMessage' #-}
+{-# RULES
+
+     "Specialise Text Tag logMessage'" forall (tag :: Text) (lvl :: T.LogLevel) (msg :: T.Message) .
+        logMessage' lvl tag msg = liftFC $ LogMessage lvl tag msg id ;
+
+     "Specialise String Tag logMessage'" forall (tag :: String) (lvl :: T.LogLevel) (msg :: T.Message) .
+        logMessage' lvl tag msg = liftFC $ LogMessage lvl (toText tag) msg id
+#-}

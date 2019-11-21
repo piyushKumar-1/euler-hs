@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 module EulerHS.Core.Playback.Machine
   (
     -- * Playback Machine
@@ -13,28 +15,32 @@ import Control.Exception (throwIO)
 
 showInfo :: String -> String -> String
 showInfo flowStep recordingEntry =
-  "\n    Flow step: " ++ flowStep
-  ++ "\n    Recording entry: " ++ recordingEntry
+  "\n>>>>Recording entry: \n" ++ recordingEntry
+  ++ "\n>>>>Flow step: \n" ++ flowStep
 
-unexpectedRecordingEnd :: String -> PlaybackError
-unexpectedRecordingEnd flowStep
+unexpectedRecordingEnd :: Text -> String -> PlaybackError
+unexpectedRecordingEnd errFlowGuid flowStep
   = PlaybackError UnexpectedRecordingEnd
-  $ "\n    Flow step: " ++ flowStep
+  ("\n>>>>Flow step: " ++ flowStep)
+  errFlowGuid
 
-unknownRRItem :: String -> String -> PlaybackError
-unknownRRItem flowStep recordingEntry
+unknownRRItem :: Text -> String -> String -> PlaybackError
+unknownRRItem errFlowGuid flowStep recordingEntry
   = PlaybackError UnknownRRItem
-  $ showInfo flowStep recordingEntry
+  (showInfo flowStep recordingEntry)
+  errFlowGuid
 
-mockDecodingFailed :: String -> String -> PlaybackError
-mockDecodingFailed flowStep recordingEntry
+mockDecodingFailed :: Text -> String -> String -> PlaybackError
+mockDecodingFailed errFlowGuid flowStep recordingEntry
   = PlaybackError MockDecodingFailed
-  $ showInfo flowStep recordingEntry
+  (showInfo flowStep recordingEntry)
+  errFlowGuid
 
-itemMismatch :: String -> String -> PlaybackError
-itemMismatch flowStep recordingEntry
+itemMismatch :: Text -> String -> String -> PlaybackError
+itemMismatch errFlowGuid flowStep recordingEntry
   = PlaybackError ItemMismatch
-  $ showInfo flowStep recordingEntry
+  (showInfo flowStep recordingEntry)
+  errFlowGuid
 
 setReplayingError :: MonadIO m => PlayerRuntime -> PlaybackError -> m e
 setReplayingError playerRt err = do
@@ -42,7 +48,6 @@ setReplayingError playerRt err = do
 
   void $ takeMVar errorMVar
   putMVar errorMVar $ Just err
-
   liftIO $ throwIO $ ReplayingException err
 
 pushRecordingEntry
@@ -68,46 +73,49 @@ popNextRecordingEntry PlayerRuntime{resRecording = ResultRecording{..}, ..} = do
 popNextRRItem
   :: forall rrItem m
    . MonadIO m
+  => Show rrItem
   => RRItem rrItem
   => PlayerRuntime
   -> m (Either PlaybackError (RecordingEntry, rrItem))
-popNextRRItem playerRt  = do
+popNextRRItem playerRt@PlayerRuntime{..}  = do
   mbRecordingEntry <- popNextRecordingEntry playerRt
   let flowStep = getTag $ Proxy @rrItem
   pure $ do
-    recordingEntry <- note (unexpectedRecordingEnd flowStep) mbRecordingEntry
-    let unknownErr = unknownRRItem flowStep $ show recordingEntry
+    recordingEntry <- note (unexpectedRecordingEnd flowGUID flowStep) mbRecordingEntry
+    let unknownErr = unknownRRItem flowGUID flowStep $ showRecEntry @rrItem recordingEntry -- show recordingEntry
     rrItem <- note unknownErr $ fromRecordingEntry recordingEntry
     pure (recordingEntry, rrItem)
 
 popNextRRItemAndResult
   :: forall rrItem native m
    . MonadIO m
+  => Show rrItem
   => RRItem rrItem
   => MockedResult rrItem native
   => PlayerRuntime
   -> m (Either PlaybackError (RecordingEntry, rrItem, native))
-popNextRRItemAndResult playerRt  = do
+popNextRRItemAndResult playerRt@PlayerRuntime{..}  = do
   let flowStep = getTag $ Proxy @rrItem
   eNextRRItem <- popNextRRItem playerRt
   pure $ do
     (recordingEntry, rrItem) <- eNextRRItem
     let mbNative = getMock rrItem
-    nextResult <- note (mockDecodingFailed flowStep (show recordingEntry)) mbNative
+    nextResult <- note (mockDecodingFailed flowGUID flowStep (show recordingEntry)) mbNative
     pure (recordingEntry, rrItem, nextResult)
 
 compareRRItems
-  :: RRItem rrItem
+  :: forall rrItem m native. RRItem rrItem
+  => Show rrItem
   => MonadIO m
   => MockedResult rrItem native
   => PlayerRuntime
   -> (RecordingEntry, rrItem, native)
   -> rrItem
   -> m ()
-compareRRItems playerRt (recordingEntry, rrItem, _) flowRRItem = do
+compareRRItems playerRt@PlayerRuntime{..} (recordingEntry, rrItem, _) flowRRItem = do
   when (rrItem /= flowRRItem) $ do
-    let flowStep = encodeToStr flowRRItem
-    setReplayingError playerRt $ itemMismatch flowStep (show recordingEntry)
+    let flowStep = show flowRRItem
+    setReplayingError playerRt $ itemMismatch flowGUID flowStep (showRecEntry @rrItem recordingEntry) -- show recordingEntry)
 
 getCurrentEntryReplayMode :: MonadIO m => PlayerRuntime -> m EntryReplayingMode
 getCurrentEntryReplayMode PlayerRuntime{resRecording = ResultRecording{..}, ..} = do
@@ -119,6 +127,7 @@ getCurrentEntryReplayMode PlayerRuntime{resRecording = ResultRecording{..}, ..} 
 replayWithGlobalConfig
   :: forall rrItem native m
    . MonadIO m
+  => Show rrItem
   => RRItem rrItem
   => MockedResult rrItem native
   => PlayerRuntime
@@ -149,6 +158,7 @@ checkForReplayConfig  PlayerRuntime{..} tag | tag `elem` disableMocking = Global
 replay
   :: forall rrItem native m
    . MonadIO m
+  => Show rrItem
   => RRItem rrItem
   => MockedResult rrItem native
   => PlayerRuntime
@@ -186,6 +196,7 @@ record recorderRt@RecorderRuntime{..} mkRRItem ioAct = do
 
 withRunMode
   :: MonadIO m
+  => Show rrItem
   => RRItem rrItem
   => MockedResult rrItem native
   => RunMode

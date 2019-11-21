@@ -159,10 +159,10 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
               T.PlaybackError
                 { errorType    = T.ForkedFlowRecordingsMissed
                 , errorMessage = "No recordings found for forked flow: " <> Text.unpack newFlowGUID
-                }
+                , errorFlowGUID = flowGUID }
 
           takeMVar errorMVar *> putMVar errorMVar (Just err)
-          throwIO T.ForkedFlowRecordingsMissed
+          throwIO $ T.ReplayingException err
 
         Just recording -> do
           stepVar           <- newMVar 0

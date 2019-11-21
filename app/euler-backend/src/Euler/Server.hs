@@ -6,17 +6,23 @@ module Euler.Server where
 import           EulerHS.Prelude
 
 import           Servant
-import Data.Time
+import           Data.Time
+
+import qualified Data.Aeson as A
+
 import qualified EulerHS.Interpreters                   as R
 import qualified EulerHS.Language                       as L
 import qualified EulerHS.Runtime                        as R
+import qualified EulerHS.Types                          as T
 
 import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.API.Validators.Transaction       as Txn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
 import qualified Euler.API.Order                        as ApiOrder
-import qualified Euler.Common.Types.Merchant                  as Merchant
+import qualified Euler.Common.Types.Merchant            as Merchant
+import qualified Euler.Playback.Types                   as PB
+import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text
@@ -32,7 +38,11 @@ type EulerAPI
 eulerAPI :: Proxy EulerAPI
 eulerAPI = Proxy
 
-data Env = Env R.FlowRuntime
+data Env = Env
+  { envFlowRt         :: R.FlowRuntime
+  , envRecorderParams :: Maybe PB.RecorderParams
+  }
+
 type FlowHandler = ReaderT Env (ExceptT ServerError IO)
 type FlowServer = ServerT EulerAPI (ReaderT Env (ExceptT ServerError IO))
 
@@ -44,7 +54,7 @@ eulerServer env = hoistServer eulerAPI (f env) eulerServer'
   where
     f :: Env -> ReaderT Env (ExceptT ServerError IO) a -> Handler a
     f env r = do
-      eResult <- liftIO $ (runExceptT $ runReaderT r env ) 
+      eResult <- liftIO $ (runExceptT $ runReaderT r env )
       case eResult of
         Left err  -> throwError err -- TODO: error reporting (internal server error & output to console, to log)
         Right res -> pure res
@@ -52,15 +62,79 @@ eulerServer env = hoistServer eulerAPI (f env) eulerServer'
 eulerBackendApp :: Env -> Application
 eulerBackendApp = serve eulerAPI . eulerServer
 
-runFlow :: L.Flow a -> FlowHandler a
-runFlow flow = do
-  Env flowRt <- ask
-  lift $ lift $ R.runFlow flowRt flow
+runFlow :: (ToJSON a) => PB.FlowTag -> A.Value -> L.Flow a -> FlowHandler a
+runFlow flowTag req flow = do
+  Env {..} <- ask
+  runningMode <- case envRecorderParams of
+    Nothing -> pure T.RegularMode
+    Just PB.RecorderParams{..} -> do
+      recordingMVar <- newMVar mempty
+      forkedRecordingsVar <- newMVar mempty
+      let recording = T.Recording recordingMVar forkedRecordingsVar
+      pure $ T.RecordingMode $ T.RecorderRuntime flowTag recording disableEntries
+  let newRt = envFlowRt{ R._runMode = runningMode}
+  let mc = PB.MethodConfigs
+        { mcRawBody = ""
+        , mcQueryParams = mempty
+        , mcRouteParams = mempty
+        , mcRawHeaders = mempty
+        , mcMethodUrl = ""
+        , mcSourceIP = ""
+        , mcUserAgent = ""
+        }
+  res <- lift $ lift $ R.runFlow newRt flow
+  _ <- lift $ lift $ case (runningMode, envRecorderParams) of
+    (T.RecordingMode T.RecorderRuntime{..}, Just envParams) -> do
+      entries' <- T.awaitRecording $ recording
+      let mr = PB.MethodRecording
+            { mrJsonRequest = req
+            , mrJsonResponse = toJSON res
+            , mrEntries = entries'
+            , mrMethodConfigs = mc
+            , mrSessionId = "SomeSessionId"
+            , mrParameters = mempty
+            }
+      let mrd = PB.MethodRecordingDescription
+            { methodName = toString flowTag
+            , methodRecording = mr
+            }
+      PB.writeMethodRecordingDescription (PB.recordingsStorage envParams) mrd (toString flowTag) "sessionId"
+    _ -> pure ()
+  pure res
+
+testFlow2 :: Map String String -> L.Flow Text
+testFlow2  _ = do
+  L.runSysCmd "echo hello"
+  L.forkFlow "f1" $ L.logInfo ("from f1" :: Text) "hellofrom forked flow"
+  res <- L.runIO $ do
+    putTextLn "text from runio"
+    pure ("text from runio" :: Text)
+  pure res
+
+-- TODO > Move to somewhere
+type NoReqBody = ()
+
+noReqBody :: NoReqBody
+noReqBody = ()
+
+noReqBodyJSON :: A.Value
+noReqBodyJSON = toJSON noReqBody
+
+type RequestParameters = Map String String
+
+getMethod ::
+  ( FromJSON resp)
+  => (RequestParameters -> L.Flow resp)
+  -> NoReqBody
+  -> RequestParameters
+  -> L.Flow resp
+getMethod f _ p = f p
+-- TODO <
 
 test :: FlowHandler Text
 test = do
   liftIO $ putStrLn ("Test method called." :: String)
-  runFlow $ L.logInfo "Test" "Test method"
+  runFlow "testFlow2" noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
   pure "Test."
 
 txns :: ApiTxn.Transaction -> FlowHandler ApiTxn.TransactionResponse

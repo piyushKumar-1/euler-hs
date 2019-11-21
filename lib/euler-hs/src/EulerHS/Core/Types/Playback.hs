@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module EulerHS.Core.Types.Playback
   (
@@ -28,15 +29,18 @@ module EulerHS.Core.Types.Playback
   , note
   , encodeToStr
   , decodeFromStr
+  , showRecEntry
   ) where
 
 
 import EulerHS.Prelude hiding (note)
 import qualified Data.Aeson                      as A
+import qualified Data.Aeson.Encode.Pretty as A (encodePretty)
 import qualified Data.ByteString.Char8           as BS
 import qualified Data.ByteString.Lazy            as BSL
 import qualified EulerHS.Core.Types.Serializable as S
 import qualified Data.Map                        as Map
+import qualified Prelude as P (show)
 -- import qualified Data.Binary.Builder as B
 -- import qualified GHC.Generics as G
 
@@ -51,6 +55,22 @@ data RecordingEntry = RecordingEntry
   , _entryPayload    :: A.Value
   -- ^ method result value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+--Shows RecordingEntry with decoded _entryPayload
+showRecEntry :: forall a. (FromJSON a, Show a) => RecordingEntry -> String
+showRecEntry RecordingEntry{..} =
+  "RecordingEntry {_entryIndex = "
+  <> show _entryIndex
+  <> ", _entryReplayMode = "
+  <> show _entryReplayMode
+  <> ", _entryName = "
+  <> _entryName
+  <> ", _entryPayload = \n"
+  <> payload <> "\n}"
+  where
+    (payload :: String) = case A.fromJSON @a _entryPayload of
+      A.Success a -> P.show a
+      A.Error err -> err
 
 -- | Represents method entries from the flow
 type RecordingEntries = Vector RecordingEntry
@@ -105,8 +125,9 @@ data PlaybackErrorType
 
 
 data PlaybackError = PlaybackError
-  { errorType    :: PlaybackErrorType
-  , errorMessage :: String
+  { errorType     :: PlaybackErrorType
+  , errorMessage  :: String
+  , errorFlowGUID :: Text
   } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data ReplayingException = ReplayingException PlaybackError
@@ -136,7 +157,7 @@ awaitRecording Recording{..}= do
   pure ResultRecording{..}
 
 ----------------------------------------------------------------------
--- | Thread safe ReplayErrors representation used in replay process 
+-- | Thread safe ReplayErrors representation used in replay process
 data ReplayErrors = ReplayErrors
   { errorMVar           :: MVar (Maybe PlaybackError)
   , forkedFlowErrorsVar :: MVar (Map Text ReplayErrors)

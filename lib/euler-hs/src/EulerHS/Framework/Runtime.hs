@@ -9,6 +9,7 @@ module EulerHS.Framework.Runtime
 import           EulerHS.Prelude
 import           Data.Map            (Map, empty)
 import           Network.HTTP.Client (Manager, newManager, defaultManagerSettings)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Data.Pool              as DP
 import qualified Database.SQLite.Simple as SQLite
@@ -46,7 +47,7 @@ data FlowRuntime = FlowRuntime
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO (FlowRuntime )
 createFlowRuntime coreRt = do
-  managerVar <- newManager defaultManagerSettings >>= newMVar
+  managerVar <- newManager tlsManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
   kvdbConnections <- newMVar Data.Map.empty
   sqldbConnections <- newMVar Data.Map.empty

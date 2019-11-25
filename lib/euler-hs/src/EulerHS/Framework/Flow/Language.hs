@@ -32,6 +32,7 @@ module EulerHS.Framework.Flow.Language
   , setOption
   -- *** Other
   , callServantAPI
+  , callAPI
   , runIO
   , generateGUID
   , runSysCmd
@@ -165,7 +166,7 @@ type Flow = F FlowMethod
 
 
 -- | Takes remote url, servant client for this endpoint
--- and return client error or result.
+-- and returns either client error or result.
 --
 -- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
 -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
@@ -197,8 +198,34 @@ callServantAPI
   -> Flow (Either ClientError a) -- ^ result
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
--- callAPI :: BaseUrl -> ClientM a -> Flow (Either ClientError a)
--- callAPI = callServantAPI
+-- | Takes remote url, servant client for this endpoint
+-- and returns either client error or result.
+--
+-- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > data Book = Book { author :: String, name :: String }
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > type API = "user" :> Get '[JSON] User
+-- >       :<|> "book" :> Get '[JSON] Book
+-- >
+-- > api :: Proxy API
+-- > api = Proxy
+-- >
+-- > getUser :: ClientM User
+-- > getBook :: ClientM Book
+-- > (getUser :<|> getBook) = client api
+-- >
+-- > url = BaseUrl Http "localhost" port ""
+-- >
+-- >
+-- > myFlow = do
+-- >   book <- callAPI url getBook
+-- >   user <- callAPI url getUser
+
+callAPI :: T.JSONEx a => BaseUrl -> ClientM a -> Flow (Either ClientError a)
+callAPI = callServantAPI
 
 evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id

@@ -169,23 +169,23 @@ type Flow = F FlowMethod
 --
 -- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
 -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- > 
+-- >
 -- > data Book = Book { author :: String, name :: String }
 -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- > 
+-- >
 -- > type API = "user" :> Get '[JSON] User
 -- >       :<|> "book" :> Get '[JSON] Book
--- > 
+-- >
 -- > api :: Proxy API
 -- > api = Proxy
--- > 
+-- >
 -- > getUser :: ClientM User
 -- > getBook :: ClientM Book
 -- > (getUser :<|> getBook) = client api
--- > 
+-- >
 -- > url = BaseUrl Http "localhost" port ""
--- > 
--- > 
+-- >
+-- >
 -- > myFlow = do
 -- >   book <- callServantAPI url getBook
 -- >   user <- callServantAPI url getUser
@@ -238,7 +238,7 @@ getOption k = liftFC $ GetOption k id
 -- >  data MerchantIdKey = MerchantIdKey
 -- >
 -- >  instance OptionEntity MerchantIdKey Text
--- >  
+-- >
 -- >  myFlow = do
 -- >    _ <- setOption MerchantIdKey "abc1234567"
 -- >    mKey <- getOption MerchantKey
@@ -275,10 +275,10 @@ deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 -- > myFlow :: L.Flow (T.DBResult (Maybe User))
 -- > myFlow = do
 -- >   connection <- L.initSqlDBConnection postgresCfg
--- > 
+-- >
 -- >   res <- L.runDB connection $ do
 -- >     let predicate1 User {..} = _userFirstName ==. B.val_ "John"
--- > 
+-- >
 -- >     L.updateRows $ B.update (_users eulerDb)
 -- >       (\User {..} -> mconcat
 -- >         [ _userFirstName <-. B.val_ "Leo"
@@ -286,14 +286,14 @@ deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 -- >         ]
 -- >       )
 -- >       predicate1
--- > 
+-- >
 -- >     let predicate2 User {..} = _userFirstName ==. B.val_ "Leo"
 -- >     L.findRow
 -- >       $ B.select
 -- >       $ B.limit_ 1
 -- >       $ B.filter_ predicate2
 -- >       $ B.all_ (_users eulerDb)
--- > 
+-- >
 -- >   L.deinitSqlDBConnection connection
 -- >   pure res
 runDB
@@ -352,15 +352,3 @@ runKVDB
   :: KVDB a -- ^ KVDB action
   -> Flow (T.KVDBAnswer a)
 runKVDB act = liftFC $ RunKVDB act id
-
--- TODO: port
--- callAPI
---   :: forall st rt a b
---    . RestEndpoint a b
---   => Headers -> a -> BackendFlow st rt (APIResult b)
--- callAPI headers a = wrap $ CallAPI
---   (apiInteract a headers)
---   (Playback.mkEntryDict
---     (encodeJSON $ makeRequest a headers)
---     (Playback.mkCallAPIEntry (\_ -> encode $ makeRequest a headers)))
---   id

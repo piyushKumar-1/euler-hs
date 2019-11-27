@@ -15,7 +15,7 @@ import qualified EulerHS.Core.Types.Logger as T
 -- | Language for logging.
 data LoggerMethod next where
   -- | Log message with a predefined level.
-  LogMessage :: T.LogLevel -> T.Tag -> T.Message -> (() -> next) -> LoggerMethod next
+  LogMessage :: T.LogLevel -> !T.Tag -> !T.Message -> (() -> next) -> LoggerMethod next
 
 instance Functor LoggerMethod where
   fmap f (LogMessage lvl tag msg next) = LogMessage lvl tag msg $ f . next

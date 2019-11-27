@@ -94,7 +94,7 @@ instance BeamRunner BS.SqliteM where
       res <- SQLite.runBeamSqliteDebug logger conn beM
       commit
       return res
-    
+
 
   getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
     $ \connection -> do
@@ -112,7 +112,9 @@ executeWithLogSQLite :: (String -> IO ()) -> SQLiteS.Connection -> SQLiteS.Query
 executeWithLogSQLite log conn q = SQLiteS.execute_ conn q >> (log $ show q)
 
 beginTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
-beginTransactionSQLite    log conn = executeWithLogSQLite log conn "BEGIN TRANSACTION"
+beginTransactionSQLite    log conn = do
+  executeWithLogSQLite log conn "PRAGMA busy_timeout = 60000"
+  executeWithLogSQLite log conn "BEGIN TRANSACTION"
 
 commitTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
 commitTransactionSQLite   log conn = executeWithLogSQLite log conn "COMMIT TRANSACTION"
@@ -152,7 +154,7 @@ instance BeamRunner BM.MySQLM where
       res <- BM.runBeamMySQLDebug logger conn beM
       commit
       return res
-      
+
 
   getBeamDebugRunner (MySQLPool _ pool) beM = \logger -> DP.withResource pool
     $ \connection -> do

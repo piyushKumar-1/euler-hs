@@ -23,6 +23,8 @@ import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.Common.Types.Merchant            as Merchant
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
+import qualified Data.ByteString.Lazy                   as BSL
+import qualified Prometheus as P
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text
@@ -33,6 +35,7 @@ type EulerAPI
   :<|> "orders" :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderCreateResponse
 -- order update
   :<|> "orders" :> Capture "orderId" Text :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderStatusResponse
+  :<|> "metrics" :> Get '[OctetStream] ByteString
   :<|> EmptyAPI
 
 eulerAPI :: Proxy EulerAPI
@@ -47,10 +50,17 @@ type FlowHandler = ReaderT Env (ExceptT ServerError IO)
 type FlowServer = ServerT EulerAPI (ReaderT Env (ExceptT ServerError IO))
 
 eulerServer' :: FlowServer
-eulerServer' = test :<|> txns :<|> orderStatus :<|> orderCreate :<|> orderUpdate :<|> emptyServer
+eulerServer' =
+    test        :<|>
+    txns        :<|>
+    orderStatus :<|>
+    orderCreate :<|>
+    orderUpdate :<|>
+    metrics     :<|>
+    emptyServer
 
 eulerServer :: Env -> Server EulerAPI
-eulerServer env = hoistServer eulerAPI (f env) eulerServer'
+eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
   where
     f :: Env -> ReaderT Env (ExceptT ServerError IO) a -> Handler a
     f env r = do
@@ -179,3 +189,7 @@ orderUpdate orderId ordReq = do
     liftIO $ putStrLn ("orderUpdateStart" :: String)
     pure ApiOrder.defaultOrderStatusResponse
   pure res
+
+
+metrics :: FlowHandler ByteString
+metrics = BSL.toStrict <$> P.exportMetricsAsText

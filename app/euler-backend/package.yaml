@@ -95,6 +95,7 @@ dependencies:
 - http-api-data
 - directory
 - timeit
+- prometheus-client
 
 library:
   source-dirs:

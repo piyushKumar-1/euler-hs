@@ -63,12 +63,12 @@ data OrderCreateRequest = OrderCreateRequest
  -- , "options.get_client_auth_token" :: Maybe Bool
  -- why not options_optionName
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, FromForm)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 -- instance FromFormUrlEncoded OrderCreateRequest where
 --   fromFormUrlEncoded inputs =
 --     User <$> lkp "email" <*> lkp "password"
--- 
+--
 --     where lkp input_label = case lookup input_label inputs of
 --                  Nothing -> Left $ "label " <> input_label <> " not found"
 --                  Just v    -> Right v
@@ -91,7 +91,7 @@ curl -X POST https://api.juspay.in/orders \
 -d "amount=100.00" \
 ...
 -d "metadata.PAYTM:PROMO_CAMP_ID=xyz" \
--d "metadata.PAYTM:CUST_ID=abcd" \    
+-d "metadata.PAYTM:CUST_ID=abcd" \
 -d "metadata.PAYU:offer_key=qwerty" \
 -d "PAYU.gateway_reference_id:reference_id”
 

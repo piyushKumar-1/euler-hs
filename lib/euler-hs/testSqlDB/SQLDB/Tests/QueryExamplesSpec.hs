@@ -28,18 +28,17 @@ import Database.Beam ((==.), (&&.), (<-.), (/=.), (>=.), (>.), (<.))
 
 date1 :: LocalTime
 date1 =  LocalTime
-  { localDay = toEnum 56195 --   :: Day,
-  , localTimeOfDay = defaultTimeOfDay1 --  :: TimeOfDay
+  { localDay = toEnum 56195
+  , localTimeOfDay = defaultTimeOfDay1
   }
 
 defaultTimeOfDay1 :: TimeOfDay
 defaultTimeOfDay1 = TimeOfDay
-  { todHour = 1  -- :: Int,-  range 0 - 23
-  , todMin = 1   -- :: Int, --  range 0 - 59
-  -- Note that 0 <= 'todSec' < 61, accomodating leap seconds.
-  -- Any local minute may have a leap second, since leap seconds happen in all zones simultaneously
-  , todSec  = 1  -- :: Pico
+  { todHour = 1
+  , todMin = 1
+  , todSec  = 1
   }
+
 -- 2012-09-26 18:08:45
 date2 :: LocalTime
 date2 = LocalTime
@@ -51,7 +50,7 @@ td2 :: TimeOfDay
 td2 = TimeOfDay
   { todHour = 18
   , todMin = 8
-  , todSec  = 45  -- :: Pico
+  , todSec  = 45
   }
 
 date3 :: LocalTime
@@ -161,8 +160,8 @@ facilitiesEMod = B.modifyTableFields
 
 data BookingT f = Booking
     { bookId    :: B.C f Int
-    , facId     :: B.PrimaryKey FacilityT f -- B.C f Int
-    , bmemid    :: B.PrimaryKey MemberT f --B.C f Int
+    , facId     :: B.PrimaryKey FacilityT f
+    , bmemid    :: B.PrimaryKey MemberT f
     , starttime :: B.C f LocalTime
     , slots     :: B.C f Int
     } deriving (Generic, B.Beamable)
@@ -208,30 +207,6 @@ clubDB = B.defaultDbSettings `B.withDbModification`
     , bookings = bookingsEMod
     }
 
-
-
---data SqliteSequenceT f = SqliteSequence
---    { _name :: B.C f Text
---    , _seq  :: B.C f Int
---    } deriving (Generic, B.Beamable)
---
---instance B.Table SqliteSequenceT where
---  data PrimaryKey SqliteSequenceT f =
---    SqliteSequenceId (B.C f Text) deriving (Generic, B.Beamable)
---  primaryKey = SqliteSequenceId . _name
---
---type SqliteSequence = SqliteSequenceT Identity
---type SqliteSequenceId = B.PrimaryKey SqliteSequenceT Identity
---
---
---data SqliteSequenceDb f = SqliteSequenceDb
---    { _sqlite_sequence :: f (B.TableEntity SqliteSequenceT)
---    } deriving (Generic, B.Database be)
---
---sqliteSequenceDb :: B.DatabaseSettings be SqliteSequenceDb
---sqliteSequenceDb = B.defaultDbSettings
-
-
 testDBName :: String
 testDBName = "./testSqlDB/SQLDB/TestData/test.db"
 
@@ -248,7 +223,7 @@ sqliteCfg = T.mkSQLitePoolConfig "clubSQliteDB" poolConfig testDBName
 
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
-    Left e     -> error $ show e -- L.throwException $ toException $ show e
+    Left e     -> error $ show e
     Right conn -> pure conn
 
 rmTestDB :: L.Flow ()
@@ -337,7 +312,7 @@ aggregate2 = do
       pure (firstName lm, surName lm, joinDate lm)
 
 
-join1 :: L.Flow (T.DBResult [LocalTime]) -- (Maybe [(Member, Booking)]))
+join1 :: L.Flow (T.DBResult [LocalTime])
 join1 = do
   conn <- connectOrFail sqliteCfg
   L.runDB conn $
@@ -364,7 +339,6 @@ join2 = do
       pure (fs, bs)
 
 
-
 loggerCfg = defaultLoggerConfig
         { _logToFile = True
         , _logFilePath = "/tmp/euler-backend.log"
@@ -379,7 +353,6 @@ withEmptyDB act = withFlowRuntime Nothing (\rt -> do
       `finally` error ("Preparing test values failed: " <> show e)
     Right _ -> act rt `finally` runFlow rt rmTestDB
     )
-
 
 
 spec :: Spec

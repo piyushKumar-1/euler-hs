@@ -261,9 +261,16 @@ data PoolConfig = PoolConfig
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultPoolConfig :: PoolConfig
+defaultPoolConfig = PoolConfig
+  { stripes = 1
+  , keepAlive = 100
+  , resourcesPerStripe = 1
+  }
+
 -- | Create SQLite 'DBConfig'
 mkSQLiteConfig :: ConnTag -> SQliteDBname -> DBConfig BS.SqliteM
-mkSQLiteConfig = SQLiteConf
+mkSQLiteConfig connTag = SQLitePoolConf connTag defaultPoolConfig
 
 -- | Create SQLite 'Pool' 'DBConfig'
 mkSQLitePoolConfig :: ConnTag -> SQliteDBname -> PoolConfig -> DBConfig BS.SqliteM
@@ -271,7 +278,7 @@ mkSQLitePoolConfig = SQLitePoolConf
 
 -- | Create Postgres 'DBConfig'
 mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
-mkPostgresConfig = PostgresConf
+mkPostgresConfig connTag = PostgresPoolConf connTag defaultPoolConfig
 
 -- | Create Postgres 'Pool' 'DBConfig'
 mkPostgresPoolConfig :: ConnTag -> PostgresConfig -> PoolConfig -> DBConfig BP.Pg
@@ -279,7 +286,7 @@ mkPostgresPoolConfig = PostgresPoolConf
 
 -- | Create MySQL 'DBConfig'
 mkMySQLConfig :: ConnTag -> MySQLConfig -> DBConfig BM.MySQLM
-mkMySQLConfig = MySQLConf
+mkMySQLConfig connTag = MySQLPoolConf connTag defaultPoolConfig
 
 -- | Create MySQL 'Pool' 'DBConfig'
 mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM

@@ -12,11 +12,11 @@ import           Data.Map                (Map)
 import           Network.HTTP.Client     (Manager, newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
-import qualified Data.Map               as Map
-import qualified Data.Pool              as DP
-import qualified Database.Beam.Postgres as BP
-import qualified Database.SQLite.Simple as SQLite
-import qualified Database.MySQL.Base    as MySQL
+import qualified Data.Map               as Map (empty)
+import qualified Data.Pool              as DP (destroyAllResources)
+import qualified Database.Beam.Postgres as BP (close)
+import qualified Database.SQLite.Simple as SQLite (close)
+import qualified Database.MySQL.Base    as MySQL (close)
 import qualified Database.Redis         as RD (disconnect)
 import qualified System.Mem             as SYSM (performGC)
 

@@ -7,25 +7,24 @@ module EulerHS.Framework.Runtime
   ) where
 
 import           EulerHS.Prelude
-import           Data.Map            (Map, empty)
-import           Network.HTTP.Client (Manager, newManager, defaultManagerSettings)
+
+import           Data.Map                (Map)
+import           Network.HTTP.Client     (Manager, newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
+import qualified Data.Map               as Map
 import qualified Data.Pool              as DP
+import qualified Database.Beam.Postgres as BP
 import qualified Database.SQLite.Simple as SQLite
-import qualified Database.MySQL.Base as MySQL
-import qualified Database.Beam.Sqlite as BS
--- import qualified Database.Redis as RD (Connection)
-import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as T
+import qualified Database.MySQL.Base    as MySQL
+import qualified Database.Redis         as RD (disconnect)
+import qualified System.Mem             as SYSM (performGC)
+
+
 import           EulerHS.Framework.Types ()
-import qualified Data.Map as Map
 
-import qualified Database.MySQL.Base             as MySQL
-import qualified Database.Beam.Sqlite.Connection as SQLite
-import qualified Database.Beam.Postgres          as BP
--- data Connection = Redis RD.Connection
-
+import qualified EulerHS.Core.Runtime as R
+import qualified EulerHS.Core.Types   as T
 
 
 -- | FlowRuntime state and options.
@@ -49,8 +48,8 @@ createFlowRuntime :: R.CoreRuntime -> IO (FlowRuntime )
 createFlowRuntime coreRt = do
   managerVar <- newManager tlsManagerSettings >>= newMVar
   optionsVar <- newMVar mempty
-  kvdbConnections <- newMVar Data.Map.empty
-  sqldbConnections <- newMVar Data.Map.empty
+  kvdbConnections <- newMVar Map.empty
+  sqldbConnections <- newMVar Map.empty
   pure $ FlowRuntime coreRt managerVar optionsVar kvdbConnections T.RegularMode sqldbConnections
 
 
@@ -58,8 +57,36 @@ createFlowRuntime' :: Maybe T.LoggerConfig -> IO (FlowRuntime )
 createFlowRuntime'  mbLoggerCfg =
   createLoggerRuntime' mbLoggerCfg >>= R.createCoreRuntime >>= createFlowRuntime
 
+-- | Clear resources in given 'FlowRuntime'
 clearFlowRuntime :: FlowRuntime  -> IO ()
-clearFlowRuntime _ = pure ()
+clearFlowRuntime FlowRuntime{..} = do
+  R.clearCoreRuntime _coreRuntime
+  _ <- takeMVar _options
+  putMVar _options mempty
+  kvConns <- takeMVar _kvdbConnections
+  putMVar _kvdbConnections mempty
+  traverse_ kvDisconnect kvConns
+  sqlConns <- takeMVar _sqldbConnections
+  putMVar _sqldbConnections mempty
+  traverse_ sqlDisconnect sqlConns
+  _ <- takeMVar _httpClientManager
+  putMVar _httpClientManager =<< newManager tlsManagerSettings
+  SYSM.performGC
+
+sqlDisconnect :: T.NativeSqlConn -> IO ()
+sqlDisconnect = \case
+  T.NativePGConn conn -> BP.close conn
+  T.NativeMySQLConn conn -> MySQL.close conn
+  T.NativeSQLiteConn conn -> SQLite.close conn
+  T.NativePGPool connPool -> DP.destroyAllResources connPool
+  T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
+  T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
+  T.NativeMockedConn -> pure ()
+
+kvDisconnect :: T.KVDBConn -> IO ()
+kvDisconnect = \case
+  T.Mocked -> pure ()
+  T.Redis conn -> RD.disconnect conn
 
 -- | Run flow with given logger config.
 withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime  -> IO a) -> IO a

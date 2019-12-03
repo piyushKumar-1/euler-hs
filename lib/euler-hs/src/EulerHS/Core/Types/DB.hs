@@ -87,16 +87,6 @@ class BeamRunner beM where
 
 
 instance BeamRunner BS.SqliteM where
-  getBeamDebugRunner (SQLiteConn _ conn) beM = \logger -> do
-    let begin    = beginTransactionSQLite      logger conn
-    let commit   = commitTransactionSQLite     logger conn
-    let rollback = rollbackTransactionSQLite   logger conn
-    bracketOnError begin (const rollback) $ const $ do
-      res <- SQLite.runBeamSqliteDebug logger conn beM
-      commit
-      return res
-
-
   getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
     $ \connection -> do
         let begin    = beginTransactionSQLite      logger connection
@@ -125,15 +115,6 @@ rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRA
 
 
 instance BeamRunner BP.Pg where
-  getBeamDebugRunner (PostgresConn _ conn) beM = \logger -> do
-    let begin    = PGS.begin conn
-    let commit   = PGS.commit conn
-    let rollback = PGS.rollback conn
-    bracketOnError begin (const rollback) $ const $ do
-      res <- BP.runBeamPostgresDebug logger conn beM
-      commit
-      return res
-
   getBeamDebugRunner (PostgresPool _ pool) beM = \logger -> DP.withResource pool
     $ \connection -> do
         let begin    = PGS.begin connection
@@ -147,16 +128,6 @@ instance BeamRunner BP.Pg where
   getBeamDebugRunner _ _ = \_ -> error "Not a Postgres connection"
 
 instance BeamRunner BM.MySQLM where
-  getBeamDebugRunner (MySQLConn _ conn) beM = \logger -> do
-    let begin    = pure ()              -- Seems no begin transaction in MySQL
-    let commit   = MySQL.commit conn
-    let rollback = MySQL.rollback conn
-    bracketOnError begin (const rollback) $ const $ do
-      res <- BM.runBeamMySQLDebug logger conn beM
-      commit
-      return res
-
-
   getBeamDebugRunner (MySQLPool _ pool) beM = \logger -> DP.withResource pool
     $ \connection -> do
         let begin    = pure ()
@@ -171,10 +142,7 @@ instance BeamRunner BM.MySQLM where
 
 -- | Representation of native DB connections that we store in FlowRuntime
 data NativeSqlConn
-  = NativePGConn BP.Connection                   -- ^ Postgres connection
-  | NativeMySQLConn MySQL.Connection             -- ^ MySQL connection
-  | NativeSQLiteConn SQLite.Connection           -- ^ SQLite connection
-  | NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
+  = NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
   | NativeMySQLPool (DP.Pool MySQL.Connection)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
   | NativeMockedConn
@@ -182,9 +150,6 @@ data NativeSqlConn
 -- | Transform 'SqlConn' to 'NativeSqlConn'
 bemToNative :: SqlConn beM -> NativeSqlConn
 bemToNative (MockedConn _)        = NativeMockedConn
-bemToNative (SQLiteConn _ conn)   = NativeSQLiteConn conn
-bemToNative (PostgresConn _ conn) = NativePGConn conn
-bemToNative (MySQLConn _ conn)    = NativeMySQLConn conn
 bemToNative (PostgresPool _ conn) = NativePGPool conn
 bemToNative (MySQLPool _ conn)    = NativeMySQLPool conn
 bemToNative (SQLitePool _ conn)   = NativeSQLitePool conn
@@ -200,12 +165,6 @@ mkSqlConn (MySQLPoolConf connTag cfg PoolConfig {..}) =  MySQLPool connTag
 mkSqlConn (SQLitePoolConf connTag dbname PoolConfig {..}) =  SQLitePool connTag
   <$> DP.createPool (SQLite.open dbname) SQLite.close stripes keepAlive resourcesPerStripe
 
-mkSqlConn (SQLiteConf connTag dbname) =  SQLiteConn connTag <$> SQLite.open dbname
-
-mkSqlConn (PostgresConf connTag cfg) =  PostgresConn connTag <$> createPostgresConn cfg
-
-mkSqlConn (MySQLConf connTag cfg) =  MySQLConn connTag <$> createMySQLConn cfg
-
 mkSqlConn (MockConfig connTag) = pure $ MockedConn connTag
 
 
@@ -219,32 +178,20 @@ type SQliteDBname = String
 --   Parametrised by BEAM monad corresponding to the certain DB (MySQL, Postgres, SQLite)
 data SqlConn beM
   = MockedConn ConnTag
-  | SQLiteConn ConnTag SQLite.Connection
-  -- ^ SQLite connection
-  | PostgresConn ConnTag BP.Connection
-  -- ^ Postgres connection
-  | MySQLConn ConnTag MySQL.Connection
-  -- ^ MySQL connection
   | PostgresPool ConnTag (DP.Pool BP.Connection)
   -- ^ 'Pool' with Postgres connections
   | MySQLPool ConnTag (DP.Pool MySQL.Connection)
   -- ^ 'Pool' with MySQL connections
   | SQLitePool ConnTag (DP.Pool SQLite.Connection)
- -- ^ 'Pool' with SQLite connections
+  -- ^ 'Pool' with SQLite connections
   deriving (Generic)
 
 
 -- | Represents DB configurations
 data DBConfig beM
   = MockConfig ConnTag
-  | SQLiteConf ConnTag SQliteDBname
-  -- ^ config for SQLite connection
-  | PostgresConf ConnTag PostgresConfig
-  -- ^ config for Postgres connection
   | PostgresPoolConf ConnTag PostgresConfig PoolConfig
   -- ^ config for 'Pool' with Postgres connections
-  | MySQLConf ConnTag MySQLConfig
-  -- ^ config for MySQL connection
   | MySQLPoolConf ConnTag MySQLConfig PoolConfig
   -- ^ config for 'Pool' with MySQL connections
   | SQLitePoolConf ConnTag SQliteDBname PoolConfig
@@ -270,7 +217,7 @@ defaultPoolConfig = PoolConfig
 
 -- | Create SQLite 'DBConfig'
 mkSQLiteConfig :: ConnTag -> SQliteDBname -> DBConfig BS.SqliteM
-mkSQLiteConfig connTag = SQLitePoolConf connTag defaultPoolConfig
+mkSQLiteConfig connTag dbName = SQLitePoolConf connTag dbName defaultPoolConfig
 
 -- | Create SQLite 'Pool' 'DBConfig'
 mkSQLitePoolConfig :: ConnTag -> SQliteDBname -> PoolConfig -> DBConfig BS.SqliteM
@@ -278,7 +225,7 @@ mkSQLitePoolConfig = SQLitePoolConf
 
 -- | Create Postgres 'DBConfig'
 mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
-mkPostgresConfig connTag = PostgresPoolConf connTag defaultPoolConfig
+mkPostgresConfig connTag dbName = PostgresPoolConf connTag dbName defaultPoolConfig
 
 -- | Create Postgres 'Pool' 'DBConfig'
 mkPostgresPoolConfig :: ConnTag -> PostgresConfig -> PoolConfig -> DBConfig BP.Pg
@@ -286,7 +233,7 @@ mkPostgresPoolConfig = PostgresPoolConf
 
 -- | Create MySQL 'DBConfig'
 mkMySQLConfig :: ConnTag -> MySQLConfig -> DBConfig BM.MySQLM
-mkMySQLConfig connTag = MySQLPoolConf connTag defaultPoolConfig
+mkMySQLConfig connTag dbName = MySQLPoolConf connTag dbName defaultPoolConfig
 
 -- | Create MySQL 'Pool' 'DBConfig'
 mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM

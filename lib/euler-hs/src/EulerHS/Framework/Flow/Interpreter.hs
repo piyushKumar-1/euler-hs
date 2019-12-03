@@ -65,9 +65,6 @@ connect cfg = do
 
 disconnect :: T.SqlConn beM ->   IO ()
 disconnect (T.MockedConn _)         = pure ()
-disconnect (T.SQLiteConn _ conn)   = SQLite.close conn
-disconnect (T.PostgresConn _ conn) = BP.close conn
-disconnect (T.MySQLConn _ conn)    = MySQL.close conn
 disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool

@@ -75,11 +75,9 @@ disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod R.FlowRuntime {..} (L.CallServantAPI bUrl clientAct next) =
   fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
-    manager <- takeMVar _httpClientManager
     result <- catchAny
-      (S.runClientM clientAct (S.mkClientEnv manager bUrl))
+      (S.runClientM clientAct (S.mkClientEnv _httpClientManager bUrl))
       (pure . Left . S.ConnectionError)
-    putMVar _httpClientManager manager
     pure result
 
 

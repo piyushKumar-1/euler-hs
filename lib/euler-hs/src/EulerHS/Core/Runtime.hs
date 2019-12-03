@@ -36,5 +36,4 @@ createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
 createCoreRuntime = pure . CoreRuntime
 
 clearCoreRuntime :: CoreRuntime -> IO ()
-clearCoreRuntime CoreRuntime{..} = do
-  clearLoggerRuntime _loggerRuntime
+clearCoreRuntime _ = pure ()

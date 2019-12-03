@@ -31,7 +31,7 @@ import qualified EulerHS.Core.Types   as T
 data FlowRuntime = FlowRuntime
   { _coreRuntime :: R.CoreRuntime
   -- ^ Contains logger settings
-  , _httpClientManager :: MVar Manager
+  , _httpClientManager :: Manager
   -- ^ Http manager, used for external api calls
   , _options :: MVar (Map ByteString ByteString)
   -- ^ Typed key-value storage
@@ -46,7 +46,7 @@ data FlowRuntime = FlowRuntime
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO (FlowRuntime )
 createFlowRuntime coreRt = do
-  managerVar <- newManager tlsManagerSettings >>= newMVar
+  managerVar <- newManager tlsManagerSettings
   optionsVar <- newMVar mempty
   kvdbConnections <- newMVar Map.empty
   sqldbConnections <- newMVar Map.empty
@@ -60,7 +60,6 @@ createFlowRuntime'  mbLoggerCfg =
 -- | Clear resources in given 'FlowRuntime'
 clearFlowRuntime :: FlowRuntime  -> IO ()
 clearFlowRuntime FlowRuntime{..} = do
-  R.clearCoreRuntime _coreRuntime
   _ <- takeMVar _options
   putMVar _options mempty
   kvConns <- takeMVar _kvdbConnections
@@ -69,8 +68,7 @@ clearFlowRuntime FlowRuntime{..} = do
   sqlConns <- takeMVar _sqldbConnections
   putMVar _sqldbConnections mempty
   traverse_ sqlDisconnect sqlConns
-  _ <- takeMVar _httpClientManager
-  putMVar _httpClientManager =<< newManager tlsManagerSettings
+  -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
 
 sqlDisconnect :: T.NativeSqlConn -> IO ()

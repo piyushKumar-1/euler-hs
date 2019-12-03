@@ -1,0 +1,4 @@
+{
+  {- DON'T DO THIS IN PROD -}
+  enableCors = True
+}

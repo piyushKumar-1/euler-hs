@@ -17,11 +17,14 @@ spec:
       containers:
       - name: console
         env:
-        - name: CONSOLE_ALLOW_CORS
-          value: "1"
+        - name: CONSOLE_CONFIG
+          value: "/etc/console/console.dhall"
         - name: GOOGLE_APPLICATION_CREDENTIALS
           value: "/var/secrets/google/key.json"
         volumeMounts:
+        - name: config
+          mountPath: "/etc/console"
+          readOnly: true
         - name: bq-key
           mountPath: "/var/secrets/google"
           readOnly: true
@@ -45,6 +48,21 @@ spec:
       - name: bq-key
         secret:
           secretName: bq-key
+      - name: config
+        configMap:
+          name: console-master
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: console-master
+  namespace: ec-prod
+data:
+  console.dhall: |
+    { enableCors = True
+    }
 
 ---
 

@@ -24,6 +24,7 @@ dockerTools.buildImage {
     bash
     coreutils
     curl
+    euler-hs-pkgs.console
   ];
   config = {
     Cmd = [ "${euler-hs-pkgs.console}/bin/console" ];

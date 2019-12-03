@@ -1,7 +1,7 @@
 module Main where
 
 import Console.HTTPServer (app)
-import Console.Env (allowCors)
+import Console.Config (enableCors, loadConfig)
 import Dashboard.Query.Types
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
 import Network.Wai.Handler.Warp (run)
@@ -25,15 +25,15 @@ ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_check
 
 main :: IO ()
 main = do
-  backend  <- newBigQueryBackend "godel-big-q" Nothing
-  wantCors <- allowCors
+  backend <- newBigQueryBackend "godel-big-q" Nothing
+  config  <- loadConfig
   run 8080 .
-    middleware wantCors $
+    middleware (enableCors config) $
     app backend ecQueryConf
 
   where
-    middleware wantCors = if wantCors
-                          then cors . const . Just $ corsPolicy
-                          else id
+    middleware enableCors = if enableCors
+                               then cors . const . Just $ corsPolicy
+                               else id
     -- Allow '*'
     corsPolicy = simpleCorsResourcePolicy { corsRequestHeaders = [ "Content-Type" ] }

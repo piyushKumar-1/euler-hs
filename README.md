@@ -7,7 +7,7 @@ Pre-requisites:-
 
 The following steps are needed for running the Console backend
 1. Export `GOOGLE_APPLICATION_CREDENTIALS=/path/to/godel-big-q.json`
-2. Export `CONSOLE_ALLOW_CORS=1`
+2. Export `CONSOLE_CONFIG=$PWD/app/console/config/console.dhall.sample`
 3. Run with `stack run console`
 
 Tests can be run with `stack test console`.

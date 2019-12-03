@@ -38,8 +38,12 @@ dependencies:
 - base >= 4.7 && < 5
 - bytestring
 - dashboard
-- universum
+- dhall
+- directory
+- filepath
 - servant-server
+- text
+- universum
 - wai
 - wai-cors
 - warp

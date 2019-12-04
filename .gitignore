@@ -31,4 +31,5 @@ console.cabal
 credit-platform.cabal
 dashboard.cabal
 euler-hs.cabal
+web-service.cabal
 euler-backend.cabal

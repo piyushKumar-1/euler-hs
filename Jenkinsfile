@@ -9,6 +9,8 @@ pipeline {
         sh 'nix-build -A euler-hs --option sandbox false'
         sh 'nix-build -A dashboard --option sandbox false'
         sh 'nix-build -A console --option sandbox false'
+        sh 'nix-build -A web-service --option sandbox false'
+        sh 'nix-build -A euler-backend --option sandbox false'
       }
     }
 

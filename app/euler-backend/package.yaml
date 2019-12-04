@@ -96,6 +96,7 @@ dependencies:
 - directory
 - timeit
 - prometheus-client
+- web-service
 
 library:
   source-dirs:

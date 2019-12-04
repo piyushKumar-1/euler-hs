@@ -88,6 +88,7 @@ dependencies:
 - xmlbf
 - xmlbf-xeno
 - natural-transformation
+- web-service
 
 library:
   source-dirs:
@@ -108,5 +109,3 @@ executables:
     - -O2
     - -fspec-constr-recursive=10
     - -fno-ignore-asserts
-    dependencies:
-    - euler-hs

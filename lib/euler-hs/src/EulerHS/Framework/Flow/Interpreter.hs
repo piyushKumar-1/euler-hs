@@ -221,6 +221,12 @@ interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
         disconnect conn
         putMVar _sqldbConnections $ Map.delete connTag connMap
 
+interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) = do
+  let connTag = getPosition @1 cfg
+  connMap <- readMVar _sqldbConnections
+  pure $ next $ case Map.lookup connTag connMap of
+    Just conn -> Right $ T.nativeToBem connTag conn
+    Nothing -> Left $ T.DBError T.SomeError $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = (R._runMode flowRt)

@@ -15,6 +15,7 @@ module EulerHS.Framework.Flow.Language
   -- *** SQLDB
   , initSqlDBConnection
   , deinitSqlDBConnection
+  , getSqlDBConnection
   , runDB
   -- *** KVDB
   , runKVDB
@@ -123,6 +124,11 @@ data FlowMethod next where
     -> (() -> next)
     -> FlowMethod next
 
+  GetSqlDBConnection
+    :: T.DBConfig beM
+    -> (T.DBResult (T.SqlConn beM) -> next)
+    -> FlowMethod next
+
   RunDB
     :: T.JSONEx a
     => T.SqlConn beM
@@ -157,6 +163,8 @@ instance Functor FlowMethod where
   fmap f (InitSqlDBConnection cfg next)       = InitSqlDBConnection cfg (f . next)
 
   fmap f (DeInitSqlDBConnection conn next)    = DeInitSqlDBConnection conn (f.next)
+
+  fmap f (GetSqlDBConnection cfg next)        = GetSqlDBConnection cfg (f . next)
 
   fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
@@ -296,6 +304,11 @@ initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 -- | Deinit the given connection if you want to deny access over that connection.
 deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
 deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
+
+-- | Get existing connection from FlowRuntime.
+-- If there is no such connection, returns error.
+getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
+getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id
 
 -- | Takes connection, sql query (described using BEAM syntax) and make request.
 --

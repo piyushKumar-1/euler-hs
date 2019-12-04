@@ -69,7 +69,7 @@ withMethodPlayer methodF mr@MethodRecording{..} PlayerParams{..} = do
             , flowGUID             = "main flow" -- :: Text
             }
       coreRt <- createCoreRuntime =<< createVoidLoggerRuntime
-      httpManager <- newManager tlsManagerSettings >>= newMVar
+      httpManager <- newManager tlsManagerSettings
       kvdbConnectionsVar <- newMVar mempty
       sqldbConnectionsVar <- newMVar mempty
       let flowRt = FlowRuntime

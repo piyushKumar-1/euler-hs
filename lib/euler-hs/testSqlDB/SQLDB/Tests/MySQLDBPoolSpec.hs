@@ -54,7 +54,7 @@ poolConfig = T.PoolConfig
   , keepAlive = 10
   , resourcesPerStripe = 50
   }
-  
+
 mySQLCfg :: MySQLConfig
 mySQLCfg = MySQLConfig
   { connectHost     = "localhost"
@@ -67,7 +67,7 @@ mySQLCfg = MySQLConfig
   , connectSSL      = Nothing
   }
 
-mysqlConfig = mkMySQLPoolConfig "eulerMysqlDB" poolConfig mySQLCfg
+mysqlConfig = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
 
 connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
@@ -77,7 +77,7 @@ connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
 
 uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
 uniqueConstraintViolationDbScript = do
-  connection <- connMySQLorFail $ mysqlConfig
+  connection <- connMySQLorFail mysqlConfig
 
 
   L.runDB connection
@@ -186,4 +186,3 @@ spec =
       it "Update / Select, row found & changed" $ \rt -> do
         eRes <- runFlow rt updateAndSelectDbScript
         eRes `shouldSatisfy` (someUser "Leo" "San")
-

@@ -91,7 +91,7 @@ poolConfig = T.PoolConfig
   , resourcesPerStripe = 50
   }
 
-sqliteCfg = T.mkSQLitePoolConfig "eulerSQliteDB" poolConfig testDBName
+sqliteCfg = T.mkSQLitePoolConfig "eulerSQliteDB" testDBName poolConfig
 
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
@@ -152,7 +152,7 @@ uniqueConstraintViolationDbScript = do
 
 selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript = do
-  connection <- connectOrFail sqliteCfg 
+  connection <- connectOrFail sqliteCfg
 
   L.runDB connection $ do
     let predicate User {..} = _userFirstName ==. B.val_ "Unknown"

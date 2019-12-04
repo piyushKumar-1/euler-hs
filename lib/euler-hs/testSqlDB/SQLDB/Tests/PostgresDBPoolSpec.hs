@@ -66,7 +66,7 @@ poolConfig = T.PoolConfig
   , resourcesPerStripe = 50
   }
 
-pgCfg = mkPostgresPoolConfig "eulerPGDB" poolConfig pgCfg'
+pgCfg = mkPostgresPoolConfig "eulerPGDB" pgCfg' poolConfig
 
 
 conPGorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)

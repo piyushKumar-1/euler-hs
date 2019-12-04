@@ -219,7 +219,7 @@ poolConfig = T.PoolConfig
   , resourcesPerStripe = 50
   }
 
-sqliteCfg = T.mkSQLitePoolConfig "clubSQliteDB" poolConfig testDBName
+sqliteCfg = T.mkSQLitePoolConfig "clubSQliteDB" testDBName poolConfig
 
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.initSqlDBConnection cfg >>= \case

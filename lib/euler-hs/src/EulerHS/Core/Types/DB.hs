@@ -32,21 +32,22 @@ module EulerHS.Core.Types.DB
 
 import           EulerHS.Prelude
 
+import qualified Data.Pool                       as DP
+import           Data.Time.Clock                 (NominalDiffTime)
 import qualified Database.Beam                   as B
 import qualified Database.Beam.Backend.SQL       as B
 import qualified Database.Beam.MySQL             as BM
 import qualified Database.Beam.Postgres          as BP
 import qualified Database.Beam.Sqlite            as BS
 import qualified Database.Beam.Sqlite.Connection as SQLite
-import qualified Database.SQLite.Simple          as SQLiteS
-import qualified Data.Pool                       as DP
 import qualified Database.MySQL.Base             as MySQL
-import qualified Database.SQLite.Simple          as SQLite
 import qualified Database.PostgreSQL.Simple      as PGS
-import           Data.Time.Clock                    (NominalDiffTime)
+import qualified Database.SQLite.Simple          as SQLiteS
+import qualified Database.SQLite.Simple          as SQLite
 
 import           EulerHS.Core.Types.MySQL        (MySQLConfig, createMySQLConn)
-import           EulerHS.Core.Types.Postgres     (PostgresConfig, createPostgresConn)
+import           EulerHS.Core.Types.Postgres     (PostgresConfig,
+                                                  createPostgresConn)
 
 
 
@@ -180,23 +181,23 @@ data NativeSqlConn
 
 -- | Transform 'SqlConn' to 'NativeSqlConn'
 bemToNative :: SqlConn beM -> NativeSqlConn
-bemToNative (MockedConn _) = NativeMockedConn
-bemToNative (SQLiteConn _ conn) = NativeSQLiteConn conn
+bemToNative (MockedConn _)        = NativeMockedConn
+bemToNative (SQLiteConn _ conn)   = NativeSQLiteConn conn
 bemToNative (PostgresConn _ conn) = NativePGConn conn
-bemToNative (MySQLConn _ conn) = NativeMySQLConn conn
+bemToNative (MySQLConn _ conn)    = NativeMySQLConn conn
 bemToNative (PostgresPool _ conn) = NativePGPool conn
-bemToNative (MySQLPool _ conn) = NativeMySQLPool conn
-bemToNative (SQLitePool _ conn) = NativeSQLitePool conn
+bemToNative (MySQLPool _ conn)    = NativeMySQLPool conn
+bemToNative (SQLitePool _ conn)   = NativeSQLitePool conn
 
 -- | Create 'SqlConn' from 'DBConfig'
 mkSqlConn :: DBConfig beM -> IO (SqlConn beM)
-mkSqlConn (PostgresPoolConf connTag PoolConfig {..} cfg) =  PostgresPool connTag
+mkSqlConn (PostgresPoolConf connTag cfg PoolConfig {..}) =  PostgresPool connTag
   <$> DP.createPool (createPostgresConn cfg) BP.close stripes keepAlive resourcesPerStripe
 
-mkSqlConn (MySQLPoolConf connTag PoolConfig {..} cfg) =  MySQLPool connTag
+mkSqlConn (MySQLPoolConf connTag cfg PoolConfig {..}) =  MySQLPool connTag
   <$> DP.createPool (createMySQLConn cfg) MySQL.close stripes keepAlive resourcesPerStripe
 
-mkSqlConn (SQLitePoolConf connTag PoolConfig {..} dbname) =  SQLitePool connTag
+mkSqlConn (SQLitePoolConf connTag dbname PoolConfig {..}) =  SQLitePool connTag
   <$> DP.createPool (SQLite.open dbname) SQLite.close stripes keepAlive resourcesPerStripe
 
 mkSqlConn (SQLiteConf connTag dbname) =  SQLiteConn connTag <$> SQLite.open dbname
@@ -240,21 +241,20 @@ data DBConfig beM
   -- ^ config for SQLite connection
   | PostgresConf ConnTag PostgresConfig
   -- ^ config for Postgres connection
-  | PostgresPoolConf ConnTag PoolConfig PostgresConfig
+  | PostgresPoolConf ConnTag PostgresConfig PoolConfig
   -- ^ config for 'Pool' with Postgres connections
   | MySQLConf ConnTag MySQLConfig
   -- ^ config for MySQL connection
-  | MySQLPoolConf ConnTag PoolConfig MySQLConfig
+  | MySQLPoolConf ConnTag MySQLConfig PoolConfig
   -- ^ config for 'Pool' with MySQL connections
-  | SQLitePoolConf ConnTag PoolConfig SQliteDBname
-  -- ^ config for 'Pool' with SQLite connections
+  | SQLitePoolConf ConnTag SQliteDBname PoolConfig
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- | Represents 'Pool' parameters
 data PoolConfig = PoolConfig
-  { stripes :: Int
+  { stripes            :: Int
   -- ^ a number of sub-pools
-  , keepAlive :: NominalDiffTime
+  , keepAlive          :: NominalDiffTime
   -- ^ the amount of time the connection will be stored
   , resourcesPerStripe :: Int
   -- ^ maximum number of connections to be stored in each sub-pool
@@ -266,7 +266,7 @@ mkSQLiteConfig :: ConnTag -> SQliteDBname -> DBConfig BS.SqliteM
 mkSQLiteConfig = SQLiteConf
 
 -- | Create SQLite 'Pool' 'DBConfig'
-mkSQLitePoolConfig :: ConnTag -> PoolConfig -> SQliteDBname -> DBConfig BS.SqliteM
+mkSQLitePoolConfig :: ConnTag -> SQliteDBname -> PoolConfig -> DBConfig BS.SqliteM
 mkSQLitePoolConfig = SQLitePoolConf
 
 -- | Create Postgres 'DBConfig'
@@ -274,7 +274,7 @@ mkPostgresConfig :: ConnTag -> PostgresConfig -> DBConfig BP.Pg
 mkPostgresConfig = PostgresConf
 
 -- | Create Postgres 'Pool' 'DBConfig'
-mkPostgresPoolConfig :: ConnTag -> PoolConfig -> PostgresConfig -> DBConfig BP.Pg
+mkPostgresPoolConfig :: ConnTag -> PostgresConfig -> PoolConfig -> DBConfig BP.Pg
 mkPostgresPoolConfig = PostgresPoolConf
 
 -- | Create MySQL 'DBConfig'
@@ -282,7 +282,7 @@ mkMySQLConfig :: ConnTag -> MySQLConfig -> DBConfig BM.MySQLM
 mkMySQLConfig = MySQLConf
 
 -- | Create MySQL 'Pool' 'DBConfig'
-mkMySQLPoolConfig :: ConnTag -> PoolConfig -> MySQLConfig -> DBConfig BM.MySQLM
+mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM
 mkMySQLPoolConfig = MySQLPoolConf
 
 
@@ -302,4 +302,3 @@ data DBError
 
 -- | Represents resulting type for DB actions
 type DBResult a = Either DBError a
-

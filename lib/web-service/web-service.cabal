@@ -1,0 +1,98 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 2ce8f98343ea1faeea46f50caae54ab07463f822f74604795945be895bdc3ebb
+
+name:           web-service
+version:        0.0.1.0
+homepage:       https://github.com/https://bitbucket.org/juspay/euler-hs#readme
+bug-reports:    https://github.com/https://bitbucket.org/juspay/euler-hs/issues
+author:         Juspay Technologies Pvt Ltd
+maintainer:     Juspay Technologies Pvt Ltd
+copyright:      Juspay Technologies Pvt Ltd 2019
+license:        OtherLicense
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/https://bitbucket.org/juspay/euler-hs
+
+library
+  exposed-modules:
+      WebService.Types
+      WebService.Language
+  other-modules:
+      WebService.Language.Extra
+      WebService.Types.AppException
+      Paths_web_service
+  hs-source-dirs:
+      src
+  default-extensions: NoImplicitPrelude GADTs RankNTypes DeriveFunctor DeriveGeneric OverloadedStrings LambdaCase MultiParamTypeClasses FunctionalDependencies ExplicitNamespaces TypeApplications ScopedTypeVariables TypeOperators TypeFamilies DataKinds FlexibleContexts FlexibleInstances PatternSynonyms PolyKinds DefaultSignatures ConstraintKinds NamedFieldPuns TupleSections ViewPatterns MultiWayIf DuplicateRecordFields RecordWildCards
+  ghc-options: -Wall
+  build-depends:
+      aeson
+    , aeson-pretty
+    , async
+    , attoparsec
+    , base >=4.7 && <5
+    , beam-core
+    , beam-migrate
+    , beam-mysql
+    , beam-postgres
+    , beam-sqlite
+    , binary
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cereal
+    , containers
+    , cryptonite
+    , errors
+    , euler-hs
+    , extra
+    , fmt
+    , free
+    , generic-lens
+    , hashable
+    , haskeline
+    , hedis
+    , http-client
+    , http-media
+    , http-types
+    , lens
+    , messagepack
+    , monad-loops
+    , mtl
+    , mysql
+    , named
+    , natural-transformation
+    , network
+    , newtype
+    , newtype-generics
+    , optparse-applicative
+    , postgresql-simple
+    , process
+    , random
+    , resource-pool
+    , safe-exceptions
+    , scientific
+    , semigroupoids
+    , servant
+    , servant-client
+    , servant-client-core
+    , sqlite-simple
+    , stm
+    , tagged
+    , text
+    , time
+    , tinylog
+    , transformers
+    , universum
+    , unordered-containers
+    , uuid
+    , validation
+    , vector
+  default-language: Haskell2010

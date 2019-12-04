@@ -32,6 +32,8 @@ let
           # Our own packages
           euler-hs =
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };
+          web-service =
+            self.callCabal2nix "web-service" ./lib/web-service { };
           euler-backend =
             self.callCabal2nix "euler-backend" ./app/euler-backend { };
           credit-platform =
@@ -49,6 +51,7 @@ let
 in {
   pkgs = pkgs;
   euler-hs = pkgs.haskellPackages.euler-hs;
+  web-service = pkgs.haskellPackages.web-service;
   credit-platform = pkgs.haskellPackages.credit-platform;
   euler-backend = pkgs.haskellPackages.euler-backend;
   dashboard = pkgs.haskellPackages.dashboard;

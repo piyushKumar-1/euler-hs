@@ -1,28 +1,32 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module SQLDB.Tests.SQLiteDBPoolSpec where
 
 
-import           EulerHS.Prelude   hiding (getOption)
-import           Test.Hspec        hiding (runIO)
-import           Data.Aeson               (encode)
-import qualified Data.ByteString.Lazy as BSL
+import           Data.Aeson                (encode)
+import qualified Data.ByteString.Lazy      as BSL
+import           EulerHS.Prelude           hiding (getOption)
+import           Test.Hspec                hiding (runIO)
 import           Unsafe.Coerce
 
-import           EulerHS.Types hiding (error)
 import           EulerHS.Interpreters
 import           EulerHS.Language
-import           EulerHS.Runtime (withFlowRuntime)
+import           EulerHS.Runtime           (withFlowRuntime)
+import           EulerHS.Types             hiding (error)
 
-import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime as R
-import qualified EulerHS.Types as T
-import qualified Database.Beam as B
-import qualified Database.Beam.Sqlite as BS
+import           Database.Beam             ((&&.), (/=.), (<-.), (==.))
+import qualified Database.Beam             as B
 import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (<-.), (/=.))
+import qualified Database.Beam.Sqlite      as BS
+import qualified EulerHS.Language          as L
+import qualified EulerHS.Runtime           as R
+import qualified EulerHS.Types             as T
 
 -- sqlite3 db
 -- CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name VARCHAR NOT NULL, last_name VARCHAR NOT NULL);
@@ -211,7 +215,7 @@ withEmptyDB act = withFlowRuntime Nothing (\rt -> do
 
 someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
 someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l
-someUser _ _ _ = False
+someUser _ _ _                = False
 
 
 spec :: Spec
@@ -219,6 +223,45 @@ spec =
   around withEmptyDB $
 
     describe "EulerHS SQLite DB Pool tests" $ do
+      it "Double connection initialization should fail" $ \rt -> do
+        eRes <- runFlow rt $ do
+          eConn1 <- L.initSqlDBConnection sqliteCfg
+          eConn2 <- L.initSqlDBConnection sqliteCfg
+          case (eConn1, eConn2) of
+            (Left err, _) -> pure $ Left $ "Failed to connect 1st time: " <> show err
+            (_, Left (T.DBError T.ConnectionAlreadyExists msg))
+              | msg == "Connection for eulerSQliteDB already created." -> pure $ Right ()
+            (_, Left err) -> pure $ Left $ "Unexpected error type on 2nd connect: " <> show err
+        eRes `shouldBe` Right ()
+
+      it "Get uninialized connection should fail" $ \rt -> do
+        eRes <- runFlow rt $ do
+          eConn <- L.getSqlDBConnection sqliteCfg
+          case eConn of
+            Left (T.DBError T.ConnectionDoesNotExist msg)
+              | msg == "Connection for eulerSQliteDB does not exists." -> pure $ Right ()
+            Left err -> pure $ Left $ "Unexpected error: " <> show err
+            Right _ -> pure $ Left "Unexpected connection success"
+        eRes `shouldBe` Right ()
+
+      it "Init and get connection should succeed" $ \rt -> do
+        eRes <- runFlow rt $ do
+          eConn1 <- L.initSqlDBConnection sqliteCfg
+          eConn2 <- L.getSqlDBConnection sqliteCfg
+          case (eConn1, eConn2) of
+            (Left err, _) -> pure $ Left $ "Failed to connect: " <> show err
+            (_, Left err) -> pure $ Left $ "Unexpected error on get connection: " <> show err
+            _             -> pure $ Right ()
+        eRes `shouldBe` Right ()
+
+      it "getOrInitSqlConn should succeed" $ \rt -> do
+        eRes <- runFlow rt $ do
+          eConn <- L.getOrInitSqlConn sqliteCfg
+          case eConn of
+            Left err -> pure $ Left $ "Failed to connect: " <> show err
+            _        -> pure $ Right ()
+        eRes `shouldBe` Right ()
+
       it "Unique Constraint Violation" $ \rt -> do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
         eRes `shouldBe` (Left (DBError SomeError "SQLite3 returned ErrorConstraint while attempting to perform step: UNIQUE constraint failed: users.id"))

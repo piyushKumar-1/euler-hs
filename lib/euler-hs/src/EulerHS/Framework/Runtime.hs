@@ -73,9 +73,6 @@ clearFlowRuntime FlowRuntime{..} = do
 
 sqlDisconnect :: T.NativeSqlConn -> IO ()
 sqlDisconnect = \case
-  T.NativePGConn conn -> BP.close conn
-  T.NativeMySQLConn conn -> MySQL.close conn
-  T.NativeSQLiteConn conn -> SQLite.close conn
   T.NativePGPool connPool -> DP.destroyAllResources connPool
   T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
   T.NativeSQLitePool connPool -> DP.destroyAllResources connPool

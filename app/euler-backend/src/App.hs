@@ -39,6 +39,9 @@ prepareDBConnections = do
 prepareDBConnections' :: L.Flow ()
 prepareDBConnections' = pure ()
 
+-- TODO: use a real connection config and switch from
+-- prepareDBConnections' to prepareDBConnections.
+
 runEulerBackendApp' :: Settings -> IO ()
 runEulerBackendApp' settings = do
   let loggerCfg = T.defaultLoggerConfig

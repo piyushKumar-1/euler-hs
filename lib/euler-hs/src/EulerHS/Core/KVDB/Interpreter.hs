@@ -101,7 +101,7 @@ interpretKeyValueTxF (L.HGet k field next) =
 
 
 interpretTransactionF
-  :: (forall a . R.Redis (Either R.Reply a) -> IO (Either KVDBReply a))
+  :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> D.RunMode
   -> L.TransactionF a
   -> IO a
@@ -111,7 +111,7 @@ interpretTransactionF runRedis runMode (L.MultiExec dsl next) =
 
 
 interpretDbF
-  :: (forall a . R.Redis (Either R.Reply a) -> IO (Either KVDBReply a))
+  :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> D.RunMode
   -> L.KVDBF a
   -> IO a
@@ -135,5 +135,3 @@ runKVDB runMode kvdbConnMapMVar =
             Redis c -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
             Mocked  -> pure $ Right $
               error "Result of runRedis with mocked connection should not ever be evaluated"
-
-

@@ -1,12 +1,13 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards #-}
 
-module EulerHS.Framework.Flow.Entries where
-
+module EulerHS.Core.Playback.Entries where
 
 import EulerHS.Prelude
-import EulerHS.Types (RRItem(..), MockedResult(..))
+import EulerHS.Core.Types.Playback (RRItem(..), MockedResult(..))
 import qualified Data.Aeson     as A
 import qualified EulerHS.Types  as T
 import qualified Servant.Client as S
@@ -27,39 +28,6 @@ instance RRItem RunDBEntry where
 instance T.JSONEx a => MockedResult RunDBEntry (T.DBResult a) where
   getMock RunDBEntry {jsonResult} = T.jsonDecode jsonResult
 
-
-----------------------------------------------------------------------
-
--- data EvalLoggerEntry = EvalLoggerEntry
---   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- mkEvalLoggerEntry :: a -> EvalLoggerEntry
--- mkEvalLoggerEntry _ = EvalLoggerEntry
-
--- instance RRItem EvalLoggerEntry where
---   getTag _ = "EvalLoggerEntry"
-
--- instance MockedResult EvalLoggerEntry a where
---   getMock _ = Just $
---     error "Not Implemented MockedResult EvalLoggerEntry"
-
-----------------------------------------------------------------------
-
--- data RunKVDBEntry = RunKVDBEntry
---   deriving (Show, Eq, Generic, ToJSON, FromJSON)
-
--- mkRunKVDBEntry :: a -> RunKVDBEntry
--- mkRunKVDBEntry _ = RunKVDBEntry
-
--- instance RRItem RunKVDBEntry where
---   getTag _ = "RunKVDBEntry"
-
--- instance MockedResult RunKVDBEntry a where
---   getMock _ = Just $
---     error "Not Implemented MockedResult RunKVDBEntry"
-
-----------------------------------------------------------------------
-
 data ThrowExceptionEntry = ThrowExceptionEntry
   { exMessage :: String
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
@@ -71,8 +39,7 @@ instance RRItem ThrowExceptionEntry where
   getTag _ = "ThrowExceptionEntry"
 
 instance MockedResult ThrowExceptionEntry a where
-  getMock _ = Just $
-    error "This shold not be evaluated: throw exception result"
+  getMock _ = Just $ error "This shold not be evaluated: throw exception result"
 
 ----------------------------------------------------------------------
 
@@ -227,7 +194,17 @@ instance RRItem (DeInitSqlDBConnectionEntry beM) where
 instance MockedResult (DeInitSqlDBConnectionEntry beM) () where
   getMock (DeInitSqlDBConnectionEntry _) = Just ()
 
+-- ----------------------------------------------------------------------
 
+data GetSqlDBConnectionEntry beM = GetSqlDBConnectionEntry
+  { dBConfig :: T.DBConfig beM
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
+mkGetSqlDBConnectionEntry :: T.DBConfig beM -> a -> GetSqlDBConnectionEntry beM
+mkGetSqlDBConnectionEntry dbcfg _ = GetSqlDBConnectionEntry dbcfg
 
+instance RRItem (GetSqlDBConnectionEntry beM)  where
+  getTag _ = "GetSqlDBConnectionEntry"
 
+instance MockedResult (GetSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
+  getMock (GetSqlDBConnectionEntry _) = Just $ Right $ T.MockedConn ""

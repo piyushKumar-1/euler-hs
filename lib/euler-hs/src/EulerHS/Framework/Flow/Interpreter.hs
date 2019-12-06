@@ -36,7 +36,7 @@ import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Core.SqlDB.Language as L
 import qualified EulerHS.Core.Logger.Language as L
 import qualified EulerHS.Core.Playback.Machine as P
-import qualified EulerHS.Framework.Flow.Entries as P
+import qualified EulerHS.Core.Playback.Entries as P
 import qualified Data.Vector as V
 import qualified Data.Text as Text
 
@@ -67,7 +67,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.CallServantAPI bUrl clientAct next) =
 
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
-  fmap next $ -- P.withRunMode _runMode P.mkEvalLoggerEntry $
+  fmap next $
     R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunIO ioAct next) =
@@ -209,12 +209,13 @@ interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
         disconnect conn
         putMVar _sqldbConnections $ Map.delete connTag connMap
 
-interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) = do
-  let connTag = getPosition @1 cfg
-  connMap <- readMVar _sqldbConnections
-  pure $ next $ case Map.lookup connTag connMap of
-    Just conn -> Right $ T.nativeToBem connTag conn
-    Nothing -> Left $ T.DBError T.ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
+interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
+  fmap next $ P.withRunMode _runMode (P.mkGetSqlDBConnectionEntry cfg) $ do
+    let connTag = getPosition @1 cfg
+    connMap <- readMVar _sqldbConnections
+    pure $ case (Map.lookup connTag connMap) of
+      Just conn -> Right $ T.nativeToBem connTag conn
+      Nothing   -> Left $ T.DBError T.ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = R._runMode flowRt

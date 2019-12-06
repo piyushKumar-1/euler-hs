@@ -262,6 +262,14 @@ spec =
             _        -> pure $ Right ()
         eRes `shouldBe` Right ()
 
+      it "Prepared connection should be available" $ \rt -> do
+        void $ runFlow rt $ do
+          eConn <- L.initSqlDBConnection sqliteCfg
+          when (isLeft eConn) $ error "Failed to prepare connection."
+        void $ runFlow rt $ do
+          eConn <- L.getSqlDBConnection sqliteCfg
+          when (isLeft eConn) $ error "Failed to get prepared connection."
+
       it "Unique Constraint Violation" $ \rt -> do
         eRes <- runFlow rt uniqueConstraintViolationDbScript
         eRes `shouldBe` (Left (DBError SomeError "SQLite3 returned ErrorConstraint while attempting to perform step: UNIQUE constraint failed: users.id"))

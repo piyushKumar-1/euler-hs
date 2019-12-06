@@ -305,7 +305,7 @@ initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
 deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 
--- | Get existing connection from FlowRuntime.
+-- | Get existing connection.
 -- If there is no such connection, returns error.
 getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id

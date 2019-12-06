@@ -248,6 +248,7 @@ mkMySQLPoolConfig = MySQLPoolConf
 data DBErrorType
   = ConnectionFailed
   | ConnectionAlreadyExists
+  | ConnectionDoesNotExist
   | SomeError
   deriving (Show, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
 
@@ -263,9 +264,6 @@ type DBResult a = Either DBError a
 -- | Transforms 'NativeSqlConn' to 'SqlConn'
 nativeToBem :: ConnTag -> NativeSqlConn -> SqlConn beM
 nativeToBem connTag NativeMockedConn        = MockedConn connTag
-nativeToBem connTag (NativeSQLiteConn conn) = SQLiteConn connTag conn
-nativeToBem connTag (NativePGConn conn)     = PostgresConn connTag conn
-nativeToBem connTag (NativeMySQLConn conn)  = MySQLConn connTag conn
 nativeToBem connTag (NativePGPool conn)     = PostgresPool connTag conn
 nativeToBem connTag (NativeMySQLPool conn)  = MySQLPool connTag conn
 nativeToBem connTag (NativeSQLitePool conn) = SQLitePool connTag conn

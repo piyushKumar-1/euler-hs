@@ -43,18 +43,6 @@ import qualified Data.Text as Text
 import qualified Database.PostgreSQL.Simple as PGS
 import Data.Generics.Product.Positions (getPosition)
 
-executeWithLogSQLite :: (String -> IO ()) -> SQLite.Connection -> SQLite.Query -> IO ()
-executeWithLogSQLite log conn q = SQLite.execute_ conn q >> (log $ show q)
-
-beginTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
-beginTransactionSQLite    log conn = executeWithLogSQLite log conn "BEGIN TRANSACTION"
-
-commitTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
-commitTransactionSQLite   log conn = executeWithLogSQLite log conn "COMMIT TRANSACTION"
-
-rollbackTransactionSQLite :: (String -> IO ()) -> SQLite.Connection -> IO ()
-rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRANSACTION"
-
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect cfg = do
   eConn <- try $ T.mkSqlConn cfg
@@ -226,10 +214,10 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) = do
   connMap <- readMVar _sqldbConnections
   pure $ next $ case Map.lookup connTag connMap of
     Just conn -> Right $ T.nativeToBem connTag conn
-    Nothing -> Left $ T.DBError T.SomeError $ "Connection for " <> connTag <> " does not exists."
+    Nothing -> Left $ T.DBError T.ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
-  let runMode   = (R._runMode flowRt)
+  let runMode   = R._runMode flowRt
   let dbgLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                 . L.logMessage' T.Debug ("RUNTIME" :: String)
                 . show

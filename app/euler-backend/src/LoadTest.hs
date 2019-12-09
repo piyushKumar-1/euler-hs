@@ -21,6 +21,7 @@ import System.TimeIt
 
 test :<|> txns        :<|> orderStatus
      :<|> orderCreate :<|> orderUpdate
+     :<|> paymentStatus
      :<|> emptyServer = client Server.eulerAPI
 
 

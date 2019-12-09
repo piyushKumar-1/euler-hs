@@ -37,6 +37,7 @@ default-extensions:
 dependencies:
 - base >= 4.7 && < 5
 - aeson
+- aeson-casing
 - bytestring
 - containers
 - errors
@@ -97,6 +98,7 @@ dependencies:
 - timeit
 - prometheus-client
 - web-service
+- wai-extra
 
 library:
   source-dirs:

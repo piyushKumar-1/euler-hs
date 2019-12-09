@@ -96,6 +96,12 @@ dependencies:
 - case-insensitive
 - http-media
 - servant-client-core
+- string-conversions
+- servant-server
+- wai
+- wai-extra
+- utf8-string
+- casing
 
 library:
   source-dirs:
@@ -103,6 +109,8 @@ library:
   exposed-modules:
   - WebService.Types
   - WebService.Language
+  - WebService.ContentType
+  - WebService.FlexCasing
   ghc-options:
   - -Wall
   # - -Werror

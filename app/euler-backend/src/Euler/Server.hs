@@ -9,6 +9,7 @@ import           Servant
 import           Data.Time
 
 import qualified Data.Aeson as A
+import qualified Data.Text  as Text
 
 import qualified EulerHS.Interpreters                   as R
 import qualified EulerHS.Language                       as L
@@ -20,11 +21,17 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
 import qualified Euler.API.Order                        as ApiOrder
+import qualified Euler.API.Payment                      as ApiPayment
 import qualified Euler.Common.Types.Merchant            as Merchant
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 import qualified Data.ByteString.Lazy                   as BSL
 import qualified Prometheus as P
+import qualified WebService.ContentType                 as ContentType
+import           WebService.FlexCasing
+                 (QueryParamC, mkFlexCaseMiddleware)
+import           Network.Wai.Middleware.Routed
+                 (routedMiddleware)
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text
@@ -35,6 +42,8 @@ type EulerAPI
   :<|> "orders" :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderCreateResponse
 -- order update
   :<|> "orders" :> Capture "orderId" Text :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderStatusResponse
+-- payment status endpoint (flexible casing showcase)  
+  :<|> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, ContentType.JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse  
   :<|> "metrics" :> Get '[OctetStream] ByteString
   :<|> EmptyAPI
 
@@ -51,12 +60,13 @@ type FlowServer = ServerT EulerAPI (ReaderT Env (ExceptT ServerError IO))
 
 eulerServer' :: FlowServer
 eulerServer' =
-    test        :<|>
-    txns        :<|>
-    orderStatus :<|>
-    orderCreate :<|>
-    orderUpdate :<|>
-    metrics     :<|>
+    test          :<|>
+    txns          :<|>
+    orderStatus   :<|>
+    orderCreate   :<|>
+    orderUpdate   :<|>
+    paymentStatus :<|>
+    metrics       :<|>
     emptyServer
 
 eulerServer :: Env -> Server EulerAPI
@@ -70,7 +80,12 @@ eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
         Right res -> pure res
 
 eulerBackendApp :: Env -> Application
-eulerBackendApp = serve eulerAPI . eulerServer
+eulerBackendApp env = 
+  let 
+    flexCaseMiddleware = routedMiddleware (["payment-status"] ==) 
+      (mkFlexCaseMiddleware "orderId" . ContentType.chooseContentType) 
+  in
+    flexCaseMiddleware (serve eulerAPI (eulerServer env))
 
 runFlow :: (ToJSON a) => PB.FlowTag -> A.Value -> L.Flow a -> FlowHandler a
 runFlow flowTag req flow = do
@@ -190,6 +205,19 @@ orderUpdate orderId ordReq = do
     pure ApiOrder.defaultOrderStatusResponse
   pure res
 
+paymentStatus :: 
+  Maybe String ->  -- orderId
+  Maybe String ->  -- merchantId
+  Maybe String ->  -- callback
+  Maybe String ->  -- casing
+  FlowHandler ApiPayment.PaymentStatusResponse
+paymentStatus (Just orderId) (Just merchantId) callback (Just casing) = 
+  return $ ApiPayment.PaymentStatusResponse {
+    payload = ApiPayment.defaultPaymentStatus,
+    caseStyle = Text.pack casing,
+    callback = Text.pack <$> callback
+  }
+paymentStatus _ _ _ _ = throwError $ err400 {errBody = "couldn't parse request"}
 
 metrics :: FlowHandler ByteString
 metrics = BSL.toStrict <$> P.exportMetricsAsText

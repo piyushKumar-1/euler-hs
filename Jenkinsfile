@@ -12,6 +12,10 @@ pipeline {
         sh 'nix-build -A web-service --option sandbox false'
         sh 'nix-build -A euler-backend --option sandbox false'
       }
+
+      options {
+        timeout(time: 30, unit: 'MINUTES')
+      }
     }
 
     stage('Deploy Console') {

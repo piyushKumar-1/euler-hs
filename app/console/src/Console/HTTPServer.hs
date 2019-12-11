@@ -4,18 +4,16 @@ import Universum
 
 import Servant
 
-import Console.API (queryHandler)
+import Console.API (QueryAPI, queryAuthContext, queryHandler)
+import Dashboard.Auth.Types (AuthContext, Token)
 import Dashboard.Query.Backend
 import Dashboard.Query.Types
 
-type QueryAPI
-   = "dashboard" :> "query" :> ReqBody '[ JSON] Query :> Post '[ JSON] QueryResult
-
-server :: QueryBackend qb => qb -> QueryConfiguration -> Server QueryAPI
+server :: QueryBackend qb => qb -> QueryConfiguration -> Token -> Query -> Handler QueryResult
 server = queryHandler
 
 queryAPI :: Proxy QueryAPI
 queryAPI = Proxy
 
-app :: QueryBackend qb => qb -> QueryConfiguration -> Application
-app qb qc = serve queryAPI $ server qb qc
+app :: QueryBackend qb => AuthContext -> qb -> QueryConfiguration -> Application
+app authCtx qb qc = serveWithContext queryAPI (queryAuthContext authCtx) (server qb qc)

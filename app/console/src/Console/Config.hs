@@ -21,6 +21,7 @@ configPath = "console" </> "console.dhall"
 data Config =
   Config
     { httpPort :: Natural
+    , jwtSecret :: Text
     , enableCors :: Bool
     }
   deriving (Generic, Show)

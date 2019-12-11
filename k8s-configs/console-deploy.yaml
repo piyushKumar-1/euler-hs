@@ -62,6 +62,7 @@ metadata:
 data:
   console.dhall: |
     { httpPort = 9000
+    , jwtSecret = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ"
     , enableCors = True
     }
 

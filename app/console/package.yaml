@@ -41,6 +41,9 @@ dependencies:
 - dhall
 - directory
 - filepath
+- hedis
+- jwt
+- servant
 - servant-server
 - text
 - universum

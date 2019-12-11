@@ -6,8 +6,7 @@ import Data.Maybe (fromJust)
 import Data.Time.ISO8601 (parseISO8601)
 import Test.Hspec
 
-import Test.Fixtures (testPort)
-import Console.HTTPServer (queryAPI)
+import Test.Fixtures (queryAPINoAuth, testPort)
 import qualified Dashboard.Query.Types as QT
 
 import Servant.Client (client, runClientM, mkClientEnv, parseBaseUrl)
@@ -48,7 +47,7 @@ incorrectQuery = QT.Query (QT.Selection
 
 specs :: Spec
 specs = describe "Query API" $ do
-      let queryClient = client queryAPI
+      let queryClient = client queryAPINoAuth
       baseUrl <- runIO . parseBaseUrl $ "http://localhost:" ++ show testPort
       manager <- runIO . newManager $ defaultManagerSettings
       let clientEnv = mkClientEnv manager baseUrl

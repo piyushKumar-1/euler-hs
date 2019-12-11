@@ -2,12 +2,14 @@ module Test.Fixtures where
 
 import Universum
 
+import qualified Control.Concurrent as C
+import Dashboard.Auth.Types (LoginContext(..), Role(..), Token(..))
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
 import Dashboard.Query.Types
-import qualified Control.Concurrent as C
 import qualified Network.Wai.Handler.Warp as Warp
+import Servant (Proxy(..), serve)
 
-import Console.HTTPServer (app)
+import Console.API (QueryAPINoAuth, queryHandler)
 
 testPort = 8084
 
@@ -32,9 +34,26 @@ ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_check
                                    )
                                  ]
 
+token :: Token
+token = Token { userId = 0
+              , userName = "test"
+              , email = Nothing
+              , roles = [RoleAdmin]
+              , ownerId = ""
+              , loginContext = LoginContextJuspay
+              , merchantAccountId = Nothing
+              , merchantId = Nothing
+              , resellerId = Nothing
+              }
+
+queryAPINoAuth :: Proxy QueryAPINoAuth
+queryAPINoAuth = Proxy
+
 withConsoleServer :: IO () -> IO ()
 withConsoleServer action = do
   backend <- newBigQueryBackend "instant-text-253509" (Just bqCreds)
-  bracket (liftIO $ C.forkIO $ Warp.run testPort $ app backend ecQueryConf)
+  let handler = queryHandler backend ecQueryConf token
+
+  bracket (liftIO $ C.forkIO $ Warp.run testPort $ serve queryAPINoAuth handler)
     C.killThread
     (const action)

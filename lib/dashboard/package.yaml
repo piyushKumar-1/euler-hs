@@ -45,14 +45,18 @@ library:
   - aeson-utils
   - base >= 4.7 && < 5
   - bytestring
+  - containers
   - fmt
   - gogol >= 0.5 && < 0.6
   - gogol-core >= 0.5 && < 0.6
   - gogol-bigquery >= 0.5 && < 0.6
+  - hedis
+  - jwt
   - lens
   - text
   - time
   - universum
+  - unordered-containers
 
 tests:
   dashboard-tests:

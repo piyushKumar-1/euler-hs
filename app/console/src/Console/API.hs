@@ -1,28 +1,68 @@
-module Console.API where
+module Console.API
+  ( QueryAPI
+  , QueryAPINoAuth
+  , queryAuthContext
+  , queryHandler
+  ) where
 
 import Universum
 
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.List as List
+import Network.Wai (Request, requestHeaders)
 import Servant
+import Servant.Server.Experimental.Auth
 
+import Dashboard.Auth.Types (AuthContext, Token(..), Role(..))
+import Dashboard.Auth.Token (lookupToken)
 import Dashboard.Query.Backend
 import Dashboard.Query.Types
 import Dashboard.Query.Validation
 
+-- This one is only used for tests
+type QueryAPINoAuth
+  = "dashboard" :> "query" :> ReqBody '[JSON] Query :> Post '[JSON] QueryResult
+
 type QueryAPI
-   = "dashboard" :> "query" :> ReqBody '[JSON] Query :> Post '[JSON] QueryResult
+  = AuthProtect "web-token" :> QueryAPINoAuth
+
+type instance AuthServerData (AuthProtect "web-token") = Token
+
+authHandler :: AuthContext -> AuthHandler Request Token
+authHandler authCtx = mkAuthHandler handler
+  where
+    handler req = do
+      let eUuid = maybeToRight
+                    "Missing login token"
+                    (List.lookup "X-Web-LoginToken" . requestHeaders $ req)
+      token <- liftIO $
+                 either
+                   (return . Left)
+                   (fmap (maybeToRight "Invalid login token") . lookupToken authCtx)
+                   eUuid
+
+      either throw401 return token
+
+    throw401 msg = throwError $ err401 { errBody = msg }
+
+queryAuthContext :: AuthContext -> Context (AuthHandler Request Token ': '[])
+queryAuthContext authCtx = authHandler authCtx :. EmptyContext
 
 -- FIXME: The error reporting is very basic now to reflect the flattened error that gets
 -- returned i.e. [QueryValidationerror], will change once we have a richer, nested error type.
-queryHandler :: QueryBackend qb => qb -> QueryConfiguration -> Query -> Handler QueryResult
-queryHandler qb qc q =
-  validateQuery qc q
-  & either
-      (throwError . toServerError)
-      (const . liftIO . runQuery qb qc $ q)
+queryHandler :: QueryBackend qb => qb -> QueryConfiguration -> Token -> Query -> Handler QueryResult
+queryHandler qb qc token q =
+  -- FIXME: hardcoded role check for now
+  if RoleAdmin `List.notElem` roles token
+    then
+      throwError err403
+    else
+      case validateQuery qc q of
+        Left err -> throwError . toServerError $ err
+        Right _  -> liftIO . runQuery qb qc $ q
+
   where
     toServerError :: [QueryValidationError] -> ServerError
     toServerError validationErrors =
       let queryError = B.pack . intercalate ", " $ printQueryValidationError <$> validationErrors
       in err400 {errBody = queryError}
-

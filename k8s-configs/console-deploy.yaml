@@ -38,7 +38,7 @@ spec:
             cpu: 2
             memory: 2Gi
         ports:
-        - containerPort: 8080
+        - containerPort: 9000
           name: http
       imagePullSecrets:
       - name: jp-gcr-ec
@@ -75,8 +75,8 @@ metadata:
     app: console
 spec:
   ports:
-  - port: 8080
-    targetPort: 8080
+  - port: 9000
+    targetPort: 9000
     name: http
   selector:
     app: console

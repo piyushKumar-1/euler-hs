@@ -1,11 +1,12 @@
 module Main where
 
 import Console.HTTPServer (app)
-import Console.Config (enableCors, loadConfig)
+import Console.Config (enableCors, httpPort, loadConfig)
 import Dashboard.Query.Types
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors (CorsResourcePolicy(..), cors, corsRequestHeaders, simpleCorsResourcePolicy)
+import GHC.Natural (naturalToInt)
 import Universum
 
 ecQueryConf :: QueryConfiguration
@@ -27,7 +28,7 @@ main :: IO ()
 main = do
   backend <- newBigQueryBackend "godel-big-q" Nothing
   config  <- loadConfig
-  run 8080 .
+  run (naturalToInt . httpPort $ config) .
     middleware (enableCors config) $
     app backend ecQueryConf
 

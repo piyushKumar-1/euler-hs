@@ -18,9 +18,10 @@ consoleEnv s = "CONSOLE_" ++ s
 configPath :: FilePath
 configPath = "console" </> "console.dhall"
 
-newtype Config =
+data Config =
   Config
-    { enableCors :: Bool
+    { httpPort :: Natural
+    , enableCors :: Bool
     }
   deriving (Generic, Show)
 

@@ -1,4 +1,4 @@
 {
-  {- DON'T DO THIS IN PROD -}
-  enableCors = True
+  httpPort = 9000
+, enableCors = True {- DON'T DO THIS IN PROD -}
 }

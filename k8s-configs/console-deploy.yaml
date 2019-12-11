@@ -61,7 +61,8 @@ metadata:
   namespace: ec-prod
 data:
   console.dhall: |
-    { enableCors = True
+    { httpPort = 9000
+    , enableCors = True
     }
 
 ---

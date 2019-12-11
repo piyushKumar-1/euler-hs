@@ -9,7 +9,6 @@ import EulerHS.Prelude
 import EulerHS.Types (RRItem(..), MockedResult(..))
 import qualified EulerHS.Types    as T
 import qualified Data.Aeson       as A
-import qualified Data.Aeson.Types as A
 
 data SetEntry = SetEntry
   { jsonKey    :: A.Value
@@ -28,6 +27,29 @@ mkSetEntry k v r = SetEntry
   (T.jsonEncode k)
   (T.jsonEncode v)
   (T.jsonEncode r)
+
+----------------------------------------------------------------------
+
+data SetExEntry = SetExEntry
+  { jsonKey    :: A.Value
+  , jsonTtl    :: A.Value
+  , jsonValue  :: A.Value
+  , jsonResult :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+instance RRItem SetExEntry where
+  getTag _ = "SetExEntry"
+
+instance MockedResult SetExEntry (Either T.KVDBReply T.KVDBStatus) where
+  getMock SetExEntry {jsonResult} = T.jsonDecode jsonResult
+
+mkSetExEntry :: ByteString -> Integer -> ByteString -> Either T.KVDBReply T.KVDBStatus -> SetExEntry
+mkSetExEntry k e v r = SetExEntry
+  (T.jsonEncode k)
+  (toJSON e)
+  (T.jsonEncode v)
+  (T.jsonEncode r)
+
 
 ----------------------------------------------------------------------
 

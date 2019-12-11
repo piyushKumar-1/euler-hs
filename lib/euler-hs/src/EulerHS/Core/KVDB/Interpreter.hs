@@ -12,21 +12,12 @@ import           EulerHS.Prelude
 
 import qualified Database.Redis             as R
 import qualified EulerHS.Core.KVDB.Language as L
-import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Runtime            as RT
 import qualified Data.Map                   as Map
-
-import Data.Generics.Product.Fields
-import GHC.TypeLits
-import Type.Reflection (typeRep)
-import Unsafe.Coerce
 
 import qualified EulerHS.Core.Playback.Machine as P
 import qualified EulerHS.Core.KVDB.Entries     as E
 import qualified EulerHS.Core.Types            as D
-
-
 
 
 interpretKeyValueF
@@ -37,6 +28,10 @@ interpretKeyValueF
 interpretKeyValueF runRedis runMode (L.Set k v next) =
   fmap next $ P.withRunMode runMode (E.mkSetEntry k v) $
     fmap (second fromRdStatus) $ runRedis $ R.set k v
+
+interpretKeyValueF runRedis runMode (L.SetEx k e v next) =
+  fmap next $ P.withRunMode runMode (E.mkSetExEntry k e v) $
+    fmap (second fromRdStatus) $ runRedis $ R.setex k e v
 
 interpretKeyValueF runRedis runMode (L.Get k next) =
   fmap next $ P.withRunMode runMode (E.mkGetEntry k) $
@@ -74,6 +69,9 @@ interpretKeyValueF runRedis runMode (L.HGet k field next) =
 interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
   fmap next $ fmap (fmap D.fromRdStatus) $ R.set k v
+
+interpretKeyValueTxF (L.SetEx k e v next) =
+  fmap next $ fmap (fmap D.fromRdStatus) $ R.setex k e v
 
 interpretKeyValueTxF (L.Get k next) =
   fmap next $ R.get k

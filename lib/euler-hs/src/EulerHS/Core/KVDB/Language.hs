@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module EulerHS.Core.KVDB.Language
-  ( 
+  (
   -- * KVDB language
   -- ** Types
     KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage
@@ -10,7 +10,7 @@ module EulerHS.Core.KVDB.Language
   -- ** Methods
   -- *** Regular
   -- **** For simple values
-  , set, get, incr
+  , set, get, incr, setex
   -- **** For hash values
   , hset, hget
   -- **** For both
@@ -18,7 +18,7 @@ module EulerHS.Core.KVDB.Language
   -- *** Transactional
   -- | Used inside multiExec instead of regular
   , multiExec
-  , setTx, getTx, delTx
+  , setTx, getTx, delTx, setexTx
   ) where
 
 import            EulerHS.Prelude hiding (get)
@@ -35,24 +35,26 @@ type KVDBMessage = ByteString
 ----------------------------------------------------------------------
 
 data KeyValueF f next where
-  Set :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
-  Get :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
+  Set    :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
+  SetEx  :: KVDBKey -> KVDBDuration -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
+  Get    :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   Exists :: KVDBKey -> (f Bool -> next) -> KeyValueF f next
-  Del :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
+  Del    :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
   Expire :: KVDBKey -> KVDBDuration -> (f Bool -> next) -> KeyValueF f next
-  Incr :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
-  HSet :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
-  HGet :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
+  Incr   :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
+  HSet   :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
+  HGet   :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
-  fmap f (Set k value next)            = Set k value (f . next)
-  fmap f (Get k next)                  = Get k (f . next)
-  fmap f (Exists k next)               = Exists k (f . next)
-  fmap f (Del ks next)                 = Del ks (f . next)
-  fmap f (Expire k sec next)           = Expire k sec (f . next)
-  fmap f (Incr k next)                 = Incr k (f . next)
-  fmap f (HSet k field value next)     = HSet k field value (f . next)
-  fmap f (HGet k field next)           = HGet k field (f . next)
+  fmap f (Set k value next)        = Set k value (f . next)
+  fmap f (SetEx k ex value next)   = SetEx k ex value (f . next)
+  fmap f (Get k next)              = Get k (f . next)
+  fmap f (Exists k next)           = Exists k (f . next)
+  fmap f (Del ks next)             = Del ks (f . next)
+  fmap f (Expire k sec next)       = Expire k sec (f . next)
+  fmap f (Incr k next)             = Incr k (f . next)
+  fmap f (HSet k field value next) = HSet k field value (f . next)
+  fmap f (HGet k field next)       = HGet k field (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
 
@@ -82,6 +84,10 @@ type KVDB next = ExceptT T.KVDBReply (F KVDBF) next
 setTx :: KVDBKey -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
 setTx key value = liftFC $ Set key value id
 
+-- | Set the value and ttl of a key. Transaction version.
+setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
+setexTx key ex value = liftFC $ SetEx key ex value id
+
 -- | Get the value of a key. Transaction version.
 getTx :: KVDBKey -> KVDBTx (R.Queued (Maybe ByteString))
 getTx key = liftFC $ Get key id
@@ -94,6 +100,10 @@ delTx ks = liftFC $ Del ks id
 -- | Set the value of a key
 set :: KVDBKey -> KVDBValue -> KVDB T.KVDBStatus
 set key value = ExceptT $ liftFC $ KV $ Set key value id
+
+-- | Set the value and ttl of a key.
+setex :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDB T.KVDBStatus
+setex key ex value = ExceptT $ liftFC $ KV $ SetEx key ex value id
 
 -- | Get the value of a key
 get :: KVDBKey -> KVDB (Maybe ByteString)

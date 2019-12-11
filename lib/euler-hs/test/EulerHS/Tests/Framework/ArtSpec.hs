@@ -348,6 +348,25 @@ kvdbSpec = do
         pure res
       result `shouldBe` Right (T.TxSuccess Nothing)
 
+    it "setex sets value" $ do
+      let hour = 60 * 60
+      result <- replayRecording setExGetKey $ L.runKVDB $ do
+        L.setex "aaaex" hour "bbbex"
+        res <- L.get "aaaex"
+        L.del ["aaaex"]
+        pure res
+      result `shouldBe` Right (Just "bbbex")
+
+    it "setex ttl works" $ do
+      result <- replayRecording setExTtl $ do
+        L.runKVDB $ L.setex "aaaex" 1 "bbbex"
+        L.runIO $ threadDelay (2 * 10 ^ 6)
+        L.runKVDB $ do
+          res <- L.get "aaaex"
+          L.del ["aaaex"]
+          pure res
+      result `shouldBe` Right Nothing
+
 
 
 getKey :: ResultRecording
@@ -370,3 +389,9 @@ getCorrectFromTx = fromJust $ decode "{\"recording\":[{\"_entryName\":\"MultiExe
 
 getIncorrectFromTx :: ResultRecording
 getIncorrectFromTx = fromJust $ decode "{\"recording\":[{\"_entryName\":\"MultiExecEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"tag\":\"TxSuccess\",\"contents\":null}}},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+
+setExGetKey :: ResultRecording
+setExGetKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":3600,\"jsonValue\":[98,98,98,101,120],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":[98,98,98,101,120]},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[[97,97,97,101,120]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+
+setExTtl :: ResultRecording
+setExTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":1,\"jsonValue\":[98,98,98,101,120],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":[]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[[97,97,97,101,120]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"

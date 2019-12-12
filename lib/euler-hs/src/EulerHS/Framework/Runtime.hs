@@ -4,6 +4,7 @@ module EulerHS.Framework.Runtime
     FlowRuntime(..)
   , createFlowRuntime
   , withFlowRuntime
+  , kvDisconnect
   ) where
 
 import           EulerHS.Prelude
@@ -35,7 +36,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Http manager, used for external api calls
   , _options :: MVar (Map ByteString ByteString)
   -- ^ Typed key-value storage
-  , _kvdbConnections :: MVar (Map ByteString T.KVDBConn)
+  , _kvdbConnections :: MVar (Map ByteString T.NativeKVDBConn)
   -- ^ Connections for key-value databases
   , _runMode :: T.RunMode
   -- ^ ART mode in which current flow runs
@@ -78,10 +79,10 @@ sqlDisconnect = \case
   T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
   T.NativeMockedConn -> pure ()
 
-kvDisconnect :: T.KVDBConn -> IO ()
+kvDisconnect :: T.NativeKVDBConn -> IO ()
 kvDisconnect = \case
-  T.Mocked -> pure ()
-  T.Redis conn -> RD.disconnect conn
+  T.NativeKVDBMockedConn -> pure ()
+  T.NativeRedis conn -> RD.disconnect conn
 
 -- | Run flow with given logger config.
 withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime  -> IO a) -> IO a

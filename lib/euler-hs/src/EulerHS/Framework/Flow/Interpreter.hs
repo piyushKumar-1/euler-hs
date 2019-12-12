@@ -21,6 +21,7 @@ import           System.Process (shell, readCreateProcess)
 
 import Data.Coerce (coerce)
 import qualified Data.Pool              as DP
+import qualified Database.Redis         as DR
 import qualified Database.SQLite.Simple as SQLite
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.Beam.Sqlite as BS
@@ -216,6 +217,29 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
     pure $ case (Map.lookup connTag connMap) of
       Just conn -> Right $ T.nativeToBem connTag conn
       Nothing   -> Left $ T.DBError T.ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
+
+interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
+  fmap next $ P.withRunMode _runMode (P.mkInitKVDBConnectionEntry cfg) $ do
+    let connTag = encodeUtf8 $ getPosition @1 cfg
+    connections <- readMVar _kvdbConnections
+    case Map.lookup connTag connections of
+      Just _  -> pure $ Left $
+        ExceptionMessage $ show $ "Connection for " <> connTag <> " already created."
+      Nothing -> do
+        -- add 'try' to handle errors?
+        redisConn <- Redis "" <$> DR.checkedConnect DR.defaultConnectInfo
+        putMVar _kvdbConnections $ Map.insert connTag (kvdbToNative redisConn) connections
+        pure $ Right redisConn
+
+interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
+  fmap next $ P.withRunMode _runMode (P.mkDeInitKVDBConnectionEntry conn) $ do
+    let connTag = encodeUtf8 $ getPosition @1 conn
+    connections <- readMVar _kvdbConnections
+    case (Map.lookup connTag connections) of
+      Nothing -> putMVar _kvdbConnections connections
+      Just _ -> do
+        R.kvDisconnect $ kvdbToNative conn
+        putMVar _kvdbConnections $ Map.delete connTag connections
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = R._runMode flowRt

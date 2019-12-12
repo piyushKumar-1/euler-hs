@@ -14,11 +14,16 @@ module EulerHS.Core.Types.KVDB
   , KVDBMockedValues
   , KVDBMockedValues'(..)
   , KVDBReplyF(..)
+  , KVDBname
+  , NativeKVDBConn (..)
+  , KVDBConfig (..)
   -- ** Methods
   , fromRdStatus
   , fromRdTxResult
   , exceptionToKVDBReply
   , hedisReplyToKVDBReply
+  , kvdbToNative
+  , mkKVDBConfig
   ) where
 
 import           EulerHS.Prelude
@@ -31,9 +36,10 @@ import qualified GHC.Generics    as G
 
 -- Key-value database connection
 data KVDBConn
-  = Mocked
-  | Redis RD.Connection
+  = Mocked Text -- TODO swap ByteString with ConnTag
+  | Redis Text RD.Connection
   -- ^ Real connection.
+  deriving (Generic)
 
 data KVDBMockedValues' = KVDBMockedValues'
   { kvdbSet    :: [KVDBStatus]
@@ -139,3 +145,27 @@ hedisReplyToKVDBReply (RD.MultiBulk s) = MultiBulk (map (hedisReplyToKVDBReply <
 
 exceptionToKVDBReply :: Exception e => e -> KVDBReply
 exceptionToKVDBReply e = ExceptionMessage $ displayException e
+
+----------------------------------------------------------------------
+
+-- | Represents path to the Redis DB
+type KVDBname = String
+
+data NativeKVDBConn
+  = NativeRedis (RD.Connection)         -- ^ 'Pool' with Postgres connections
+  | NativeKVDBMockedConn
+
+-- | Transform 'KVDBConn' to 'NativeKVDBConn'
+kvdbToNative :: KVDBConn -> NativeKVDBConn
+kvdbToNative (Mocked _)     = NativeKVDBMockedConn
+kvdbToNative (Redis _ conn) = NativeRedis conn
+
+data KVDBConfig
+  = RedisConf Text KVDBname
+  | RedisMockedConf Text
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- | Create MySQL 'Pool' 'DBConfig'
+mkKVDBConfig :: Text -> KVDBname -> KVDBConfig
+mkKVDBConfig = RedisConf
+

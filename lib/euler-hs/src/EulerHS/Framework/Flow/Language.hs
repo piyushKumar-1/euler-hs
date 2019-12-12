@@ -18,6 +18,8 @@ module EulerHS.Framework.Flow.Language
   , getSqlDBConnection
   , runDB
   -- *** KVDB
+  , initKVDBConnection
+  , deinitKVDBConnection
   , runKVDB
   -- *** Logging
   , logInfo
@@ -127,6 +129,16 @@ data FlowMethod next where
   GetSqlDBConnection
     :: T.DBConfig beM
     -> (T.DBResult (T.SqlConn beM) -> next)
+    -> FlowMethod next
+
+  InitKVDBConnection
+    :: T.KVDBConfig
+    -> (T.KVDBAnswer T.KVDBConn -> next)
+    -> FlowMethod next
+
+  DeInitKVDBConnection
+    :: T.KVDBConn
+    -> (() -> next)
     -> FlowMethod next
 
   RunDB
@@ -309,6 +321,14 @@ deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 -- If there is no such connection, returns error.
 getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id
+
+-- | Takes Redis DB config and create connection that can be used in queries.
+initKVDBConnection :: T.KVDBConfig -> Flow (T.KVDBAnswer T.KVDBConn)
+initKVDBConnection cfg = liftFC $ InitKVDBConnection cfg id
+
+-- | Deinit the given connection if you want to deny access over that connection.
+deinitKVDBConnection :: T.KVDBConn  -> Flow ()
+deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
 
 -- | Takes connection, sql query (described using BEAM syntax) and make request.
 --

@@ -117,54 +117,20 @@ interpretDbF runRedis runMode (L.KV f) = interpretKeyValueF    runRedis runMode 
 interpretDbF runRedis runMode (L.TX f) = interpretTransactionF runRedis runMode f
 
 
-runKVDB :: D.RunMode -> MVar (Map ByteString KVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB :: D.RunMode -> MVar (Map ByteString NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
 runKVDB runMode kvdbConnMapMVar =
   fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
     foldF (interpretDbF runRedis runMode) . runExceptT
   where
     runRedis :: R.Redis (Either R.Reply a) -> IO (Either KVDBReply a)
     runRedis redisDsl = do
-      conn <- getOrInitRedisConn kvdbConnMapMVar "redis"
-      case conn of
-        Right (Redis c) -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
-        Right Mocked    -> pure $ Right $
-          error "Result of runRedis with mocked connection should not ever be evaluated"
-        Left err -> pure $ Left err
+      connections <- readMVar kvdbConnMapMVar
+      case Map.lookup "redis" connections of
+        Nothing   -> pure $ Left $ ExceptionMessage "Can't find redis connection"
+        Just conn ->
+          case conn of
+            NativeRedis c        -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
+            NativeKVDBMockedConn -> pure $ Right $
+              error "Result of runRedis with mocked connection should not ever be evaluated"
 
--- | Init a new connection
-initRedisConnection
-  :: MVar (Map ByteString KVDBConn)
-  -> ByteString
-  -> IO (Either KVDBReply KVDBConn)
-initRedisConnection kvdbConnMapMVar connTag = do
-  connections <- readMVar kvdbConnMapMVar
-  case Map.lookup connTag connections of
-    Just _  -> pure $ Left $
-      ExceptionMessage $ show $ "Connection for " <> connTag <> " already created."
-    Nothing -> do
-      realRedisConnection <- Redis <$> R.checkedConnect R.defaultConnectInfo
-      putMVar kvdbConnMapMVar $ Map.insert connTag realRedisConnection connections
-      pure $ Right realRedisConnection
 
--- | Get existing connection
-getRedisConnection
-  :: MVar (Map ByteString KVDBConn)
-  -> ByteString
-  -> IO (Either KVDBReply KVDBConn)
-getRedisConnection kvdbConnMapMVar connTag = do
-  connections <- readMVar kvdbConnMapMVar
-  pure $ case Map.lookup connTag connections of
-    Nothing   -> Left $
-      ExceptionMessage $ show $ "Connection for " <> connTag <> " does not exists."
-    Just conn -> Right conn
-
--- | Get existing connection, or init a new connection.
-getOrInitRedisConn
-  :: MVar (Map ByteString KVDBConn)
-  -> ByteString
-  -> IO (Either KVDBReply KVDBConn)
-getOrInitRedisConn kvdbConnMapMVar connTag = do
-  conn <- getRedisConnection kvdbConnMapMVar connTag
-  case conn of
-    Left (ExceptionMessage _) -> initRedisConnection kvdbConnMapMVar connTag
-    res                       -> pure res

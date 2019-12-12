@@ -197,6 +197,7 @@ data DBConfig beM
   | MySQLPoolConf ConnTag MySQLConfig PoolConfig
   -- ^ config for 'Pool' with MySQL connections
   | SQLitePoolConf ConnTag SQliteDBname PoolConfig
+  -- ^ config for 'Pool' with SQlite connections
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- | Represents 'Pool' parameters

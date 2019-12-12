@@ -15,3 +15,14 @@ getOrInitSqlConn cfg = do
   case eConn of
     Left (T.DBError T.ConnectionDoesNotExist _) -> L.initSqlDBConnection cfg
     res                                         -> pure res
+
+-- | Get existing connection, or init a new connection.
+-- getOrInitRedisConn
+--   :: MVar (Map ByteString NativeKVDBConn)
+--   -> ByteString
+--   -> IO (Either KVDBReply KVDBConn)
+-- getOrInitRedisConn kvdbConnMapMVar connTag = do
+--   conn <- getRedisConnection kvdbConnMapMVar connTag
+--   case conn of
+--     Left (ExceptionMessage _) -> initRedisConnection kvdbConnMapMVar connTag
+--     res                       -> pure res

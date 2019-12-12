@@ -4,7 +4,7 @@
 
 module EulerHS.Core.SqlDB.Interpreter
   (
-  -- * SQL DB Interpreter  
+  -- * SQL DB Interpreter
   runSqlDB
   ) where
 

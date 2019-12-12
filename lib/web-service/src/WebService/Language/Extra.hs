@@ -10,3 +10,4 @@ throwOnFailedWithLog :: Show e => Either e a -> (Text -> WST.AppException) -> Te
 throwOnFailedWithLog (Left err) mkException msg = do
   L.logError "" $ msg <> " " <> show err <> ""
   L.throwException $ mkException $ msg <> " " <> show err <> ""
+throwOnFailedWithLog _ _ _ = pure ()

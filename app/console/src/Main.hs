@@ -1,11 +1,12 @@
 module Main where
 
 import Console.HTTPServer (app)
-import Console.Config (enableCors, httpPort, jwtSecret, loadConfig)
+import Console.Config (enableCors, httpPort, jwtSecret, loadConfig, redis, redisDb, redisHost, redisPort)
 import qualified Database.Redis as Redis
 import Dashboard.Auth.Types (AuthContext(AuthContext))
 import Dashboard.Query.Types
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
+import Data.Text (unpack)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors (CorsResourcePolicy(..), cors, corsRequestHeaders, simpleCorsResourcePolicy)
 import GHC.Natural (naturalToInt)
@@ -31,7 +32,7 @@ main :: IO ()
 main = do
   backend <- newBigQueryBackend "godel-big-q" Nothing
   config  <- loadConfig
-  rConn   <- Redis.connect Redis.defaultConnectInfo
+  rConn   <- Redis.checkedConnect . connInfo $ redis config
   let port    = naturalToInt $ httpPort config
       authCtx = AuthContext rConn (hmacSecret $ jwtSecret config)
 
@@ -40,6 +41,12 @@ main = do
     app authCtx backend ecQueryConf
 
   where
+    connInfo rConfig = Redis.defaultConnectInfo
+      { Redis.connectHost = unpack $ redisHost rConfig
+      , Redis.connectPort = Redis.PortNumber . fromIntegral $ redisPort rConfig
+      , Redis.connectDatabase = fromIntegral $ redisDb rConfig
+      }
+
     middleware enableCors = if enableCors
                                then cors . const . Just $ corsPolicy
                                else id

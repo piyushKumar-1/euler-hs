@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module Console.Config
-  ( Config(..)
+  ( App(..)
+  , Redis(..)
   , loadConfig
   ) where
 
@@ -18,17 +19,28 @@ consoleEnv s = "CONSOLE_" ++ s
 configPath :: FilePath
 configPath = "console" </> "console.dhall"
 
-data Config =
-  Config
+data Redis =
+  Redis
+    { redisHost :: Text
+    , redisPort :: Natural
+    , redisDb :: Natural
+    }
+  deriving (Generic, Show)
+
+instance Interpret Redis
+
+data App =
+  App
     { httpPort :: Natural
     , jwtSecret :: Text
+    , redis :: Redis
     , enableCors :: Bool
     }
   deriving (Generic, Show)
 
-instance Interpret Config
+instance Interpret App
 
-loadConfig :: IO Config
+loadConfig :: IO App
 loadConfig = do
   envPath <- lookupEnv $ consoleEnv "CONFIG"
   xdgPath <- getXdgDirectory XdgConfig configPath

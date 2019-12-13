@@ -228,7 +228,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitKVDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     let connTagBS = encodeUtf8 connTag
-    connections <- readMVar _kvdbConnections
+    connections <- takeMVar _kvdbConnections
     res <- case Map.lookup connTagBS connections of
       Just _  -> pure $ Left $
         ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " already created."

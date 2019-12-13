@@ -167,8 +167,7 @@ nativeToRedis connTag NativeKVDBMockedConn = Mocked connTag
 nativeToRedis connTag (NativeRedis conn)   = Redis connTag conn
 
 
-data KVDBConfig -- TODO: move it to DB?
-  -- TODO: add default config
+data KVDBConfig
   = RedisConf Text KVDBConnConfig
   | RedisMockedConf Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

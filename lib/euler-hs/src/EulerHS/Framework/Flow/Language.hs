@@ -20,6 +20,7 @@ module EulerHS.Framework.Flow.Language
   -- *** KVDB
   , initKVDBConnection
   , deinitKVDBConnection
+  , getKVDBConnection
   , runKVDB
   -- *** Logging
   , logInfo
@@ -334,6 +335,11 @@ initKVDBConnection cfg = liftFC $ InitKVDBConnection cfg id
 -- | Deinit the given connection if you want to deny access over that connection.
 deinitKVDBConnection :: T.KVDBConn  -> Flow ()
 deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
+
+-- | Get existing connection.
+-- If there is no such connection, returns error.
+getKVDBConnection ::T.KVDBConfig -> Flow (T.KVDBAnswer T.KVDBConn)
+getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
 
 -- | Takes connection, sql query (described using BEAM syntax) and make request.
 --

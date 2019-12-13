@@ -126,9 +126,9 @@ tests:
     - hspec
     - generic-lens
 
-  sql:
+  db:
     main: Main.hs
-    source-dirs: testSqlDB
+    source-dirs: testDB
     dependencies:
     - euler-hs
     - hspec

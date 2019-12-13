@@ -208,10 +208,10 @@ clubDB = B.defaultDbSettings `B.withDbModification`
     }
 
 testDBName :: String
-testDBName = "./testSqlDB/SQLDB/TestData/test.db"
+testDBName = "./testDB/SQLDB/TestData/test.db"
 
 testDBTemplateName :: String
-testDBTemplateName = "./testSqlDB/SQLDB/TestData/query_examples.db.template"
+testDBTemplateName = "./testDB/SQLDB/TestData/query_examples.db.template"
 
 poolConfig = T.PoolConfig
   { stripes = 1

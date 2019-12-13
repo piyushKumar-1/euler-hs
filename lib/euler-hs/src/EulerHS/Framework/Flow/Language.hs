@@ -184,6 +184,12 @@ instance Functor FlowMethod where
 
   fmap f (GetSqlDBConnection cfg next)        = GetSqlDBConnection cfg (f . next)
 
+  fmap f (InitKVDBConnection cfg next)       = InitKVDBConnection cfg (f . next)
+
+  fmap f (DeInitKVDBConnection conn next)    = DeInitKVDBConnection conn (f.next)
+
+  fmap f (GetKVDBConnection cfg next)        = GetKVDBConnection cfg (f . next)
+
   fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
   fmap f (RunKVDB act next)                   = RunKVDB act (f . next)

@@ -175,7 +175,7 @@ data KVDBConfig
 
 data KVDBConnConfig = KVDBConnConfig
     { connectHost           :: String
-    , connectPort           :: Int --TODO more safe
+    , connectPort           :: Word16
     , connectAuth           :: Maybe Text
     , connectDatabase       :: Integer
     , connectMaxConnections :: Int
@@ -199,7 +199,7 @@ defaultKVDBConnConfig = KVDBConnConfig
 toRedisConnectInfo :: KVDBConnConfig -> RD.ConnectInfo
 toRedisConnectInfo KVDBConnConfig {..} = RD.ConnInfo
   { RD.connectHost           = connectHost
-  , RD.connectPort           = RD.PortNumber $ toEnum connectPort -- check safety
+  , RD.connectPort           = RD.PortNumber $ toEnum $ fromEnum connectPort
   , RD.connectAuth           = encodeUtf8 <$> connectAuth
   , RD.connectDatabase       = connectDatabase
   , RD.connectMaxConnections = connectMaxConnections

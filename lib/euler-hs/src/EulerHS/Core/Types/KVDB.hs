@@ -22,7 +22,8 @@ module EulerHS.Core.Types.KVDB
   , fromRdTxResult
   , exceptionToKVDBReply
   , hedisReplyToKVDBReply
-  , kvdbToNative
+  , redisToNative
+  , nativeToRedis
   , mkKVDBConfig
   ) where
 
@@ -36,7 +37,7 @@ import qualified GHC.Generics    as G
 
 -- Key-value database connection
 data KVDBConn
-  = Mocked Text -- TODO swap ByteString with ConnTag
+  = Mocked Text -- TODO swap Text with ConnTag type
   | Redis Text RD.Connection
   -- ^ Real connection.
   deriving (Generic)
@@ -152,20 +153,27 @@ exceptionToKVDBReply e = ExceptionMessage $ displayException e
 type KVDBname = String
 
 data NativeKVDBConn
-  = NativeRedis (RD.Connection)         -- ^ 'Pool' with Postgres connections
+  = NativeRedis (RD.Connection)
   | NativeKVDBMockedConn
 
 -- | Transform 'KVDBConn' to 'NativeKVDBConn'
-kvdbToNative :: KVDBConn -> NativeKVDBConn
-kvdbToNative (Mocked _)     = NativeKVDBMockedConn
-kvdbToNative (Redis _ conn) = NativeRedis conn
+redisToNative :: KVDBConn -> NativeKVDBConn
+redisToNative (Mocked _)     = NativeKVDBMockedConn
+redisToNative (Redis _ conn) = NativeRedis conn
+
+-- | Transforms 'NativeKVDBConn' to 'KVDBConn'
+nativeToRedis :: Text -> NativeKVDBConn -> KVDBConn
+nativeToRedis connTag NativeKVDBMockedConn = Mocked connTag
+nativeToRedis connTag (NativeRedis conn)   = Redis connTag conn
+
 
 data KVDBConfig
+  -- TODO: add default config
   = RedisConf Text KVDBname
   | RedisMockedConf Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
--- | Create MySQL 'Pool' 'DBConfig'
+-- | Create configuration KVDBConfig for Redis
 mkKVDBConfig :: Text -> KVDBname -> KVDBConfig
 mkKVDBConfig = RedisConf
 

@@ -141,6 +141,11 @@ data FlowMethod next where
     -> (() -> next)
     -> FlowMethod next
 
+  GetKVDBConnection
+    :: T.KVDBConfig
+    -> (T.KVDBAnswer T.KVDBConn -> next)
+    -> FlowMethod next
+
   RunDB
     :: T.JSONEx a
     => T.SqlConn beM

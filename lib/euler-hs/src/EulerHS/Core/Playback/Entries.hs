@@ -238,3 +238,18 @@ instance RRItem DeInitKVDBConnectionEntry  where
 
 instance MockedResult DeInitKVDBConnectionEntry () where
   getMock (DeInitKVDBConnectionEntry _) = Just ()
+
+-------------------------------------------------------------------------
+
+data GetKVDBConnectionEntry = GetKVDBConnectionEntry
+  { kvdbConfig :: T.KVDBConfig
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkGetKVDBConnectionEntry :: T.KVDBConfig -> a -> GetKVDBConnectionEntry
+mkGetKVDBConnectionEntry dbcfg _ = GetKVDBConnectionEntry dbcfg
+
+instance RRItem GetKVDBConnectionEntry  where
+  getTag _ = "GetKVDBConnectionEntry"
+
+instance MockedResult GetKVDBConnectionEntry (T.KVDBAnswer T.KVDBConn) where
+  getMock (GetKVDBConnectionEntry _) = Just $ Right $ T.Mocked ""

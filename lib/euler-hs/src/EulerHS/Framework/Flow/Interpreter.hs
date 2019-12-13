@@ -220,26 +220,35 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
 
 interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitKVDBConnectionEntry cfg) $ do
-    let connTag = encodeUtf8 $ getPosition @1 cfg
+    let connTag = getPosition @1 cfg
+    let connTagBS = encodeUtf8 connTag
     connections <- readMVar _kvdbConnections
-    case Map.lookup connTag connections of
+    case Map.lookup connTagBS connections of
       Just _  -> pure $ Left $
-        ExceptionMessage $ show $ "Connection for " <> connTag <> " already created."
+        ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " already created."
       Nothing -> do
         -- add 'try' to handle errors?
-        redisConn <- Redis "" <$> DR.checkedConnect DR.defaultConnectInfo
-        putMVar _kvdbConnections $ Map.insert connTag (kvdbToNative redisConn) connections
+        redisConn <- Redis connTag <$> DR.checkedConnect DR.defaultConnectInfo
+        putMVar _kvdbConnections $ Map.insert connTagBS (redisToNative redisConn) connections
         pure $ Right redisConn
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitKVDBConnectionEntry conn) $ do
-    let connTag = encodeUtf8 $ getPosition @1 conn
+    let connTagBS = encodeUtf8 $ getPosition @1 conn
     connections <- readMVar _kvdbConnections
-    case (Map.lookup connTag connections) of
+    case (Map.lookup connTagBS connections) of
       Nothing -> putMVar _kvdbConnections connections
       Just _ -> do
-        R.kvDisconnect $ kvdbToNative conn
-        putMVar _kvdbConnections $ Map.delete connTag connections
+        R.kvDisconnect $ redisToNative conn
+        putMVar _kvdbConnections $ Map.delete connTagBS connections
+
+interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
+  fmap next $ P.withRunMode _runMode (P.mkGetKVDBConnectionEntry cfg) $ do
+    let connTag = getPosition @1 cfg
+    connMap <- readMVar _kvdbConnections
+    pure $ case (Map.lookup (encodeUtf8 connTag) connMap) of
+      Just conn -> Right $ T.nativeToRedis connTag conn
+      Nothing   -> Left $ ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = R._runMode flowRt

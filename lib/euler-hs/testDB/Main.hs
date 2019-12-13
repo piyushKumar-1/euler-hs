@@ -18,7 +18,7 @@ main = hspec $ do
   SQLiteDB.spec
   SQLiteDBP.spec
   Ex.spec
- -- PGDB.spec
- -- PGDBP.spec
- -- MySQL.spec
+  -- PGDB.spec
+  -- PGDBP.spec
+  -- MySQL.spec
  -- MySQLP.spec

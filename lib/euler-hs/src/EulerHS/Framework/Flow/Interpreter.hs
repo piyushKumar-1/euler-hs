@@ -51,6 +51,12 @@ connect cfg = do
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
     Right conn -> pure $ Right conn
 
+connectRedis :: T.KVDBConfig -> IO (T.KVDBAnswer T.KVDBConn)
+connectRedis cfg = do
+  eConn <- try $ T.mkRedisConn cfg
+  case eConn of
+    Left (e :: SomeException) -> pure $ Left $ T.ExceptionMessage $ show e
+    Right conn -> pure $ Right conn
 
 disconnect :: T.SqlConn beM ->   IO ()
 disconnect (T.MockedConn _)         = pure ()
@@ -223,14 +229,16 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
     let connTag = getPosition @1 cfg
     let connTagBS = encodeUtf8 connTag
     connections <- readMVar _kvdbConnections
-    case Map.lookup connTagBS connections of
+    res <- case Map.lookup connTagBS connections of
       Just _  -> pure $ Left $
         ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " already created."
       Nothing -> do
-        -- add 'try' to handle errors?
-        redisConn <- Redis connTag <$> DR.checkedConnect DR.defaultConnectInfo
-        putMVar _kvdbConnections $ Map.insert connTagBS (redisToNative redisConn) connections
-        pure $ Right redisConn
+        connectRedis cfg
+    case res of
+      Left _ -> putMVar _kvdbConnections connections
+      Right conn -> putMVar _kvdbConnections $
+        Map.insert connTagBS (redisToNative conn) connections
+    pure res
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitKVDBConnectionEntry conn) $ do
@@ -248,7 +256,8 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
     connMap <- readMVar _kvdbConnections
     pure $ case (Map.lookup (encodeUtf8 connTag) connMap) of
       Just conn -> Right $ T.nativeToRedis connTag conn
-      Nothing   -> Left $ ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " does not exists."
+      Nothing   -> Left $
+        ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = R._runMode flowRt

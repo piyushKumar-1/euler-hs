@@ -1,5 +1,6 @@
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RecordWildCards    #-}
 
 module EulerHS.Core.Types.KVDB
   (
@@ -17,20 +18,23 @@ module EulerHS.Core.Types.KVDB
   , NativeKVDBConn (..)
   , KVDBConfig (..)
   -- ** Methods
+  , defaultKVDBConnConfig
+  , exceptionToKVDBReply
   , fromRdStatus
   , fromRdTxResult
-  , exceptionToKVDBReply
   , hedisReplyToKVDBReply
-  , redisToNative
-  , nativeToRedis
   , mkKVDBConfig
+  , mkRedisConn
+  , nativeToRedis
+  , redisToNative
   ) where
 
-import           EulerHS.Prelude
+import qualified Data.Aeson as A
+import           Data.Time (NominalDiffTime)
+import qualified Database.Redis as RD
 import           EulerHS.Core.Types.Serializable
-import qualified Database.Redis  as RD
-import qualified Data.Aeson      as A
-import qualified GHC.Generics    as G
+import           EulerHS.Prelude
+import qualified GHC.Generics as G
 
 
 
@@ -137,10 +141,10 @@ type KVDBAnswer = Either KVDBReply
 
 hedisReplyToKVDBReply :: RD.Reply -> KVDBReply
 hedisReplyToKVDBReply (RD.SingleLine s) = SingleLine s
-hedisReplyToKVDBReply (RD.Error s) = Err s
-hedisReplyToKVDBReply (RD.Integer s) = Integer s
-hedisReplyToKVDBReply (RD.Bulk s) = Bulk s
-hedisReplyToKVDBReply (RD.MultiBulk s) = MultiBulk (map (hedisReplyToKVDBReply <$>) s)
+hedisReplyToKVDBReply (RD.Error s)      = Err s
+hedisReplyToKVDBReply (RD.Integer s)    = Integer s
+hedisReplyToKVDBReply (RD.Bulk s)       = Bulk s
+hedisReplyToKVDBReply (RD.MultiBulk s)  = MultiBulk (map (hedisReplyToKVDBReply <$>) s)
 
 
 exceptionToKVDBReply :: Exception e => e -> KVDBReply
@@ -163,13 +167,59 @@ nativeToRedis connTag NativeKVDBMockedConn = Mocked connTag
 nativeToRedis connTag (NativeRedis conn)   = Redis connTag conn
 
 
-data KVDBConfig
+data KVDBConfig -- TODO: move it to DB?
   -- TODO: add default config
-  = RedisConf Text
+  = RedisConf Text KVDBConnConfig
   | RedisMockedConf Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+data KVDBConnConfig = KVDBConnConfig
+    { connectHost           :: String
+    , connectPort           :: Int --TODO more safe
+    , connectAuth           :: Maybe Text
+    , connectDatabase       :: Integer
+    , connectMaxConnections :: Int
+    , connectMaxIdleTime    :: NominalDiffTime
+    , connectTimeout        :: Maybe NominalDiffTime
+    -- , connectTLSParams      :: Maybe
+    } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+defaultKVDBConnConfig :: KVDBConnConfig
+defaultKVDBConnConfig = KVDBConnConfig
+    { connectHost           = "localhost"
+    , connectPort           = 6379
+    , connectAuth           = Nothing
+    , connectDatabase       = 0
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    -- , connectTLSParams      = Nothing
+    }
+
+-- | Transform KVDBConnConfig to the Redis ConnectInfo.
+toRedisConnectInfo :: KVDBConnConfig -> RD.ConnectInfo
+toRedisConnectInfo KVDBConnConfig {..} = RD.ConnInfo
+  { RD.connectHost           = connectHost
+  , RD.connectPort           = RD.PortNumber $ toEnum connectPort -- check safety
+  , RD.connectAuth           = encodeUtf8 <$> connectAuth
+  , RD.connectDatabase       = connectDatabase
+  , RD.connectMaxConnections = connectMaxConnections
+  , RD.connectMaxIdleTime    = connectMaxIdleTime
+  , RD.connectTimeout        = connectTimeout
+  , RD.connectTLSParams      = Nothing
+  }
+
 -- | Create configuration KVDBConfig for Redis
-mkKVDBConfig :: Text -> KVDBConfig
+mkKVDBConfig :: Text -> KVDBConnConfig -> KVDBConfig
 mkKVDBConfig = RedisConf
+
+-- | Create 'KVDBConn' from 'KVDBConfig'
+mkRedisConn :: KVDBConfig -> IO KVDBConn
+mkRedisConn (RedisMockedConf connTag) = pure $ Mocked connTag
+mkRedisConn (RedisConf connTag cfg)   = Redis connTag <$> createRedisConn cfg
+
+-- | Connect with the given config to the database.
+createRedisConn :: KVDBConnConfig -> IO RD.Connection
+createRedisConn = RD.connect . toRedisConnectInfo
 

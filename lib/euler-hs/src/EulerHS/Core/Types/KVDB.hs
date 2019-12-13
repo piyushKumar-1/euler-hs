@@ -14,7 +14,6 @@ module EulerHS.Core.Types.KVDB
   , KVDBMockedValues
   , KVDBMockedValues'(..)
   , KVDBReplyF(..)
-  , KVDBname
   , NativeKVDBConn (..)
   , KVDBConfig (..)
   -- ** Methods
@@ -149,9 +148,6 @@ exceptionToKVDBReply e = ExceptionMessage $ displayException e
 
 ----------------------------------------------------------------------
 
--- | Represents path to the Redis DB
-type KVDBname = String
-
 data NativeKVDBConn
   = NativeRedis (RD.Connection)
   | NativeKVDBMockedConn
@@ -169,11 +165,11 @@ nativeToRedis connTag (NativeRedis conn)   = Redis connTag conn
 
 data KVDBConfig
   -- TODO: add default config
-  = RedisConf Text KVDBname
+  = RedisConf Text
   | RedisMockedConf Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- | Create configuration KVDBConfig for Redis
-mkKVDBConfig :: Text -> KVDBname -> KVDBConfig
+mkKVDBConfig :: Text -> KVDBConfig
 mkKVDBConfig = RedisConf
 

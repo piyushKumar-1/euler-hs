@@ -8,6 +8,7 @@ import qualified EulerHS.Language          as L
 import           EulerHS.Runtime
 import qualified EulerHS.Types             as T
 
+
 redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
 
 spec :: Spec

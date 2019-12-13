@@ -17,6 +17,7 @@ module EulerHS.Core.Types.KVDB
   , KVDBReplyF(..)
   , NativeKVDBConn (..)
   , KVDBConfig (..)
+  , KVDBConnConfig (..)
   -- ** Methods
   , defaultKVDBConnConfig
   , exceptionToKVDBReply
@@ -180,7 +181,6 @@ data KVDBConnConfig = KVDBConnConfig
     , connectMaxConnections :: Int
     , connectMaxIdleTime    :: NominalDiffTime
     , connectTimeout        :: Maybe NominalDiffTime
-    -- , connectTLSParams      :: Maybe
     } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
@@ -193,7 +193,6 @@ defaultKVDBConnConfig = KVDBConnConfig
     , connectMaxConnections = 50
     , connectMaxIdleTime    = 30
     , connectTimeout        = Nothing
-    -- , connectTLSParams      = Nothing
     }
 
 -- | Transform KVDBConnConfig to the Redis ConnectInfo.

@@ -243,7 +243,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitKVDBConnectionEntry conn) $ do
     let connTagBS = encodeUtf8 $ getPosition @1 conn
-    connections <- readMVar _kvdbConnections
+    connections <- takeMVar _kvdbConnections
     case (Map.lookup connTagBS connections) of
       Nothing -> putMVar _kvdbConnections connections
       Just _ -> do

@@ -27,6 +27,21 @@ sqliteConn = "sqlite"
 eulerApiPort :: Int
 eulerApiPort = 8080
 
+-- Redis config data
+redisConn :: IsString a => a
+redisConn = "redis"
+
+redisConnConfig :: T.KVDBConnConfig
+redisConnConfig = T.KVDBConnConfig
+    { connectHost           = "localhost"
+    , connectPort           = 6379
+    , connectAuth           = Nothing
+    , connectDatabase       = 0
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+
 -- Test DB to show how the initialization can look like.
 -- TODO: add real DB services.
 prepareDBConnections :: L.Flow ()
@@ -34,7 +49,11 @@ prepareDBConnections = do
   ePool <- L.initSqlDBConnection
     $ T.mkSQLitePoolConfig sqliteConn "tmp/test.db"
     $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
+  redis <- L.initKVDBConnection
+    $ T.mkKVDBConfig redisConn
+    $ redisConnConfig
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
+  L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
 prepareDBConnections' :: L.Flow ()
 prepareDBConnections' = pure ()

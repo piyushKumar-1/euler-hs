@@ -16,6 +16,7 @@ extra-deps:
   commit: 0042602f8a195b1fe185138f9ccca02020b8dd62
 - git: https://github.com/graninas/beam-mysql
   commit: 388e7a8bc1ab920843a02cc8e79990bb511b18ad
+- random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517  
 
 # MySQL
 # MacOS:

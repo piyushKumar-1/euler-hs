@@ -102,6 +102,7 @@ dependencies:
 - wai-extra
 - utf8-string
 - casing
+- aeson-casing
 
 library:
   source-dirs:
@@ -111,6 +112,7 @@ library:
   - WebService.Language
   - WebService.ContentType
   - WebService.FlexCasing
+  - WebService.PostRewrite
   ghc-options:
   - -Wall
   # - -Werror

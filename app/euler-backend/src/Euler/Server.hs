@@ -27,9 +27,12 @@ import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 import qualified Data.ByteString.Lazy                   as BSL
 import qualified Prometheus as P
-import qualified WebService.ContentType                 as ContentType
+import           WebService.ContentType
+                 (JavascriptWrappedJSON, mkDynContentTypeMiddleware, throwJsonError)
 import           WebService.FlexCasing
                  (QueryParamC, mkFlexCaseMiddleware)
+import           WebService.PostRewrite 
+                 (mkPostToGetMiddleware) 
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
@@ -43,7 +46,7 @@ type EulerAPI
 -- order update
   :<|> "orders" :> Capture "orderId" Text :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderStatusResponse
 -- payment status endpoint (flexible casing showcase)  
-  :<|> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, ContentType.JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse  
+  :<|> "orders" :> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse  
   :<|> "metrics" :> Get '[OctetStream] ByteString
   :<|> EmptyAPI
 
@@ -82,8 +85,10 @@ eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
 eulerBackendApp :: Env -> Application
 eulerBackendApp env = 
   let 
-    flexCaseMiddleware = routedMiddleware (["payment-status"] ==) 
-      (mkFlexCaseMiddleware "orderId" . ContentType.chooseContentType) 
+    flexCaseMiddleware = routedMiddleware (["orders", "payment-status"] ==) 
+      (mkPostToGetMiddleware
+      . mkFlexCaseMiddleware "orderId" 
+      . mkDynContentTypeMiddleware "callback") 
   in
     flexCaseMiddleware (serve eulerAPI (eulerServer env))
 
@@ -211,13 +216,15 @@ paymentStatus ::
   Maybe String ->  -- callback
   Maybe String ->  -- casing
   FlowHandler ApiPayment.PaymentStatusResponse
-paymentStatus (Just orderId) (Just merchantId) callback (Just casing) = 
+paymentStatus (Just orderId) (Just merchantId) callback (Just casing) = do
+  when (casing == "unsupported") $ throwJsonError err400 $ ApiPayment.defaultJsonError
   return $ ApiPayment.PaymentStatusResponse {
     payload = ApiPayment.defaultPaymentStatus,
     caseStyle = Text.pack casing,
     callback = Text.pack <$> callback
   }
-paymentStatus _ _ _ _ = throwError $ err400 {errBody = "couldn't parse request"}
+paymentStatus _ _ _ _ = throwError err500
+--paymentStatus _ _ _ _ = throwJsonError err400 $ ApiPayment.defaultJsonError
 
 metrics :: FlowHandler ByteString
 metrics = BSL.toStrict <$> P.exportMetricsAsText

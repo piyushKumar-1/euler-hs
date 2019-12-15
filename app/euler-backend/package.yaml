@@ -137,3 +137,7 @@ tests:
     dependencies:
     - euler-backend
     - hspec
+    - hspec-wai
+    - hspec-wai-json
+    - random-strings
+    - utf8-string

@@ -1,53 +1,92 @@
+-----------------------------------------------------------------------------
+-- | Module : WebService.FlexCasing.Middleware 
+--
+-- Support for multi-casing requests, i.e. ones which could use different 
+-- casing for GET query parameters. It's expected that all parameters go
+-- in the same case style, but actually it's not mandatory.  
+-----------------------------------------------------------------------------
 module WebService.FlexCasing.Middleware 
-(mkFlexCaseMiddleware)
-where 
+  (
+    -- param constants
+    casingParam
+    -- middleware builder
+  , mkFlexCaseMiddleware
+  ) where 
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (fromString, toString)
 
-import qualified Data.ByteString.UTF8 as BSU
+import           Data.ByteString.UTF8 
+                (fromString, toString)
 import qualified Data.Text as Text
 import           Network.HTTP.Types 
-                 (Query, QueryItem, RequestHeaders)
+                (Query, QueryItem, RequestHeaders)
 import           Network.Wai 
-                 (Middleware, Request, requestHeaders, queryString)
+                (Middleware, Request, queryString)
 import           Network.Wai.Middleware.Rewrite
-                 (PathsAndQueries, rewritePureWithQueries)
+                (PathsAndQueries, rewritePureWithQueries)
 import           Text.Casing 
-                 (toQuietSnake, fromAny, toCamel, camel)
+                (toQuietSnake, fromAny, toCamel, camel)
+import           WebService.FlexCasing.Types                
+
+-----------------------------------------------------------------------------
 
 
--- create middleware for adding "_case" query parameter containing the original case of the particular parameter
--- parameter's name could be passed in any case
-type AnyCaseParameterName = String
+-- | The name of an artificial query parameter to use with servant API types 
+-- combinator QueryParam.
+-- The original request casing, determined by the casing of driving parameter is stored here.
+-- It can be used later to form a response using the same casing.                    
+casingParam :: String                
+casingParam = "casing"
 
-mkFlexCaseMiddleware :: AnyCaseParameterName -> Middleware
-mkFlexCaseMiddleware drivingParam = (mkOriginalCaseTagMiddleware drivingParam) -- add artificial `_case` query parameter
-                                    . normalizeCase                            -- normalize (to camelCase) all query parameters
+-----------------------------------------------------------------------------
 
-mkOriginalCaseTagMiddleware :: AnyCaseParameterName -> Middleware
-mkOriginalCaseTagMiddleware p app req = app req'
-    where 
-        paramId = fromAny p
-        camelParam = BSU.fromString $ toCamel paramId
-        snakeParam = BSU.fromString $ toQuietSnake paramId -- TODO other cases?
-        keys = fst $ unzip $ queryString req              
-        caseParam casing = (BSU.fromString "casing", Just $ BSU.fromString casing)
-        addCaseParameter :: Request -> QueryItem -> Request
-        addCaseParameter r i = r { queryString = i : queryString req }
-        req'
-            | camelParam `elem` keys = addCaseParameter req (caseParam "camel")
-            | snakeParam `elem` keys = addCaseParameter req (caseParam "snake")
-            | otherwise = addCaseParameter req (caseParam "unspecified")
+type DrivingParamName = String
 
-        
--- middleware to convert all query parameters into camelCase 
+-- | Makes ready-to-use middleware to process requests with flexible casing.
+-- All parameter names will be rewrtitten to camelCase and the original casing
+-- of driving parameter will be added in `casingParam` parameter.
+mkFlexCaseMiddleware :: DrivingParamName -> Middleware
+mkFlexCaseMiddleware drivingParam = 
+    (mkOriginalCaseTagMiddleware drivingParam) -- add artificial casing query parameter
+    . normalizeCase                            -- normalize (to camelCase) all query parameters
+
+-- create middleware for adding artificial "casing" query parameter
+-- it's name casing id used to detect which casing should be used for response
+mkOriginalCaseTagMiddleware :: DrivingParamName -> Middleware
+mkOriginalCaseTagMiddleware p app req = 
+    app req'
+  where 
+    paramId = fromAny p
+    camelParam = fromString $ toCamel paramId
+    snakeParam = fromString $ toQuietSnake paramId
+    -- here one can add more casing if needed
+    
+    params = fst $ unzip $ queryString req              
+    
+    cParam origCase = (fromString casingParam, Just $ fromString origCase)
+    
+    addCaseParameter :: Request -> QueryItem -> Request
+    addCaseParameter r i = r { queryString = i : queryString req }
+    
+    req'
+      | camelParam `elem` params = addCaseParameter req (cParam camelCase)
+      | snakeParam `elem` params = addCaseParameter req (cParam snakeCase)
+      | otherwise                = addCaseParameter req (cParam unsupportedCase)
+
+-----------------------------------------------------------------------------
+
+-- middleware to convert all query parameters into camelCase (kind of default one)
 normalizeCase :: Middleware
-normalizeCase = rewritePureWithQueries camelizeQuery'
-    where 
-        camelizeQuery' :: PathsAndQueries -> RequestHeaders -> PathsAndQueries
-        camelizeQuery' (pieces, queries) _ = piecesConvert pieces queries
-            where
-                piecesConvert :: [Text.Text] -> Query -> PathsAndQueries
-                piecesConvert ps qs = (ps, camelizeItem <$> qs)
-                camelizeItem :: QueryItem -> QueryItem
-                camelizeItem (k,v) = ((BSU.fromString . camel .  BSU.toString) k,v)
+normalizeCase = 
+    rewritePureWithQueries camelizeQuery
+  where 
+    camelizeQuery :: PathsAndQueries -> RequestHeaders -> PathsAndQueries
+    camelizeQuery (pieces, queries) _ = 
+        piecesConvert pieces queries
+      where
+        piecesConvert :: [Text.Text] -> Query -> PathsAndQueries
+        piecesConvert ps qs = (ps, camelizeItem <$> qs)
+        camelizeItem :: QueryItem -> QueryItem
+        camelizeItem (k,v) = ((fromString . camel . toString) k,v)
+
+

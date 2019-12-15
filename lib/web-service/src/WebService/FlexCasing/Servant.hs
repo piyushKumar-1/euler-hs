@@ -11,17 +11,18 @@ import           GHC.TypeLits (KnownSymbol, symbolVal, Symbol)
 import           Network.HTTP.Types (queryToQueryText)
 import           Network.Wai (Request, queryString)
 import           Servant
---import           Servant (HasServer, FromHttpApiData, Optional, SBoolI, Strict, ServerT)
 import           Servant.Client
 import qualified Servant.Client.Core  as Core
 import           Servant.API.Modifiers 
                 (foldRequiredArgument, unfoldRequestArgument, 
                  RequestArgument, FoldRequired, FoldLenient, RequiredArgument)
-import           Servant.Server.Internal (DelayedIO, withRequest, delayedFailFatal, addParameterCheck)
+import           Servant.Server.Internal 
+                (DelayedIO, withRequest, delayedFailFatal, addParameterCheck)
 
 
 -- Fixed version of 'QueryParam' which uses queryParam, not rawQueryParam
--- this is allows WAI rewite middleware to work properly
+-- this is allows WAI rewrite middleware to work properly. PR in servant 
+-- is pending.
 data QueryParamC' (mods :: [*]) (sym :: Symbol) (a :: *)
     deriving Typeable
 

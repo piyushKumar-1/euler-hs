@@ -31,8 +31,8 @@ eulerApiPort = 8080
 redisConn :: IsString a => a
 redisConn = "redis"
 
-redisConnConfig :: T.KVDBConnConfig
-redisConnConfig = T.KVDBConnConfig
+redisConnConfig :: T.RedisConfig
+redisConnConfig = T.RedisConfig
     { connectHost           = "localhost"
     , connectPort           = 6379
     , connectAuth           = Nothing

@@ -17,7 +17,7 @@ module EulerHS.Core.Types.KVDB
   , KVDBReplyF(..)
   , NativeKVDBConn (..)
   , KVDBConfig (..)
-  , KVDBConnConfig (..)
+  , RedisConfig (..)
   -- ** Methods
   , defaultKVDBConnConfig
   , exceptionToKVDBReply
@@ -169,11 +169,11 @@ nativeToRedis connTag (NativeRedis conn)   = Redis connTag conn
 
 
 data KVDBConfig
-  = RedisConf Text KVDBConnConfig
+  = RedisConf Text RedisConfig
   | RedisMockedConf Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data KVDBConnConfig = KVDBConnConfig
+data RedisConfig = RedisConfig
     { connectHost           :: String
     , connectPort           :: Word16
     , connectAuth           :: Maybe Text
@@ -184,8 +184,8 @@ data KVDBConnConfig = KVDBConnConfig
     } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
-defaultKVDBConnConfig :: KVDBConnConfig
-defaultKVDBConnConfig = KVDBConnConfig
+defaultKVDBConnConfig :: RedisConfig
+defaultKVDBConnConfig = RedisConfig
     { connectHost           = "localhost"
     , connectPort           = 6379
     , connectAuth           = Nothing
@@ -195,9 +195,9 @@ defaultKVDBConnConfig = KVDBConnConfig
     , connectTimeout        = Nothing
     }
 
--- | Transform KVDBConnConfig to the Redis ConnectInfo.
-toRedisConnectInfo :: KVDBConnConfig -> RD.ConnectInfo
-toRedisConnectInfo KVDBConnConfig {..} = RD.ConnInfo
+-- | Transform RedisConfig to the Redis ConnectInfo.
+toRedisConnectInfo :: RedisConfig -> RD.ConnectInfo
+toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
   { RD.connectHost           = connectHost
   , RD.connectPort           = RD.PortNumber $ toEnum $ fromEnum connectPort
   , RD.connectAuth           = encodeUtf8 <$> connectAuth
@@ -209,7 +209,7 @@ toRedisConnectInfo KVDBConnConfig {..} = RD.ConnInfo
   }
 
 -- | Create configuration KVDBConfig for Redis
-mkKVDBConfig :: Text -> KVDBConnConfig -> KVDBConfig
+mkKVDBConfig :: Text -> RedisConfig -> KVDBConfig
 mkKVDBConfig = RedisConf
 
 -- | Create 'KVDBConn' from 'KVDBConfig'
@@ -218,6 +218,6 @@ mkRedisConn (RedisMockedConf connTag) = pure $ Mocked connTag
 mkRedisConn (RedisConf connTag cfg)   = Redis connTag <$> createRedisConn cfg
 
 -- | Connect with the given config to the database.
-createRedisConn :: KVDBConnConfig -> IO RD.Connection
+createRedisConn :: RedisConfig -> IO RD.Connection
 createRedisConn = RD.connect . toRedisConnectInfo
 

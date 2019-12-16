@@ -82,7 +82,7 @@ sqlDisconnect = \case
 kvDisconnect :: T.NativeKVDBConn -> IO ()
 kvDisconnect = \case
   T.NativeKVDBMockedConn -> pure ()
-  T.NativeRedis conn -> RD.disconnect conn
+  T.NativeKVDB conn -> RD.disconnect conn
 
 -- | Run flow with given logger config.
 withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime  -> IO a) -> IO a

@@ -15,7 +15,7 @@ spec :: Spec
 spec =
   around (withFlowRuntime Nothing) $
 
-    describe "EulerHS Redis DB tests" $ do
+    describe "EulerHS KVDB tests" $ do
 
       it "Double connection initialization should fail" $ \rt -> do
         eRes <- runFlow rt $ do
@@ -60,9 +60,9 @@ spec =
             _                -> pure $ Right ()
         eRes `shouldBe` Right ()
 
-      it "getOrInitRedisConn should succeed" $ \rt -> do
+      it "getOrInitKVDBConn should succeed" $ \rt -> do
         eRes <- runFlow rt $ do
-          eConn <- L.getOrInitRedisConn redisCfg
+          eConn <- L.getOrInitKVDBConn redisCfg
           case eConn of
             Left err -> pure $ Left $ "Failed to connect: " <> show err
             _        -> pure $ Right ()

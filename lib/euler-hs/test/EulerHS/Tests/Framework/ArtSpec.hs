@@ -291,7 +291,7 @@ runWithRedisConn _ flow = do
   pure recResult
   where
     initRedis = \rt -> do
-      realRedisConnection <- NativeRedis <$> checkedConnect defaultConnectInfo
+      realRedisConnection <- NativeKVDB <$> checkedConnect defaultConnectInfo
       connections         <- takeMVar $ _kvdbConnections rt
       putMVar (_kvdbConnections rt) $
         Map.insert "redis" realRedisConnection connections

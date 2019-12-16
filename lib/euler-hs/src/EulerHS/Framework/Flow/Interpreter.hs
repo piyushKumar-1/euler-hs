@@ -237,7 +237,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
     case res of
       Left _ -> putMVar _kvdbConnections connections
       Right conn -> putMVar _kvdbConnections $
-        Map.insert connTagBS (redisToNative conn) connections
+        Map.insert connTagBS (kvdbToNative conn) connections
     pure res
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
@@ -247,7 +247,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
     case (Map.lookup connTagBS connections) of
       Nothing -> putMVar _kvdbConnections connections
       Just _ -> do
-        R.kvDisconnect $ redisToNative conn
+        R.kvDisconnect $ kvdbToNative conn
         putMVar _kvdbConnections $ Map.delete connTagBS connections
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
@@ -255,7 +255,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
     let connTag = getPosition @1 cfg
     connMap <- readMVar _kvdbConnections
     pure $ case (Map.lookup (encodeUtf8 connTag) connMap) of
-      Just conn -> Right $ T.nativeToRedis connTag conn
+      Just conn -> Right $ T.nativeToKVDB connTag conn
       Nothing   -> Left $
         ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " does not exists."
 

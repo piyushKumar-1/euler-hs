@@ -26,8 +26,8 @@ module EulerHS.Core.Types.KVDB
   , hedisReplyToKVDBReply
   , mkKVDBConfig
   , mkRedisConn
-  , nativeToRedis
-  , redisToNative
+  , nativeToKVDB
+  , kvdbToNative
   ) where
 
 import qualified Data.Aeson as A
@@ -154,23 +154,23 @@ exceptionToKVDBReply e = ExceptionMessage $ displayException e
 ----------------------------------------------------------------------
 
 data NativeKVDBConn
-  = NativeRedis (RD.Connection)
+  = NativeKVDB (RD.Connection)
   | NativeKVDBMockedConn
 
 -- | Transform 'KVDBConn' to 'NativeKVDBConn'
-redisToNative :: KVDBConn -> NativeKVDBConn
-redisToNative (Mocked _)     = NativeKVDBMockedConn
-redisToNative (Redis _ conn) = NativeRedis conn
+kvdbToNative :: KVDBConn -> NativeKVDBConn
+kvdbToNative (Mocked _)     = NativeKVDBMockedConn
+kvdbToNative (Redis _ conn) = NativeKVDB conn
 
 -- | Transforms 'NativeKVDBConn' to 'KVDBConn'
-nativeToRedis :: Text -> NativeKVDBConn -> KVDBConn
-nativeToRedis connTag NativeKVDBMockedConn = Mocked connTag
-nativeToRedis connTag (NativeRedis conn)   = Redis connTag conn
+nativeToKVDB :: Text -> NativeKVDBConn -> KVDBConn
+nativeToKVDB connTag NativeKVDBMockedConn = Mocked connTag
+nativeToKVDB connTag (NativeKVDB conn)   = Redis connTag conn
 
 
 data KVDBConfig
-  = RedisConf Text RedisConfig
-  | RedisMockedConf Text
+  = KVDBConfig Text RedisConfig
+  | KVDBMockedConfig Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data RedisConfig = RedisConfig
@@ -210,12 +210,12 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
 
 -- | Create configuration KVDBConfig for Redis
 mkKVDBConfig :: Text -> RedisConfig -> KVDBConfig
-mkKVDBConfig = RedisConf
+mkKVDBConfig = KVDBConfig
 
 -- | Create 'KVDBConn' from 'KVDBConfig'
 mkRedisConn :: KVDBConfig -> IO KVDBConn
-mkRedisConn (RedisMockedConf connTag) = pure $ Mocked connTag
-mkRedisConn (RedisConf connTag cfg)   = Redis connTag <$> createRedisConn cfg
+mkRedisConn (KVDBMockedConfig connTag) = pure $ Mocked connTag
+mkRedisConn (KVDBConfig connTag cfg)   = Redis connTag <$> createRedisConn cfg
 
 -- | Connect with the given config to the database.
 createRedisConn :: RedisConfig -> IO RD.Connection

@@ -1,6 +1,6 @@
 module EulerHS.Extra.Language
   ( getOrInitSqlConn
-  , getOrInitRedisConn
+  , getOrInitKVDBConn
   ) where
 
 import           EulerHS.Prelude
@@ -18,10 +18,10 @@ getOrInitSqlConn cfg = do
     res                                         -> pure res
 
 -- | Get existing Redis connection, or init a new connection.
-getOrInitRedisConn
+getOrInitKVDBConn
   :: T.KVDBConfig
   -> L.Flow (T.KVDBAnswer T.KVDBConn)
-getOrInitRedisConn cfg = do
+getOrInitKVDBConn cfg = do
   conn <- L.getKVDBConnection cfg
   case conn of
     Left (T.ExceptionMessage _) -> L.initKVDBConnection cfg

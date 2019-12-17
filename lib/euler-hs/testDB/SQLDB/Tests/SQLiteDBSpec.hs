@@ -90,6 +90,11 @@ testDBTemplateName = "./test/EulerHS/TestData/test.db.template"
 
 sqliteCfg = T.mkSQLiteConfig "eulerSQliteDB" testDBName
 
+getOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+getOrFail cfg = L.getOrInitSqlConn cfg >>= \case
+    Left e     -> error $ show e -- L.throwException $ toException $ show e
+    Right conn -> pure conn
+
 connectOrFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
 connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
     Left e     -> error $ show e -- L.throwException $ toException $ show e

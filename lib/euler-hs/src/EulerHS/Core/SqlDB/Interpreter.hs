@@ -1,7 +1,3 @@
---{-# LANGUAGE StandaloneDeriving #-}
---{-# LANGUAGE DeriveAnyClass #-}
---{-# LANGUAGE PartialTypeSignatures #-}
-
 module EulerHS.Core.SqlDB.Interpreter
   (
   -- * SQL DB Interpreter

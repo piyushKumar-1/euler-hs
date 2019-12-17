@@ -30,6 +30,7 @@ module EulerHS.Core.Types.DB
   , mkMySQLPoolConfig
   -- ** Helpers
   , nativeToBem
+  , withTransientTransaction
   ) where
 
 import           EulerHS.Prelude
@@ -90,15 +91,7 @@ class BeamRunner beM where
 
 instance BeamRunner BS.SqliteM where
   getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> do
-        let begin    = beginTransactionSQLite      logger connection
-        let commit   = commitTransactionSQLite     logger connection
-        let rollback = rollbackTransactionSQLite   logger connection
-        bracketOnError begin (const rollback) $ const $ do
-          res <- SQLite.runBeamSqliteDebug logger connection beM
-          commit
-          return res
-
+    $ \connection -> SQLite.runBeamSqliteDebug logger connection beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
 
 executeWithLogSQLite :: (String -> IO ()) -> SQLiteS.Connection -> SQLiteS.Query -> IO ()
@@ -118,29 +111,35 @@ rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRA
 
 instance BeamRunner BP.Pg where
   getBeamDebugRunner (PostgresPool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> do
-        let begin    = PGS.begin connection
-        let commit   = PGS.commit connection
-        let rollback = PGS.rollback connection
-        bracketOnError begin (const rollback) $ const $ do
-          res <- BP.runBeamPostgresDebug logger connection beM
-          commit
-          return res
-
+    $ \connection -> BP.runBeamPostgresDebug logger connection beM
   getBeamDebugRunner _ _ = \_ -> error "Not a Postgres connection"
 
 instance BeamRunner BM.MySQLM where
   getBeamDebugRunner (MySQLPool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> do
-        let begin    = pure ()
-        let commit   = MySQL.commit connection
-        let rollback = MySQL.rollback connection
-        bracketOnError begin (const rollback) $ const $ do
-          res <- BM.runBeamMySQLDebug logger connection beM
-          commit
-          return res
-
+    $ \connection -> BM.runBeamMySQLDebug logger connection beM
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
+
+withTransientTransaction :: (String -> IO ()) -> SqlConn beM -> IO a -> IO a
+withTransientTransaction errLogger p act = do
+  bracketOnError (begin p) (const (rollback p)) $ const $ do
+    res <- act
+    commit p
+    return res
+  where
+    begin     (PostgresPool _ pool) = DP.withResource pool PGS.begin
+    begin     (MySQLPool _ pool)    = DP.withResource pool $ \_ -> pure ()
+    begin     (SQLitePool _ pool)   = DP.withResource pool (beginTransactionSQLite errLogger)
+    begin     _                     = pure ()
+
+    commit    (PostgresPool _ pool) = DP.withResource pool PGS.commit
+    commit    (MySQLPool _ pool)    = DP.withResource pool MySQL.commit
+    commit    (SQLitePool _ pool)   = DP.withResource pool (commitTransactionSQLite errLogger)
+    commit    _                     = pure ()
+
+    rollback  (PostgresPool _ pool) = DP.withResource pool PGS.rollback
+    rollback  (MySQLPool _ pool)    = DP.withResource pool MySQL.rollback
+    rollback  (SQLitePool _ pool)   = DP.withResource pool (commitTransactionSQLite errLogger)
+    rollback  _                     = pure ()
 
 -- | Representation of native DB connections that we store in FlowRuntime
 data NativeSqlConn

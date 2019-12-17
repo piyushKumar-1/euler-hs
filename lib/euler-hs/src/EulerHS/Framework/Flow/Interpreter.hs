@@ -262,21 +262,18 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = R._runMode flowRt
   let dbgLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-                . L.logMessage' T.Debug ("RUNTIME" :: String)
+                . L.logMessage' T.Debug ("RunDB Impl" :: String)
+                . show
+  let errLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+                . L.logMessage' T.Error ("RunDB Impl" :: String)
                 . show
 
   fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
-          -- N.B. Beam runner should correspond to the real runtime.
-          -- TODO: check for this correspondence or make it unavoidable.
-          -- TODO: MySQL has autocommit mode on by default.
-          -- This makes changes to be commited immediately.
-          -- TODO: check for what's to do with transactions.
-
-          (T.MockedConn _) -> error $ "MockedSqlConn not implemented"
-
-          _                ->
-            map (first $ T.DBError T.SomeError . show) $
-              try @_ @SomeException $ R.runSqlDB conn dbgLogger sqlDbMethod
+    (T.MockedConn _) -> error "MockedSqlConn not implemented"
+    _ -> T.withTransientTransaction errLogger conn
+        $ map (first $ T.DBError T.SomeError . show)
+        $ try @_ @SomeException
+        $ R.runSqlDB conn dbgLogger sqlDbMethod
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   fmap next $ R.runKVDB _runMode _kvdbConnections act

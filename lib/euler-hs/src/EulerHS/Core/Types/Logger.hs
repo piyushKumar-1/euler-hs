@@ -14,6 +14,7 @@ module EulerHS.Core.Types.Logger
     , Log
     -- ** defaults
     , defaultLoggerConfig
+    , mkMemoryLoggerConfig
     , nullLoger
     ) where
 
@@ -26,7 +27,9 @@ data LogLevel = Debug | Info | Warning | Error
 -- | Logging format.
 type Format = String
 
-data LoggerConfig = LoggerConfig
+data LoggerConfig
+  = MemoryLoggerConfig
+  | LoggerConfig
   { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
   , _isAsync      :: Bool
   , _level        :: LogLevel
@@ -52,6 +55,9 @@ defaultLoggerConfig = LoggerConfig
     , _logToConsole = True
     , _logToFile = False
     }
+
+mkMemoryLoggerConfig :: LoggerConfig
+mkMemoryLoggerConfig = MemoryLoggerConfig
 
 nullLoger :: LoggerConfig
 nullLoger = defaultLoggerConfig

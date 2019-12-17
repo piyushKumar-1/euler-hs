@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module EulerHS.Core.Logger.Interpreter
   (
     -- * Core Logger Interpreter
@@ -16,7 +18,13 @@ import qualified EulerHS.Core.Logger.Entries as E
 
 
 interpretLogger :: D.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
-interpretLogger runMode (R.LoggerRuntime handle) (L.LogMessage level tag msg next) = do
+interpretLogger runMode (R.MemoryLoggerRuntime mvar) (L.LogMessage level tag msg next) =
+  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry level tag msg) $ do
+    !lgs <- takeMVar mvar
+    let m = "" +|| level ||+ " " +| tag |+ " " +| msg |+ ""
+    putMVar mvar (m : lgs)
+
+interpretLogger runMode (R.LoggerRuntime handle) (L.LogMessage level tag msg next) =
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry level tag msg) $
     Impl.sendPendingMsg handle $ D.PendingMsg level tag msg
 

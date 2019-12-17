@@ -1,5 +1,5 @@
 module EulerHS.Core.Logger.Impl.TinyLogger
-  ( 
+  (
     -- * TinyLogger Implementation
     -- ** Types
     LoggerHandle
@@ -88,6 +88,7 @@ createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = d
       chan <- newTChanIO
       threadId <- forkIO $ forever $ loggerWorker chan loggers
       pure $ AsyncLoggerHandle threadId chan loggers
+createLogger cfg = error $ "Unknown logger config: " <> show cfg
 
 disposeLogger :: LoggerHandle -> IO ()
 disposeLogger VoidLoggerHandle = pure ()

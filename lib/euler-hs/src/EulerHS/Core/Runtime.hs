@@ -12,17 +12,20 @@ module EulerHS.Core.Runtime
 
 import EulerHS.Prelude
 
+import           EulerHS.Core.Types (LoggerConfig(..))
 import qualified EulerHS.Core.Types        as D
 import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
 
-newtype LoggerRuntime = LoggerRuntime Impl.LoggerHandle
+data LoggerRuntime
+  = LoggerRuntime Impl.LoggerHandle
+  | MemoryLoggerRuntime !(MVar [Text])
 
 data CoreRuntime = CoreRuntime
   { _loggerRuntime :: LoggerRuntime
-
   }
 
-createLoggerRuntime :: D.LoggerConfig -> IO LoggerRuntime
+createLoggerRuntime :: LoggerConfig -> IO LoggerRuntime
+createLoggerRuntime MemoryLoggerConfig = MemoryLoggerRuntime <$> newMVar []
 createLoggerRuntime cfg = LoggerRuntime <$> Impl.createLogger cfg
 
 createVoidLoggerRuntime :: IO LoggerRuntime

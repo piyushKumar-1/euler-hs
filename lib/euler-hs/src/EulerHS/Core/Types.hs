@@ -2,7 +2,7 @@ module EulerHS.Core.Types
   ( module X
   ) where
 
-import           EulerHS.Core.Types.DB           as X
+import           EulerHS.Core.Types.DB           as X hiding (withTransaction)
 import           EulerHS.Core.Types.KVDB         as X
 import           EulerHS.Core.Types.Logger       as X
 import           EulerHS.Core.Types.MySQL        as X

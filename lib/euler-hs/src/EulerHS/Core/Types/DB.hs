@@ -32,7 +32,6 @@ module EulerHS.Core.Types.DB
   -- ** Helpers
   , nativeToBem
   , withTransaction
-  , withTransientTransaction
   ) where
 
 import           EulerHS.Prelude
@@ -133,40 +132,15 @@ withTransaction errLogger p actF =
     withNativeConnection (MySQLPool _ pool)    f = DP.withResource pool $ \conn -> f (NativeMySQLConn conn)
     withNativeConnection (SQLitePool _ pool)   f = DP.withResource pool $ \conn -> f (NativeSQLiteConn conn)
     withNativeConnection _                     f = error "Connection is not supported."
-
     begin     (NativePGConn conn)       = PGS.begin conn
     begin     (NativeMySQLConn conn)    = pure ()
     begin     (NativeSQLiteConn conn)   = beginTransactionSQLite errLogger conn
-
     commit    (NativePGConn conn)       = PGS.commit conn
     commit    (NativeMySQLConn conn)    = MySQL.commit conn
     commit    (NativeSQLiteConn conn)   = commitTransactionSQLite errLogger conn
-
     rollback  (NativePGConn conn)       = PGS.rollback conn
     rollback  (NativeMySQLConn conn)    = MySQL.rollback conn
     rollback  (NativeSQLiteConn conn)   = commitTransactionSQLite errLogger conn
-
-withTransientTransaction :: (String -> IO ()) -> SqlConn beM -> IO a -> IO a
-withTransientTransaction errLogger p act =
-  bracketOnError (begin p) (const (rollback p)) $ const $ do
-    res <- act
-    commit p
-    return res
-  where
-    begin     (PostgresPool _ pool) = DP.withResource pool PGS.begin
-    begin     (MySQLPool _ pool)    = DP.withResource pool $ \_ -> pure ()
-    begin     (SQLitePool _ pool)   = DP.withResource pool (beginTransactionSQLite errLogger)
-    begin     _                     = pure ()
-
-    commit    (PostgresPool _ pool) = DP.withResource pool PGS.commit
-    commit    (MySQLPool _ pool)    = DP.withResource pool MySQL.commit
-    commit    (SQLitePool _ pool)   = DP.withResource pool (commitTransactionSQLite errLogger)
-    commit    _                     = pure ()
-
-    rollback  (PostgresPool _ pool) = DP.withResource pool PGS.rollback
-    rollback  (MySQLPool _ pool)    = DP.withResource pool MySQL.rollback
-    rollback  (SQLitePool _ pool)   = DP.withResource pool (commitTransactionSQLite errLogger)
-    rollback  _                     = pure ()
 
 -- | Representation of native DB pools that we store in FlowRuntime
 data NativeSqlPool

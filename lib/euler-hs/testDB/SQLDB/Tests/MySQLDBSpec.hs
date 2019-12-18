@@ -132,6 +132,21 @@ selectOneDbScript = do
       $ B.filter_ predicate
       $ B.all_ (_users eulerDb)
 
+insertReturningScript :: L.Flow (T.DBResult [User])
+insertReturningScript = do
+  connection <- connMySQLorFail $ mysqlConfig
+  L.runDB connection
+    $ L.insertRowsReturningList
+    $ B.insert (_users eulerDb)
+    $ B.insertExpressions
+      [ User B.default_
+        ( B.val_ "John" )
+        ( B.val_ "Doe"  )
+      , User B.default_
+        ( B.val_ "Doe"  )
+        ( B.val_ "John" )
+      ]
+
 
 updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
 updateAndSelectDbScript = do
@@ -181,3 +196,20 @@ spec =
       it "Update / Select, row found & changed" $ \rt -> do
         eRes <- runFlow rt updateAndSelectDbScript
         eRes `shouldSatisfy` (someUser "Leo" "San")
+
+      it "Insert returning should return list of rows" $ \rt -> do
+        eRes <- runFlow rt insertReturningScript
+
+        case eRes of
+          Left  _  -> expectationFailure "Left DBResult"
+          Right us -> do
+            length us `shouldBe` 2
+            let u1 = us !! 0
+            let u2 = us !! 1
+
+            _userFirstName u1 `shouldBe` "John"
+            _userLastName  u1 `shouldBe` "Doe"
+
+            _userFirstName u2 `shouldBe` "Doe"
+            _userLastName  u2 `shouldBe` "John"
+

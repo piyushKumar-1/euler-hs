@@ -167,16 +167,22 @@ instance T.JSONEx a => MockedResult RunIOEntry a where
 
 data InitSqlDBConnectionEntry beM = InitSqlDBConnectionEntry
   { dBConfig :: T.DBConfig beM
+  , initConnResult :: Either T.DBError ()
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkInitSqlDBConnectionEntry :: T.DBConfig beM -> a -> InitSqlDBConnectionEntry beM
-mkInitSqlDBConnectionEntry dbcfg _ = InitSqlDBConnectionEntry dbcfg
+mkInitSqlDBConnectionEntry :: T.DBConfig beM -> Either T.DBError a -> InitSqlDBConnectionEntry beM
+mkInitSqlDBConnectionEntry dbcfg res = case res of
+  Left err -> InitSqlDBConnectionEntry dbcfg (Left err)
+  Right _ -> InitSqlDBConnectionEntry dbcfg (Right ())
 
 instance RRItem (InitSqlDBConnectionEntry beM)  where
   getTag _ = "InitSqlDBConnectionEntry"
 
 instance MockedResult (InitSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
-  getMock (InitSqlDBConnectionEntry _) = Just $ Right $ T.MockedPool ""
+  getMock  (InitSqlDBConnectionEntry _ res) =
+    case res of
+      Left err -> Just $ Left err
+      Right _  -> Just $ Right $ T.MockedPool ""
 
 
 ----------------------------------------------------------------------
@@ -198,16 +204,22 @@ instance MockedResult (DeInitSqlDBConnectionEntry beM) () where
 
 data GetSqlDBConnectionEntry beM = GetSqlDBConnectionEntry
   { dBConfig :: T.DBConfig beM
+  , getConnResult :: Either T.DBError ()
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkGetSqlDBConnectionEntry :: T.DBConfig beM -> a -> GetSqlDBConnectionEntry beM
-mkGetSqlDBConnectionEntry dbcfg _ = GetSqlDBConnectionEntry dbcfg
+mkGetSqlDBConnectionEntry :: T.DBConfig beM -> Either T.DBError a -> GetSqlDBConnectionEntry beM
+mkGetSqlDBConnectionEntry dbcfg res = case res of
+  Left err -> GetSqlDBConnectionEntry dbcfg (Left err)
+  Right _ -> GetSqlDBConnectionEntry dbcfg (Right ())
 
 instance RRItem (GetSqlDBConnectionEntry beM)  where
   getTag _ = "GetSqlDBConnectionEntry"
 
 instance MockedResult (GetSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
-  getMock (GetSqlDBConnectionEntry _) = Just $ Right $ T.MockedPool ""
+  getMock (GetSqlDBConnectionEntry _ res) =
+    case res of
+      Left err -> Just $ Left err
+      Right _  -> Just $ Right $ T.MockedPool ""
 
 -------------------------------------------------------------------------
 

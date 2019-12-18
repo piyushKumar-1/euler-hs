@@ -13,6 +13,7 @@ module EulerHS.Core.SqlDB.Language
   , findRow
   , findRows
   , insertRows
+  , insertRowsReturningList
   , updateRows
   , deleteRows
   ) where
@@ -44,6 +45,12 @@ insert''
   => B.SqlInsert be table
   -> SqlDBAction beM ()
 insert'' a = SqlDBAction (T.rtInsert a)
+
+insertReturningList''
+  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM)
+  => B.SqlInsert be table
+  -> SqlDBAction beM [table Identity]
+insertReturningList'' a = SqlDBAction (T.rtInsertReturningList a)
 
 update''
   :: T.BeamRuntime be beM
@@ -103,6 +110,12 @@ insert'
   -> SqlDB beM ()
 insert' = sqlDBMethod . insert''
 
+insertReturningList'
+  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
+  => B.SqlInsert be table
+  -> SqlDB beM [table Identity]
+insertReturningList' = sqlDBMethod . insertReturningList''
+
 update'
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlUpdate be table
@@ -139,6 +152,13 @@ insertRows
   => B.SqlInsert be table
   -> SqlDB beM ()
 insertRows = insert'
+
+-- | Insert returning list
+insertRowsReturningList
+  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
+  => B.SqlInsert be table
+  -> SqlDB beM [table Identity]
+insertRowsReturningList = insertReturningList'
 
 -- | Update
 updateRows

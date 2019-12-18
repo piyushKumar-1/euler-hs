@@ -15,7 +15,7 @@ import EulerHS.Prelude
 
 import           EulerHS.Core.Types (LoggerConfig(..))
 import           EulerHS.Core.Types.DB as X (withTransaction)
-import qualified EulerHS.Core.Types        as D
+import qualified EulerHS.Core.Types    as D
 import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
 
 data LoggerRuntime

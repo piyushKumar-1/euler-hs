@@ -36,18 +36,19 @@ module EulerHS.Core.Types.DB
 
 import           EulerHS.Prelude
 
-import qualified Data.Pool                       as DP
-import           Data.Time.Clock                 (NominalDiffTime)
-import qualified Database.Beam                   as B
-import qualified Database.Beam.Backend.SQL       as B
-import qualified Database.Beam.MySQL             as BM
-import qualified Database.Beam.Postgres          as BP
-import qualified Database.Beam.Sqlite            as BS
-import qualified Database.Beam.Sqlite.Connection as SQLite
-import qualified Database.MySQL.Base             as MySQL
-import qualified Database.PostgreSQL.Simple      as PGS
-import qualified Database.SQLite.Simple          as SQLiteS
-import qualified Database.SQLite.Simple          as SQLite
+import qualified Data.Pool                                as DP
+import           Data.Time.Clock                         (NominalDiffTime)
+import qualified Database.Beam                            as B
+import qualified Database.Beam.Backend.SQL.BeamExtensions as B
+import qualified Database.Beam.Backend.SQL                as B
+import qualified Database.Beam.MySQL                      as BM
+import qualified Database.Beam.Postgres                   as BP
+import qualified Database.Beam.Sqlite                     as BS
+import qualified Database.Beam.Sqlite.Connection          as SQLite
+import qualified Database.MySQL.Base                      as MySQL
+import qualified Database.PostgreSQL.Simple               as PGS
+import qualified Database.SQLite.Simple                   as SQLiteS
+import qualified Database.SQLite.Simple                   as SQLite
 
 import           EulerHS.Core.Types.MySQL        (MySQLConfig, createMySQLConn)
 import           EulerHS.Core.Types.Postgres     (PostgresConfig,
@@ -58,16 +59,18 @@ import           EulerHS.Core.Types.Postgres     (PostgresConfig,
 class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   | be -> beM, beM -> be where
   rtSelectReturningList :: B.FromBackendRow be a => B.SqlSelect be a -> beM [a]
-  rtSelectReturningOne :: B.FromBackendRow be a => B.SqlSelect be a -> beM (Maybe a)
-  rtInsert :: B.SqlInsert be table -> beM ()
-  rtUpdate :: B.SqlUpdate be table -> beM ()
-  rtDelete :: B.SqlDelete be table -> beM ()
+  rtSelectReturningOne  :: B.FromBackendRow be a => B.SqlSelect be a -> beM (Maybe a)
+  rtInsert              :: B.SqlInsert be table -> beM ()
+  rtInsertReturningList :: forall table . (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlInsert be table -> beM [table Identity]
+  rtUpdate              :: B.SqlUpdate be table -> beM ()
+  rtDelete              :: B.SqlDelete be table -> beM ()
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRuntime BS.Sqlite BS.SqliteM where
   rtSelectReturningList = B.runSelectReturningList
   rtSelectReturningOne = B.runSelectReturningOne
   rtInsert = B.runInsert
+  rtInsertReturningList = B.runInsertReturningList
   rtUpdate = B.runUpdate
   rtDelete = B.runDelete
 
@@ -76,6 +79,7 @@ instance BeamRuntime BP.Postgres BP.Pg where
   rtSelectReturningList = B.runSelectReturningList
   rtSelectReturningOne = B.runSelectReturningOne
   rtInsert = B.runInsert
+  rtInsertReturningList = B.runInsertReturningList
   rtUpdate = B.runUpdate
   rtDelete = B.runDelete
 
@@ -83,6 +87,7 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtSelectReturningList = B.runSelectReturningList
   rtSelectReturningOne = B.runSelectReturningOne
   rtInsert = B.runInsert
+  rtInsertReturningList = B.runInsertReturningList
   rtUpdate = B.runUpdate
   rtDelete = B.runDelete
 

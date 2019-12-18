@@ -261,10 +261,10 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let runMode   = R._runMode flowRt
-  let dbgLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+  let dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                 . L.logMessage' T.Debug ("RunDB Impl" :: String)
                 . show
-  let errLogger = R.runLogger runMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+  let errLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                 . L.logMessage' T.Error ("RunDB Impl" :: String)
                 . show
 

@@ -40,12 +40,12 @@ data FlowRuntime = FlowRuntime
   -- ^ Connections for key-value databases
   , _runMode :: T.RunMode
   -- ^ ART mode in which current flow runs
-  , _sqldbConnections :: MVar (Map T.ConnTag T.NativeSqlConn)
+  , _sqldbConnections :: MVar (Map T.ConnTag T.NativeSqlPool)
   -- ^ Connections for SQL databases
   }
 
 -- | Create default FlowRuntime.
-createFlowRuntime :: R.CoreRuntime -> IO (FlowRuntime )
+createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
   managerVar <- newManager tlsManagerSettings
   optionsVar <- newMVar mempty
@@ -54,7 +54,7 @@ createFlowRuntime coreRt = do
   pure $ FlowRuntime coreRt managerVar optionsVar kvdbConnections T.RegularMode sqldbConnections
 
 
-createFlowRuntime' :: Maybe T.LoggerConfig -> IO (FlowRuntime )
+createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
 createFlowRuntime'  mbLoggerCfg =
   createLoggerRuntime' mbLoggerCfg >>= R.createCoreRuntime >>= createFlowRuntime
 
@@ -72,12 +72,12 @@ clearFlowRuntime FlowRuntime{..} = do
   -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
 
-sqlDisconnect :: T.NativeSqlConn -> IO ()
+sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case
   T.NativePGPool connPool -> DP.destroyAllResources connPool
   T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
   T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  T.NativeMockedConn -> pure ()
+  T.NativeMockedPool -> pure ()
 
 kvDisconnect :: T.NativeKVDBConn -> IO ()
 kvDisconnect = \case
@@ -85,7 +85,7 @@ kvDisconnect = \case
   T.NativeKVDB conn -> RD.disconnect conn
 
 -- | Run flow with given logger config.
-withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime  -> IO a) -> IO a
+withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime -> IO a) -> IO a
 withFlowRuntime mbLoggerCfg actionF =
   bracket (createLoggerRuntime' mbLoggerCfg) R.clearLoggerRuntime $ \loggerRt ->
   bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt ->

@@ -10,6 +10,7 @@ module EulerHS.Core.Types.DB
     -- ** Types
     BeamRuntime(..)
   , BeamRunner(..)
+  , NativeSqlPool(..)
   , NativeSqlConn(..)
   , ConnTag
   , SQliteDBname
@@ -30,6 +31,7 @@ module EulerHS.Core.Types.DB
   , mkMySQLPoolConfig
   -- ** Helpers
   , nativeToBem
+  , withTransaction
   , withTransientTransaction
   ) where
 
@@ -86,12 +88,12 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtDelete = B.runDelete
 
 class BeamRunner beM where
-  getBeamDebugRunner :: SqlConn beM -> beM a -> ((String -> IO ()) -> IO a)
+  getBeamDebugRunner :: NativeSqlConn -> beM a -> ((String -> IO ()) -> IO a)
 
 
 instance BeamRunner BS.SqliteM where
-  getBeamDebugRunner (SQLitePool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> SQLite.runBeamSqliteDebug logger connection beM
+  getBeamDebugRunner (NativeSQLiteConn conn) beM =
+    \logger -> SQLite.runBeamSqliteDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
 
 executeWithLogSQLite :: (String -> IO ()) -> SQLiteS.Connection -> SQLiteS.Query -> IO ()
@@ -110,17 +112,42 @@ rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRA
 
 
 instance BeamRunner BP.Pg where
-  getBeamDebugRunner (PostgresPool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> BP.runBeamPostgresDebug logger connection beM
+  getBeamDebugRunner (NativePGConn conn) beM =
+    \logger -> BP.runBeamPostgresDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a Postgres connection"
 
 instance BeamRunner BM.MySQLM where
-  getBeamDebugRunner (MySQLPool _ pool) beM = \logger -> DP.withResource pool
-    $ \connection -> BM.runBeamMySQLDebug logger connection beM
+  getBeamDebugRunner (NativeMySQLConn conn) beM =
+    \logger -> BM.runBeamMySQLDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
 
+withTransaction :: (String -> IO ()) -> SqlConn beM -> (NativeSqlConn -> IO a) -> IO a
+withTransaction errLogger p actF =
+  withNativeConnection p $ \nativeConn ->
+    bracketOnError (begin nativeConn) (const (rollback nativeConn)) $ const $ do
+      res <- actF nativeConn
+      commit nativeConn
+      return res
+  where
+    withNativeConnection (PostgresPool _ pool) f = DP.withResource pool $ \conn -> f (NativePGConn conn)
+    withNativeConnection (MySQLPool _ pool)    f = DP.withResource pool $ \conn -> f (NativeMySQLConn conn)
+    withNativeConnection (SQLitePool _ pool)   f = DP.withResource pool $ \conn -> f (NativeSQLiteConn conn)
+    withNativeConnection _                     f = error "Connection is not supported."
+
+    begin     (NativePGConn conn)       = PGS.begin conn
+    begin     (NativeMySQLConn conn)    = pure ()
+    begin     (NativeSQLiteConn conn)   = beginTransactionSQLite errLogger conn
+
+    commit    (NativePGConn conn)       = PGS.commit conn
+    commit    (NativeMySQLConn conn)    = MySQL.commit conn
+    commit    (NativeSQLiteConn conn)   = commitTransactionSQLite errLogger conn
+
+    rollback  (NativePGConn conn)       = PGS.rollback conn
+    rollback  (NativeMySQLConn conn)    = MySQL.rollback conn
+    rollback  (NativeSQLiteConn conn)   = commitTransactionSQLite errLogger conn
+
 withTransientTransaction :: (String -> IO ()) -> SqlConn beM -> IO a -> IO a
-withTransientTransaction errLogger p act = do
+withTransientTransaction errLogger p act =
   bracketOnError (begin p) (const (rollback p)) $ const $ do
     res <- act
     commit p
@@ -141,19 +168,25 @@ withTransientTransaction errLogger p act = do
     rollback  (SQLitePool _ pool)   = DP.withResource pool (commitTransactionSQLite errLogger)
     rollback  _                     = pure ()
 
--- | Representation of native DB connections that we store in FlowRuntime
-data NativeSqlConn
+-- | Representation of native DB pools that we store in FlowRuntime
+data NativeSqlPool
   = NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
   | NativeMySQLPool (DP.Pool MySQL.Connection)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
-  | NativeMockedConn
+  | NativeMockedPool
 
--- | Transform 'SqlConn' to 'NativeSqlConn'
-bemToNative :: SqlConn beM -> NativeSqlConn
-bemToNative (MockedConn _)        = NativeMockedConn
-bemToNative (PostgresPool _ conn) = NativePGPool conn
-bemToNative (MySQLPool _ conn)    = NativeMySQLPool conn
-bemToNative (SQLitePool _ conn)   = NativeSQLitePool conn
+-- | Representation of native DB connections that we use in implementation.
+data NativeSqlConn
+  = NativePGConn BP.Connection
+  | NativeMySQLConn MySQL.Connection
+  | NativeSQLiteConn SQLite.Connection
+
+-- | Transform 'SqlConn' to 'NativeSqlPool'
+bemToNative :: SqlConn beM -> NativeSqlPool
+bemToNative (MockedPool _)        = NativeMockedPool
+bemToNative (PostgresPool _ pool) = NativePGPool pool
+bemToNative (MySQLPool _ pool)    = NativeMySQLPool pool
+bemToNative (SQLitePool _ pool)   = NativeSQLitePool pool
 
 -- | Create 'SqlConn' from 'DBConfig'
 mkSqlConn :: DBConfig beM -> IO (SqlConn beM)
@@ -166,7 +199,7 @@ mkSqlConn (MySQLPoolConf connTag cfg PoolConfig {..}) =  MySQLPool connTag
 mkSqlConn (SQLitePoolConf connTag dbname PoolConfig {..}) =  SQLitePool connTag
   <$> DP.createPool (SQLite.open dbname) SQLite.close stripes keepAlive resourcesPerStripe
 
-mkSqlConn (MockConfig connTag) = pure $ MockedConn connTag
+mkSqlConn (MockConfig connTag) = pure $ MockedPool connTag
 
 
 -- | Tag for SQL connections
@@ -178,7 +211,7 @@ type SQliteDBname = String
 -- | Represents SQL connection that we use in flow.
 --   Parametrised by BEAM monad corresponding to the certain DB (MySQL, Postgres, SQLite)
 data SqlConn beM
-  = MockedConn ConnTag
+  = MockedPool ConnTag
   | PostgresPool ConnTag (DP.Pool BP.Connection)
   -- ^ 'Pool' with Postgres connections
   | MySQLPool ConnTag (DP.Pool MySQL.Connection)
@@ -261,9 +294,9 @@ data DBError
 type DBResult a = Either DBError a
 
 
--- | Transforms 'NativeSqlConn' to 'SqlConn'
-nativeToBem :: ConnTag -> NativeSqlConn -> SqlConn beM
-nativeToBem connTag NativeMockedConn        = MockedConn connTag
+-- | Transforms 'NativeSqlPool' to 'SqlConn'
+nativeToBem :: ConnTag -> NativeSqlPool -> SqlConn beM
+nativeToBem connTag NativeMockedPool        = MockedPool connTag
 nativeToBem connTag (NativePGPool conn)     = PostgresPool connTag conn
 nativeToBem connTag (NativeMySQLPool conn)  = MySQLPool connTag conn
 nativeToBem connTag (NativeSQLitePool conn) = SQLitePool connTag conn

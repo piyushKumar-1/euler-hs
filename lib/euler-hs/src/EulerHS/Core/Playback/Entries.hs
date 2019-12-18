@@ -176,7 +176,7 @@ instance RRItem (InitSqlDBConnectionEntry beM)  where
   getTag _ = "InitSqlDBConnectionEntry"
 
 instance MockedResult (InitSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
-  getMock (InitSqlDBConnectionEntry _) = Just $ Right $ T.MockedConn ""
+  getMock (InitSqlDBConnectionEntry _) = Just $ Right $ T.MockedPool ""
 
 
 ----------------------------------------------------------------------
@@ -207,7 +207,7 @@ instance RRItem (GetSqlDBConnectionEntry beM)  where
   getTag _ = "GetSqlDBConnectionEntry"
 
 instance MockedResult (GetSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)) where
-  getMock (GetSqlDBConnectionEntry _) = Just $ Right $ T.MockedConn ""
+  getMock (GetSqlDBConnectionEntry _) = Just $ Right $ T.MockedPool ""
 
 -------------------------------------------------------------------------
 

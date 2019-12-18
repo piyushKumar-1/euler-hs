@@ -59,7 +59,7 @@ connectRedis cfg = do
     Right conn -> pure $ Right conn
 
 disconnect :: T.SqlConn beM ->   IO ()
-disconnect (T.MockedConn _)         = pure ()
+disconnect (T.MockedPool _)         = pure ()
 disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
@@ -269,11 +269,11 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
                 . show
 
   fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
-    (T.MockedConn _) -> error "MockedSqlConn not implemented"
-    _ -> T.withTransientTransaction errLogger conn
-        $ map (first $ T.DBError T.SomeError . show)
+    (T.MockedPool _) -> error "Mocked Pool not implemented"
+    _ -> T.withTransaction errLogger conn $ \nativeConn ->
+        map (first $ T.DBError T.SomeError . show)
         $ try @_ @SomeException
-        $ R.runSqlDB conn dbgLogger sqlDbMethod
+        $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   fmap next $ R.runKVDB _runMode _kvdbConnections act

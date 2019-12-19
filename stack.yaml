@@ -15,7 +15,7 @@ extra-deps:
 - git: https://github.com/shmish111/purescript-bridge.git
   commit: 0042602f8a195b1fe185138f9ccca02020b8dd62
 - git: https://github.com/graninas/beam-mysql
-  commit: 3607e45e26ab0e471af05774c452e767689cafcb
+  commit: e5a667fe6396441c7dcf1c7755c69345f00d0eee
 - random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
 
 # MySQL

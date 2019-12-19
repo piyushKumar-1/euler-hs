@@ -113,6 +113,8 @@ library:
   - WebService.ContentType
   - WebService.FlexCasing
   - WebService.PostRewrite
+  - WebService.AnyBase
+  - WebService.UUID
   ghc-options:
   - -Wall
   # - -Werror

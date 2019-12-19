@@ -264,16 +264,15 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
   let dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                 . L.logMessage' T.Debug ("RunDB Impl" :: String)
                 . show
-  let errLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-                . L.logMessage' T.Error ("RunDB Impl" :: String)
-                . show
 
   fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
     (T.MockedPool _) -> error "Mocked Pool not implemented"
-    _ -> R.withTransaction errLogger conn $ \nativeConn ->
-        map (first $ T.DBError T.SomeError . show)
-        $ try @_ @SomeException
-        $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
+    _ -> do
+      eRes <- R.withTransaction conn $ \nativeConn ->
+            map (first $ T.DBError T.SomeError . show)
+            $ try @_ @SomeException
+            $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
+      pure $ join eRes
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
   fmap next $ R.runKVDB _runMode _kvdbConnections act

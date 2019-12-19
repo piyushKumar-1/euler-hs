@@ -47,7 +47,6 @@ import qualified Database.Beam.Sqlite                     as BS
 import qualified Database.Beam.Sqlite.Connection          as SQLite
 import qualified Database.MySQL.Base                      as MySQL
 import qualified Database.PostgreSQL.Simple               as PGS
-import qualified Database.SQLite.Simple                   as SQLiteS
 import qualified Database.SQLite.Simple                   as SQLite
 
 import           EulerHS.Core.Types.MySQL        (MySQLConfig, createMySQLConn)
@@ -100,19 +99,16 @@ instance BeamRunner BS.SqliteM where
     \logger -> SQLite.runBeamSqliteDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
 
-executeWithLogSQLite :: (String -> IO ()) -> SQLiteS.Connection -> SQLiteS.Query -> IO ()
-executeWithLogSQLite log conn q = SQLiteS.execute_ conn q >> (log $ show q)
+beginTransactionSQLite :: SQLite.Connection -> IO ()
+beginTransactionSQLite conn = do
+  SQLite.execute_ conn "PRAGMA busy_timeout = 60000"
+  SQLite.execute_ conn "BEGIN TRANSACTION"
 
-beginTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
-beginTransactionSQLite    log conn = do
-  executeWithLogSQLite log conn "PRAGMA busy_timeout = 60000"
-  executeWithLogSQLite log conn "BEGIN TRANSACTION"
+commitTransactionSQLite :: SQLite.Connection -> IO ()
+commitTransactionSQLite conn = SQLite.execute_ conn "COMMIT TRANSACTION"
 
-commitTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
-commitTransactionSQLite   log conn = executeWithLogSQLite log conn "COMMIT TRANSACTION"
-
-rollbackTransactionSQLite :: (String -> IO ()) -> SQLiteS.Connection -> IO ()
-rollbackTransactionSQLite log conn = executeWithLogSQLite log conn "ROLLBACK TRANSACTION"
+rollbackTransactionSQLite :: SQLite.Connection -> IO ()
+rollbackTransactionSQLite conn = SQLite.execute_ conn "ROLLBACK TRANSACTION"
 
 
 instance BeamRunner BP.Pg where
@@ -125,13 +121,16 @@ instance BeamRunner BM.MySQLM where
     \logger -> BM.runBeamMySQLDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
 
-withTransaction :: (String -> IO ()) -> SqlConn beM -> (NativeSqlConn -> IO a) -> IO a
-withTransaction errLogger p actF =
-  withNativeConnection p $ \nativeConn ->
-    bracketOnError (begin nativeConn) (const (rollback nativeConn)) $ const $ do
+withTransaction :: SqlConn beM -> (NativeSqlConn -> IO a) -> IO (DBResult a)
+withTransaction p actF =
+  withNativeConnection p $ \nativeConn -> do
+    eRes <- try @_ @SomeException $ bracketOnError (begin nativeConn) (const (rollback nativeConn)) $ const $ do
       res <- actF nativeConn
       commit nativeConn
       return res
+    case eRes of
+      Left e -> pure $ Left $ DBError TransactionRollbacked $ show e
+      Right res -> pure $ Right res
   where
     withNativeConnection (PostgresPool _ pool) f = DP.withResource pool $ \conn -> f (NativePGConn conn)
     withNativeConnection (MySQLPool _ pool)    f = DP.withResource pool $ \conn -> f (NativeMySQLConn conn)
@@ -139,13 +138,13 @@ withTransaction errLogger p actF =
     withNativeConnection _                     f = error "Connection is not supported."
     begin     (NativePGConn conn)       = PGS.begin conn
     begin     (NativeMySQLConn conn)    = pure ()
-    begin     (NativeSQLiteConn conn)   = beginTransactionSQLite errLogger conn
+    begin     (NativeSQLiteConn conn)   = beginTransactionSQLite conn
     commit    (NativePGConn conn)       = PGS.commit conn
     commit    (NativeMySQLConn conn)    = MySQL.commit conn
-    commit    (NativeSQLiteConn conn)   = commitTransactionSQLite errLogger conn
+    commit    (NativeSQLiteConn conn)   = commitTransactionSQLite conn
     rollback  (NativePGConn conn)       = PGS.rollback conn
     rollback  (NativeMySQLConn conn)    = MySQL.rollback conn
-    rollback  (NativeSQLiteConn conn)   = commitTransactionSQLite errLogger conn
+    rollback  (NativeSQLiteConn conn)   = rollbackTransactionSQLite conn
 
 -- | Representation of native DB pools that we store in FlowRuntime
 data NativeSqlPool
@@ -261,6 +260,7 @@ data DBErrorType
   = ConnectionFailed
   | ConnectionAlreadyExists
   | ConnectionDoesNotExist
+  | TransactionRollbacked
   | SomeError
   deriving (Show, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
 

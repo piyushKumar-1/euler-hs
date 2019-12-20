@@ -20,6 +20,7 @@ import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Language as L
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Types as T
+
 import qualified Database.Beam as B
 import qualified Database.Beam.Sqlite as BS
 import qualified Database.Beam.Backend.SQL as B
@@ -190,7 +191,6 @@ bookingsEMod = B.modifyTableFields
     , starttime = B.fieldNamed "starttime"
     , slots = B.fieldNamed "slots"
     }
-
 
 
 data ClubDB f = ClubDB

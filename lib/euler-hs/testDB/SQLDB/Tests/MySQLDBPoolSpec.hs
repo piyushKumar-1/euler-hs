@@ -1,53 +1,20 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-
 module SQLDB.Tests.MySQLDBPoolSpec where
 
-import           EulerHS.Prelude   hiding (getOption)
-import           Test.Hspec        hiding (runIO)
-import           Data.Aeson               (encode)
-import qualified Data.ByteString.Lazy as BSL
-import           Unsafe.Coerce
+import           EulerHS.Prelude
 
-import           EulerHS.Types hiding (error)
 import           EulerHS.Interpreters
-import           EulerHS.Language
 import           EulerHS.Runtime (withFlowRuntime)
-
-import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime as R
+import           EulerHS.Types hiding (error)
 import qualified EulerHS.Types as T
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (<-.), (/=.))
+
+import           SQLDB.TestData.Connections (connectOrFail)
+import           SQLDB.TestData.Scenarios.MySQL
+import           SQLDB.TestData.Types
+
+import           Test.Hspec hiding (runIO)
 
 
-data UserT f = User
-    { _userId        :: B.C f Int
-    , _userFirstName :: B.C f Text
-    , _userLastName  :: B.C f Text
-    } deriving (Generic, B.Beamable)
-
-instance B.Table UserT where
-  data PrimaryKey UserT f =
-    UserId (B.C f Int) deriving (Generic, B.Beamable)
-  primaryKey = UserId . _userId
-
-type User = UserT Identity
-type UserId = B.PrimaryKey UserT Identity
-
-deriving instance Show User
-deriving instance Eq User
-deriving instance ToJSON User
-deriving instance FromJSON User
-
-data EulerDb f = EulerDb
-    { _users :: f (B.TableEntity UserT)
-    } deriving (Generic, B.Database be)
-
-eulerDb :: B.DatabaseSettings be EulerDb
-eulerDb = B.defaultDbSettings
+-- Configeuration
 
 poolConfig = T.PoolConfig
   { stripes = 1
@@ -69,102 +36,8 @@ mySQLCfg = MySQLConfig
 
 mysqlConfig = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
 
-connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ show e
-  Right conn -> pure conn
 
-
-uniqueConstraintViolationDbScript :: L.Flow (T.DBResult ())
-uniqueConstraintViolationDbScript = do
-  connection <- connMySQLorFail mysqlConfig
-
-
-  L.runDB connection
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertValues [User 1 "Eve" "Beon"]
-
-  L.runDB connection
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertValues [User 1 "Eve" "Beon"]
-
-
-selectUnknownDbScript :: L.Flow (T.DBResult (Maybe User))
-selectUnknownDbScript = do
-  connection <- connMySQLorFail $ mysqlConfig
-
-  L.runDB connection $ do
-    let predicate User {..} = _userFirstName ==.  "Unknown"
-
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (_users eulerDb)
-
-
-data SimpleUser = SimpleUser {first :: Text, last :: Text}
-
-susers =
-  [ SimpleUser  "John" "Doe"
-  , SimpleUser  "Doe" "John"
-  ]
-mkUser SimpleUser {..} = User B.default_ (B.val_ first) (B.val_ last)
-
-
-selectOneDbScript :: L.Flow (T.DBResult (Maybe User))
-selectOneDbScript = do
-  connection <- connMySQLorFail $ mysqlConfig
-  L.runDB connection
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertExpressions (mkUser <$> susers)
-         -- [ User B.default_
-         --        "John"
-         --        "Doe"
-         -- , User B.default_
-         --        "Doe"
-         --        "John"
-         -- ]
-  L.runDB connection $ do
-    let predicate User {..} = _userFirstName ==.  "John"
-
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (_users eulerDb)
-
-
-updateAndSelectDbScript :: L.Flow (T.DBResult (Maybe User))
-updateAndSelectDbScript = do
-  connection <- connMySQLorFail $ mysqlConfig
-
-  L.runDB connection $ do
-    let predicate1 User {..} = _userFirstName ==. "John"
-
-    L.updateRows $ B.update (_users eulerDb)
-      (\User {..} -> mconcat
-        [ _userFirstName <-. "Leo"
-        , _userLastName  <-. "San"
-        ]
-      )
-      predicate1
-
-    let predicate2 User {..} = _userFirstName ==. "Leo"
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate2
-      $ B.all_ (_users eulerDb)
-
-
-someUser :: Text -> Text -> T.DBResult (Maybe User) -> Bool
-someUser f l (Right (Just u)) = _userFirstName u == f && _userLastName u == l
-someUser _ _ _ = False
-
+-- Tests
 
 spec :: Spec
 spec =
@@ -172,17 +45,17 @@ spec =
 
     describe "EulerHS MySQL DB Pool tests" $ do
       it "Unique Constraint Violation" $ \rt -> do
-        eRes <- runFlow rt uniqueConstraintViolationDbScript
+        eRes <- runFlow rt $ uniqueConstraintViolationDbScript mysqlConfig
         eRes `shouldBe` (Left (DBError SomeError "ConnectionError {errFunction = \"query\", errNumber = 1062, errMessage = \"Duplicate entry '1' for key 'PRIMARY'\"}"))
 
       it "Select one, row not found" $ \rt -> do
-        eRes <- runFlow rt selectUnknownDbScript
+        eRes <- runFlow rt $ selectUnknownDbScript mysqlConfig
         eRes `shouldBe` (Right Nothing)
 
       it "Select one, row found" $ \rt -> do
-        eRes <- runFlow rt selectOneDbScript
+        eRes <- runFlow rt $ selectOneDbScript mysqlConfig
         eRes `shouldSatisfy` (someUser "John" "Doe")
 
       it "Update / Select, row found & changed" $ \rt -> do
-        eRes <- runFlow rt updateAndSelectDbScript
+        eRes <- runFlow rt $ updateAndSelectDbScript mysqlConfig
         eRes `shouldSatisfy` (someUser "Leo" "San")

@@ -2,7 +2,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: console-master
-  namespace: ec-prod
+  namespace: ec-test
   labels:
     app: console
     version: master
@@ -58,7 +58,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: console-master
-  namespace: ec-prod
+  namespace: ec-test
 data:
   console.dhall: |
     let FieldType : Type = < IntType | FloatType | StringType | DateTimeType >
@@ -118,7 +118,7 @@ data:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: ec-prod
+  namespace: ec-test
   name: console
   labels:
     app: console

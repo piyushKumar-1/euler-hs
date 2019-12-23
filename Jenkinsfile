@@ -49,7 +49,7 @@ pipeline {
         stage('Kubernetes Deploy') {
           steps {
             kubernetesDeploy(
-                  kubeconfigId: 'jenkins-user',
+                  kubeconfigId: 'jenkins-staging-deployer',
                   configs: 'k8s-configs/console-deploy.yaml',
                   enableConfigSubstitution: true
                 )

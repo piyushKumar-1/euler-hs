@@ -2,6 +2,7 @@ module Euler.Product.OLTP.Order.CreateUpdate where
 
 
 import EulerHS.Prelude hiding (id, show, get)
+import qualified EulerHS.Prelude as EHP
 import EulerHS.Language
 import Euler.Lens
 import WebService.Language
@@ -362,14 +363,17 @@ createOrder' orderCreateReq routeParams mAccnt@MerchantAccount{..} isMandate = d
   -- Need sql [insert/update/delete] methods that return values
   orderRef :: OrderReference <- do
     mOref <- withDB eulerDB $ do
-      insertRows
+      insertRowsReturningList -- insertRows
         $ B.insert (order_reference eulerDBSchema)
-        $ B.insertValues [orderRefVal]
-      findRow
-        $ B.select
-        $ B.filter_ (\ref -> ref ^. _orderId ==. (B.val_ $ orderRefVal ^. _orderId))
-        $ B.all_ (order_reference eulerDBSchema)
-    maybe (throwException err500 {errBody = "8"}) pure mOref -- orderRefVal
+        $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
+     -- findRow
+     --   $ B.select
+     --   $ B.filter_ (\ref -> ref ^. _orderId ==. (B.val_ $ orderRefVal ^. _orderId))
+     --   $ B.all_ (order_reference eulerDBSchema)
+    --maybe (throwException err500 {errBody = "8"}) pure mOref -- orderRefVal
+    case mOref of
+      [ordRef] -> pure ordRef
+      x -> throwException err500 {errBody = EHP.show x}
     --pure orderRefVal -- createWithErr ecDB orderRefVal internalError
   orderIdPrimary <- getOrderId orderRef
   -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
@@ -394,16 +398,16 @@ getBillingAddrId orderCreateReq mAccnt = do
   then do
     let newAddr = mkBillingAddress $ upcast orderReq
     mAddr <- withDB eulerDB $ do
-      insertRows
+      insertRowsReturningList -- insertRows
         $ B.insert (order_address eulerDBSchema)
         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-      findRow $ B.select -- what if insert fail?
-        $ B.limit_ 1
-        $ B.orderBy_ (B.desc_ . Address.id ) -- B.aggregate_ (\addr -> B.max_ (addr ^. _id ))
-        $ B.all_ (order_address eulerDBSchema)
+      -- findRow $ B.select -- what if insert fail?
+      --   $ B.limit_ 1
+      --   $ B.orderBy_ (B.desc_ . Address.id ) -- B.aggregate_ (\addr -> B.max_ (addr ^. _id ))
+      --   $ B.all_ (order_address eulerDBSchema)
    -- Need sql [insert/update] methods that return values
 
-    pure $   (^. _id) =<< mAddr -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
+    pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
   else pure Nothing
   where present (OrderCreateRequest {..}) = isJust
           $   billing_address_first_name
@@ -424,15 +428,18 @@ getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
   then do
     let newAddr = mkShippingAddress $ upcast orderCreateReq
     mAddr <- withDB eulerDB $ do
-      insertRows
+      insertRowsReturningList -- insertRows
         $ B.insert (order_address eulerDBSchema)
         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-      findRow $ B.select -- what if insert fail?
-        $ B.limit_ 1
-        $ B.orderBy_ (B.desc_ . Address.id ) -- B.aggregate_ (\addr -> B.max_ (addr ^. _id ))
-        $ B.all_ (order_address eulerDBSchema)
+      --findRow $ B.select -- what if insert fail?
+      --  $ B.limit_ 1
+      --  $ B.orderBy_ (B.desc_ . Address.id ) -- B.aggregate_ (\addr -> B.max_ (addr ^. _id ))
+      --  $ B.all_ (order_address eulerDBSchema)
      -- Need sql [insert/update/delete] methods that return values
-    pure $ (^. _id) =<< mAddr -- (getField @"id") <$> createWithErr ecDB (mkShippingAddress orderCreateReq) internalError
+    case mAddr of
+      [] -> throwException err500 {errBody = "emptyaddr"}
+      x -> runIO $ putStrLn $ P.show x
+    pure $ (^. _id) =<< (safeHead mAddr) -- (getField @"id") <$> createWithErr ecDB (mkShippingAddress orderCreateReq) internalError
   else pure Nothing
   where present (OrderCreateRequest {..}) = isJust
           $    shipping_address_first_name

@@ -149,14 +149,10 @@ runFlow flowTag rps req flow = do
         , mcSourceIP = ""
         , mcUserAgent = ""
         }
-  res <- (lift $ lift $ R.runFlow newRt flow) `CES.catches` -- TODO: error reporting (internal server error & output to console, to log)
-    [ CES.Handler(\(e :: ServerError ) -> do
-          putTextLn $"Catched ServerError!\n" <> show e
-          throwError e)
-    , CES.Handler(\(e :: SomeException) -> do
-          putTextLn $ "Catched SomeException!\n" <> show e
-          throwError err500 {errBody = "Sorry! Something went wrong :-("})
-    ]
+  res <- try (lift $ lift $ R.runFlow newRt flow)
+  jsonRes <- case res of
+    Left err -> pure $ toJSON @String $ show err
+    Right r -> pure $ toJSON r
   _ <- lift $ lift $ case (runningMode, envRecorderParams) of
     (T.RecordingMode T.RecorderRuntime{..}, Just envParams) -> do
       entries' <- T.awaitRecording $ recording

@@ -9,13 +9,13 @@ import           EulerHS.Language
 import           EulerHS.Runtime
 import           EulerHS.Types
 
+import           Control.Exception               (throwIO)
 import           Data.Coerce (coerce)
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
-import qualified Data.Aeson             as A   (Result(..), fromJSON)
+import qualified Data.Aeson as A (Result(..), fromJSON)
 import qualified Control.Exception.Safe as CES (catches, Handler(..))
-
 
 import Euler.API.RouteParameters
 import Euler.Playback.Types
@@ -90,7 +90,7 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
             , _sqldbConnections = sqldbConnectionsVar
             }
       let method = methodF req (coerce mcRouteParams) -- mr.parameters
-      eResult <- try $ runFlow flowRt method
+      eResult :: Either SomeException resp <- try $ runFlow flowRt method
       case eResult of
         Right eResult' -> do
 
@@ -104,7 +104,6 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
             [] -> pure $ Right $ PlaybackSucceeded $ responseCheckResult
             [x] -> pure $ Right $ PlaybackFailed x
             errList -> pure $ Left $ ForkedFlowsFailed $ tail errList
-
         Left ex -> do
           throwIO ex `CES.catches`
             [ CES.Handler (\(ReplayingException rEx) -> pure $ Right $ PlaybackFailed rEx)

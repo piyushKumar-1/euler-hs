@@ -56,7 +56,7 @@ tokenizeResource resourceId resourceType merchantId = do
   _ <- setCacheWithExpiry token' redisData expiryInSeconds
   --setCacheWithExpiry Constants.ecRedis token redisData (convertDuration $ Seconds $ toNumber expiryInSeconds)
   _           <- logInfo (resourceType <> "_token_cache") (token' <> (show redisData))
-  expiry'     <- getCurrentDateStringWithOffset Constants.redis_token_expiry_default
+  expiry'     <- getCurrentDateStringWithSecOffset Constants.redis_token_expiry_default
   pure $ TokenizedResource {token = token', expiry = expiry'}
 
   where getRedisData resourceType' resourceId' tokenMaxUsage' expiryInSeconds currentDate = SC.TokenCacheData

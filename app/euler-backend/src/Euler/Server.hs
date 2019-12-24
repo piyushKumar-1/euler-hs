@@ -113,9 +113,9 @@ runFlow flowTag req flow = do
         , mcUserAgent = ""
         }
   res <- try $ lift $ lift $ R.runFlow newRt flow
-  jsonRes <- case res of
-    Left err -> pure $ toJSON @String $ show err
-    Right r -> pure $ toJSON r
+  let jsonRes = case res of
+        Left err ->  toJSON @String $ show err
+        Right r ->  toJSON r
   _ <- lift $ lift $ case (runningMode, envRecorderParams) of
     (T.RecordingMode T.RecorderRuntime{..}, Just envParams) -> do
       entries' <- T.awaitRecording $ recording

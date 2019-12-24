@@ -191,8 +191,9 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
   fmap next $
     P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
 
-interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) =
-  fmap next $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) $ throwIO ex
+interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) = do
+  void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())
+  throwIO ex
 
 interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do

@@ -31,8 +31,8 @@ import           WebService.ContentType
                  (JavascriptWrappedJSON, mkDynContentTypeMiddleware, throwJsonError)
 import           WebService.FlexCasing
                  (QueryParamC, mkFlexCaseMiddleware)
-import           WebService.PostRewrite 
-                 (mkPostToGetMiddleware) 
+import           WebService.PostRewrite
+                 (mkPostToGetMiddleware)
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
@@ -45,8 +45,8 @@ type EulerAPI
   :<|> "orders" :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderCreateResponse
 -- order update
   :<|> "orders" :> Capture "orderId" Text :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderStatusResponse
--- payment status endpoint (flexible casing showcase)  
-  :<|> "orders" :> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse  
+-- payment status endpoint (flexible casing showcase)
+  :<|> "orders" :> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse
   :<|> "metrics" :> Get '[OctetStream] ByteString
   :<|> EmptyAPI
 
@@ -83,12 +83,12 @@ eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
         Right res -> pure res
 
 eulerBackendApp :: Env -> Application
-eulerBackendApp env = 
-  let 
-    flexCaseMiddleware = routedMiddleware (["orders", "payment-status"] ==) 
+eulerBackendApp env =
+  let
+    flexCaseMiddleware = routedMiddleware (["orders", "payment-status"] ==)
       (mkPostToGetMiddleware
-      . mkFlexCaseMiddleware "orderId" 
-      . mkDynContentTypeMiddleware "callback") 
+      . mkFlexCaseMiddleware "orderId"
+      . mkDynContentTypeMiddleware "callback")
   in
     flexCaseMiddleware (serve eulerAPI (eulerServer env))
 
@@ -112,13 +112,16 @@ runFlow flowTag req flow = do
         , mcSourceIP = ""
         , mcUserAgent = ""
         }
-  res <- lift $ lift $ R.runFlow newRt flow
+  res <- try $ lift $ lift $ R.runFlow newRt flow
+  jsonRes <- case res of
+    Left err -> pure $ toJSON @String $ show err
+    Right r -> pure $ toJSON r
   _ <- lift $ lift $ case (runningMode, envRecorderParams) of
     (T.RecordingMode T.RecorderRuntime{..}, Just envParams) -> do
       entries' <- T.awaitRecording $ recording
       let mr = PB.MethodRecording
             { mrJsonRequest = req
-            , mrJsonResponse = toJSON res
+            , mrJsonResponse = jsonRes
             , mrEntries = entries'
             , mrMethodConfigs = mc
             , mrSessionId = "SomeSessionId"
@@ -130,7 +133,9 @@ runFlow flowTag req flow = do
             }
       PB.writeMethodRecordingDescription (PB.recordingsStorage envParams) mrd (toString flowTag) "sessionId"
     _ -> pure ()
-  pure res
+  case res of
+    Left e -> throwError e
+    Right r -> pure r
 
 testFlow2 :: Map String String -> L.Flow Text
 testFlow2  _ = do
@@ -210,7 +215,7 @@ orderUpdate orderId ordReq = do
     pure ApiOrder.defaultOrderStatusResponse
   pure res
 
-paymentStatus :: 
+paymentStatus ::
   Maybe String ->  -- orderId
   Maybe String ->  -- merchantId
   Maybe String ->  -- callback

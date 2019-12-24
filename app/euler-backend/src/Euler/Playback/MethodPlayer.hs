@@ -9,10 +9,12 @@ import           EulerHS.Language
 import           EulerHS.Runtime
 import           EulerHS.Types
 
-import           Network.HTTP.Client (newManager)
+import           Control.Exception       (throwIO)
+import           Network.HTTP.Client     (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
-import qualified Data.Aeson as A (Result(..), fromJSON)
+import qualified Data.Aeson             as A   (Result(..), fromJSON)
+import qualified Control.Exception.Safe as CES (catches, Handler(..))
 
 import Euler.Playback.Types
 
@@ -81,7 +83,7 @@ withMethodPlayer methodF mr@MethodRecording{..} PlayerParams{..} = do
             , _sqldbConnections = sqldbConnectionsVar
             }
       let method = methodF req mempty -- mr.parameters
-      eResult <- try $ runFlow flowRt method
+      eResult :: Either SomeException resp <- try $ runFlow flowRt method
       case eResult of
         Right eResult' -> do
 
@@ -96,7 +98,21 @@ withMethodPlayer methodF mr@MethodRecording{..} PlayerParams{..} = do
             [x] -> pure $ Right $ PlaybackFailed x
             errList -> pure $ Left $ ForkedFlowsFailed $ tail errList
 
-        Left (ReplayingException err)-> pure $ Right $ PlaybackFailed err
+        Left ex -> do
+          throwIO ex `CES.catches`
+            [ CES.Handler (\(ReplayingException rEx) -> pure $ Right $ PlaybackFailed rEx)
+            , CES.Handler (\ (e :: SomeException) -> do
+                let (ee :: String) = show e
+                responseCheckResult <- case ppResponseCheckMode of
+                  VerifyResponse   -> pure $ verifyResponse mrJsonResponse ee
+                  NoVerifyResponse -> pure ResponseSkipped
+                resultPlayerError <- awaitErrors rerrorVar
+                case flattenErrors resultPlayerError of
+                  [] -> pure $ Right $ PlaybackSucceeded $ responseCheckResult
+                  [x] -> pure $ Right $ PlaybackFailed x
+                  errList -> pure $ Left $ ForkedFlowsFailed $ tail errList
+                )
+            ]
   where
     verifyResponse jsonResponse eResp =
       case A.fromJSON jsonResponse of

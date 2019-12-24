@@ -23,6 +23,7 @@ runWithRedisConn :: (Show b, Eq b) => a -> Flow b -> IO b
 runWithRedisConn _ flow = do
   (recording, recResult) <- runFlowRecording initRedis flow
   print $ encode $ recording
+  -- putStrLn $ encodePretty $ recording
   pure recResult
   where
     initRedis = \rt -> do
@@ -105,28 +106,30 @@ spec = do
 
 
 getKey :: ResultRecording
-getKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":[98,98,98],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":[98,98,98]},\"jsonKey\":[97,97,97]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[[97,97,97]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+getKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 getWrongKey :: ResultRecording
-getWrongKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":[98,98,98],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":[97,97,97,99]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[[97,97,97]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+getWrongKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaac\",\"b64\":\"YWFhYw==\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 deleteExisting :: ResultRecording
-deleteExisting = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":[98,98,98],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"SetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonValue\":[100,100,100],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[99,99,99]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":2},\"jsonKeys\":[[97,97,97],[99,99,99]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+deleteExisting = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"SetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"ddd\",\"b64\":\"ZGRk\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"ccc\",\"b64\":\"Y2Nj\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":2},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"},{\"utf8\":\"ccc\",\"b64\":\"Y2Nj\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 deleteKeysNoKeys :: ResultRecording
 deleteKeysNoKeys = fromJust $ decode "{\"recording\":[{\"_entryName\":\"DelEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 deleteMissing :: ResultRecording
-deleteMissing = fromJust $ decode "{\"recording\":[{\"_entryName\":\"DelEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[[122,122,122],[121,121,121]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+deleteMissing = fromJust $ decode "{\"recording\":[{\"_entryName\":\"DelEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[{\"utf8\":\"zzz\",\"b64\":\"enp6\"},{\"utf8\":\"yyy\",\"b64\":\"eXl5\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 getCorrectFromTx :: ResultRecording
-getCorrectFromTx = fromJust $ decode "{\"recording\":[{\"_entryName\":\"MultiExecEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"tag\":\"TxSuccess\",\"contents\":[98,98,98]}}},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+getCorrectFromTx = fromJust $ decode "{\"recording\":[{\"_entryName\":\"MultiExecEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"tag\":\"TxSuccess\",\"contents\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}}}},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 getIncorrectFromTx :: ResultRecording
 getIncorrectFromTx = fromJust $ decode "{\"recording\":[{\"_entryName\":\"MultiExecEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"tag\":\"TxSuccess\",\"contents\":null}}},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 setExGetKey :: ResultRecording
-setExGetKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":3600,\"jsonValue\":[98,98,98,101,120],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":[98,98,98,101,120]},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[[97,97,97,101,120]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+setExGetKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":3600,\"jsonValue\":{\"utf8\":\"bbbex\",\"b64\":\"YmJiZXg=\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbbex\",\"b64\":\"YmJiZXg=\"}},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
 setExTtl :: ResultRecording
-setExTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":1,\"jsonValue\":[98,98,98,101,120],\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":[]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":[97,97,97,101,120]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[[97,97,97,101,120]]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+setExTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":1,\"jsonValue\":{\"utf8\":\"bbbex\",\"b64\":\"YmJiZXg=\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":[]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
+
+

@@ -36,6 +36,7 @@ import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as S
 import qualified Servant.Client.Core.Request as S
+import           Data.ByteString.Base64.Type as B64
 
 
 
@@ -134,9 +135,12 @@ instance JSONEx a => EitherC (Serializable [a]) d where resolve r _ = r
 ----------------------------------------------------------------------
 
 instance Serializable ByteString where
-    jsonEncode = toJSON . fromByteString
-    jsonDecode = fmap toByteString . A.parseMaybe parseJSON
+    jsonEncode bs = A.object ["b64" A..= mkBS64 bs, "utf8" A..= decodeUtf8 @Text bs]
+    jsonDecode = A.parseMaybe . A.withObject "bs" $ \o -> fmap getBS64 (o A..: "b64")
 
+instance Serializable ByteString64 where
+    jsonEncode = toJSON
+    jsonDecode = A.parseMaybe parseJSON
 
 instance EitherC (Serializable ByteString) d where resolve r _ = r
 

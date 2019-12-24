@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Core.Types.Playback
   (
@@ -33,16 +33,14 @@ module EulerHS.Core.Types.Playback
   ) where
 
 
-import EulerHS.Prelude hiding (note)
-import qualified Data.Aeson                      as A
-import qualified Data.Aeson.Encode.Pretty as A (encodePretty)
-import qualified Data.ByteString.Char8           as BS
-import qualified Data.ByteString.Lazy            as BSL
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Map as Map
 import qualified EulerHS.Core.Types.Serializable as S
-import qualified Data.Map                        as Map
+import           EulerHS.Prelude hiding (note)
 import qualified Prelude as P (show)
--- import qualified Data.Binary.Builder as B
--- import qualified GHC.Generics as G
+
 
 -- Represents ART single entry, saved in recordings
 data RecordingEntry = RecordingEntry
@@ -186,21 +184,21 @@ flattenErrors = catMaybes . flattenErrors_
 
 -- | Represents ART recorder state and parameters
 data RecorderRuntime = RecorderRuntime
-  { flowGUID            :: Text
-  , recording           :: Recording
-  , disableEntries      :: [String]
+  { flowGUID       :: Text
+  , recording      :: Recording
+  , disableEntries :: [String]
   }
 
 -- | Represents ART player state and parameters
 data PlayerRuntime = PlayerRuntime
-  { resRecording         :: ResultRecording
-  , rerror               :: ReplayErrors
-  , stepMVar             :: MVar Int
-  , disableVerify        :: [String]
-  , disableMocking       :: [String]
-  , skipEntries          :: [String]
-  , entriesFiltered      :: Bool
-  , flowGUID             :: Text
+  { resRecording    :: ResultRecording
+  , rerror          :: ReplayErrors
+  , stepMVar        :: MVar Int
+  , disableVerify   :: [String]
+  , disableMocking  :: [String]
+  , skipEntries     :: [String]
+  , entriesFiltered :: Bool
+  , flowGUID        :: Text
   }
 
 -- | ART running mode
@@ -223,7 +221,7 @@ decodeFromStr = A.decode . BSL.fromStrict . BS.pack
 -- gEncodeToStr = BS.unpack . BSL.toStrict . B.toLazyByteString . A.fromEncoding . A.genericToEncoding A.defaultOptions
 
 note :: forall a b. a -> Maybe b -> Either a b
-note a Nothing = Left a
+note a Nothing  = Left a
 note _ (Just b) = Right b
 
 

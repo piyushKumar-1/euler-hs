@@ -4,12 +4,10 @@ module EulerHS.Core.SqlDB.Interpreter
   runSqlDB
   ) where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.Types as T
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
 
 
 interpretSqlDBMethod

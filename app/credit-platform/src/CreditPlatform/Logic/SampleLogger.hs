@@ -2,10 +2,7 @@ module CreditPlatform.Logic.SampleLogger where
 
 import EulerHS.Prelude
 
-import qualified EulerHS.Types as T
 import qualified EulerHS.Language as L
-
-
 
 
 logMessageFlow :: Text -> L.Flow ()

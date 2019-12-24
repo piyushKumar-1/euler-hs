@@ -29,11 +29,11 @@ runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported me
 
 
 getMethod :: ( FromJSON resp) => (t1 -> Flow resp) -> () -> t1 -> Flow resp
-getMethod f r p = f p
+getMethod f _ p = f p
 
 testFlow2 ::  Map String String -> Flow Text
 testFlow2  _ = do
-  runSysCmd "echo hello"
+  void $ runSysCmd "echo hello"
   forkFlow "f1" $ logInfo tag "hellofrom forked flow"
   res <- runIO $ do
     putTextLn "text from runio"
@@ -49,7 +49,7 @@ withMethodPlayer
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
-withMethodPlayer methodF mr@MethodRecording{..} PlayerParams{..} = do
+withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
   let eDecoded = A.fromJSON mrJsonRequest
   case eDecoded of
     A.Error err  -> pure $ Left $ RequestDecodingError err
@@ -59,7 +59,7 @@ withMethodPlayer methodF mr@MethodRecording{..} PlayerParams{..} = do
       errorMVar <- newMVar Nothing
       forkedFlowErrorsVar <- newMVar mempty
       let rerrorVar = ReplayErrors errorMVar forkedFlowErrorsVar
-      let mCfgs@MethodConfigs{..} = mrMethodConfigs
+      let MethodConfigs{..} = mrMethodConfigs
       let playerRt = PlayerRuntime
             { resRecording         = mrEntries -- :: ResultRecording
             , rerror               = rerrorVar -- :: ReplayErrors

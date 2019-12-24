@@ -7,11 +7,13 @@ import Data.Time
 
 
 
+defaultDate :: LocalTime
 defaultDate =  LocalTime
   { localDay = toEnum 1 --   :: Day,
   , localTimeOfDay = defaultTimeOfDay --  :: TimeOfDay
   }
 
+defaultTimeOfDay :: TimeOfDay
 defaultTimeOfDay = TimeOfDay
   { todHour = 1  -- :: Int,-  range 0 - 23
   , todMin = 1   -- :: Int, --  range 0 - 59

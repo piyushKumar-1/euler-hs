@@ -1,11 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveAnyClass #-}
-
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE DeriveDataTypeable   #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 
 
@@ -25,18 +24,18 @@ module EulerHS.Core.Types.Serializable
   ) where
 
 
-import EulerHS.Prelude
-import qualified Data.Aeson                  as A
-import qualified Data.Aeson.Types            as A
-import qualified Data.ByteString             as BS
-import qualified Data.ByteString.Lazy        as BSL
-import qualified Data.CaseInsensitive        as CI
-import qualified Servant.Client              as S
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.CaseInsensitive as CI
+import qualified Data.Map as Map
+import qualified Data.Sequence as Seq
+import           EulerHS.Prelude
+import qualified Network.HTTP.Media as HTTP
+import qualified Network.HTTP.Types as HTTP
+import qualified Servant.Client as S
 import qualified Servant.Client.Core.Request as S
-import qualified Data.Sequence               as Seq
-import qualified Network.HTTP.Types          as HTTP
-import qualified Network.HTTP.Media          as HTTP
-import qualified Data.Map                    as Map
 
 
 
@@ -305,7 +304,7 @@ fromClientError (S.DecodeFailure i res)            = DecodeFailure i (fromRespon
 fromClientError (S.UnsupportedContentType t res)   = UnsupportedContentType (fromMediaType t) (fromResponse res)
 fromClientError (S.InvalidContentTypeHeader res)   = InvalidContentTypeHeader (fromResponse res)
 -- Note: We do not preserve actual error, for now
-fromClientError (S.ConnectionError e)              = ConnectionError ConnectionException
+fromClientError (S.ConnectionError _)              = ConnectionError ConnectionException
 
 toClientError :: ClientErrorS -> S.ClientError
 toClientError (FailureResponse req res)        = S.FailureResponse (toRequest req) (toResponse res)

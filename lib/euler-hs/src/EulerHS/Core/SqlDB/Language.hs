@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 module EulerHS.Core.SqlDB.Language
   (
@@ -18,11 +18,9 @@ module EulerHS.Core.SqlDB.Language
   , deleteRows
   ) where
 
-import           EulerHS.Prelude
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import qualified Database.Beam.Query as B
 import qualified EulerHS.Core.Types as T
+import           EulerHS.Prelude
 
 
 data SqlDBAction beM a where

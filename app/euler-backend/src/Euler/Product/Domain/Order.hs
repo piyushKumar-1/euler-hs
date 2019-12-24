@@ -6,8 +6,6 @@ import EulerHS.Prelude
 import Data.Time
 import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature)
 import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Promotion
-import Euler.Common.Types.Address
 
 -- Previously: OrderReference
 -- should fields be "Maybe" ?
@@ -54,6 +52,7 @@ data Order = Order
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultOrder :: Order
 defaultOrder = Order
   { id                = Just 1  -- :: Int
   , version           = 0  -- :: Int
@@ -122,7 +121,7 @@ data OrderType
 --   , phone :: Maybe Text
 --   }
 --   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
--- 
+--
 -- defaultOrderAddress = OrderAddress
 --   { id             = Just 1 -- :: Maybe Int
 --   , version        = 1 -- :: Int
@@ -160,7 +159,7 @@ data OrderType
 --   , discount_amount :: Maybe Double
 --   , status          :: Maybe Text
 --   }
--- 
+--
 -- defaultPromotion' = Promotion'
 --   { id              = Nothing -- :: Maybe Text
 --   , order_id        = Nothing -- :: Maybe Text

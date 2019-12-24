@@ -36,22 +36,21 @@ module EulerHS.Core.Types.DB
 
 import           EulerHS.Prelude
 
-import qualified Data.Pool                                as DP
-import           Data.Time.Clock                         (NominalDiffTime)
-import qualified Database.Beam                            as B
+import qualified Data.Pool as DP
+import           Data.Time.Clock (NominalDiffTime)
+import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
 import qualified Database.Beam.Backend.SQL.BeamExtensions as B
-import qualified Database.Beam.Backend.SQL                as B
-import qualified Database.Beam.MySQL                      as BM
-import qualified Database.Beam.Postgres                   as BP
-import qualified Database.Beam.Sqlite                     as BS
-import qualified Database.Beam.Sqlite.Connection          as SQLite
-import qualified Database.MySQL.Base                      as MySQL
-import qualified Database.PostgreSQL.Simple               as PGS
-import qualified Database.SQLite.Simple                   as SQLite
+import qualified Database.Beam.MySQL as BM
+import qualified Database.Beam.Postgres as BP
+import qualified Database.Beam.Sqlite as BS
+import qualified Database.Beam.Sqlite.Connection as SQLite
+import qualified Database.MySQL.Base as MySQL
+import qualified Database.PostgreSQL.Simple as PGS
+import qualified Database.SQLite.Simple as SQLite
 
-import           EulerHS.Core.Types.MySQL        (MySQLConfig, createMySQLConn)
-import           EulerHS.Core.Types.Postgres     (PostgresConfig,
-                                                  createPostgresConn)
+import           EulerHS.Core.Types.MySQL (MySQLConfig, createMySQLConn)
+import           EulerHS.Core.Types.Postgres (PostgresConfig, createPostgresConn)
 
 
 
@@ -129,22 +128,22 @@ withTransaction p actF =
       commit nativeConn
       return res
     case eRes of
-      Left e -> pure $ Left $ DBError TransactionRollbacked $ show e
+      Left e    -> pure $ Left $ DBError TransactionRollbacked $ show e
       Right res -> pure $ Right res
   where
     withNativeConnection (PostgresPool _ pool) f = DP.withResource pool $ \conn -> f (NativePGConn conn)
     withNativeConnection (MySQLPool _ pool)    f = DP.withResource pool $ \conn -> f (NativeMySQLConn conn)
     withNativeConnection (SQLitePool _ pool)   f = DP.withResource pool $ \conn -> f (NativeSQLiteConn conn)
-    withNativeConnection _                     f = error "Connection is not supported."
-    begin     (NativePGConn conn)       = PGS.begin conn
-    begin     (NativeMySQLConn conn)    = pure ()
-    begin     (NativeSQLiteConn conn)   = beginTransactionSQLite conn
-    commit    (NativePGConn conn)       = PGS.commit conn
-    commit    (NativeMySQLConn conn)    = MySQL.commit conn
-    commit    (NativeSQLiteConn conn)   = commitTransactionSQLite conn
-    rollback  (NativePGConn conn)       = PGS.rollback conn
-    rollback  (NativeMySQLConn conn)    = MySQL.rollback conn
-    rollback  (NativeSQLiteConn conn)   = rollbackTransactionSQLite conn
+    withNativeConnection _                     _ = error "Connection is not supported."
+    begin     (NativePGConn conn)     = PGS.begin conn
+    begin     (NativeMySQLConn _)  = pure ()
+    begin     (NativeSQLiteConn conn) = beginTransactionSQLite conn
+    commit    (NativePGConn conn)     = PGS.commit conn
+    commit    (NativeMySQLConn conn)  = MySQL.commit conn
+    commit    (NativeSQLiteConn conn) = commitTransactionSQLite conn
+    rollback  (NativePGConn conn)     = PGS.rollback conn
+    rollback  (NativeMySQLConn conn)  = MySQL.rollback conn
+    rollback  (NativeSQLiteConn conn) = rollbackTransactionSQLite conn
 
 -- | Representation of native DB pools that we store in FlowRuntime
 data NativeSqlPool

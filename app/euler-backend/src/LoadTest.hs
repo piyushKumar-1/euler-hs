@@ -5,20 +5,20 @@ module LoadTest (main) where
 import           EulerHS.Prelude
 
 import App
-import Control.Concurrent.MVar (modifyMVar, modifyMVar_, withMVar)
+import Control.Concurrent.MVar (modifyMVar, modifyMVar_)
 import Euler.API.Order
 import Network.HTTP.Client
-import Network.Wai.Handler.Warp (run, Settings, setPort, defaultSettings, runSettings, setBeforeMainLoop)
+import Network.Wai.Handler.Warp (setPort, defaultSettings, setBeforeMainLoop)
 
 import qualified Data.List as L (partition)
 import qualified Euler.Server as Server
-import qualified System.Process as SP
 
 import Servant
 import Servant.Client
 
 import System.TimeIt
 
+test :: ClientM Text
 test :<|> txns        :<|> orderStatus
      :<|> orderCreate :<|> orderUpdate
      :<|> paymentStatus
@@ -204,7 +204,7 @@ defaultOrderCreateRequest = OrderCreateRequest
 runSuit :: IO a -> IO (MVar [(Double, a)])
 runSuit io = do
   summaryVar <- newMVar []
-  threadIds  <- replicateM nthreads $ forkIO $
+  void $ replicateM nthreads $ forkIO $
     let loop = do
           result <- timeItT io
           modifyMVar_ summaryVar $ pure . (result :)

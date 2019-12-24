@@ -1,13 +1,12 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Core.Logger.Entries where
 
 
-import EulerHS.Prelude
-import EulerHS.Types (RRItem(..), MockedResult(..), encodeToStr, decodeFromStr)
+import           EulerHS.Prelude
+import           EulerHS.Types (MockedResult (..), RRItem (..))
 import qualified EulerHS.Types as T
-import qualified Servant.Client as S
 
 
 data LogMessageEntry = LogMessageEntry

@@ -10,7 +10,7 @@ module EulerHS.Core.Types.Logger
     , Message
     , Tag
     , PendingMsg(..)
-    , LogEntry
+    , LogEntry (..)
     , Log
     -- ** defaults
     , defaultLoggerConfig

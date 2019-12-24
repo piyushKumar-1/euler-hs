@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module CreditPlatform.Services.FINVU.Client where
 
 import EulerHS.Prelude

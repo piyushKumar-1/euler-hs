@@ -2,7 +2,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module EulerHS.Extra.Validation
-  ( 
+  (
     -- * Extra Validation
     Transform(..)
   , mkValidator
@@ -17,17 +17,17 @@ module EulerHS.Extra.Validation
   , parValidate
   ) where
 
-import EulerHS.Prelude hiding (pred, or)
+import           EulerHS.Prelude hiding (or, pred)
 import qualified Prelude as P
 
-import Data.Generics.Product.Fields
-import Data.Validation
-import Data.Validation as X
-import Data.Data hiding (typeRep)
-import GHC.TypeLits
-import Type.Reflection
-import Control.Lens hiding (transform, cons)
+import           Data.Data hiding (typeRep)
+import           Data.Generics.Product.Fields
 import qualified Data.Text as T
+import           Data.Validation
+import           Data.Validation as X
+import           GHC.TypeLits
+import           Type.Reflection
+
 
 type Ctx = Text
 type Errors = [Text]
@@ -56,7 +56,7 @@ decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   _      -> Left ["Can't decode " <> v <> " from field " <> ctx <> ", should be one of " <> showConstructors @t])
 
 insideJust :: Transformer a b -> Transformer (Maybe a) (Maybe b)
-insideJust val Nothing  = pure Nothing
+insideJust _ Nothing    = pure Nothing
 insideJust val (Just a) = Just <$> val a
 
 -- | Trying to extract the argument from Maybe type

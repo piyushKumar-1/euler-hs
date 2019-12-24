@@ -8,12 +8,12 @@ import           EulerHS.Prelude
 
 import qualified Data.ByteString.Lazy.Char8         as BC
 import qualified Data.Text                          as Text
-import           WebService.ContentType               
+import           WebService.ContentType
                 (WrappableJSON, wrapper)
-import           WebService.FlexCasing                
+import           WebService.FlexCasing
                 (FlexCasingResponse, casing, flexCasingOptions)
 
-data PaymentStatus = PaymentStatus 
+data PaymentStatus = PaymentStatus
   { gatewayId        :: Int
   , status           :: Text.Text
   , statusId         :: Int
@@ -24,35 +24,36 @@ data PaymentStatus = PaymentStatus
   , returnUrl        :: Text.Text
 } deriving (Generic)
 
-defaultPaymentStatus = PaymentStatus 
-  17 
-  "CHARGED" 
-  21 
+defaultPaymentStatus :: PaymentStatus
+defaultPaymentStatus = PaymentStatus
+  17
+  "CHARGED"
+  21
   ""
-  "5ZLTuReaA5f36OKf_1737991" 
-  "furlenco" 
-  0 
-  "https://gringotts.furlenco.com/payments/response?order_id..." 
+  "5ZLTuReaA5f36OKf_1737991"
+  "furlenco"
+  0
+  "https://gringotts.furlenco.com/payments/response?order_id..."
 
 
 -- TODO how could it be abstracted better? we have several types for payloads
 data PaymentStatusResponse = PaymentStatusResponse
   { payload         :: PaymentStatus
-  , caseStyle       :: Text.Text          
-  , callback        :: Maybe Text.Text 
+  , caseStyle       :: Text.Text
+  , callback        :: Maybe Text.Text
   }
 
-instance FlexCasingResponse PaymentStatusResponse where    
+instance FlexCasingResponse PaymentStatusResponse where
   casing = caseStyle
 
 -- for wrapped JS repsonse
 instance WrappableJSON PaymentStatusResponse where
   wrapper p = case (callback $ p) of
     Just s ->  BC.pack $ Text.unpack $ s
-    Nothing -> undefined        
+    Nothing -> undefined
 
 -- for JSON response
-instance ToJSON PaymentStatusResponse where    
+instance ToJSON PaymentStatusResponse where
   toJSON v = genericToJSON (flexCasingOptions v) (payload v)
 
 -- dummy deserializer
@@ -65,4 +66,5 @@ data JsonError = JsonError
   , errorMessage :: Text
   } deriving (Generic, ToJSON)
 
-defaultJsonError = JsonError "invalid_request_error" "nullable" "[merchantId] cannot be null"    
+defaultJsonError :: JsonError
+defaultJsonError = JsonError "invalid_request_error" "nullable" "[merchantId] cannot be null"

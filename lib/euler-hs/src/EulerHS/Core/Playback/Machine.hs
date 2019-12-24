@@ -55,7 +55,7 @@ pushRecordingEntry
   => RecorderRuntime
   -> RecordingEntry
   -> m ()
-pushRecordingEntry recorderRt@RecorderRuntime{recording} (RecordingEntry _ mode n p) = do
+pushRecordingEntry RecorderRuntime{recording} (RecordingEntry _ mode n p) = do
   let recMVar = recordingMVar recording
   entries <- takeMVar recMVar
   let idx = V.length entries

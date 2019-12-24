@@ -18,7 +18,7 @@ import qualified WebService.Types as WST
 
 throwOnFailedWithLog :: Show e => Either e a -> (Text -> WST.AppException) -> Text -> L.Flow ()
 throwOnFailedWithLog (Left err) mkException msg = do
-  L.logError "" $ msg <> " " <> show err <> ""
+  L.logError @Text "" $ msg <> " " <> show err <> ""
   L.throwException $ mkException $ msg <> " " <> show err <> ""
 throwOnFailedWithLog _ _ _ = pure ()
 

@@ -1,7 +1,7 @@
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 module EulerHS.Framework.Flow.Interpreter
   (
@@ -9,57 +9,49 @@ module EulerHS.Framework.Flow.Interpreter
     runFlow
   ) where
 
+import           Control.Exception (throwIO)
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Map as Map
+import qualified Data.UUID as UUID (toText)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 import           EulerHS.Prelude
-import           Control.Exception               (throwIO)
-import qualified Data.Aeson                      as A
-import qualified Data.ByteString.Lazy            as BSL
-import qualified Data.Map                        as Map
-import qualified Data.UUID                       as UUID (toText)
-import qualified Data.UUID.V4                    as UUID (nextRandom)
-import qualified Servant.Client                  as S
-import           System.Process (shell, readCreateProcess)
+import qualified Servant.Client as S
+import           System.Process (readCreateProcess, shell)
 
-import Data.Coerce (coerce)
-import qualified Data.Pool              as DP
-import qualified Database.Redis         as DR
-import qualified Database.SQLite.Simple as SQLite
-import qualified Database.MySQL.Base as MySQL
-import qualified Database.Beam.Sqlite as BS
-import qualified Database.Beam.Postgres as BP
-import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Core.Runtime as R
+import qualified Data.Pool as DP
 import qualified EulerHS.Core.Interpreters as R
-import qualified EulerHS.Framework.Runtime as R
+import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
+import           EulerHS.Core.Types.KVDB
 import qualified EulerHS.Framework.Language as L
+import qualified EulerHS.Framework.Runtime as R
 
 -- TODO: no explicit dependencies from languages.
-import qualified EulerHS.Core.SqlDB.Language as L
-import qualified EulerHS.Core.Logger.Language as L
-import qualified EulerHS.Core.Playback.Machine as P
-import qualified EulerHS.Core.Playback.Entries as P
-import qualified Data.Vector as V
 import qualified Data.Text as Text
+import qualified Data.Vector as V
+import qualified EulerHS.Core.Logger.Language as L
+import qualified EulerHS.Core.Playback.Entries as P
+import qualified EulerHS.Core.Playback.Machine as P
 
-import qualified Database.PostgreSQL.Simple as PGS
-import Data.Generics.Product.Positions (getPosition)
+import           Data.Generics.Product.Positions (getPosition)
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect cfg = do
   eConn <- try $ T.mkSqlConn cfg
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
-    Right conn -> pure $ Right conn
+    Right conn                -> pure $ Right conn
 
 connectRedis :: T.KVDBConfig -> IO (T.KVDBAnswer T.KVDBConn)
 connectRedis cfg = do
   eConn <- try $ T.mkRedisConn cfg
   case eConn of
     Left (e :: SomeException) -> pure $ Left $ T.ExceptionMessage $ show e
-    Right conn -> pure $ Right conn
+    Right conn                -> pure $ Right conn
 
 disconnect :: T.SqlConn beM ->   IO ()
-disconnect (T.MockedPool _)         = pure ()
+disconnect (T.MockedPool _)        = pure ()
 disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
@@ -191,7 +183,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
   fmap next $
     P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
 
-interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex next) = do
+interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())
   throwIO ex
 
@@ -204,7 +196,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
       Nothing -> connect cfg
     case res of
       Right conn -> putMVar _sqldbConnections $ Map.insert connTag (T.bemToNative conn) connMap
-      Left _ -> putMVar _sqldbConnections connMap
+      Left _     -> putMVar _sqldbConnections connMap
     pure res
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =

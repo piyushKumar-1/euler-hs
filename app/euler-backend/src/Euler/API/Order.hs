@@ -4,10 +4,9 @@ module Euler.API.Order where
 
 import EulerHS.Prelude
 import Data.Time
-import Servant
 import Web.FormUrlEncoded (FromForm, ToForm)
 
-import Euler.Common.Types.Order (OrderStatus(..), MandateFeature)
+import Euler.Common.Types.Order (OrderStatus(..))
 import Euler.Common.Types.Promotion
 
 
@@ -113,6 +112,7 @@ data OrderStatusRequest = OrderStatusRequest
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultOrderStatusRequest :: OrderStatusRequest
 defaultOrderStatusRequest  = OrderStatusRequest
   { txn_uuid = Nothing -- :: Maybe Text
   , merchant_id  = Nothing -- :: Maybe Text
@@ -154,6 +154,7 @@ data OrderCreateResponse = OrderCreateResponse
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultOrderCreateResponse :: OrderCreateResponse
 defaultOrderCreateResponse = OrderCreateResponse
   { status          = NEW -- :: OrderStatus
   , status_id       = 10 -- :: Int
@@ -191,6 +192,7 @@ data Paymentlinks = Paymentlinks
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultPaymentlinks :: Paymentlinks
 defaultPaymentlinks = Paymentlinks
   { iframe = Nothing
   , web = Nothing
@@ -203,6 +205,7 @@ data OrderTokenResp = OrderTokenResp
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultOrderTokenResp :: OrderTokenResp
 defaultOrderTokenResp = OrderTokenResp
   { client_auth_token        = Nothing -- :: Maybe Text
   , client_auth_token_expiry = Nothing -- :: Maybe Text
@@ -262,6 +265,7 @@ data OrderStatusResponse = OrderStatusResponse
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultOrderStatusResponse :: OrderStatusResponse
 defaultOrderStatusResponse = OrderStatusResponse
   {  id                        = "" -- :: Text
   ,  merchant_id               = Nothing -- :: Maybe Text

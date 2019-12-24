@@ -135,8 +135,6 @@ runBulkPlayer' pp dir = do
         traverse putStringLn $ showSinglePlayerResult pr
         ) results
       exitSuccess
-  where
-    defRes = Right [("SomeMethod", Right $ PlaybackSucceeded ResponseOk)]
 
 runBulkPlayer :: PlayerParams -> String -> IO PlayerResult
 runBulkPlayer pp dirName = do
@@ -205,4 +203,4 @@ writeMethodRecordingDescription (FSStorage dirPath) mrd methodName sessionid = d
   case res of
     Right _ -> pure ()
     Left (err :: SomeException) -> putStringLn $ show err
-writeMethodRecordingDescription _ mrd _ _ = error $ "writeMethodRecordingDescription not implemented."
+writeMethodRecordingDescription _ _ _ _ = error $ "writeMethodRecordingDescription not implemented."

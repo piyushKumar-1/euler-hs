@@ -21,6 +21,7 @@ data Promotion' = Promotion'
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultPromotion' :: Promotion'
 defaultPromotion' = Promotion'
   { id              = Nothing -- :: Maybe Text
   , order_id        = Nothing -- :: Maybe Text

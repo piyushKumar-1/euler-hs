@@ -33,6 +33,7 @@ data ResellerAccount = ResellerAccount
   }
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultResellerAccount :: ResellerAccount
 defaultResellerAccount = ResellerAccount
   { userId              = Nothing -- :: Maybe Int
   , resellerName        = Nothing -- :: Maybe Text
@@ -58,7 +59,7 @@ data MKey = MKey
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- newtype MerchantAccount = MerchantAccount (MAUser MADB)
--- some fields that exists in DB not present in type 
+-- some fields that exists in DB not present in type
 data MerchantAccount = MerchantAccount
   { id                                  :: Maybe Int
   , merchantName                        :: Maybe Text
@@ -188,7 +189,7 @@ data MerchantAccount = MerchantAccount
   }
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
-  
+
 {-
 DATABASE REPRESENTATION :
 
@@ -342,6 +343,7 @@ CREATE TABLE `merchant_account` (
 -}
 
 
+defaultMerchantAccount :: MerchantAccount
 defaultMerchantAccount = MerchantAccount
   { id                                  = Just 1  -- :: Maybe Int
   , merchantName                        = Just "merchantName" -- :: Maybe Text
@@ -643,7 +645,8 @@ data MerchantIframePreferences = MerchantIframePreferences
   , additionalParamsInResponse1 :: Maybe Text
   }
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
-  
+
+defaultMerchantIframePreferences :: MerchantIframePreferences
 defaultMerchantIframePreferences = MerchantIframePreferences
   { id                           = Nothing -- :: Maybe Int
   , version                      = 0       -- :: Int

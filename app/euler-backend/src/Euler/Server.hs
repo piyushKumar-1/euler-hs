@@ -6,7 +6,6 @@ module Euler.Server where
 import           EulerHS.Prelude
 
 import           Servant
-import           Data.Time
 
 import qualified Data.Aeson as A
 import qualified Data.Text  as Text
@@ -22,7 +21,6 @@ import qualified Euler.API.Transaction                  as ApiTxn
 
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
-import qualified Euler.Common.Types.Merchant            as Merchant
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 import qualified Data.ByteString.Lazy                   as BSL
@@ -76,8 +74,8 @@ eulerServer :: Env -> Server EulerAPI
 eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
   where
     f :: Env -> ReaderT Env (ExceptT ServerError IO) a -> Handler a
-    f env r = do
-      eResult <- liftIO $ (runExceptT $ runReaderT r env )
+    f env' r = do
+      eResult <- liftIO $ (runExceptT $ runReaderT r env')
       case eResult of
         Left err  -> throwError err -- TODO: error reporting (internal server error & output to console, to log)
         Right res -> pure res
@@ -139,7 +137,7 @@ runFlow flowTag req flow = do
 
 testFlow2 :: Map String String -> L.Flow Text
 testFlow2  _ = do
-  L.runSysCmd "echo hello"
+  void $ L.runSysCmd "echo hello"
   L.forkFlow "f1" $ L.logInfo ("from f1" :: Text) "hellofrom forked flow"
   res <- L.runIO $ do
     putTextLn "text from runio"
@@ -169,14 +167,14 @@ getMethod f _ p = f p
 test :: FlowHandler Text
 test = do
   liftIO $ putStrLn ("Test method called." :: String)
-  runFlow "testFlow2" noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
+  void $ runFlow "testFlow2" noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
   pure "Test."
 
 txns :: ApiTxn.Transaction -> FlowHandler ApiTxn.TransactionResponse
-txns apiTxn = do
+txns _ = do
   eTxn <- pure () -- transform txnValidator txn
   case eTxn of
-    _ -> error "not implemented"
+    -- _ -> error "not implemented"
     _           -> error "Validation failed."     -- TODO: error message
   --     deciderResponse <- runFlow $ Txn.decider txn
   --     -- TODO: response
@@ -192,24 +190,24 @@ txns apiTxn = do
   --       }
 
 orderStatus :: Text -> Maybe Text -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId apiKey' = do
+orderStatus _ apiKey' = do
   res <- case apiKey' of
            Nothing -> do
             liftIO $ putStrLn ("No apikey header" :: String)
             throwError err403 { errBody = " no api key " }
-           Just apiKey -> do
+           Just _ -> do
             pure ApiOrder.defaultOrderStatusResponse
   pure res
 
 orderCreate :: ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderCreateResponse
-orderCreate ordReq = do
+orderCreate _ = do
   res <- do
     liftIO $ putStrLn ("orderCreateStart" :: String)
     pure ApiOrder.defaultOrderCreateResponse
   pure res
 
 orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
-orderUpdate orderId ordReq = do
+orderUpdate _ _ = do
   res <- do
     liftIO $ putStrLn ("orderUpdateStart" :: String)
     pure ApiOrder.defaultOrderStatusResponse
@@ -221,7 +219,7 @@ paymentStatus ::
   Maybe String ->  -- callback
   Maybe String ->  -- casing
   FlowHandler ApiPayment.PaymentStatusResponse
-paymentStatus (Just orderId) (Just merchantId) callback (Just casing) = do
+paymentStatus (Just _) (Just _) callback (Just casing) = do
   when (casing == "unsupported") $ throwJsonError err400 $ ApiPayment.defaultJsonError
   return $ ApiPayment.PaymentStatusResponse {
     payload = ApiPayment.defaultPaymentStatus,

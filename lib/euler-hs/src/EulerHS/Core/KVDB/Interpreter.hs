@@ -21,7 +21,7 @@ import qualified EulerHS.Core.Types            as D
 
 
 interpretKeyValueF
-  :: (forall a . R.Redis (Either R.Reply a) -> IO (Either KVDBReply a))
+  :: (forall b . R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> D.RunMode
   -> L.KeyValueF (Either KVDBReply) a
   -> IO a
@@ -41,7 +41,7 @@ interpretKeyValueF runRedis runMode (L.Exists k next) =
   fmap next $ P.withRunMode runMode (E.mkExistsEntry k) $
       runRedis $ R.exists k
 
-interpretKeyValueF runRedis runMode (L.Del [] next) =
+interpretKeyValueF _ runMode (L.Del [] next) =
   fmap next $ P.withRunMode runMode (E.mkDelEntry []) $
       pure $ pure 0
 

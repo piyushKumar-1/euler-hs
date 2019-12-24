@@ -21,6 +21,7 @@ data Customer = Customer
   , objectReferenceId :: Maybe Text
   }
 
+defaultCustomer :: Customer
 defaultCustomer = Customer
   { id                 = Nothing -- :: Maybe Text
   , version            = 1 -- :: Int

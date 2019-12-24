@@ -37,6 +37,7 @@ data Mandate = Mandate
   }
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultMandate :: Mandate
 defaultMandate = Mandate
   {  id                        = Nothing -- :: Maybe Int
   ,  merchantId                = "" -- :: Text

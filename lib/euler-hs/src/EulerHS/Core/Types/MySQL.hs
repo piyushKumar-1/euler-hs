@@ -10,18 +10,15 @@ module EulerHS.Core.Types.MySQL
   , MySqlOption(..)
     -- ** Methods
   , createMySQLConn
+  , closeMySQLConn
     -- ** Defaults
   , defaultMySQLConfig
   ) where
 
 import           EulerHS.Prelude
 
-import qualified Database.Beam             as B
-import qualified Database.Beam.Backend.SQL as B
-import qualified Database.Beam.Sqlite      as BS
-import qualified Database.MySQL.Base       as MySQL
-import qualified Data.Pool as DP
-import           Data.Time.Clock (NominalDiffTime)
+import qualified Database.MySQL.Base as MySQL
+
 
 type Seconds = MySQL.Seconds
 

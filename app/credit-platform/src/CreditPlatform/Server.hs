@@ -3,7 +3,6 @@ module CreditPlatform.Server where
 import EulerHS.Prelude
 
 import           Servant
-import           Control.Natural
 
 import qualified CreditPlatform.Domain as D
 import qualified CreditPlatform.Logic.SampleLogger as L
@@ -32,10 +31,10 @@ creditPlatformServer env =
   hoistServer creditPlatformAPI (f env) creditPlatformServer'
   where
     f :: Env -> ReaderT Env (ExceptT ServerError IO) a -> Handler a
-    f env r = do
-      eResult <- liftIO $ runExceptT $ runReaderT r env
+    f env' r = do
+      eResult <- liftIO $ runExceptT $ runReaderT r env'
       case eResult of
-        Left err -> error "err"       -- TODO: error reporting (internal server error & output to console, to log)
+        Left _ -> error "err"       -- TODO: error reporting (internal server error & output to console, to log)
         Right res -> pure res
 
 creditPlatformApp :: Env -> Application

@@ -23,6 +23,7 @@ data OrderMetadataV2 = OrderMetadataV2
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+defaultOrderMetadataV2 :: OrderMetadataV2
 defaultOrderMetadataV2 = OrderMetadataV2
   { id               = Nothing -- :: Maybe Int
   , browser          = Nothing -- :: Maybe Text

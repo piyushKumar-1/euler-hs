@@ -127,7 +127,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
       void $ forkIO $ do
-        _ <- runFlow newRt flow
+        _ <- try @_ @SomeException $ runFlow newRt flow
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
         pure ()

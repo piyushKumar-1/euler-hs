@@ -6,6 +6,7 @@ module Console.Config
   , loadConfig
   ) where
 
+import Dashboard.Query.Config (QueryConfiguration)
 import Dhall (Interpret, auto, input)
 import System.Directory (XdgDirectory(..), getXdgDirectory)
 import System.Environment (lookupEnv)
@@ -35,6 +36,7 @@ data App =
     , jwtSecret :: Text
     , redis :: Redis
     , enableCors :: Bool
+    , queryConfig :: QueryConfiguration
     }
   deriving (Generic, Show)
 

@@ -1,3 +1,24 @@
+-- Query configuration
+
+let FieldType : Type =
+  < IntType | FloatType | StringType | DateTimeType >
+
+let FieldConfiguration : Type =
+  { fieldName : Text
+  , fieldType : FieldType
+  }
+
+let TableConfiguration : Type =
+  { tableName : Text
+  , fields : List FieldConfiguration
+  }
+
+let QueryConfiguration : Type =
+  { tables : List TableConfiguration
+  }
+
+-- Top level app configuration
+
 let Redis : Type =
   { redisHost : Text
   , redisPort : Natural
@@ -9,7 +30,10 @@ let App : Type =
   , jwtSecret : Text
   , redis : Redis
   , enableCors : Bool
+  , queryConfig : QueryConfiguration
   }
+
+-- Actual configuration
 
 in { httpPort = 9000
    , jwtSecret = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ"
@@ -19,4 +43,21 @@ in { httpPort = 9000
       , redisDb = 0
       }
    , enableCors = True {- DON'T DO THIS IN PROD -}
+   , queryConfig =
+       { tables =
+           [ { tableName = "godel-big-q.express_checkout.express_checkout20190927"
+             , fields =
+                 [ { fieldName = "amount", fieldType = FieldType.FloatType }
+                 , { fieldName = "card_issuer_bank_name", fieldType = FieldType.StringType }
+                 , { fieldName = "card_type", fieldType = FieldType.StringType }
+                 , { fieldName = "gateway", fieldType = FieldType.StringType }
+                 , { fieldName = "merchant_id", fieldType = FieldType.StringType }
+                 , { fieldName = "order_last_modified", fieldType = FieldType.StringType }
+                 , { fieldName = "order_status", fieldType = FieldType.StringType }
+                 , { fieldName = "payment_method", fieldType = FieldType.StringType }
+                 , { fieldName = "payment_method_type", fieldType = FieldType.StringType }
+                 ]
+             }
+           ]
+       }
    }

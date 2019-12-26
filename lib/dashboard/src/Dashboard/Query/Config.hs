@@ -1,6 +1,7 @@
 module Dashboard.Query.Config where
 
 import Dashboard.Query.Types (FieldName, TableName)
+import Dhall (Interpret)
 import GHC.Generics (Generic)
 import Universum
 
@@ -30,6 +31,12 @@ newtype QueryConfiguration =
     { tables :: [TableConfiguration]
     }
   deriving (Generic, Show)
+
+-- For using in Dhall configuration
+instance Interpret FieldType
+instance Interpret FieldConfiguration
+instance Interpret TableConfiguration
+instance Interpret QueryConfiguration
 
 lookupTable :: TableName -> QueryConfiguration -> Maybe TableConfiguration
 lookupTable t (QueryConfiguration qc) = find (\tc -> t == tableName tc) qc

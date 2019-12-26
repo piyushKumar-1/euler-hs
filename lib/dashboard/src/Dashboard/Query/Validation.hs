@@ -3,7 +3,6 @@ module Dashboard.Query.Validation
   , validateQuery
   ) where
 
-import Data.List (lookup)
 import Dashboard.Query.Config
 import Dashboard.Query.Types
 import Universum hiding (All, Sum)
@@ -38,8 +37,8 @@ validateQuery qc q =
            else Left validationResults
 
 validateTable :: QueryConfiguration -> Query -> Either QueryValidationError TableConfiguration
-validateTable (QueryConfiguration queryConfig) (Query _ tableName _ _ _) =
-  case lookup tableName queryConfig of
+validateTable queryConfig (Query _ tableName _ _ _) =
+  case lookupTable tableName queryConfig of
     Nothing     -> Left $
                    QueryValidationError (TableNotFound tableName) "Invalid table name"
     Just config -> Right config
@@ -51,8 +50,8 @@ validateSelectFields tableConfig (Query (Selection selections) _ _ _ _) =
      else lefts $ validateSelectField tableConfig <$> selections
 
 validateSelectField :: TableConfiguration -> (Maybe SelectOp, SelectField) -> Either QueryValidationError ()
-validateSelectField (TableConfiguration tableConfig) (op, Field fieldname) =
-  case lookup fieldname tableConfig of
+validateSelectField tableConfig (op, Field fieldname) =
+  case lookupField fieldname tableConfig of
     Nothing -> Left $ QueryValidationError (SelectFieldNotFound fieldname) "Invalid field name"
     Just fieldtype -> validateSelectOperation op fieldtype
 validateSelectField _ (_, All) =
@@ -67,11 +66,11 @@ validateSelectOperation op fieldtype =
     (_, _)                     -> Right ()
 
 validateFilters :: TableConfiguration -> Query -> [QueryValidationError]
-validateFilters (TableConfiguration fieldData) (Query _ _ _ (Filter filters) _) =
-  lefts $ map (validateFilter fieldData) filters
+validateFilters tableConf (Query _ _ _ (Filter filters) _) =
+  lefts $ map validateFilter filters
   where
-    validateFilter fields (fieldName, _, value) =
-      case lookup fieldName fields of
+    validateFilter (fieldName, _, value) =
+      case lookupField fieldName tableConf of
         Nothing        -> Left $ QueryValidationError (FilterFieldNotFound fieldName) "Invalid field name"
         Just fieldType -> verifyFieldTypes value fieldType fieldName
 
@@ -104,9 +103,9 @@ validateFields ::
   -> (FieldName -> QueryErrorType)
   -> String
   -> [QueryValidationError]
-validateFields (TableConfiguration tableConfig) fields err msg =
-  let validFields = fst <$> tableConfig
-  in lefts . map (validateField validFields err msg) $ fields
+validateFields tableConfig queryFields err msg =
+  let validFields = fieldName <$> fields tableConfig
+  in lefts . map (validateField validFields err msg) $ queryFields
 
 -- Note: - Right now this is just an elem and we can return name of the field that
 -- failed. But doing it with a Field error since eventually we'll support functions

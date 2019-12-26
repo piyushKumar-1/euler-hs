@@ -14,19 +14,21 @@ import Universum
 import Web.JWT (hmacSecret)
 
 ecQueryConf :: QueryConfiguration
-ecQueryConf = QueryConfiguration [ ( "godel-big-q.express_checkout.express_checkout20190927"
-                                   , TableConfiguration [ ("amount", FloatType)
-                                                        , ("card_issuer_bank_name", StringType)
-                                                        , ("card_type", StringType)
-                                                        , ("gateway", StringType)
-                                                        , ("merchant_id", StringType)
-                                                        , ("order_last_modified", StringType)
-                                                        , ("order_status", StringType)
-                                                        , ("payment_method", StringType)
-                                                        , ("payment_method_type", StringType)
-                                                        ]
-                                   )
-                                 ]
+ecQueryConf =
+  QueryConfiguration
+    [ TableConfiguration
+        "godel-big-q.express_checkout.express_checkout20190927"
+        [ FieldConfiguration "amount" FloatType
+        , FieldConfiguration "card_issuer_bank_name" StringType
+        , FieldConfiguration "card_type" StringType
+        , FieldConfiguration "gateway" StringType
+        , FieldConfiguration "merchant_id" StringType
+        , FieldConfiguration "order_last_modified" StringType
+        , FieldConfiguration "order_status" StringType
+        , FieldConfiguration "payment_method" StringType
+        , FieldConfiguration "payment_method_type" StringType
+        ]
+    ]
 
 main :: IO ()
 main = do

@@ -1,9 +1,8 @@
 module Dashboard.Query.Config where
 
 import Dashboard.Query.Types (FieldName, TableName)
-import Data.Aeson.Types (FromJSON, ToJSON)
 import GHC.Generics (Generic)
-import Universum (Eq, Show)
+import Universum
 
 data FieldType
   = IntType
@@ -12,23 +11,28 @@ data FieldType
   | DateTimeType
   deriving (Generic, Show, Eq)
 
-newtype TableConfiguration =
-  TableConfiguration [(FieldName, FieldType)]
-  deriving (Generic, Show, Eq)
-
-newtype QueryConfiguration =
-  QueryConfiguration [(TableName, TableConfiguration)]
+data FieldConfiguration =
+  FieldConfiguration
+    { fieldName :: FieldName
+    , fieldType :: FieldType
+    }
   deriving (Generic, Show)
 
-instance ToJSON FieldType
+data TableConfiguration =
+  TableConfiguration
+    { tableName :: TableName
+    , fields :: [FieldConfiguration]
+    }
+  deriving (Generic, Show)
 
-instance FromJSON FieldType
+newtype QueryConfiguration =
+  QueryConfiguration
+    { tables :: [TableConfiguration]
+    }
+  deriving (Generic, Show)
 
-instance FromJSON TableConfiguration
+lookupTable :: TableName -> QueryConfiguration -> Maybe TableConfiguration
+lookupTable t (QueryConfiguration qc) = find (\tc -> t == tableName tc) qc
 
-instance ToJSON TableConfiguration
-
-instance FromJSON QueryConfiguration
-
-instance ToJSON QueryConfiguration
-
+lookupField :: FieldName -> TableConfiguration -> Maybe FieldType
+lookupField f = map fieldType . find (\fc -> f == fieldName fc) . fields

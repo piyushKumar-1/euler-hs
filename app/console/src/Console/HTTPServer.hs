@@ -7,6 +7,7 @@ import Servant
 import Console.API (QueryAPI, queryAuthContext, queryHandler)
 import Dashboard.Auth.Types (AuthContext, Token)
 import Dashboard.Query.Backend
+import Dashboard.Query.Config
 import Dashboard.Query.Types
 
 server :: QueryBackend qb => qb -> QueryConfiguration -> Token -> Query -> Handler QueryResult

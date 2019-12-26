@@ -2,6 +2,7 @@ module Dashboard.Query.Backend where
 
 import Universum
 
+import Dashboard.Query.Config
 import Dashboard.Query.Types
 
 class QueryBackend qb where

@@ -102,21 +102,6 @@ newtype QueryResult
   = QueryResult [QueryResultRow]
   deriving (Generic, Show, Eq)
 
-data FieldType
-  = IntType
-  | FloatType
-  | StringType
-  | DateTimeType
-  deriving (Generic,Show,Eq)
-
-newtype TableConfiguration =
-  TableConfiguration [(FieldName, FieldType)]
-  deriving (Generic, Show, Eq)
-
-newtype QueryConfiguration =
-  QueryConfiguration [(TableName, TableConfiguration)]
-  deriving (Generic, Show)
-
 data QueryValidationError =
   QueryValidationError QueryErrorType String
   deriving (Generic, Show, Eq)
@@ -177,18 +162,6 @@ instance FromJSON QueryResultRow
 instance ToJSON QueryResult
 
 instance FromJSON QueryResult
-
-instance ToJSON FieldType
-
-instance FromJSON FieldType
-
-instance FromJSON TableConfiguration
-
-instance ToJSON TableConfiguration
-
-instance FromJSON QueryConfiguration
-
-instance ToJSON QueryConfiguration
 
 instance FromJSON SelectField
 

@@ -21,6 +21,7 @@ import Network.Google.Resource.BigQuery.Jobs.Query (jobsQuery)
 
 import Dashboard.Query.Backend.BigQuery.SQL (printSQL)
 import Dashboard.Query.Backend (QueryBackend, runQuery)
+import qualified Dashboard.Query.Config as QT
 import qualified Dashboard.Query.Types as QT
 
 data BigQueryBackend = BigQueryBackend { project :: Text

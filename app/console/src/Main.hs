@@ -4,7 +4,7 @@ import Console.HTTPServer (app)
 import Console.Config (enableCors, httpPort, jwtSecret, loadConfig, redis, redisDb, redisHost, redisPort)
 import qualified Database.Redis as Redis
 import Dashboard.Auth.Types (AuthContext(AuthContext))
-import Dashboard.Query.Types
+import Dashboard.Query.Config
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
 import Data.Text (unpack)
 import Network.Wai.Handler.Warp (run)

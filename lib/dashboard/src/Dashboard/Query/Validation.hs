@@ -4,6 +4,7 @@ module Dashboard.Query.Validation
   ) where
 
 import Data.List (lookup)
+import Dashboard.Query.Config
 import Dashboard.Query.Types
 import Universum hiding (All, Sum)
 

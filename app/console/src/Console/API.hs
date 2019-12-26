@@ -16,6 +16,7 @@ import Servant.Server.Experimental.Auth
 import Dashboard.Auth.Types (AuthContext, Token(..), Role(..))
 import Dashboard.Auth.Token (lookupToken)
 import Dashboard.Query.Backend
+import Dashboard.Query.Config
 import Dashboard.Query.Types
 import Dashboard.Query.Validation
 

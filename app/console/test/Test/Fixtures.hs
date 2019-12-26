@@ -5,6 +5,7 @@ import Universum
 import qualified Control.Concurrent as C
 import Dashboard.Auth.Types (LoginContext(..), Role(..), Token(..))
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
+import Dashboard.Query.Config
 import Dashboard.Query.Types
 import qualified Network.Wai.Handler.Warp as Warp
 import Servant (Proxy(..), serve)

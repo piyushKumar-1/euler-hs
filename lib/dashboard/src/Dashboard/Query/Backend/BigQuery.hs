@@ -39,7 +39,7 @@ newBigQueryBackend project jsonCreds = do
   return $ BigQueryBackend project env
 
   where
-    readCreds j = join $ rightToMaybe . fromJSONCredentials . B.fromStrict . encodeUtf8 <$> j
+    readCreds j = rightToMaybe . fromJSONCredentials . B.fromStrict . encodeUtf8 =<< j
 
 instance QueryBackend BigQueryBackend where
   runQuery (BigQueryBackend project env) queryConf query = do

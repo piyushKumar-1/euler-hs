@@ -47,12 +47,6 @@ clientTypes = -- Query types
               , mkSumType (Proxy :: Proxy QueryResultRow)
               ]
               ++
-              -- Query configuration types
-              [ mkSumType (Proxy :: Proxy QueryConfiguration)
-              , mkSumType (Proxy :: Proxy TableConfiguration)
-              , mkSumType (Proxy :: Proxy FieldType)
-              ]
-              ++
               -- Query error types
               [ mkSumType (Proxy :: Proxy QueryValidationError)
               , mkSumType (Proxy :: Proxy QueryErrorType)

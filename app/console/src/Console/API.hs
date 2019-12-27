@@ -17,6 +17,7 @@ import Dashboard.Auth.Types (AuthContext, Token(..), Role(..))
 import Dashboard.Auth.Token (lookupToken)
 import Dashboard.Query.Backend
 import Dashboard.Query.Config
+import Dashboard.Query.Process
 import Dashboard.Query.Types
 import Dashboard.Query.Validation
 
@@ -60,7 +61,7 @@ queryHandler qb qc token q =
     else
       case validateQuery qc q of
         Left err -> throwError . toServerError $ err
-        Right _  -> liftIO . runQuery qb qc $ q
+        Right _  -> liftIO . map (processResult qc q) . runQuery qb qc $ q
 
   where
     toServerError :: [QueryValidationError] -> ServerError

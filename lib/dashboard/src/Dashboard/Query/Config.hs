@@ -12,10 +12,16 @@ data FieldType
   | DateTimeType
   deriving (Generic, Show, Eq)
 
+-- Used for transforming string results from a query
+-- FIXME: Make this a Map when we move to more recent Dhall
+type FieldValueMap
+  = [(String, String)]
+
 data FieldConfiguration =
   FieldConfiguration
     { fieldName :: FieldName
     , fieldType :: FieldType
+    , fieldValueMap :: FieldValueMap
     }
   deriving (Generic, Show)
 

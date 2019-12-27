@@ -21,18 +21,18 @@ ecQueryConf =
   QueryConfiguration
     [ TableConfiguration
         "godel-big-q.express_checkout.express_checkout20190927"
-        [ FieldConfiguration "amount" FloatType
-        , FieldConfiguration "gateway" StringType
-        , FieldConfiguration "card_type" StringType
-        , FieldConfiguration "merchant_id" StringType
-        , FieldConfiguration "order_last_modified" StringType
+        [ FieldConfiguration "amount" FloatType []
+        , FieldConfiguration "gateway" StringType []
+        , FieldConfiguration "card_type" StringType []
+        , FieldConfiguration "merchant_id" StringType []
+        , FieldConfiguration "order_last_modified" StringType []
         ]
     , TableConfiguration
         "properati-data-public.properties_cl.properties_rent_201801"
-        [ FieldConfiguration "created_on" DateTimeType
-        , FieldConfiguration "state_name" StringType
-        , FieldConfiguration "price" FloatType
-        , FieldConfiguration "place_name" StringType
+        [ FieldConfiguration "created_on" DateTimeType []
+        , FieldConfiguration "state_name" StringType []
+        , FieldConfiguration "price" FloatType []
+        , FieldConfiguration "place_name" StringType []
         ]
     ]
 

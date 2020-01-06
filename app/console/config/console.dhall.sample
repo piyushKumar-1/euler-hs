@@ -50,7 +50,7 @@ in { httpPort = 9000
    , enableCors = True {- DON'T DO THIS IN PROD -}
    , queryConfig =
        { tables =
-           [ { tableName = "godel-big-q.express_checkout.express_checkout20190927"
+           [ { tableName = "godel-big-q.express_checkout_v2.express_checkout20190927"
              , fields =
                  [ F // { fieldName = "amount", fieldType = FieldType.FloatType }
                  , F // { fieldName = "card_issuer_bank_name", fieldType = FieldType.StringType }

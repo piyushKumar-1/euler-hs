@@ -80,32 +80,42 @@ groupByStr = " GROUP BY s2, ts;"
 specs :: Spec
 specs =
   describe "SQL generation" $ do
-    it "should succeed with a single selection" $
-      printSQL False singleSelectionQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\"" <> groupByStr
+    it "should succeed with a single selection" $ do
+      let (sql, _) = printSQL False singleSelectionQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
 
-    it "should succeed with multiple selections" $
-      printSQL False multipleSelectionQuery `shouldBe` selectStr <> "COUNT(*), SUM(f1), AVG(i1) FROM `t`" <> whereStr <> "AND s1 = \"foo\"" <> groupByStr 
+    it "should succeed with multiple selections" $ do
+      let (sql, _) = printSQL False multipleSelectionQuery
+      sql `shouldBe` selectStr <> "COUNT(*), SUM(f1), AVG(i1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
 
-    it "should succeed with a single filter" $
-      printSQL False singleFilterQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\"" <> groupByStr 
+    it "should succeed with a single filter" $ do
+      let (sql, _) = printSQL False singleFilterQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
 
-    it "should succeed with an empty filter" $
-      printSQL False emptyFilterQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "GROUP BY s2, ts;"
+    it "should succeed with an empty filter" $ do
+      let (sql, _) = printSQL False emptyFilterQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "GROUP BY s2, ts;"
 
-    it "should succeed with an multiple filters" $
-      printSQL False multipleFilterQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\" AND f1 = 1000.0" <> groupByStr 
+    it "should succeed with an multiple filters" $ do
+      let (sql, _) = printSQL False multipleFilterQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ? AND f1 = ?" <> groupByStr
 
-    it "should succeed with a single group-by" $
-      printSQL False singleGroupByQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\"" <> groupByStr 
+    it "should succeed with a single group-by" $ do
+      let (sql, _) = printSQL False singleGroupByQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
 
-    it "should succeed without a group-by" $
-      printSQL False emptyGroupByQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\" GROUP BY ts;"
+    it "should succeed without a group-by" $ do
+      let (sql, _) = printSQL False emptyGroupByQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ? GROUP BY ts;"
 
-    it "should succeed without a multi-field group-by" $
-      printSQL False multipleGroupByQuery `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\" GROUP BY f1, i1, s2, ts;"
+    it "should succeed without a multi-field group-by" $ do
+      let (sql, _) = printSQL False multipleGroupByQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ? GROUP BY f1, i1, s2, ts;"
 
-    it "should handle string date fields" $
-      printSQL True multipleGroupByQuery `shouldBe` "SELECT UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)), 300) AS ts, SUM(f1) FROM `t` WHERE (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) BETWEEN 1569578400 AND 1569585600) AND s1 = \"foo\" GROUP BY f1, i1, s2, ts;"
+    it "should handle string date fields" $ do
+      let (sql, _) = printSQL True multipleGroupByQuery
+      sql `shouldBe` "SELECT UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)), 300) AS ts, SUM(f1) FROM `t` WHERE (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) BETWEEN 1569578400 AND 1569585600) AND s1 = ? GROUP BY f1, i1, s2, ts;"
 
-    it "should handle an interval without steps" $
-      printSQL False noStepQuery `shouldBe` "SELECT 1569578400 AS ts, SUM(f1) FROM `t`" <> whereStr <> "AND s1 = \"foo\"" <> groupByStr 
+    it "should handle an interval without steps" $ do
+      let (sql, _) = printSQL False noStepQuery
+      sql `shouldBe` "SELECT 1569578400 AS ts, SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr

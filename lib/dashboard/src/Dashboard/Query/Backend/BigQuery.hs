@@ -43,10 +43,12 @@ newBigQueryBackend project jsonCreds = do
 
 instance QueryBackend BigQueryBackend where
   runQuery (BigQueryBackend project env) queryConf query = do
-    let sql       = printSQL dateIsString query
+    let (sql, qp) = printSQL dateIsString query
     let bqRequest = BQT.queryRequest
                       & (BQT.qrQuery ?~ sql)
                       . (BQT.qrUseLegacySQL .~ False)
+                      . (BQT.qrParameterMode ?~ "POSITIONAL")
+                      . (BQT.qrQueryParameters .~ qp)
     let job       = jobsQuery bqRequest project
     let response  = runResourceT . runGoogle env . send $ job
     toQueryResult queryConf query <$> response

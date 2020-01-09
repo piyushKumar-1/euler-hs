@@ -3,6 +3,8 @@ module Dashboard.Query.Backend.BigQuery.SQL
   ( printSQL
   ) where
 
+import Control.Lens ((?~))
+import Data.Text (pack)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Fmt ((+|), (|+))
@@ -10,6 +12,7 @@ import qualified Fmt
 import Universum hiding (All, Sum, filter, group)
 
 import Dashboard.Query.Types
+import qualified Network.Google.BigQuery.Types as BQT
 
 timeStampField :: Fmt.Builder
 timeStampField = "ts"
@@ -71,13 +74,6 @@ fmtIntervalFilter dateIsString (Interval (Timestamp start) (Timestamp end) _ fie
   "(" +| fmtDateTime dateIsString field |+
     " BETWEEN " +| toPOSIXSeconds start |+ " AND " +| toPOSIXSeconds end |+ ")"
 
-fmtValue :: Value -> Fmt.Builder
-fmtValue value =
-  case value of
-       StringValue filterVal -> "\"" +| filterVal |+ "\""
-       IntValue filterVal    -> Fmt.build filterVal
-       FloatValue filterVal  -> Fmt.build filterVal
-
 fmtFilterOp :: FilterOp -> Fmt.Builder
 fmtFilterOp Equal    = "="
 fmtFilterOp NotEqual = "<>"
@@ -86,18 +82,42 @@ fmtFilter :: Bool -> Interval -> Filter -> Fmt.Builder
 fmtFilter dateIsString interval (Filter fs) =
   "WHERE " +| fmtIntervalFilter dateIsString interval |+
   foldMap
-    (\(filterField, filterOp, filterValue) ->
-       " AND " +| filterField |+ " " +| fmtFilterOp filterOp |+ " " +| fmtValue filterValue)
+    (\(filterField, filterOp, _filterValue) ->
+       " AND " +| filterField |+ " " +| fmtFilterOp filterOp |+ " " +| "?")
+    fs
+
+queryParam :: Text -> Text -> BQT.QueryParameter
+queryParam qpt qpv = BQT.queryParameter
+                       & (BQT.qpParameterType ?~
+                           (BQT.queryParameterType & (BQT.qptType ?~ qpt)))
+                       . (BQT.qpParameterValue ?~
+                           (BQT.queryParameterValue & (BQT.qpvValue ?~ qpv)))
+
+genQueryParam :: Value -> BQT.QueryParameter
+genQueryParam filterValue =
+  case filterValue of
+    StringValue filterVal ->
+      queryParam "STRING" (pack filterVal)
+    IntValue filterVal ->
+      queryParam "INT64" (show filterVal)
+    FloatValue filterVal ->
+      queryParam "FLOAT64" (show filterVal)
+
+genQueryParams :: Filter -> [BQT.QueryParameter]
+genQueryParams (Filter fs) =
+  map
+    (\(_filterField, _filterOp, filterValue) -> genQueryParam filterValue)
     fs
 
 fmtGroup :: GroupBy -> Fmt.Builder
 fmtGroup (GroupBy gs) =
   "GROUP BY " <> (mconcat . intersperse ", " $ fmap Fmt.build gs <> [timeStampField])
 
-printSQL :: Bool -> Query -> Text
+printSQL :: Bool -> Query -> (Text, [BQT.QueryParameter])
 printSQL dateIsString (Query selection table interval filter group) =
-  fmtSelection dateIsString selection interval |+
+  (fmtSelection dateIsString selection interval |+
   " " +| fmtFrom table |+
   " " +| fmtFilter dateIsString interval filter |+
   " " +| fmtGroup group |+
-  ";"
+  ";",
+  genQueryParams filter)

@@ -36,3 +36,7 @@ euler-backend.cabal
 
 .idea/
 *.iml
+
+*.diff
+*.patch
+tags

@@ -99,6 +99,12 @@ dependencies:
 - prometheus-client
 - web-service
 - wai-extra
+- memory
+- cryptonite
+- basement
+- x509
+- x509-store
+- cryptostore
 
 library:
   source-dirs:
@@ -141,3 +147,5 @@ tests:
     - hspec-wai-json
     - random-strings
     - utf8-string
+    - base16-bytestring
+    - base64-bytestring

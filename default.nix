@@ -28,6 +28,8 @@ let
             self.callPackage ./nix/beam-postgres.nix { };
           beam-mysql =
             self.callPackage ./nix/beam-mysql.nix { };
+          cryptostore =
+            self.callPackage ./nix/cryptostore.nix { };
           # We need a different upstream for purescript-bridge for now
           purescript-bridge =
             self.callPackage ./nix/purescript-bridge.nix { };

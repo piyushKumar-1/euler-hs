@@ -46,7 +46,7 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
-import           Servant.Client (ClientM, ClientError, BaseUrl)
+import           Servant.Client (ClientError, BaseUrl)
 
 import qualified EulerHS.Core.Types as T
 import          EulerHS.Core.Language (Logger, logMessage', KVDB)
@@ -62,7 +62,7 @@ data FlowMethod next where
   CallServantAPI
     :: T.JSONEx a
     => BaseUrl
-    -> ClientM a
+    -> T.EulerClient a
     -> (Either ClientError a -> next)
     -> FlowMethod next
 
@@ -210,8 +210,8 @@ type Flow = F FlowMethod
 -- > api :: Proxy API
 -- > api = Proxy
 -- >
--- > getUser :: ClientM User
--- > getBook :: ClientM Book
+-- > getUser :: EulerClient User
+-- > getBook :: EulerClient Book
 -- > (getUser :<|> getBook) = client api
 -- >
 -- > url = BaseUrl Http "localhost" port ""
@@ -224,7 +224,7 @@ type Flow = F FlowMethod
 callServantAPI
   :: T.JSONEx a
   => BaseUrl                     -- ^ remote url 'BaseUrl'
-  -> ClientM a                   -- ^ servant client 'ClientM'
+  -> T.EulerClient a             -- ^ servant client 'EulerClient'
   -> Flow (Either ClientError a) -- ^ result
 callServantAPI url cl = liftFC $ CallServantAPI url cl id
 
@@ -243,8 +243,8 @@ callServantAPI url cl = liftFC $ CallServantAPI url cl id
 -- > api :: Proxy API
 -- > api = Proxy
 -- >
--- > getUser :: ClientM User
--- > getBook :: ClientM Book
+-- > getUser :: EulerClient User
+-- > getBook :: EulerClient Book
 -- > (getUser :<|> getBook) = client api
 -- >
 -- > url = BaseUrl Http "localhost" port ""
@@ -254,7 +254,7 @@ callServantAPI url cl = liftFC $ CallServantAPI url cl id
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
 
-callAPI :: T.JSONEx a => BaseUrl -> ClientM a -> Flow (Either ClientError a)
+callAPI :: T.JSONEx a => BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
 callAPI = callServantAPI
 
 evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a

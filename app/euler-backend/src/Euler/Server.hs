@@ -320,23 +320,30 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
                xauthscope
                xforwarderfor
                (sockAddrToSourceIP sockAddr)
-  res <- do
 
-    -- EHS: what these logs for?
-    liftIO $ putTextLn $ "orderCreateStart"
-    liftIO $ putTextLn $ show $ lookupRP @Version rps
-    liftIO $ putTextLn $ show rps
+  let eValidated = transform ordReq
+  -- EHS: TODO: move validations from validateOrderParams
+  -- validateOrderParams orderCreateReq
 
-    -- EHS: counting times should be a wrapper function
-    start <- liftIO getCurrentTime
+  case eValidated of
+    Failure err -> error "Not implemented"   -- TODO: EHS: return error.
+    Success validatedOrder -> do
 
-    r <- runFlow "orderCreate" rps (toJSON ordReq) $ (AS.withMacc OrderCreate.orderCreate ordReq rps)
+        -- EHS: what these logs for?
+        liftIO $ putTextLn $ "orderCreateStart"
+        liftIO $ putTextLn $ show $ lookupRP @Version rps
+        liftIO $ putTextLn $ show rps
 
-    end <- liftIO getCurrentTime
+        -- EHS: counting times should be a wrapper function
+        start <- liftIO getCurrentTime
 
-    liftIO $ putTextLn $ show $ diffUTCTime end start
-    pure r
-  pure res
+        r <- runFlow "orderCreate" rps (toJSON ordReq)
+          $ AS.withMacc OrderCreate.orderCreate validatedOrder rps
+
+        end <- liftIO getCurrentTime
+
+        liftIO $ putTextLn $ show $ diffUTCTime end start
+        pure r
 
 orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do

@@ -18,7 +18,8 @@ import Euler.API.RouteParameters
 import qualified Euler.API.Order                        as OrderAPI
 import qualified Euler.Storage.DBConfig                 as DB
 import qualified Euler.Storage.Types.MerchantAccount    as Merchant
-import qualified Euler.Product.OLTP.Order.CreateUpdate  as OrderCreateUpdate
+import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
+import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy  as OrderCreateUpdateLegacy
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 
 import qualified WebService.Types as T
@@ -245,7 +246,7 @@ spec =
         let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-        eRes <- runFlow rt $ prepareDBConnections *> OrderCreateUpdate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+        eRes <- runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
         eRes `shouldSatisfy` (\OrderAPI.OrderCreateResponse{..} ->
           status == NEW
           && status_id == 10

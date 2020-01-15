@@ -17,36 +17,36 @@ data Order = Order
   {
   -- id                :: Maybe Int  -- EHS: what is this field about? Does it exist in DB?
     version           :: Int
-  , amount            :: Double
-  , currency          :: Currency
-  , merchantId        :: Text
-  , orderId           :: Text
-  , orderUuid         :: Maybe Text
-  , orderType         :: OrderType
-  , orderStatus       :: OrderStatus
-  , customerId        :: Maybe Text
-  , customerEmail     :: Maybe Text
-  , customerPhone     :: Maybe Text
-  , udf               :: UDF
-  -- , browser           :: Maybe Text       EHS: ?
-  -- , browserVersion    :: Maybe Text       EHS: ?
-  -- , popupLoaded       :: Maybe Bool       EHS: ?
-  -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
-  , description       :: Maybe Text
-  , returnUrl         :: Maybe Text
-  , amountRefunded    :: Maybe Double
-  , refundedEntirely  :: Maybe Bool
-  -- , preferredGateway  :: Maybe Text  EHS: ?
-  , productId         :: Maybe Text
-  , billingAddressId  :: Maybe Int
-  , shippingAddressId :: Maybe Int
-  , mandateFeature    :: MandateFeature
-  , autoRefund        :: Bool
-  , lastSynced        :: LocalTime
-  , dateCreated       :: LocalTime          -- EHS: Not a domain fields
-  , lastModified      :: LocalTime          -- EHS: Not a domain fields
-
-  , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
+  -- , amount            :: Double
+  -- , currency          :: Currency
+  -- , merchantId        :: Text
+  -- , orderId           :: Text
+  -- , orderUuid         :: Maybe Text
+  -- , orderType         :: OrderType
+  -- , orderStatus       :: OrderStatus
+  -- , customerId        :: Maybe Text
+  -- , customerEmail     :: Maybe Text
+  -- , customerPhone     :: Maybe Text
+  -- , udf               :: UDF
+  -- -- , browser           :: Maybe Text       EHS: ?
+  -- -- , browserVersion    :: Maybe Text       EHS: ?
+  -- -- , popupLoaded       :: Maybe Bool       EHS: ?
+  -- -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
+  -- , description       :: Maybe Text
+  -- , returnUrl         :: Maybe Text
+  -- , amountRefunded    :: Maybe Double
+  -- , refundedEntirely  :: Maybe Bool
+  -- -- , preferredGateway  :: Maybe Text  EHS: ?
+  -- , productId         :: Maybe Text
+  -- , billingAddressId  :: Maybe Int
+  -- , shippingAddressId :: Maybe Int
+  -- , mandateFeature    :: MandateFeature
+  -- , autoRefund        :: Bool
+  -- , lastSynced        :: LocalTime
+  -- , dateCreated       :: LocalTime          -- EHS: Not a domain fields
+  -- , lastModified      :: LocalTime          -- EHS: Not a domain fields
+  --
+  -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

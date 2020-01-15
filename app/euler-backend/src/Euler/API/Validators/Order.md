@@ -1,8 +1,11 @@
 
+Validation rules
+----------------
 
-See https://www.juspay.in/docs/api/ec/#create-order
-See API tables & Gateway capabilities:
+- See https://www.juspay.in/docs/api/ec/#create-order
+- See API tables & Gateway capabilities:
   https://docs.google.com/spreadsheets/d/10VeIlwTOpYI7xZJLe0RVaxsLVBtBLNgvtoh2JVH8Df4/edit?usp=sharing
+- See validateOrderParams (move validations from this function).
 
 Fields to validate:
 ------------------

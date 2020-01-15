@@ -11,14 +11,15 @@ import           Data.Generics.Product.Subtype
 import           Data.List (lookup, span)
 import           Servant.Server
 
-import Euler.API.Order
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway
 import Euler.Common.Types.Order
 import Euler.Common.Types.OrderMetadata
+import Euler.Product.Domain.Order
 import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
 import Euler.Product.OLTP.Services.RedisService
 
+-- EHS: Storage interaction should be extracted from here into separate modules
 import Euler.Storage.Types.Customer
 import Euler.Storage.Types.Mandate
 import Euler.Storage.Types.MerchantAccount
@@ -36,7 +37,9 @@ import qualified Data.Aeson           as A
 import qualified Data.Text            as Text
 import qualified Text.Read            as TR
 
+-- EHS: Should not depend on API
 import qualified Euler.API.RouteParameters  as RP
+
 import qualified Euler.Common.Types.Mandate as M
 import qualified Euler.Common.Types.Order   as C
 import qualified Euler.Common.Metric        as Metric
@@ -49,9 +52,10 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
-orderCreate :: OrderCreateRequest -> RP.RouteParameters -> MerchantAccount -> Flow  OrderCreateResponse
-orderCreate orderCreateReq@OrderCreateRequest {..} routeParams mAccnt = do
-  _           <- validateOrderParams orderCreateReq
+orderCreate :: Order -> RP.RouteParameters -> MerchantAccount -> Flow  OrderCreateResponse
+orderCreate Order {..} routeParams mAccnt = do
+
+  -- EHS: HTTP error codes should exist only on the server level, not in business logic.
   merchantId' <- maybe (throwException err500 {errBody = "1"}) pure (mAccnt ^. _merchantId)
 -- * state update. This functionality repeated in another methods.
 -- state update with order_id and merchantId

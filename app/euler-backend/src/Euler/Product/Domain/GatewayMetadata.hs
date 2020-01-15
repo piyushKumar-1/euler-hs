@@ -1,10 +1,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Product.Domain.OrderMetadataV2 where
+module Euler.Product.Domain.OrderMetadata where
 
 import EulerHS.Prelude
 import Data.Time
 import Euler.Common.Types.DefaultDate
+
+
+
+
+
 
 --data OrderMetadataV2 = OrderMetadataV2
 --  { id               :: Maybe Int

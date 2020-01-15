@@ -44,6 +44,8 @@ data Order = Order
   , lastSynced        :: LocalTime
   , dateCreated       :: LocalTime          -- EHS: Not a domain fields
   , lastModified      :: LocalTime          -- EHS: Not a domain fields
+
+  , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

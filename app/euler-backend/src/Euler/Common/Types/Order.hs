@@ -147,18 +147,18 @@ instance FromBackendRow MySQL MandateFeature where
 
 
 data UDF = UDF
-  { udf1              :: Maybe Text
-  , udf2              :: Maybe Text
-  , udf3              :: Maybe Text
-  , udf4              :: Maybe Text
-  , udf5              :: Maybe Text
-  , udf6              :: Maybe Text
-  , udf7              :: Maybe Text
-  , udf8              :: Maybe Text
-  , udf9              :: Maybe Text
-  , udf10             :: Maybe Text
+  { udf1   :: Maybe Text
+  , udf2   :: Maybe Text
+  , udf3   :: Maybe Text
+  , udf4   :: Maybe Text
+  , udf5   :: Maybe Text
+  , udf6   :: Maybe Text
+  , udf7   :: Maybe Text
+  , udf8   :: Maybe Text
+  , udf9   :: Maybe Text
+  , udf10  :: Maybe Text
   }
-  deriving (Generic, Eq, Show)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 emptyUDF :: UDF
 emptyUDF = UDF

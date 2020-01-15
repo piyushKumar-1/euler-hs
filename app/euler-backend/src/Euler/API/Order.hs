@@ -232,6 +232,8 @@ src/Types/Communication/OLTP/Order.js
 -- from Types.Communication.OLTP.OrderStatus
 -- should be decoded with custom FromJSON instance
 -- to avoid duplicate fields
+
+-- EHS: why all these fields are here? No such fields in API Reference.
 data OrderStatusRequest = OrderStatusRequest
   { txn_uuid    :: Maybe Text
   , merchant_id :: Maybe Text

@@ -4,7 +4,8 @@ module Euler.Product.Domain.Order where
 
 import EulerHS.Prelude
 import Data.Time
-import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature, OrderType)
+import Euler.Common.Types.Order (OrderStatus(NEW), Udf, MandateFeature, OrderType)
+import Euler.Common.Types.Currency (Currency)
 import Euler.Common.Types.DefaultDate
 --import Euler.Common.Types.Promotion
 --import Euler.Common.Types.Address
@@ -12,90 +13,81 @@ import Euler.Common.Types.DefaultDate
 -- Previously: OrderReference
 -- should fields be "Maybe" ?
 data Order = Order
-  { id                :: Maybe Int
+  {
+  -- id                :: Maybe Int  -- EHS: what is this field about? Does it exist in DB?
   , version           :: Int
-  , amount            :: Maybe Double
-  , currency          :: Maybe Text
-  , dateCreated       :: LocalTime
-  , lastModified      :: LocalTime
-  , merchantId        :: Maybe Text
-  , orderId           :: Maybe Text
-  , status            :: OrderStatus
-  , customerEmail     :: Maybe Text
+  , amount            :: Double
+  , currency          :: Currency
+  , merchantId        :: Text
+  , orderId           :: Text
+  , orderUuid         :: Maybe Text
+  , orderType         :: OrderType
+  , orderStatus       :: OrderStatus
   , customerId        :: Maybe Text
-  , browser           :: Maybe Text
-  , browserVersion    :: Maybe Text
-  , popupLoaded       :: Maybe Bool
-  , popupLoadedTime   :: Maybe LocalTime
+  , customerEmail     :: Maybe Text
+  , customerPhone     :: Maybe Text
+  , udf               :: UDF
+  -- , browser           :: Maybe Text       EHS: ?
+  -- , browserVersion    :: Maybe Text       EHS: ?
+  -- , popupLoaded       :: Maybe Bool       EHS: ?
+  -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
   , description       :: Maybe Text
-  , udf1              :: Maybe Text
-  , udf10             :: Maybe Text
-  , udf2              :: Maybe Text
-  , udf3              :: Maybe Text
-  , udf4              :: Maybe Text
-  , udf5              :: Maybe Text
-  , udf6              :: Maybe Text
-  , udf7              :: Maybe Text
-  , udf8              :: Maybe Text
-  , udf9              :: Maybe Text
   , returnUrl         :: Maybe Text
   , amountRefunded    :: Maybe Double
   , refundedEntirely  :: Maybe Bool
-  , preferredGateway  :: Maybe Text
-  , customerPhone     :: Maybe Text
+  -- , preferredGateway  :: Maybe Text  EHS: ?
   , productId         :: Maybe Text
   , billingAddressId  :: Maybe Int
   , shippingAddressId :: Maybe Int
-  , orderUuid         :: Maybe Text
-  , lastSynced        :: Maybe LocalTime
-  , orderType         :: Maybe OrderType
-  , mandateFeature    :: Maybe MandateFeature
-  , autoRefund        :: Maybe Bool
+  , mandateFeature    :: MandateFeature
+  , autoRefund        :: Bool
+  , lastSynced        :: LocalTime
+  , dateCreated       :: LocalTime          -- EHS: Not a domain fields
+  , lastModified      :: LocalTime          -- EHS: Not a domain fields
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-defaultOrder :: Order
-defaultOrder = Order
-  { id                = Just 1  -- :: Int
-  , version           = 0  -- :: Int
-  , amount            = Just 55  -- :: Double
-  , currency          = Nothing  -- :: Maybe Text
-  , dateCreated       = defaultDate  -- :: LocalTime
-  , lastModified      = defaultDate  -- :: LocalTime
-  , merchantId        = Nothing  -- :: Maybe Text
-  , orderId           = Nothing  -- :: Maybe Text
-  , status            = NEW  -- :: Maybe OrderStatus
-  , customerEmail     = Nothing  -- :: Maybe Text
-  , customerId        = Nothing  -- :: Maybe Text
-  , browser           = Nothing  -- :: Maybe Text
-  , browserVersion    = Nothing  -- :: Maybe Text
-  , popupLoaded       = Nothing  -- :: Maybe Bool
-  , popupLoadedTime   = Nothing  -- :: Maybe LocalTime
-  , description       = Nothing  -- :: Maybe Text
-  , udf1              = Nothing  -- :: Maybe Text
-  , udf10             = Nothing  -- :: Maybe Text
-  , udf2              = Nothing  -- :: Maybe Text
-  , udf3              = Nothing  -- :: Maybe Text
-  , udf4              = Nothing  -- :: Maybe Text
-  , udf5              = Nothing  -- :: Maybe Text
-  , udf6              = Nothing  -- :: Maybe Text
-  , udf7              = Nothing  -- :: Maybe Text
-  , udf8              = Nothing  -- :: Maybe Text
-  , udf9              = Nothing  -- :: Maybe Text
-  , returnUrl         = Nothing  -- :: Maybe Text
-  , amountRefunded    = Nothing  -- :: Maybe Double
-  , refundedEntirely  = Nothing  -- :: Maybe Bool
-  , preferredGateway  = Nothing  -- :: Maybe Text
-  , customerPhone     = Nothing  -- :: Maybe Text
-  , productId         = Nothing  -- :: Maybe Text
-  , billingAddressId  = Nothing  -- :: Maybe Int
-  , shippingAddressId = Nothing  -- :: Maybe Int
-  , orderUuid         = Just "orderUuid" -- Nothing  -- :: Maybe Text
-  , lastSynced        = Nothing  -- :: Maybe LocalTime
-  , orderType         = Nothing  -- :: Maybe OrderType
-  , mandateFeature    = Nothing  -- :: Maybe MandateFeature
-  , autoRefund        = Nothing  -- :: Maybe Bool
-  }
+-- defaultOrder = Order
+--   { id                = Just 1  -- :: Int
+--   , version           = 0  -- :: Int
+--   , amount            = Just 55  -- :: Double
+--   , currency          = Nothing  -- :: Maybe Text
+--   , dateCreated       = defaultDate  -- :: LocalTime
+--   , lastModified      = defaultDate  -- :: LocalTime
+--   , merchantId        = Nothing  -- :: Maybe Text
+--   , orderId           = Nothing  -- :: Maybe Text
+--   , status            = NEW  -- :: Maybe OrderStatus
+--   , customerEmail     = Nothing  -- :: Maybe Text
+--   , customerId        = Nothing  -- :: Maybe Text
+--   , browser           = Nothing  -- :: Maybe Text
+--   , browserVersion    = Nothing  -- :: Maybe Text
+--   , popupLoaded       = Nothing  -- :: Maybe Bool
+--   , popupLoadedTime   = Nothing  -- :: Maybe LocalTime
+--   , description       = Nothing  -- :: Maybe Text
+--   , udf1              = Nothing  -- :: Maybe Text
+--   , udf10             = Nothing  -- :: Maybe Text
+--   , udf2              = Nothing  -- :: Maybe Text
+--   , udf3              = Nothing  -- :: Maybe Text
+--   , udf4              = Nothing  -- :: Maybe Text
+--   , udf5              = Nothing  -- :: Maybe Text
+--   , udf6              = Nothing  -- :: Maybe Text
+--   , udf7              = Nothing  -- :: Maybe Text
+--   , udf8              = Nothing  -- :: Maybe Text
+--   , udf9              = Nothing  -- :: Maybe Text
+--   , returnUrl         = Nothing  -- :: Maybe Text
+--   , amountRefunded    = Nothing  -- :: Maybe Double
+--   , refundedEntirely  = Nothing  -- :: Maybe Bool
+--   , preferredGateway  = Nothing  -- :: Maybe Text
+--   , customerPhone     = Nothing  -- :: Maybe Text
+--   , productId         = Nothing  -- :: Maybe Text
+--   , billingAddressId  = Nothing  -- :: Maybe Int
+--   , shippingAddressId = Nothing  -- :: Maybe Int
+--   , orderUuid         = Just "orderUuid" -- Nothing  -- :: Maybe Text
+--   , lastSynced        = Nothing  -- :: Maybe LocalTime
+--   , orderType         = Nothing  -- :: Maybe OrderType
+--   , mandateFeature    = Nothing  -- :: Maybe MandateFeature
+--   , autoRefund        = Nothing  -- :: Maybe Bool
+--   }
 
 
 

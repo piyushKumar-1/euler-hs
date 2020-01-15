@@ -21,7 +21,7 @@ import Euler.API.Order
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway
 import Euler.Common.Types.Order
-import Euler.Product.Domain.OrderMetadataV2
+import Euler.Common.Types.OrderMetadata
 import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
 import Euler.Product.OLTP.Services.RedisService
 

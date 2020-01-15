@@ -2,6 +2,7 @@
 
 module Euler.Common.Types.Currency where
 
+import EulerHS.Prelude
 
 data Currency
   = INR

@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Product.Domain.GatewayMetadata where
+module Euler.Common.Types.GatewayMetadata where
 
 import EulerHS.Prelude
 

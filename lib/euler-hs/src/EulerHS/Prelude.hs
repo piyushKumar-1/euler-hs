@@ -26,7 +26,8 @@ import           Control.Monad.Free           as X (Free (..), foldFree, liftF)
 import           Control.Monad.Free.Church    as X (F (..), foldF, fromF, iter,
                                                     iterM, retract)
 import           Control.Newtype.Generics     as X (Newtype, O, pack, unpack)
-import           Data.Aeson                   as X (FromJSON, ToJSON,
+import           Data.Aeson                   as X (FromJSON, ToJSON, ToJSONKey,
+                                                    FromJSONKey,
                                                     genericParseJSON,
                                                     genericToJSON, parseJSON,
                                                     toJSON)

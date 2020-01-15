@@ -57,19 +57,55 @@ import qualified Euler.Storage.DBConfig as DB
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text
-  :<|> "txns" :> ReqBody '[JSON] ApiTxn.Transaction :> Post '[JSON] ApiTxn.TransactionResponse
--- order status
-  :<|> "orders" :> OrderStatusGetEndpoint -- Capture "orderId" Text :> Header "Authorization" Text :> Get '[JSON] ApiOrder.OrderStatusResponse
--- order create
-  :<|> "orders" :> OrderCreateEndpoint --  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderCreateResponse
--- order update
-  :<|> "orders" :> Capture "orderId" Text :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest :> Post '[JSON] ApiOrder.OrderStatusResponse
+
+-- Transactions (Payments) API
+  :<|> "txns"
+      :> ReqBody '[JSON] ApiTxn.Transaction
+      :> Post '[JSON] ApiTxn.TransactionResponse
+
+-- Order API
+
+-- Order status
+  :<|> "orders"
+      :> OrderStatusGetEndpoint
+      -- :> Capture "orderId" Text
+      -- :> Header "Authorization" Text
+      -- :> Get '[JSON] ApiOrder.OrderStatusResponse
+
+-- Order create
+  :<|> "orders"
+      :> OrderCreateEndpoint
+      -- :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+      -- :> Post '[JSON] ApiOrder.OrderCreateResponse
+
+-- Order update
+  :<|> "orders"
+      :> Capture "orderId" Text
+      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+      :> Post '[JSON] ApiOrder.OrderStatusResponse
+
+-- Other APIS
 -- payment status endpoint (flexible casing showcase)
-  :<|> "orders" :> "payment-status" :> QueryParamC "orderId" String :> QueryParamC "merchantId" String :> QueryParamC "callback" String :> QueryParamC "casing" String :> Get '[JSON, JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse
-  :<|> "metrics" :> Get '[OctetStream] ByteString
-  :<|> "getMA" :> Capture "mid" Int :> Get '[JSON] MACC.MerchantAccount
---  :<|> "getTest" :> Get '[JSON] SQLITE.TestTable
-  :<|> "remoteip" :> Header "User-Agent" Text :> RemoteHost :> Get '[JSON] Text
+  :<|> "orders"
+      :> "payment-status"
+      :> QueryParamC "orderId" String
+      :> QueryParamC "merchantId" String
+      :> QueryParamC "callback" String
+      :> QueryParamC "casing" String
+      :> Get '[JSON, JavascriptWrappedJSON] ApiPayment.PaymentStatusResponse
+
+  :<|> "metrics"
+      :> Get '[OctetStream] ByteString
+
+  :<|> "getMA"
+      :> Capture "mid" Int
+      :> Get '[JSON] MACC.MerchantAccount
+
+  :<|> "remoteip"
+      :> Header "User-Agent" Text
+      :> RemoteHost
+      :> Get '[JSON] Text
+
   :<|> EmptyAPI
 
 eulerAPI :: Proxy EulerAPI
@@ -91,13 +127,14 @@ eulerServer' :: FlowServer
 eulerServer' =
     test          :<|>
     txns          :<|>
+
     orderStatus   :<|>
     orderCreate   :<|>
     orderUpdate   :<|>
+
     paymentStatus :<|>
     metrics       :<|>
     getMA         :<|>
---    getT          :<|>
     remoteip      :<|>
     emptyServer
 
@@ -249,6 +286,7 @@ orderStatus orderId auth xforwarderfor = do
   res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
   pure res
 
+-- EHS: Extract from here.
 type OrderCreateEndpoint =
   --  Headers
       Header "Authorization" Authorization
@@ -282,13 +320,20 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
                xforwarderfor
                (sockAddrToSourceIP sockAddr)
   res <- do
-    liftIO $ putStrLn ("orderCreateStart" :: String)
-    liftIO $ putTextLn (show $ lookupRP @Version rps )
-    liftIO $ putTextLn (show rps)
+
+    -- EHS: what these logs for?
+    liftIO $ putTextLn $ "orderCreateStart"
+    liftIO $ putTextLn $ show $ lookupRP @Version rps
+    liftIO $ putTextLn $ show rps
+
+    -- EHS: counting times should be a wrapper function
     start <- liftIO getCurrentTime
+
     r <- runFlow "orderCreate" rps (toJSON ordReq) $ (AS.withMacc OrderCreateUpdate.orderCreate ordReq rps)
+
     end <- liftIO getCurrentTime
-    liftIO $ print $ diffUTCTime end start
+
+    liftIO $ putTextLn $ show $ diffUTCTime end start
     pure r
   pure res
 
@@ -316,11 +361,11 @@ paymentStatus
   -> FlowHandler ApiPayment.PaymentStatusResponse
 paymentStatus (Just _) (Just _) callback (Just casing) = do
   when (casing == "unsupported") $ throwJsonError err400 $ ApiPayment.defaultJsonError
-  return $ ApiPayment.PaymentStatusResponse {
-    payload = ApiPayment.defaultPaymentStatus,
-    caseStyle = Text.pack casing,
-    callback = Text.pack <$> callback
-  }
+  return $ ApiPayment.PaymentStatusResponse
+    { payload = ApiPayment.defaultPaymentStatus
+    , caseStyle = Text.pack casing
+    , callback = Text.pack <$> callback
+    }
 paymentStatus _ _ _ _ = throwError err500
 --paymentStatus _ _ _ _ = throwJsonError err400 $ ApiPayment.defaultJsonError
 
@@ -334,14 +379,6 @@ getMA mid = do
     r <- runFlow "getMA" emptyRPs noReqBodyJSON $ AS.getMACC mid
     pure r
   pure res
-
---getT :: FlowHandler SQLITE.TestTable
---getT = do
---  res <- do
---    liftIO $ putStrLn ("MACC START" :: String)
---    r <- runFlow "getT" noReqBodyJSON $ AS.getTest
---    pure r
---  pure res
 
 remoteip :: Maybe Text -> SockAddr -> FlowHandler Text
 remoteip uagent remIp =

@@ -77,7 +77,7 @@ data Gateway =
   | FSSPAY
   | CASH
   | DEFAULT
-  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Read, Eq, Ord, Generic, Enum, Bounded, ToJSON, ToJSONKey, FromJSON, FromJSONKey)
 
 instance HasSqlValueSyntax be String => HasSqlValueSyntax be Gateway where
   sqlValueSyntax = autoSqlValueSyntax
@@ -150,7 +150,7 @@ gatewayMap =
   , (INDUS_UPI, 502)
   , (KOTAK_UPI, 503)
   , (SBI_UPI, 504)
-  , (ICICI_UPI, 505) 
+  , (ICICI_UPI, 505)
   , (VIJAYA_UPI, 506)
   , (HSBC_UPI, 507)
   , (YESBANK_UPI, 508)

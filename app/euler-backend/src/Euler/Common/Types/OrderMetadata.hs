@@ -1,6 +1,7 @@
+
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Product.Domain.OrderMetadata where
+module Euler.Common.Types.OrderMetadata where
 
 import EulerHS.Prelude
 import Data.Time
@@ -9,6 +10,7 @@ import Euler.Common.Types.DefaultDate
 
 
 
+-- EHS: what are these types?
 
 
 --data OrderMetadataV2 = OrderMetadataV2

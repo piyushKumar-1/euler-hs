@@ -4,18 +4,19 @@ module Euler.Product.Domain.Order where
 
 import EulerHS.Prelude
 import Data.Time
-import Euler.Common.Types.Order (OrderStatus(NEW), Udf, MandateFeature, OrderType)
+import Euler.Common.Types.Order (OrderStatus(NEW), UDF, MandateFeature, OrderType)
 import Euler.Common.Types.Currency (Currency)
 import Euler.Common.Types.DefaultDate
+import Euler.Common.Types.GatewayMetadata (GatewayMetadata)
 --import Euler.Common.Types.Promotion
 --import Euler.Common.Types.Address
 
 -- Previously: OrderReference
--- should fields be "Maybe" ?
+
 data Order = Order
   {
   -- id                :: Maybe Int  -- EHS: what is this field about? Does it exist in DB?
-  , version           :: Int
+    version           :: Int
   , amount            :: Double
   , currency          :: Currency
   , merchantId        :: Text

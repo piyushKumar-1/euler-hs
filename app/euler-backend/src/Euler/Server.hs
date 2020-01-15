@@ -47,7 +47,8 @@ import           Network.Wai.Middleware.Routed
 
 import qualified Euler.Storage.Types.MerchantAccount    as Merchant
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
-import qualified Euler.Product.OLTP.Order.CreateUpdate  as OrderCreateUpdate
+import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
+import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy  as OrderCreateUpdateLegacy
 import qualified Euler.Storage.Types.MerchantAccount    as MACC
 import qualified Euler.Product.OLTP.Services.AuthenticationService as AS
 import qualified Control.Exception.Safe as CES (catches, Handler(..))
@@ -163,9 +164,6 @@ eulerBackendApp env =
   in
     flexCaseMiddleware (serve eulerAPI (eulerServer env))
 
--- emptyRPs :: RouteParameters
--- emptyRPs = coerce $ Map.empty
-
 runFlow :: (ToJSON a) => PB.FlowTag -> RouteParameters -> A.Value -> L.Flow a -> FlowHandler a
 runFlow flowTag rps req flow = do
   Env {..} <- ask
@@ -220,7 +218,7 @@ testFlow2  _ = do
     pure ("text from runio" :: Text)
   pure res
 
--- TODO > Move to somewhere
+-- TODO: EHS: Move to somewhere
 type NoReqBody = ()
 
 noReqBody :: NoReqBody
@@ -265,16 +263,16 @@ txns _ = do
   --       , Txn.params         = ""
   --       }
 
-type OrderStatusGetEndpoint =
+type OrderStatusGetEndpoint
   -- Route vals
-     Capture "orderId" OrderId
+  = Capture "orderId" OrderId
   -- Headers
   :> Header "Authorization" Authorization
   :>  Header "X-Forwarded-For" XForwardedFor
   :> Get '[JSON] ApiOrder.OrderStatusResponse
 
-orderStatus ::
-     OrderId
+orderStatus
+  :: OrderId
   -> Maybe Authorization
   -> Maybe XForwardedFor
   -> FlowHandler ApiOrder.OrderStatusResponse
@@ -287,9 +285,9 @@ orderStatus orderId auth xforwarderfor = do
   pure res
 
 -- EHS: Extract from here.
-type OrderCreateEndpoint =
+type OrderCreateEndpoint
   --  Headers
-      Header "Authorization" Authorization
+  =   Header "Authorization" Authorization
   :>  Header "Version" Version
   :>  Header "User-Agent" UserAgent
   :>  Header "X-Auth-Scope" XAuthScope
@@ -301,17 +299,20 @@ type OrderCreateEndpoint =
   --  Response
   :>  Post '[JSON] ApiOrder.OrderCreateResponse
 
-orderCreate :: -- Headers
-               Maybe Authorization
-            -> Maybe Version
-            -> Maybe UserAgent
-            -> Maybe XAuthScope
-            -> Maybe XForwardedFor
-            -- Remote IP
-            -> SockAddr
-            -- Response
-            -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderCreateResponse
+orderCreate
+  :: Maybe Authorization
+  -- Header
+  -> Maybe Version
+  -> Maybe UserAgent
+  -> Maybe XAuthScope
+  -> Maybe XForwardedFor
+  -- Remote IP
+  -> SockAddr
+  -- Response
+  -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderCreateResponse
 orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
+
+  -- EHS: review this function
   let rps = collectRPs
                auth
                version
@@ -329,7 +330,7 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
     -- EHS: counting times should be a wrapper function
     start <- liftIO getCurrentTime
 
-    r <- runFlow "orderCreate" rps (toJSON ordReq) $ (AS.withMacc OrderCreateUpdate.orderCreate ordReq rps)
+    r <- runFlow "orderCreate" rps (toJSON ordReq) $ (AS.withMacc OrderCreate.orderCreate ordReq rps)
 
     end <- liftIO getCurrentTime
 
@@ -337,17 +338,12 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
     pure r
   pure res
 
--- withMacc :: forall req resp . (req -> RouteParameters -> MACC.MerchantAccount -> L.Flow  resp) -> req -> RouteParameters -> L.Flow resp
--- withMacc f req rp = do
---   ma <- AS.authenticateRequest rp
---   f req rp ma
-
 orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do
   res <- do
     liftIO $ putStrLn ("orderUpdateStart" :: String)
     start <- liftIO getCurrentTime
-    r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdate.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
+    r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdateLegacy.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
     end <- liftIO getCurrentTime
     liftIO $ print $ diffUTCTime end start
     pure r

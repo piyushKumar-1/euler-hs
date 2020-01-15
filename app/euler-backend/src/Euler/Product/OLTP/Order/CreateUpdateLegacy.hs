@@ -1,4 +1,4 @@
-module Euler.Product.OLTP.Order.CreateUpdate where
+module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 
 
 import EulerHS.Prelude hiding (id, show, get)

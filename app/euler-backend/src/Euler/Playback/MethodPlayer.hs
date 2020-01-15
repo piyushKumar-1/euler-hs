@@ -21,16 +21,17 @@ import Euler.API.RouteParameters
 import Euler.Playback.Types
 
 import qualified Euler.Product.OLTP.Services.AuthenticationService as AS (withMacc)
-import qualified Euler.Product.OLTP.Order.CreateUpdate  as OrderCreateUpdate
+import qualified Euler.Product.OLTP.Order.Create                   as OrderCreate
+import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy       as OrderCreateUpdateLegacy
 
-
+-- EHS: Player should know nothing about methods. Should not depend on APIs
 runMethodPlayer
   :: String
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
 runMethodPlayer "testFlow2"        = withMethodPlayer (getMethod testFlow2)
-runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreateUpdate.orderCreate)
+runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.orderCreate)
 runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 

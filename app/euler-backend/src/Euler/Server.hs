@@ -298,7 +298,7 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
 --   f req rp ma
 
 orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
-orderUpdate _ _ = do
+orderUpdate orderId ordReq = do
   res <- do
     liftIO $ putStrLn ("orderUpdateStart" :: String)
     start <- liftIO getCurrentTime
@@ -308,12 +308,12 @@ orderUpdate _ _ = do
     pure r
   pure res
 
-paymentStatus ::
-  Maybe String ->  -- orderId
-  Maybe String ->  -- merchantId
-  Maybe String ->  -- callback
-  Maybe String ->  -- casing
-  FlowHandler ApiPayment.PaymentStatusResponse
+paymentStatus
+  :: Maybe String -- ^ orderId
+  -> Maybe String -- ^ merchantId
+  -> Maybe String -- ^ callback
+  -> Maybe String -- ^ casing
+  -> FlowHandler ApiPayment.PaymentStatusResponse
 paymentStatus (Just _) (Just _) callback (Just casing) = do
   when (casing == "unsupported") $ throwJsonError err400 $ ApiPayment.defaultJsonError
   return $ ApiPayment.PaymentStatusResponse {
@@ -346,4 +346,3 @@ getMA mid = do
 remoteip :: Maybe Text -> SockAddr -> FlowHandler Text
 remoteip uagent remIp =
   pure $ show uagent <> " \n " <> (show $ sockAddrToSourceIP remIp)
-

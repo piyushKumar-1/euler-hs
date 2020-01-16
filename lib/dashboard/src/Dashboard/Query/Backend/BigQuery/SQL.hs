@@ -5,6 +5,7 @@ module Dashboard.Query.Backend.BigQuery.SQL
 
 import Control.Lens ((?~))
 import Data.Text (pack)
+import Data.Time.Calendar (showGregorian)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Fmt ((+|), (|+))
@@ -13,6 +14,7 @@ import Universum hiding (All, Sum, filter, group)
 
 import Dashboard.Query.Types
 import qualified Network.Google.BigQuery.Types as BQT
+import qualified Data.List as L
 
 timeStampField :: Fmt.Builder
 timeStampField = "ts"
@@ -66,13 +68,26 @@ fmtSelection dateIsString (Selection selections) interval =
            Sum     -> "SUM"
 
 fmtFrom :: String -> Fmt.Builder
-fmtFrom table = "FROM `" +| table |+ "`"
+fmtFrom table = "FROM `" +| table |+ "*`"
+
+stripChars :: String -> String -> String
+stripChars = L.filter . flip notElem
+
+fmtTableSuffix :: String -> String -> Fmt.Builder
+fmtTableSuffix ss se =
+  if ss == se then " AND _TABLE_SUFFIX = '" +| Fmt.build ss |+ "'"
+    else
+    " AND _TABLE_SUFFIX BETWEEN '" +| Fmt.build ss |+ "' AND '" +|
+      Fmt.build se |+ "'"
 
 fmtIntervalFilter :: Bool -> Interval -> Fmt.Builder
-fmtIntervalFilter dateIsString (Interval (Timestamp start) (Timestamp end) _ field) =
+fmtIntervalFilter dateIsString (Interval (Timestamp start) (Timestamp end) _ field) = do
+  let suffixStart = stripChars "-" $ showGregorian $ utctDay start
+  let suffixEnd   = stripChars "-" $ showGregorian $ utctDay end
   -- UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', txn_last_modified)) BETWEEN 1569456045 AND 1569457470
   "(" +| fmtDateTime dateIsString field |+
-    " BETWEEN " +| toPOSIXSeconds start |+ " AND " +| toPOSIXSeconds end |+ ")"
+    " BETWEEN " +| toPOSIXSeconds start |+ " AND " +| toPOSIXSeconds end |+ ")" +|
+    fmtTableSuffix suffixStart suffixEnd
 
 fmtFilterOp :: FilterOp -> Fmt.Builder
 fmtFilterOp Equal    = "="

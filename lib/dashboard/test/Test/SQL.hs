@@ -18,6 +18,23 @@ startTime = makeTimestamp "2019-09-27T10:00:00Z"
 stopTime :: QT.Timestamp
 stopTime = makeTimestamp "2019-09-27T12:00:00Z"
 
+startSuffixTime :: QT.Timestamp
+startSuffixTime = makeTimestamp "2019-09-27T10:00:00Z"
+
+stopSuffixTime :: QT.Timestamp
+stopSuffixTime = makeTimestamp "2019-09-28T12:00:00Z"
+
+testSuffixQuery :: QT.Query
+testSuffixQuery = QT.Query (QT.Selection [ (Just QT.Sum, QT.Field "f1")])
+                      "t"
+                      (QT.Interval { start = startSuffixTime
+                                   , stop  = stopSuffixTime
+                                   , step  = Just . QT.Milliseconds $ 5 * 60 * 1000
+                                   , field = "t1"
+                                   })
+                      (QT.Filter [("s1", QT.Equal, QT.StringValue "foo")])
+                      (QT.GroupBy ["s2"])
+
 testQuery :: QT.Query
 testQuery = QT.Query (QT.Selection [ (Just QT.Sum, QT.Field "f1")])
                       "t"
@@ -74,6 +91,9 @@ selectStr = "SELECT UNIX_SECONDS(TIMESTAMP(t1)) - MOD(UNIX_SECONDS(TIMESTAMP(t1)
 whereStr :: Text
 whereStr = " WHERE (UNIX_SECONDS(TIMESTAMP(t1)) BETWEEN 1569578400 AND 1569585600) "
 
+whereSuffixStr :: Text
+whereSuffixStr = " WHERE (UNIX_SECONDS(TIMESTAMP(t1)) BETWEEN 1569578400 AND 1569672000) "
+
 groupByStr :: Text
 groupByStr = " GROUP BY s2, ts;"
 
@@ -82,40 +102,44 @@ specs =
   describe "SQL generation" $ do
     it "should succeed with a single selection" $ do
       let (sql, _) = printSQL False singleSelectionQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ?" <> groupByStr
 
     it "should succeed with multiple selections" $ do
       let (sql, _) = printSQL False multipleSelectionQuery
-      sql `shouldBe` selectStr <> "COUNT(*), SUM(f1), AVG(i1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
+      sql `shouldBe` selectStr <> "COUNT(*), SUM(f1), AVG(i1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ?" <> groupByStr
 
     it "should succeed with a single filter" $ do
       let (sql, _) = printSQL False singleFilterQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ?" <> groupByStr
 
     it "should succeed with an empty filter" $ do
       let (sql, _) = printSQL False emptyFilterQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "GROUP BY s2, ts;"
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "GROUP BY s2, ts;"
 
     it "should succeed with an multiple filters" $ do
       let (sql, _) = printSQL False multipleFilterQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ? AND f1 = ?" <> groupByStr
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ? AND f1 = ?" <> groupByStr
 
     it "should succeed with a single group-by" $ do
       let (sql, _) = printSQL False singleGroupByQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ?" <> groupByStr
 
     it "should succeed without a group-by" $ do
       let (sql, _) = printSQL False emptyGroupByQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ? GROUP BY ts;"
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ? GROUP BY ts;"
 
     it "should succeed without a multi-field group-by" $ do
       let (sql, _) = printSQL False multipleGroupByQuery
-      sql `shouldBe` selectStr <> "SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ? GROUP BY f1, i1, s2, ts;"
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ? GROUP BY f1, i1, s2, ts;"
 
     it "should handle string date fields" $ do
       let (sql, _) = printSQL True multipleGroupByQuery
-      sql `shouldBe` "SELECT UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)), 300) AS ts, SUM(f1) FROM `t` WHERE (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) BETWEEN 1569578400 AND 1569585600) AND s1 = ? GROUP BY f1, i1, s2, ts;"
+      sql `shouldBe` "SELECT UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) - MOD(UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)), 300) AS ts, SUM(f1) FROM `t*` WHERE (UNIX_SECONDS(PARSE_TIMESTAMP('%F %T', t1)) BETWEEN 1569578400 AND 1569585600) AND _TABLE_SUFFIX = '20190927' AND s1 = ? GROUP BY f1, i1, s2, ts;"
 
     it "should handle an interval without steps" $ do
       let (sql, _) = printSQL False noStepQuery
-      sql `shouldBe` "SELECT 1569578400 AS ts, SUM(f1) FROM `t`" <> whereStr <> "AND s1 = ?" <> groupByStr
+      sql `shouldBe` "SELECT 1569578400 AS ts, SUM(f1) FROM `t*`" <> whereStr <> "AND _TABLE_SUFFIX = '20190927' " <> "AND s1 = ?" <> groupByStr
+
+    it "should handle different start and end suffix time" $ do
+      let (sql, _) = printSQL False testSuffixQuery
+      sql `shouldBe` selectStr <> "SUM(f1) FROM `t*`" <> whereSuffixStr <> "AND _TABLE_SUFFIX BETWEEN '20190927' AND '20190928' " <> "AND s1 = ?" <> groupByStr

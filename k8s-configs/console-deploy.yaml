@@ -74,7 +74,7 @@ data:
     , enableCors = False
     , queryConfig =
         { tables =
-            [ { tableName = "godel-big-q.express_checkout_v2.express_checkout20190927"
+            [ { tableName = "godel-big-q.express_checkout_v2.express_checkout"
               , fields =
                   [ F // { fieldName = "amount", fieldType = FieldType.FloatType }
                   , F // { fieldName = "card_issuer_bank_name", fieldType = FieldType.StringType }

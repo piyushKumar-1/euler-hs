@@ -14,25 +14,18 @@ import Console.API (QueryAPINoAuth, queryHandler)
 testPort = 8084
 
 bqCreds :: Text
-bqCreds = "{ \"type\": \"service_account\", \"project_id\": \"instant-text-253509\", \"private_key_id\": \"687aeb97f56b420038358d0cd0fd6918c99aa4e4\", \"private_key\": \"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCD89yZKlicuOlD\nuPYUxSFvO+QvHzcivs11dq9ZepwMvbWSonMhTwHOki5YpDK87h7kaEX6KAAhxAP9\niDmiYmRTXi2mZTSkITvQqsdPFskndW7TsepPXl32gwl5VMZWk/kyXdSdxoSdlRlC\n2bRm/yLfx/vNVFHFKGNraDw3nVglGvdjZA0nsXGPE5lDP88l8nOOdj8HHdYxubTK\nBjtSmqAsdx2MGROybp7JG8q1qDlMYGTH2A3wrF2heCNhef3dYZAvpB/6e1JS5Mdn\nQN8LeE/bDGnYOu2C4KWFrtW7ZOnKxuL/td3fOKW0lJhL6B1HjexzCDaF1p/CBMFx\nUlqoIfJnAgMBAAECggEAOFeW0KHHv3enRp8CGEFKMvRYTRSflsrw8OCSI/taCYix\nsKCD12ukYl+BwaCu94QXlcC+bH/K+p/3cjjKHz+zBfP3Ow8IyLJWF5XsT6Vzk9Et\nVuAno+cv6PPvxiqAG/TIGYz+HbZn5t+Er0pFIRt8+R+rsXN5DN3fgbu6xqZ9Pi4m\nD+h5x1QMXzW7+nxLdFOxOFvucafSMWAWjcT432zKLyhoTXZQlCzU5J5FaIJ0ZJ4V\nqZUx6a0IogaYBELLDVnqViGm6V2alPAT56sm2EYN65dzUfROq2vQB9XkhjW9HXC8\nfPNqin3mBG7Z5MM7AwMfxgdb2uYLfq7CmjsiLllHsQKBgQC5qlN6ChMN/cF8QMiP\nCiwDLNbnXLMDIQHcC0szuqp9+p3v2OQSVdLOjDf8dZq4yjp82TYdwAQ/G2OHB3dU\n9CtKMSpf7WiV+EI7Q5rdLWdA+mrud+xnfqzh+DTDcLXHuHo598dfu6Bl9wWuH/gi\njz69wC77ULUDu+D0I47mnBu61wKBgQC18IQ5oRupyF1jBhOucvA1nyXIRnc2bDGI\nYQUwSlmphUnnUbVh3wy9IKur+UYk7d+buJ0MbWR15euI49lJ34K1uvYs1S1gPW1+\nXBe3H1Oa8xRUcS8gJgmDXNPAxVBgjDzhVQivKlQRJ5CV+9y7yEkVHmTnOWnghPgF\nOiI+Yi2i8QKBgAzyXaPS9AUzvrxFYDbpRKxsAghcJHeBY7nOZ84RpDXotf61pyHI\nLk0M5hKKuOFN6Mov82AbtbAY3tXZpW6dIC+qQgQyb+qVRzkOu8vUkLCtRaufXTLS\nWIfhYPyH7YUhzhQgvRxl3wd9ND4yKIFwb7WXoy8PL7A097jOifZ2yFA9AoGAUpy5\njWloJDnEnbgeq7Go/NAc2cmVS/LosuJK9thryhupqQ1i7OPY5u+0w8vWW+JfDFhR\nh1kMqrQRtQCwo2iH83jHWygZCIAb/apXYmEpF0yUyJr0KQbcfvdhd0Cg9JX49uAj\np1XzAi8S6eeJHQMenCZG7u8U8kuuSsFQ1z7BNiECgYATiy/rQ1K1hkAvkGi0Ujs4\ncDJF7lsZaqiXvvzPoc9lY+oHM5gIr7FUTuNUOax0nzGRY+u1I2qDR8Mzqo73yRAz\n4YWv7CGxv9yrMUg1c7aK2F3fLLMkpvOOjLR35e6lFw92kO7osAoT5OYh8AdVHNAp\nwvCQd+4UVj+1dL9mb9x8/A==\n-----END PRIVATE KEY-----\n\", \"client_email\": \"jp-bigquery-test-acc@instant-text-253509.iam.gserviceaccount.com\", \"client_id\": \"109999465518538585297\", \"auth_uri\": \"https://accounts.google.com/o/oauth2/auth\", \"token_uri\": \"https://oauth2.googleapis.com/token\", \"auth_provider_x509_cert_url\": \"https://www.googleapis.com/oauth2/v1/certs\", \"client_x509_cert_url\": \"https://www.googleapis.com/robot/v1/metadata/x509/jp-bigquery-test-acc%40instant-text-253509.iam.gserviceaccount.com\" }"
+bqCreds = "{\"type\": \"service_account\", \"project_id\": \"bq-dashboard-test\", \"private_key_id\": \"fddb0b52a4e368dfbfb3f424e3598af916fcfa88\", \"private_key\": \"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCr3eLgr8+DT+i6\nsYP2kCeTjA6hkm3RBBhX5wKBvkaCbqUUuwGFLtNoVOijSectzS1mBqdys7imU6Qo\nw4fQ98NpuAL7Mvx0lJH4r5takdUnlAwAJ4kMYw7YGrSP9kJiHeKtXL9Kpp4PkLF1\nEQd+N+0TzHZvfhrdejtCzIgqGcTl7cLXR515bYlvW7uGj8/fG7IagXl1+fyo8l50\npg1VFJre4yqlbARKFny4KZs3v3CNkDJvfEochxlz0WXvrCXAQyjrjky6GPYyFr+3\n7gfKw8OVhuBlF0+fXVqBpJAIf3qVNdFMG1dazdkgKdCBSlUZrSzPK4s75uLURa0e\nqN4KmpgJAgMBAAECggEADbh5FFb0yhbnDYB+eICpqC3WPS/jdHxPNTVMDe+S0Xbj\n1vPW+zrxxbKBoAeWXSG0LiD53T5bz2t9/4McpKIjB52ZH1TCssvpm2DpliFuUuqO\nyrRdTI/b74SyRYvzYMHiBtUQsHT8yWFTyXTClGECnEIGcoAuxN+tO3f4puPHxFNF\nW9IdLOBuce2mNFS8QhhbR0tGhr6zMR4w/4IAgRREr56U9iOT9gPxnf1RDhbkKYh3\nx6FtNrgny1FE0miCuuS19vKhhoZpt8GbNR8HRnyT4ij2TT99xv6CZo19avcjXuqZ\nSWbePtvGtgS2xm3T7qWGEzbfdnHY6R8SYP52KEb4AQKBgQDfdKPkcxssGN1SskYX\n3AFVTq8KufBOZsfO5yFfXWZYvy+3HSIuTtyEOS7CUuYnyoT3v4ofJNYfxy//jh6b\n1l7uyB9mizVgtbLB1GSysvBDDcedEZVq/trBUtW1dHZYMAO4fsxl1LTklHe4EIVg\noRS8phImTMMaEusOPIeiEYQQ2QKBgQDE5cv995Bwy1VNVO1PjjqWvvmu1NWGVzx2\nnQdrRbwRZTeIcGJkxyuBZ4u5zcGwFKCxre4ENUaTuw/HRxDPbER6i+r2LO9Qrrku\nGQ3QhHUMugFkr5pn1ST6AvjvTVqifZBsX7LG9+gk/wCKMeoGplKIAIn/SqwJMnrw\nTI9FCatCsQKBgDUBfCcizt1FAKsvMsVSINbVlVwcA071vovr89SlWTPQFkd/l64Y\ncuLClb7u3z2tIqGKQ/9jQ4/CNjaOxd/9mANYYWp3ty+7qi2kbkadf7TIPgOaOjFp\nRwb42Uzz1WbR7PAE1AOL02UtesCk2p6zVzHwyvle2CEFP9DetuXQ9dzxAoGANt2p\n6E0R7LxcOr5NmnuRi+wPe05HabXpXUwIgzXdYCOKQ/S9FkQBtX97Cf1x2XUGCjzj\nNDz8O7JGhUsiPgp3UoampI6E6UCmzVeh59bhHvi95qagKgrU0O3/G/+8H8dJdUl9\nccAm6hg8uEWMZun12Xv8+CyAn9d3Nnq++YfmNyECgYANfbt1dQ6KD3PI1BjCnBoP\nRLMGqC8X5bA7Jl7zZ/KNPWF4JkIpv7GoGT6fJzWxq1IlWcBC321X3iR4hDKyMHVv\nL5PsXATyVqbOW7QjgULM83gneuOFNlloU2AIdAbGJWEMPrQFpdXqoJwx7EYSmen2\nWFwBjujSDCoXF50vfyqGFg==\n-----END PRIVATE KEY-----\n\", \"client_email\": \"bq-query@bq-dashboard-test.iam.gserviceaccount.com\", \"client_id\": \"118335525984380740448\", \"auth_uri\": \"https://accounts.google.com/o/oauth2/auth\", \"token_uri\": \"https://oauth2.googleapis.com/token\", \"auth_provider_x509_cert_url\": \"https://www.googleapis.com/oauth2/v1/certs\", \"client_x509_cert_url\": \"https://www.googleapis.com/robot/v1/metadata/x509/bq-query%40bq-dashboard-test.iam.gserviceaccount.com\" }"
 
 ecQueryConf :: QueryConfiguration
 ecQueryConf =
   QueryConfiguration
     [ TableConfiguration
-        "godel-big-q.express_checkout.express_checkout20190927"
+        "bq-dashboard-test.express_checkout.console_dashboard_query_"
         [ FieldConfiguration "amount" FloatType []
         , FieldConfiguration "gateway" StringType []
         , FieldConfiguration "card_type" StringType []
         , FieldConfiguration "merchant_id" StringType []
         , FieldConfiguration "order_last_modified" StringType []
-        ]
-    , TableConfiguration
-        "properati-data-public.properties_cl.properties_rent_201801"
-        [ FieldConfiguration "created_on" DateTimeType []
-        , FieldConfiguration "state_name" StringType []
-        , FieldConfiguration "price" FloatType []
-        , FieldConfiguration "place_name" StringType []
         ]
     ]
 
@@ -53,7 +46,7 @@ queryAPINoAuth = Proxy
 
 withConsoleServer :: IO () -> IO ()
 withConsoleServer action = do
-  backend <- newBigQueryBackend "instant-text-253509" (Just bqCreds)
+  backend <- newBigQueryBackend "bq-dashboard-test" (Just bqCreds)
   let handler = queryHandler backend ecQueryConf token
 
   bracket (liftIO $ C.forkIO $ Warp.run testPort $ serve queryAPINoAuth handler)

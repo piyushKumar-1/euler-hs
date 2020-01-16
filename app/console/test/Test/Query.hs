@@ -16,24 +16,22 @@ makeTimestamp :: String -> QT.Timestamp
 makeTimestamp = QT.Timestamp . fromJust . parseISO8601
 
 testQuery :: QT.Query
-testQuery = QT.Query (QT.Selection [ (Just QT.Sum, QT.Field "price")
-                                   , (Just QT.Average, QT.Field "price")
-                                   , (Nothing, QT.Field "place_name")
+testQuery = QT.Query (QT.Selection [ (Just QT.Sum, QT.Field "amount")
                                    ])
-                     "properati-data-public.properties_cl.properties_rent_201801"
-                     (QT.Interval { start = makeTimestamp "2017-12-01T00:00:00Z"
-                                  , stop  = makeTimestamp "2017-12-31T11:59:59Z"
+                     "bq-dashboard-test.express_checkout.console_dashboard_query_"
+                     (QT.Interval { start = makeTimestamp "2019-10-21T00:00:00Z"
+                                  , stop  = makeTimestamp "2019-10-21T23:59:59Z"
                                   , step  = Just . QT.Milliseconds $ 6 * 60 * 60 * 1000
-                                  , field = "created_on"
+                                  , field = "order_last_modified"
                                   })
-                     (QT.Filter [("state_name", QT.Equal, QT.StringValue "Región del Maule")])
-                     (QT.GroupBy ["place_name"])
+                     (QT.Filter [("merchant_id", QT.Equal, QT.StringValue "com.twiggy2")])
+                     (QT.GroupBy ["card_type"])
 
 testResultRow :: QT.QueryResultRow
-testResultRow = QT.QueryResultRow ts1 ts2 [QT.FloatValue 1620000.0, QT.FloatValue 540000.0, QT.StringValue "Maule"]
+testResultRow = QT.QueryResultRow ts1 ts2 [QT.FloatValue 887.62]
   where
-    ts1 = QT.Timestamp . fromJust . parseISO8601 $ "2017-12-05T00:00:00Z"
-    ts2 = QT.Timestamp . fromJust . parseISO8601 $ "2017-12-05T06:00:00Z"
+    ts1 = QT.Timestamp . fromJust . parseISO8601 $ "2019-10-21T00:00:00Z"
+    ts2 = QT.Timestamp . fromJust . parseISO8601 $ "2019-10-21T06:00:00Z"
 
 incorrectQuery :: QT.Query
 incorrectQuery = QT.Query (QT.Selection
@@ -57,7 +55,7 @@ specs = describe "Query API" $ do
         -- Check the first value
         map (\(QT.QueryResult xs) -> minimum xs) result `shouldBe` Right testResultRow
         -- Check the number of results
-        map (\(QT.QueryResult xs) -> length xs) result `shouldBe` Right 31
+        map (\(QT.QueryResult xs) -> length xs) result `shouldBe` Right 4
 
       -- FIXME: Use hspec-wai and check for a 400 here and responseBody
       it "should return a failure when an incorrect query is given" $ do

@@ -69,7 +69,7 @@ data:
     , redis =
        { redisHost = "beta.ec-redis.juspay.in"
        , redisPort = 6379
-       , redisDb = 10
+       , redisDb = 0
        }
     , enableCors = False
     , queryConfig =

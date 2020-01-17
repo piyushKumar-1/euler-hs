@@ -27,6 +27,8 @@ pipeline {
           changeset "k8s-configs/console-deploy.yaml"
           changeset "lib/dashboard/**/*"
           changeset "app/console/**/*"
+          triggeredBy cause: "UserIdCause", detail: "arun.raghavan"
+          triggeredBy cause: "UserIdCause", detail: "nikith.shetty"
         }
       }
 

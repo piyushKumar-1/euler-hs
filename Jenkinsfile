@@ -49,8 +49,6 @@ pipeline {
         }
 
         stage('Kubernetes Deploy') {
-          agent any
-
           steps {
             kubernetesDeploy(
                   kubeconfigId: 'jenkins-staging-deployer',

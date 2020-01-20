@@ -82,8 +82,8 @@ data CustomerReqSignaturePayload = CustomerReqSignaturePayload
 
 -- GetCustomerReq
 data CustomerReq = CustomerReq
-  { -- ?? options_get_client_auth_token :: Maybe Bool -- "options.get_client_auth_token" --??
-  , merchant_key_id     :: Maybe Text -- ??
+  --{ -- ?? options_get_client_auth_token :: Maybe Bool -- "options.get_client_auth_token" --??
+  { merchant_key_id     :: Maybe Text -- ??
 
 -- Used if api key present in Authorization header
   , object_reference_id :: Maybe Text

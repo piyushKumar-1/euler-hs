@@ -3,10 +3,14 @@
 module Euler.API.Validators.Customer where
 
 import EulerHS.Prelude
-import EulerHS.Extra.Validation as V
 
+import           EulerHS.Extra.Validation as V
+import           Data.Char (isDigit)
+
+import qualified Data.Text as T
 import qualified Euler.Product.Domain.Customer as DC
 import qualified Euler.API.Customer as AC
+
 
 
 --         mobileNumber nullable: false, blank: false, digits: true, maxSize: 16
@@ -24,16 +28,16 @@ instance Transform AC.CustomerReq DC.CreateCustomer where
     <*> withField @"email_address"       apiCst (insideJust emailAddressValidators)
     <*> withField @"first_name"          apiCst (insideJust firstNameValidators)
     <*> withField @"last_name"           apiCst (insideJust lastNameValidators)
-    <*> withField @"mobile_country_code" apiCst (insideJust mobileCountryCodeValidators)
+    <*> withField @"mobile_country_code" apiCst (extractJust >=> mobileCountryCodeValidators)
 
 instance Transform AC.CustomerReqSignaturePayload DC.CreateCustomer where
   transform apiSigCst =  DC.CreateCustomer
-    <$> withField @"customer_id" apiCst objectReferenceIdValidators
+    <$> withField @"customer_id"         apiSigCst objectReferenceIdValidators
     <*> withField @"mobile_number"       apiSigCst (extractJust >=> mobileNumberValidators)
     <*> withField @"email_address"       apiSigCst (insideJust emailAddressValidators)
     <*> withField @"first_name"          apiSigCst (insideJust firstNameValidators)
     <*> withField @"last_name"           apiSigCst (insideJust lastNameValidators)
-    <*> withField @"mobile_country_code" apiSigCst (insideJust mobileCountryCodeValidators)
+    <*> withField @"mobile_country_code" apiSigCst (extractJust >=> mobileCountryCodeValidators)
 
 objectReferenceIdValidators :: Validator Text
 objectReferenceIdValidators =
@@ -41,7 +45,7 @@ objectReferenceIdValidators =
     [ textSizeFrom1To128
     ]
 
-mobileNumberValidators :: Validators Text
+mobileNumberValidators :: Validator Text
 mobileNumberValidators =
   parValidate
     [ textNotEmpty
@@ -49,25 +53,25 @@ mobileNumberValidators =
     , onlyDigits
     ]
 
-mobileCountryCodeValidators :: Validators Text
+mobileCountryCodeValidators :: Validator Text
 mobileCountryCodeValidators =
   parValidate
     [ onlyDigits
     ]
 
-emailAddressValidators :: Validators Text
+emailAddressValidators :: Validator Text
 emailAddressValidators =
   parValidate
     [ textMaxLength128
     ]
 
-firstNameValidators :: Validators Text
+firstNameValidators :: Validator Text
 firstNameValidators =
   parValidate
     [ textMaxLength64
     ]
 
-lastNameValidators :: Validators Text
+lastNameValidators :: Validator Text
 lastNameValidators =
   parValidate
     [ textMaxLength64

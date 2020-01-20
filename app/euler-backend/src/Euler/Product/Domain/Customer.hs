@@ -2,10 +2,13 @@
 
 module Euler.Product.Domain.Customer
   ( Customer(..)
-
+  , CreateCustomer(..)
   ) where
 
 import EulerHS.Prelude
+
+import Data.Time
+
 
 data Customer = Customer
   { customerId                :: Text

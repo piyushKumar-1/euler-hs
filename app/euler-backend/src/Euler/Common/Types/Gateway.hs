@@ -1,8 +1,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Euler.Common.Types.Gateway where
 
 import EulerHS.Prelude
+
+import Database.Beam.Backend.SQL
+import Database.Beam.Postgres
+import Database.Beam.Sqlite
+import Database.Beam.MySQL
+import qualified Data.Text as T
 
 -- from src/Types/Storage/EC/TxnDetail/Types.purs
 data Gateway =
@@ -72,6 +79,17 @@ data Gateway =
   | DEFAULT
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be Gateway where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance FromBackendRow Postgres Gateway where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow Sqlite Gateway where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow MySQL Gateway where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
 
 -- from src/Types/Storage/EC/TxnDetail/Types.purs
 gatewayMap :: [(Gateway, Int)]

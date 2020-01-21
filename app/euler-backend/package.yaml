@@ -105,6 +105,11 @@ dependencies:
 - x509
 - x509-store
 - cryptostore
+- beam-core
+- beam-postgres
+- beam-sqlite
+- beam-mysql
+- beam-migrate
 
 library:
   source-dirs:

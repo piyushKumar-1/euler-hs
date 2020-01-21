@@ -6,7 +6,6 @@ import EulerHS.Prelude
 import Data.Time
 
 
-
 defaultDate :: LocalTime
 defaultDate =  LocalTime
   { localDay = toEnum 1 --   :: Day,

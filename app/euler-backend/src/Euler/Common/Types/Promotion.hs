@@ -7,17 +7,17 @@ import EulerHS.Prelude
 -- from src/Types/Storage/EC/Promotions.purs
 data Rules = Rules
   { dimension :: Text
-  , value :: Text
+  , value     :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Promotion' = Promotion'
-  { id :: Maybe Text
-  , order_id :: Maybe Text
-  , rules :: Maybe [Rules]
-  , created :: Maybe Text
+  { id              :: Maybe Text
+  , order_id        :: Maybe Text
+  , rules           :: Maybe [Rules]
+  , created         :: Maybe Text
   , discount_amount :: Maybe Double
-  , status :: Maybe Text
+  , status          :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

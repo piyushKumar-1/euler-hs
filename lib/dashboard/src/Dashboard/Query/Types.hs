@@ -118,6 +118,18 @@ data QueryErrorType
   | SelectEmpty
   deriving (Generic, Show, Eq)
 
+type TotalBytesProcessed = Int64
+
+type TotalRows = Word64
+
+data QueryStats =
+  QueryStats
+    {
+      totalBytesProcessed :: TotalBytesProcessed
+    , totalRows           :: TotalRows
+    }
+  deriving (Show, Eq)
+
 -- All the JSON instances
 instance FromJSON Selection
 

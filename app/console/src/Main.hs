@@ -5,9 +5,11 @@ import Console.Config (enableCors, httpPort, jwtSecret, loadConfig, queryConfig,
 import qualified Database.Redis as Redis
 import Dashboard.Auth.Types (AuthContext(AuthContext))
 import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
+import Dashboard.Metrics.Prometheus
 import Data.Text (unpack)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.Cors (CorsResourcePolicy(..), cors, corsRequestHeaders, simpleCorsResourcePolicy)
+import qualified Network.Wai.Middleware.Prometheus as PW
 import GHC.Natural (naturalToInt)
 import Universum
 import Web.JWT (hmacSecret)
@@ -23,7 +25,7 @@ main = do
 
   run port .
     middleware (enableCors config) $
-    app authCtx backend qConfig
+    PW.prometheus defaultPromSettings (app authCtx backend qConfig)
 
   where
     connInfo rConfig = Redis.defaultConnectInfo

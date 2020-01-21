@@ -9,12 +9,14 @@ import Universum
 
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.List as List
+import qualified Prometheus as P
 import Network.Wai (Request, requestHeaders)
 import Servant
 import Servant.Server.Experimental.Auth
 
 import Dashboard.Auth.Types (AuthContext, Token(..), Role(..))
 import Dashboard.Auth.Token (lookupToken)
+import Dashboard.Metrics.Prometheus
 import Dashboard.Query.Backend
 import Dashboard.Query.Config
 import Dashboard.Query.Process
@@ -43,6 +45,9 @@ authHandler authCtx = mkAuthHandler handler
                    (fmap (maybeToRight "Invalid login token") . lookupToken authCtx)
                    eUuid
 
+      liftIO $ case token of
+        Left _ -> P.incCounter authFailure
+        Right _ -> P.incCounter authSuccess
       either throw401 return token
 
     throw401 msg = throwError $ err401 { errBody = msg }
@@ -60,7 +65,9 @@ queryHandler qb qc token q =
       throwError err403
     else
       case validateQuery qc q of
-        Left err -> throwError . toServerError $ err
+        Left err -> do
+          liftIO $ P.incCounter queryValidationFailed
+          throwError . toServerError $ err
         Right _  -> liftIO . map (processResult qc q) . runQuery qb qc $ q
 
   where

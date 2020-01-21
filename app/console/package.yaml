@@ -43,6 +43,7 @@ dependencies:
 - filepath
 - hedis
 - jwt
+- prometheus-client
 - servant
 - servant-server
 - text
@@ -50,6 +51,7 @@ dependencies:
 - wai
 - wai-cors
 - warp
+- wai-middleware-prometheus
 
 library:
   source-dirs:

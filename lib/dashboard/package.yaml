@@ -54,10 +54,12 @@ library:
   - hedis
   - jwt
   - lens
+  - prometheus-client
   - text
   - time
   - universum
   - unordered-containers
+  - wai-middleware-prometheus
 
 tests:
   dashboard-tests:

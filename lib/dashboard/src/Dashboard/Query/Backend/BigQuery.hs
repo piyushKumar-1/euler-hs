@@ -20,8 +20,10 @@ import Network.Google.Resource.BigQuery.Jobs.Query (jobsQuery)
 
 import Dashboard.Query.Backend.BigQuery.SQL (printSQL)
 import Dashboard.Query.Backend (QueryBackend, runQuery)
+import Dashboard.Metrics.Prometheus
 import qualified Dashboard.Query.Config as QT
 import qualified Dashboard.Query.Types as QT
+import qualified Prometheus as P
 
 data BigQueryBackend = BigQueryBackend { project :: Text
                                        , env     :: Env '["https://www.googleapis.com/auth/bigquery"]
@@ -50,8 +52,13 @@ instance QueryBackend BigQueryBackend where
                       . (BQT.qrParameterMode ?~ "POSITIONAL")
                       . (BQT.qrQueryParameters .~ qp)
     let job       = jobsQuery bqRequest project
-    let response  = runResourceT . runGoogle env . send $ job
-    toQueryResult queryConf query <$> response
+    response     <- P.observeDuration bqResponseTime $ runResourceT . runGoogle env . send $ job
+    let (qr, qs)  = toQueryResult queryConf query response
+
+    _ <- P.observe queryBytesProcessed $ fromIntegral $ QT.totalBytesProcessed qs
+    _ <- P.addCounter totalBytesProcessed $ fromIntegral $ QT.totalBytesProcessed qs
+    _ <- P.setGauge queryTotalRows $ fromIntegral $ QT.totalRows qs
+    return qr
 
     where
       dateIsString =
@@ -60,13 +67,16 @@ instance QueryBackend BigQueryBackend where
             fieldType = fromJust $ QT.lookupField dateField tc
         in fieldType == QT.StringType
 
-toQueryResult :: QT.QueryConfiguration -> QT.Query -> QueryResponse -> QT.QueryResult
-toQueryResult queryConf query queryResponse = QT.QueryResult $ rowToResult <$> rowValues
+toQueryResult :: QT.QueryConfiguration -> QT.Query -> QueryResponse -> (QT.QueryResult, QT.QueryStats)
+toQueryResult queryConf query queryResponse = (QT.QueryResult $ rowToResult <$> rowValues, queryStats)
   where
     -- FIXME: Write as idiomatic lens code
-    rows      = queryResponse ^. BQT.qRows
-    rowCells  = fmap (^. BQT.trF) rows
-    rowValues = fmap (^. BQT.tcV) <$> rowCells
+    rows            = queryResponse ^. BQT.qRows
+    rowCells        = fmap (^. BQT.trF) rows
+    rowValues       = fmap (^. BQT.tcV) <$> rowCells
+    tBytesProcessed = fromJust $ queryResponse ^. BQT.qTotalBytesProcessed
+    totalRows       = fromJust $ queryResponse ^. BQT.qTotalRows
+    queryStats      = QT.QueryStats tBytesProcessed totalRows
 
     rowToResult r =
       case r of

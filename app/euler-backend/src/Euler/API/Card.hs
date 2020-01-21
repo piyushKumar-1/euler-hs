@@ -5,58 +5,118 @@ module Euler.API.Card where
 import EulerHS.Prelude
 
 import Data.Aeson
--- import Data.Time
--- import Servant
 import Web.FormUrlEncoded
 
+
+
+-- There is big differance with api docs and euler-ps what fields required.
+-- Here are requirements from working graphh
+-- https://www.juspay.in/docs/api/ec/?shell#add-card
+
+-- Legasy fields.
+-- Left is legacy, Right is new ones.
+-- cardId = cardToken
+-- externalId = cardReference
+-- isin = cardIsin
+
+----------------------------------------------------------------------
+-- Get Card Details
+----------------------------------------------------------------------
+
+-- grails-app/controllers/juspay/CardController.groovy
+-- def getCard
+data GetCardRequest = GetCardRequest
+  { card_token :: Text
+  , merchant_id :: Text
+  , customer_id :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
+
+--  Composed with some GetDetail fields
+data GetCardResponse = GetCardResponse
+  { card_number :: Text
+  , card_reference :: Text
+  , card_exp_year :: Text
+  , card_exp_month :: Text
+  , card_isin :: Text
+  , name_on_card :: Maybe Text
+  , card_type :: Maybe Text
+  , card_issuer :: Maybe Text
+  , card_brand :: Maybe Text
+  , nickname :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- src/groovy/juspay/CardDetail.groovy
+data CardDetail = CardDetail
+  { cardNumber :: Text
+  , cardExpMonth :: Text
+  , cardExpYear :: Text
+  , cardSecurityCode :: Text
+  , nameOnCard :: Maybe Text
+  , nickname :: Maybe Text
+  , maskedCardNumber :: Text -- can be made with cardNumber
+  , cardLastFourDigits :: Text -- can be made with cardNumber or maskedCardNumber
+  , cardIsin :: Text -- can be made with cardNumber
+  , cardType :: Maybe Text
+  , cardBrand :: Maybe Text
+  , cardIssuer :: Maybe Text
+  , cardReference :: Text
+  , cardFingerprint :: Text
+  , cardGlobalFingerprint :: Text
+  , cardToken :: Text
+  , customerId :: Text
+  , customerEmail :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 ----------------------------------------------------------------------
 -- Add Card
 ----------------------------------------------------------------------
 
--- Types.Communication.OLTP.AddCard
-
-data AddCardRequest = AddCardRequest
-  { cardNumber :: Text
-  , customerId :: Text
-  , cardExpMonth :: Text
-  , cardExpYear :: Text
-  , merchantId :: Text
-  , emailAddress :: Text
-  , nameOnCard :: Text
+-- src/groovy/juspay/command/AddCardCommand.groovy
+data AddCard = AddCard
+  { merchant_id :: Maybe Text
+  , customer_id :: Text
+  , customer_email :: Maybe Text
+  , card_number :: Text
+  , card_exp_year :: Maybe Integer
+  , card_exp_month :: Maybe Integer
+  , name_on_card :: Maybe Text
   , nickname :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
+data AddCardUsingToken = AddCardUsingToken
+  { customer_id :: Text
+  , customer_email :: Maybe Text
+  , card_token :: Text
+  , merchant_id :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
+
 data AddCardResponse = AddCardResponse
-  { code :: Int
-  , status :: String
-  , response :: AddCardResp
+  { card_token :: Maybe Text
+  , card_reference :: Maybe Text
+  , card_fingerprint :: Maybe Text
+  , card_global_fingerprint :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data AddCardResp = AddCardResp
-  { cardId :: Text
-  , externalId :: Text
-  , cardNumber :: Maybe Text
-  , cardFingerprint :: Text
-  , cardGlobalFingerprint :: Text
-  , duplicate  :: Maybe Text
-  , cardExpYear :: Maybe Text
-  , cardExpMonth :: Maybe Text
-  , nameOnCard :: Maybe Text
-  , nickanme :: Maybe Text
-  , isin :: Maybe Text
-  , customerId :: Maybe Text
+data AddCardInputRequest = AddCardInputRequest
+  { cardDetail :: CardDetail
+  , customerId :: Text
+  , customerEmail :: Text
+
+  -- MerchantAccount used for authentication
+  -- , merchantAccount :: MerchantAccount
+  -- , lockerAccount :: MerchantLockerAccount
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
------------------------------------------------------------
--- ListCard
------------------------------------------------------------
-
--- Types.Communication.OLTP.ListCard ???
+------------------------------------------------------------------------
+-- List stored cards
+------------------------------------------------------------------------
 
 data ListCardRequest = ListCardRequest
   { customerId :: Text
@@ -65,157 +125,64 @@ data ListCardRequest = ListCardRequest
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 data ListCardResp = ListCardResp
-  { cards :: [CardResp]
+  { cards :: [ListCardResponse]
   , customerId :: Text
   , merchantId :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data CardResp = CardResp
-  { cardId :: Text
-  , externalId :: Text
-  , cardNumber :: Text
-  , cardFingerprint :: Text
-  , cardGlobalFingerprint :: Text
-  , cardExpYear :: Text
-  , cardExpMonth :: Text
-  , nameOnCard :: Text
-  , nickname :: Text
-  , isin :: Text
+-- ?: "" converted to Maybe
+data ListCardResponse = ListCardResponse
+  { card_token :: Maybe Text
+  , card_reference :: Text
+  , unMaskedCardNumber :: Maybe Text
+  , card_number :: Text
+  , card_isin :: Text
+  , card_exp_year :: Text
+  , card_exp_month :: Text
+  , card_type :: Maybe Text
+  , card_issuer :: Maybe Text
+  , card_brand :: Maybe Text
+  , nickname :: Maybe Text
+  , name_on_card :: Maybe Text
+  , expired :: Bool
+  , card_fingerprint :: Maybe Text
+  , card_global_fingerprint :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
 
 ----------------------------------------------------------------------
 -- Delete Card
 ----------------------------------------------------------------------
 
--- Externals.EC.DeleteCards
-
+-- Authentication needed
 data CardDeleteReq = CardDeleteReq
-  { merchantId :: Text
+  { card_token :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
-
-data CardDeleteResponse = CardDeleteResponse [CardDeleteResponseScheme]
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data CardDeleteResponseScheme = CardDeleteResponseScheme
-  { card_token :: Maybe Text
+  { card_token :: Text
   , card_reference :: Maybe Text
-  , deleted :: Maybe Text
+  , deleted :: Bool
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-
--- Types.Communication.EcDashboard.CRUD.DeleteCards
-
--- | Delete Card Batch Request
-data BatchCardDeleteReq = BatchCardDeleteReq
-  { fileName :: Maybe Text
-  , list :: Text
-  , merchantId :: Maybe Text
-  }
-
--- TODO: find or realize
-{-
-newtype Process = Process
- { id :: String
- , shortName :: NullOrUndefined String
- , name :: String
- , "AnchorEntityId" :: NullOrUndefined String
- , anchorEntityName :: NullOrUndefined String
- , anchorEntityInfo :: NullOrUndefined String
- , state :: NullOrUndefined Foreign
- , status :: ProcessStatus
- , "OwnerId" :: NullOrUndefined String
- , "ParentId" :: NullOrUndefined String
- , deadline :: NullOrUndefined Date
- , metaData :: NullOrUndefined Foreign
- , createdAt :: Date
- , updatedAt :: Date
- }
--}
-type Process = Text
-
--- | Delete Card Batch Process Status
-data CardDeleteProcessStatus = CardDeleteProcessStatus
-  { pending :: [Process]
-  , failed :: [Process]
-  , success :: [Process]
-  , details :: Process
-  , summary :: CardDeleteProcessSummary
-  }
-
-data CardDeleteProcessSummary = CardDeleteProcessSummary
-  { pendingCount :: Int
-  , failedCount :: Int
-  , successCount :: Int
-  }
 
 
 ----------------------------------------------------------------------
--- Card Info
+-- Tokenize Card
 ----------------------------------------------------------------------
 
--- Types.Communication.OLTP.GetCard
-
-data GetCardRequest = GetCardRequest
-  { cardId :: Text
-  , merchantId :: Text
+data CreateCardToken = CreateCardToken
+  { merchant_id :: Text
+  , card_number :: Text
+  , card_exp_year :: Text
+  , card_exp_month :: Text
+  , card_security_code :: Text
+  , stored_card_token :: Text
+  , customer_id :: Text
+  -- , merchantAccount :: MerchantAccount -- for authentication
+  , card_brand :: Text
+  , save_to_locker :: Bool
+  , name_on_card :: Text
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
-
-data GetCardResponse = GetCardResponse {
-  card :: GetCardResp
-}
-
-data GetCardResp = GetCardResp
-  { cardNumber :: Text
-  , cardFingerprint :: Text
-  , cardGlobalFingerprint :: Maybe Text
-  , cardExpYear :: Maybe Text
-  , cardExpMonth :: Maybe Text
-  , nameOnCard :: Maybe Text
-  , nickname   :: Maybe Text
-  , customerId :: Maybe Text
-  , cardId     :: Text
-  , externalId :: Text
-  , merchantId :: Text
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-------------------------------------------------------------------------
--- Update Cards
-------------------------------------------------------------------------
-
--- Backend/src/Product/OLTP/Cards.purs
-
-data UpdateCardReq = UpdateCardReq
-  { metadata :: Meta
-  , card_reference :: Text
-  , client_auth_token :: Maybe Text
-  , order_id :: Maybe Text
-  , customer_id :: Maybe Text
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- Backend/src/Types/Storage/EC/StoredCard.purs
-data Meta = VISA VisaMeta
-          | UnhandledNetworkDetails Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-newtype VisaMeta = VisaMeta {
-  visa :: VisaMetaData
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-newtype VisaMetaData = VisaMetaData {
-  vco :: VcoDetails
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-newtype VcoDetails = VcoDetails {
-  enabled :: Bool
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)

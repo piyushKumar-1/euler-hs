@@ -43,7 +43,6 @@ dependencies:
 - errors
 - euler-hs
 - extra
-- groups
 - hashable
 - mtl
 - network

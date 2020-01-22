@@ -47,7 +47,7 @@ onlyDigits :: Validator Text
 onlyDigits = mkValidator "Only digits." onlyDigits'
 
 maskCardNumberValidator :: Validator Text
-maskCardNumberValidator = mkValidator "Masked card number" maskCardNumber'
+maskCardNumberValidator = mkValidator "1234-XXXXXXXX-1234 or 123456-XXXXXX-1234" maskCardNumber'
 
 cardIsinValidators :: Validator Text
 cardIsinValidators = parValidate
@@ -56,7 +56,7 @@ cardIsinValidators = parValidate
   ]
 
 cardExpYearValidator :: Validator Text
-cardExpYearValidator = mkValidator "Year <= 2050" cardExpYearB
+cardExpYearValidator = mkValidator "1970 < Year <= 2050" cardExpYearB
 
 cardExpMounthValidator :: Validator Text
 cardExpMounthValidator = mkValidator "1 <= n <= 12" cardExpMonthB
@@ -106,7 +106,7 @@ cardExpYearB year = case parseOnly (many1 digit) year of
   Left _ -> False
   Right d ->
     let n = read d :: Int
-    in n <= 2050
+    in 1970 < n && n <= 2050
 
 cardExpMonthB :: Text -> Bool
 cardExpMonthB year = case parseOnly (many1 digit) year of

@@ -48,11 +48,12 @@ data GetCardResponse = GetCardResponse
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- src/groovy/juspay/CardDetail.groovy
+-- it is auxiliary type most likely
 data CardDetail = CardDetail
   { cardNumber :: Text
   , cardExpMonth :: Text
   , cardExpYear :: Text
-  , cardSecurityCode :: Text
+  , cardSecurityCode :: Maybe Text
   , nameOnCard :: Maybe Text
   , nickname :: Maybe Text
   , maskedCardNumber :: Text -- can be made with cardNumber
@@ -61,12 +62,10 @@ data CardDetail = CardDetail
   , cardType :: Maybe Text
   , cardBrand :: Maybe Text
   , cardIssuer :: Maybe Text
-  , cardReference :: Text
-  , cardFingerprint :: Text
-  , cardGlobalFingerprint :: Text
-  , cardToken :: Text
-  , customerId :: Text
-  , customerEmail :: Text
+  , cardReference :: Maybe Text
+  , cardFingerprint :: Maybe Text
+  , cardGlobalFingerprint :: Maybe Text
+  , cardToken :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -103,10 +102,13 @@ data AddCardResponse = AddCardResponse
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+-- it is auxiliary type most likely
+-- for making request with all needed data
 data AddCardInputRequest = AddCardInputRequest
   { cardDetail :: CardDetail
   , customerId :: Text
   , customerEmail :: Text
+  , merchantAccountId :: Int
 
   -- MerchantAccount used for authentication
   -- , merchantAccount :: MerchantAccount
@@ -173,16 +175,16 @@ data CardDeleteResponseScheme = CardDeleteResponseScheme
 -- Tokenize Card
 ----------------------------------------------------------------------
 
-data CreateCardToken = CreateCardToken
-  { merchant_id :: Text
-  , card_number :: Text
-  , card_exp_year :: Text
-  , card_exp_month :: Text
-  , card_security_code :: Text
-  , stored_card_token :: Text
-  , customer_id :: Text
-  -- , merchantAccount :: MerchantAccount -- for authentication
-  , card_brand :: Text
-  , save_to_locker :: Bool
-  , name_on_card :: Text
-  }
+-- data CreateCardToken = CreateCardToken
+--   { merchant_id :: Text
+--   , card_number :: Text
+--   , card_exp_year :: Text
+--   , card_exp_month :: Text
+--   , card_security_code :: Text
+--   , stored_card_token :: Text
+--   , customer_id :: Text
+--   -- , merchantAccount :: MerchantAccount -- for authentication
+--   , card_brand :: Text
+--   , save_to_locker :: Bool
+--   , name_on_card :: Text
+--   }

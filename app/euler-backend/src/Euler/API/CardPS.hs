@@ -8,7 +8,8 @@ import Data.Aeson
 import Web.FormUrlEncoded
 
 
--- Legasy fields. Left is legacy, Right is new ones.
+-- Legasy fields.
+-- Left is legacy, Right is new ones.
 -- cardId = cardToken
 -- externalId = cardReference
 -- isin = cardIsin
@@ -46,10 +47,11 @@ data GetCardResp = GetCardResp
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- CardDetails converted to CardData
+-- it is auxiliary type most likely
 data CardData = CardData
-  { cardNumber :: String
-  , cardExpYear :: String
-  , cardExpMonth :: String
+  { cardNumber :: Text
+  , cardExpYear :: Text
+  , cardExpMonth :: Text
   , nameOnCard :: Maybe Text
   , cardSecurityCode :: Maybe Text
   , isStoredCard :: Maybe Bool
@@ -163,11 +165,11 @@ data CardDeleteResponseScheme = CardDeleteResponseScheme
 -- Types.Communication.EcDashboard.CRUD.DeleteCards
 
 -- | Delete Card Batch Request
-data BatchCardDeleteReq = BatchCardDeleteReq
-  { fileName :: Maybe Text
-  , list :: Text
-  , merchantId :: Maybe Text
-  }
+-- data BatchCardDeleteReq = BatchCardDeleteReq
+--   { fileName :: Maybe Text
+--   , list :: Text
+--   , merchantId :: Maybe Text
+  -- }
 
 -- TODO: find or realize
 {-
@@ -188,22 +190,22 @@ newtype Process = Process
  , updatedAt :: Date
  }
 -}
-type Process = Text -- ??
+-- type Process = Text -- ??
 
--- | Delete Card Batch Process Status
-data CardDeleteProcessStatus = CardDeleteProcessStatus
-  { pending :: [Process]
-  , failed :: [Process]
-  , success :: [Process]
-  , details :: Process
-  , summary :: CardDeleteProcessSummary
-  }
+-- -- | Delete Card Batch Process Status
+-- data CardDeleteProcessStatus = CardDeleteProcessStatus
+--   { pending :: [Process]
+--   , failed :: [Process]
+--   , success :: [Process]
+--   , details :: Process
+--   , summary :: CardDeleteProcessSummary
+--   }
 
-data CardDeleteProcessSummary = CardDeleteProcessSummary
-  { pendingCount :: Int
-  , failedCount :: Int
-  , successCount :: Int
-  }
+-- data CardDeleteProcessSummary = CardDeleteProcessSummary
+--   { pendingCount :: Int
+--   , failedCount :: Int
+--   , successCount :: Int
+  -- }
 
 
 ------------------------------------------------------------------------

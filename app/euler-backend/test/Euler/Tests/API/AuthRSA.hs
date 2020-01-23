@@ -30,63 +30,94 @@ import qualified WebService.Language                    as L
 
 spec :: Spec
 spec =
-  around_ runServer $
-    describe "Authentication API" $ do
-      it "Authentication works" $ withFlowRuntime Nothing $ \rt -> do
-        let url = BaseUrl Http "localhost" port ""
-        eres <- runFlow rt $ callServantAPI url $ protectedClient $
-          Auth.Signed
-            { signature_payload = "{ \"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
-            , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
-            , merchant_key_id   = 1
-            }
+  describe "Authentication API" $ do
+    around_ (prepareDB . runServer) $
+      describe "Authentication API, server with DB" $ do
+        it "Authentication works" $ withFlowRuntime Nothing $ \rt -> do
+          let url = BaseUrl Http "localhost" port ""
+          eres <- runFlow rt $ callServantAPI url $ protectedClient $
+            Auth.Signed
+              { signature_payload = "{ \"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
+              , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
+              , merchant_key_id   = 1
+              }
 
-        eres `shouldSatisfy` isRight
-        let Right res = eres
-        res `shouldBe` "Something here"
+          eres `shouldSatisfy` isRight
+          let Right res = eres
+          res `shouldBe` "Something here"
 
 
-      it "If malformed signature should return 401" $ withFlowRuntime Nothing $ \rt -> do
-        let url = BaseUrl Http "localhost" port ""
-        eerr <- runFlow rt $ callServantAPI url $ protectedClient $
-          Auth.Signed
-            { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
-            , signature         = ":::::malformed signature:::::"
-            , merchant_key_id   = 1
-            }
+        it "If malformed signature should return 401" $ withFlowRuntime Nothing $ \rt -> do
+          let url = BaseUrl Http "localhost" port ""
+          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+            Auth.Signed
+              { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
+              , signature         = ":::::malformed signature:::::"
+              , merchant_key_id   = 1
+              }
 
-        eerr `shouldSatisfy` isLeft
-        let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
-        status `shouldBe` status401
-        body   `shouldBe` "Malformed signature. Expected Base64 encoded signature."
+          eerr `shouldSatisfy` isLeft
+          let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
+          status `shouldBe` status401
+          body   `shouldBe` "Malformed signature. Expected Base64 encoded signature."
 
-      it "If malformed signature_payload should return 401" $ withFlowRuntime Nothing $ \rt -> do
-        let url = BaseUrl Http "localhost" port ""
-        eerr <- runFlow rt $ callServantAPI url $ protectedClient $
-          Auth.Signed
-            { signature_payload = ":::::malformed signature_payload::::::"
-            , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
-            , merchant_key_id   = 1
-            }
+        it "If malformed signature_payload should return 401" $ withFlowRuntime Nothing $ \rt -> do
+          let url = BaseUrl Http "localhost" port ""
+          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+            Auth.Signed
+              { signature_payload = ":::::malformed signature_payload::::::"
+              , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
+              , merchant_key_id   = 1
+              }
 
-        eerr `shouldSatisfy` isLeft
-        let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
-        status `shouldBe` status401
-        body   `shouldBe` "Malformed signature_payload. Can not parse expected structure from JSON."
+          eerr `shouldSatisfy` isLeft
+          let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
+          status `shouldBe` status401
+          body   `shouldBe` "Malformed signature_payload. Can not parse expected structure from JSON."
 
-      it "If wrong merchant_key_id should return 401 without exposing details" $ withFlowRuntime Nothing $ \rt -> do
-        let url = BaseUrl Http "localhost" port ""
-        eerr <- runFlow rt $ callServantAPI url $ protectedClient $
-          Auth.Signed
-            { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
-            , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
-            , merchant_key_id   = 9999999
-            }
+        it "If wrong merchant_key_id should return 401 without exposing details" $ withFlowRuntime Nothing $ \rt -> do
+          let url = BaseUrl Http "localhost" port ""
+          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+            Auth.Signed
+              { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
+              , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
+              , merchant_key_id   = 9999999
+              }
 
-        eerr `shouldSatisfy` isLeft
-        let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
-        status `shouldBe` status401
-        body   `shouldBe` ""
+          eerr `shouldSatisfy` isLeft
+          let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
+          status `shouldBe` status401
+          body   `shouldBe` ""
+
+        it "If unable to fetch without exposing details" $ withFlowRuntime Nothing $ \rt -> do
+          let url = BaseUrl Http "localhost" port ""
+          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+            Auth.Signed
+              { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
+              , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
+              , merchant_key_id   = 9999999
+              }
+
+          eerr `shouldSatisfy` isLeft
+          let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
+          status `shouldBe` status401
+          body   `shouldBe` ""
+
+    around_ (withFlowRuntime Nothing . runServer) $
+      describe "Authentication API, server with no DB" $
+        it "Server returns 500 for valid request" $ withFlowRuntime Nothing $ \rt -> do
+          let url = BaseUrl Http "localhost" port ""
+          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+            Auth.Signed
+              { signature_payload = "{ \"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
+              , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
+              , merchant_key_id   = 1
+              }
+
+          eerr `shouldSatisfy` isLeft
+          let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
+          status `shouldBe` status500
+          body   `shouldBe` ""
 
 ----------------------------------------------------------------------
 
@@ -140,15 +171,19 @@ prepareDBConnections = do
     $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
 
-runServer :: IO () -> IO ()
-runServer next = withFlowRuntime Nothing $ \flowRt -> do
+prepareDB :: (FlowRuntime -> IO ()) -> IO()
+prepareDB next = withFlowRuntime Nothing $ \flowRt -> do
   prepareTestDB flowRt
   try (runFlow flowRt prepareDBConnections) >>= \case
     Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
-    Right _ -> do
-      let env = S.Env flowRt Nothing
-      serverStartupLock <- newEmptyMVar
-      let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $ setPort port defaultSettings
-      threadId <- forkIO $ runSettings settings $ serve api (eulerServer_ api server env)
-      readMVar serverStartupLock
-      finally next $ killThread threadId
+    Right _ -> next flowRt
+
+runServer :: IO () -> FlowRuntime -> IO ()
+runServer act flowRt = do
+    let env = S.Env flowRt Nothing
+    serverStartupLock <- newEmptyMVar
+    let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $ setPort port defaultSettings
+    threadId <- forkIO $ runSettings settings $ serve api (eulerServer_ api server env)
+    readMVar serverStartupLock
+    finally act $ killThread threadId
+

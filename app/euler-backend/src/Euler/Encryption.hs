@@ -158,7 +158,7 @@ hashPassword password salt =
       fhash = hashUpdate phash salt
   in hashFinalize fhash
 
--- | Verify signature using PKCS15 scheme and SHA256 hash function
+-- | Verify signature using PSS scheme and SHA256 hash function
 verifyRSASignature
   :: ByteString -- ^ payload.
   -> ByteString -- ^ signature

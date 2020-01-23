@@ -75,7 +75,7 @@ authenticateUsingRSAEncryption' config next Signed
           $ B.all_ (merchant_account eulerDBSchema)
 
       case res of
-        Left _          -> L.throwException err401
+        Left _          -> L.throwException err500
         Right Nothing   -> L.throwException err401
         Right (Just ma) -> pure ma
 
@@ -95,7 +95,7 @@ authenticateUsingRSAEncryption' config next Signed
           $ B.all_ (merchant_key eulerDBSchema)
 
       case res of
-        Left _          -> L.throwException err401
+        Left _          -> L.throwException err500
         Right Nothing   -> L.throwException err401
         Right (Just mk) -> pure mk
 

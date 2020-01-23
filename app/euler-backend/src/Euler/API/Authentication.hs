@@ -28,14 +28,6 @@ data Signed a = Signed
   , merchant_key_id   :: Int
   } deriving (Generic, ToJSON, FromJSON)
 
-
-data SignaturePayloadExample = SignaturePayloadExample
-  { merchant_id    :: Text   -- ^ merchant_id is mandatory
-  , someField      :: String
-  , someOtherField :: Bool
-  } deriving (Generic, FromJSON, ToJSON, Show)
-
-
 authenticateUsingRSAEncryption'
     :: (FromJSON a, HasField' "merchant_id" a Text, Generic a)
     => T.DBConfig B.SqliteM

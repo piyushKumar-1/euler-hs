@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Euler.Tests.API.AuthRSA where
 
@@ -121,11 +122,42 @@ spec =
 
 ----------------------------------------------------------------------
 
-protected :: Auth.Signed Auth.SignaturePayloadExample -> FlowHandler Text
+data SignaturePayloadExample = SignaturePayloadExample
+  { merchant_id    :: Text   -- ^ merchant_id is mandatory
+  , someField      :: String
+  , someOtherField :: Bool
+  } deriving (Generic, FromJSON, ToJSON, Show)
+
+type API = "protected" :> ReqBody '[JSON] (Auth.Signed SignaturePayloadExample) :> Post '[JSON] Text
+
+api :: Proxy API
+api = Proxy
+
+port :: Int
+port = 8081
+
+protectedClient :: Auth.Signed SignaturePayloadExample -> T.EulerClient Text
+protectedClient = T.client api
+
+server :: FlowServer' API
+server = protected
+
+protected :: Auth.Signed SignaturePayloadExample -> FlowHandler Text
 protected = S.runFlow "sTestFlow" S.noReqBodyJSON . Auth.authenticateUsingRSAEncryption handler
   where
     handler {-merchantAccount-}_ signaturePayloadExample = do
-      pure $ Text.pack $ Auth.someField signaturePayloadExample
+      pure $ Text.pack $ someField signaturePayloadExample
+
+----------------------------------------------------------------------
+
+sqliteConn :: IsString a => a
+sqliteConn = "sqlite"
+
+keepConnsAliveForSecs :: NominalDiffTime
+keepConnsAliveForSecs = 60 * 10 -- 10 mins
+
+maxTotalConns :: Int
+maxTotalConns = 8
 
 testDBName :: String
 testDBName = "./test/Euler/TestData/authRSAtest.db"
@@ -140,29 +172,6 @@ prepareTestDB :: FlowRuntime -> IO ()
 prepareTestDB rt = void $ try @_ @SomeException $ runFlow rt $ do
   rmTestDB
   void $ runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
-
-type API = "protected" :> ReqBody '[JSON] (Auth.Signed Auth.SignaturePayloadExample) :> Post '[JSON] Text
-
-api :: Proxy API
-api = Proxy
-
-port :: Int
-port = 8081
-
-protectedClient :: Auth.Signed Auth.SignaturePayloadExample -> T.EulerClient Text
-protectedClient = T.client api
-
-server :: FlowServer' API
-server = protected
-
-sqliteConn :: IsString a => a
-sqliteConn = "sqlite"
-
-keepConnsAliveForSecs :: NominalDiffTime
-keepConnsAliveForSecs = 60 * 10 -- 10 mins
-
-maxTotalConns :: Int
-maxTotalConns = 8
 
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
@@ -186,4 +195,3 @@ runServer act flowRt = do
     threadId <- forkIO $ runSettings settings $ serve api (eulerServer_ api server env)
     readMVar serverStartupLock
     finally act $ killThread threadId
-

@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Euler.Server where
 
@@ -34,6 +35,7 @@ import           WebService.PostRewrite
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
+
 type EulerAPI
   = "test" :> Get '[PlainText] Text
   :<|> "txns" :> ReqBody '[JSON] ApiTxn.Transaction :> Post '[JSON] ApiTxn.TransactionResponse
@@ -51,13 +53,17 @@ type EulerAPI
 eulerAPI :: Proxy EulerAPI
 eulerAPI = Proxy
 
+data Acc = Acc {}
+
 data Env = Env
   { envFlowRt         :: R.FlowRuntime
   , envRecorderParams :: Maybe PB.RecorderParams
   }
 
 type FlowHandler = ReaderT Env (ExceptT ServerError IO)
-type FlowServer = ServerT EulerAPI (ReaderT Env (ExceptT ServerError IO))
+
+type FlowServer' api = ServerT api (ReaderT Env (ExceptT ServerError IO))
+type FlowServer      = FlowServer' EulerAPI
 
 eulerServer' :: FlowServer
 eulerServer' =
@@ -70,8 +76,10 @@ eulerServer' =
     metrics       :<|>
     emptyServer
 
-eulerServer :: Env -> Server EulerAPI
-eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
+----------------------------------------------------------------------
+
+eulerServer_ :: HasServer (api :: *) '[] => Proxy api -> FlowServer' api -> Env -> Server api
+eulerServer_ api serv env = hoistServer api (f env) serv
   where
     f :: Env -> ReaderT Env (ExceptT ServerError IO) a -> Handler a
     f env' r = do
@@ -79,6 +87,9 @@ eulerServer env = hoistServer eulerAPI (f env) $ eulerServer'
       case eResult of
         Left err  -> throwError err -- TODO: error reporting (internal server error & output to console, to log)
         Right res -> pure res
+
+eulerServer :: Env -> Server EulerAPI
+eulerServer = eulerServer_ eulerAPI eulerServer'
 
 eulerBackendApp :: Env -> Application
 eulerBackendApp env =

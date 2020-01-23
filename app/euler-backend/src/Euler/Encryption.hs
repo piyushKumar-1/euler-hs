@@ -19,6 +19,7 @@ module Euler.Encryption
   , hashPassword
   , signRSASignature
   , verifyRSASignature
+  , verifyRSASignaturePKCS15
   , RSA.generateBlinder
   , AES.AES128
   , AES.AES256
@@ -46,6 +47,7 @@ import qualified Crypto.PubKey.RSA as RSA (generateBlinder, Blinder, PrivateKey(
                                           , PublicKey(..), Error)
 import qualified Crypto.PubKey.RSA.OAEP as OAEP
 import qualified Crypto.PubKey.RSA.PSS as PSS
+import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
 import qualified Crypto.Store.X509 as CStore (readPubKeyFile, readPubKeyFileFromMemory)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as Text (decodeUtf8)
@@ -156,8 +158,21 @@ hashPassword password salt =
       fhash = hashUpdate phash salt
   in hashFinalize fhash
 
-verifyRSASignature :: ByteString -> ByteString -> RSA.PublicKey -> Bool
+-- | Verify signature using PKCS15 scheme and SHA256 hash function
+verifyRSASignature
+  :: ByteString -- ^ payload.
+  -> ByteString -- ^ signature
+  -> RSA.PublicKey
+  -> Bool
 verifyRSASignature payload sign pubkey = PSS.verify (PSS.defaultPSSParams SHA256) pubkey payload sign
+
+-- | Verify signature using PKCS15 scheme and SHA256 hash function
+verifyRSASignaturePKCS15
+  :: ByteString -- ^ payload.
+  -> ByteString -- ^ signature
+  -> RSA.PublicKey
+  -> Bool
+verifyRSASignaturePKCS15 payload sign pubkey = PKCS15.verify (Just SHA256) pubkey payload sign
 
 signRSASignature :: (MonadRandom m) => RSA.PrivateKey -> ByteString -> m (Either RSA.Error ByteString)
 signRSASignature pk bs = PSS.sign Nothing (PSS.defaultPSSParams SHA256) pk bs

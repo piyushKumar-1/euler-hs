@@ -110,6 +110,7 @@ dependencies:
 - beam-sqlite
 - beam-mysql
 - beam-migrate
+- base64-bytestring
 
 library:
   source-dirs:

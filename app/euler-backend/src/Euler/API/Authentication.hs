@@ -1,0 +1,132 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
+module Euler.API.Authentication where
+
+import EulerHS.Prelude
+
+import           Data.Generics.Product.Fields
+import qualified Data.ByteString.Base64               as B64
+import qualified Database.Beam                        as B
+import qualified Database.Beam.Backend.SQL            as B
+import qualified Database.Beam.Sqlite                 as B
+import           Database.Beam ((==.), (&&.))
+import qualified Data.Aeson                           as A
+import           Euler.Storage.DBConfig
+import           Euler.Storage.Types.MerchantAccount
+import           Euler.Storage.Types.MerchantKey
+import           Euler.Storage.Types.EulerDB
+import           Euler.Encryption
+import qualified EulerHS.Language                     as L
+import qualified EulerHS.Types                        as T
+import           Servant
+
+
+-- We can not use ByteStrings directly as we need To/FromJSON instances
+data Signed a = Signed
+  { signature_payload :: String -- ^ UTF8-String. JSON-encoded a. a should contain merchant_id field.
+  , signature         :: String -- ^ UTF8-String. BASE64-encoded signature (PKCS1, AES256)
+  , merchant_key_id   :: Int
+  } deriving (Generic, ToJSON, FromJSON)
+
+
+data SignaturePayloadExample = SignaturePayloadExample
+  { merchant_id    :: Text   -- ^ merchant_id is mandatory
+  , someField      :: String
+  , someOtherField :: Bool
+  } deriving (Generic, FromJSON, ToJSON, Show)
+
+
+authenticateUsingRSAEncryption'
+    :: (FromJSON a, HasField' "merchant_id" a Text, Generic a)
+    => T.DBConfig B.SqliteM
+    -> (MerchantAccount -> a -> L.Flow b)
+    -> Signed a
+    -> L.Flow b
+authenticateUsingRSAEncryption' config next Signed
+  { signature_payload
+  , signature = b64signature
+  , merchant_key_id
+  } = do
+    let logInfo = L.logInfo @String
+
+    decodedSignaturePayload <- case A.decodeStrict $ fromString signature_payload of
+      Just ds  -> pure ds
+      Nothing  -> L.throwException err401 {errBody = "Malformed signature_payload. Can not parse expected structure from JSON."}
+
+    signature <- case B64.decode $ fromString b64signature of
+      Right sig -> pure sig
+      Left _    -> do
+        logInfo "authenticateUsingRSAEncryption" "Can not decode b64-encoded signature"
+        L.throwException err401 {errBody = "Malformed signature. Expected Base64 encoded signature."}
+
+    let merchantId' = getField @"merchant_id" decodedSignaturePayload
+
+    conn <- getConn config
+
+    merchantAccount <- do
+      res <- L.runDB conn $ do
+        let predicate MerchantAccount {merchantId} =
+              merchantId ==. (B.val_ $ Just merchantId')
+
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (merchant_account eulerDBSchema)
+
+      case res of
+        Left _          -> L.throwException err401
+        Right Nothing   -> L.throwException err401
+        Right (Just ma) -> pure ma
+
+    merchantKey <- do
+      res <- L.runDB conn $ do
+        let maid = Euler.Storage.Types.MerchantAccount.id
+        let predicate MerchantKey {merchantAccountId, scope, status, id = mkid} =
+              merchantAccountId ==. (B.val_ $ maid merchantAccount)     &&.
+              scope             ==. (B.val_ $ Just "CLIENT_ENCRYPTION") &&.
+              status            ==. (B.val_ $ Just "ACTIVE")            &&.
+              mkid              ==. (B.val_ $ Just merchant_key_id)
+
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (merchant_key eulerDBSchema)
+
+      case res of
+        Left _          -> L.throwException err401
+        Right Nothing   -> L.throwException err401
+        Right (Just mk) -> pure mk
+
+    -- Should apiKey be mandatory field?
+    merchantPublicKey <- case (apiKey :: MerchantKey -> Maybe Text) merchantKey of
+      Nothing -> do
+        logInfo "authenticateUsingRSAEncryption" "Merchant Key not found"
+        L.throwException err401
+
+      Just pubKey -> do
+        logInfo "authenticateUsingRSAEncryption" "Merchant Key found"
+        pure pubKey
+
+    merchantRSAPublicKey <- case parseRSAPubKey $ encodeUtf8 merchantPublicKey of
+      Right key -> pure key
+      Left _    -> do
+        logInfo "authenticateUsingRSAEncryption" "Can not parse merchant public key"
+        L.throwException err401
+
+    case verifyRSASignaturePKCS15 (fromString signature_payload) signature merchantRSAPublicKey of
+      True  -> do
+        logInfo "authenticateUsingRSAEncryption" "RSA signature verfifed"
+        next merchantAccount decodedSignaturePayload
+
+      False -> do
+        logInfo "authenticateUsingRSAEncryption" "RSA signature not verfifed"
+        L.throwException err401
+
+authenticateUsingRSAEncryption
+  :: (FromJSON a, HasField' "merchant_id" a Text, Generic a)
+  => (MerchantAccount -> a -> L.Flow b)
+  -> Signed a
+  -> L.Flow b
+authenticateUsingRSAEncryption = authenticateUsingRSAEncryption' eulerDB

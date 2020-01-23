@@ -111,7 +111,7 @@ library:
   - EulerHS.Extra.Validation
   ghc-options:
   - -Wall
-  # - -Werror
+  - -O2
 
 tests:
   language:

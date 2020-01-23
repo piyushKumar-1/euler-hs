@@ -61,7 +61,7 @@ library:
   - src
   ghc-options:
   - -Wall
-  # - -Werror
+  - -O2
 
 executables:
   console:

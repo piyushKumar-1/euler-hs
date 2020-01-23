@@ -39,7 +39,7 @@ library:
   - src
   ghc-options:
   - -Wall
-  # - -Werror
+  - -O2
   dependencies:
   - aeson
   - aeson-utils

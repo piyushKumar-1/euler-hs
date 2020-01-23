@@ -94,8 +94,8 @@ library:
   source-dirs:
     - src
   ghc-options:
-  - -Wall
-  # - -Werror
+    - -Wall
+    - -O2
 
 executables:
   credit-platform:

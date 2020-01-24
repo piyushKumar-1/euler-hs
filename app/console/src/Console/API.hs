@@ -1,5 +1,6 @@
 module Console.API
-  ( QueryAPI
+  ( AppT(..)
+  , QueryAPI
   , QueryAPINoAuth
   , queryAuthContext
   , queryHandler
@@ -7,6 +8,8 @@ module Console.API
 
 import Universum
 
+import Control.Monad.Except (MonadError)
+import Control.Monad.Trans.Reader (ReaderT)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.List as List
 import qualified Prometheus as P
@@ -18,7 +21,7 @@ import Dashboard.Auth.Types (AuthContext, Token(..), Role(..))
 import Dashboard.Auth.Token (lookupToken)
 import Dashboard.Metrics.Prometheus
 import Dashboard.Query.Backend
-import Dashboard.Query.Config
+import Dashboard.Query.Backend.BigQuery (BackendConfig(..))
 import Dashboard.Query.Process
 import Dashboard.Query.Types
 import Dashboard.Query.Validation
@@ -31,6 +34,12 @@ type QueryAPI
   = AuthProtect "web-token" :> QueryAPINoAuth
 
 type instance AuthServerData (AuthProtect "web-token") = Token
+
+newtype AppT a =
+  AppT
+    { runAppT :: ReaderT BackendConfig Handler a
+    } deriving (Functor, Applicative, Monad, MonadIO, MonadError ServerError,
+                MonadThrow, MonadReader BackendConfig)
 
 authHandler :: AuthContext -> AuthHandler Request Token
 authHandler authCtx = mkAuthHandler handler
@@ -57,8 +66,9 @@ queryAuthContext authCtx = authHandler authCtx :. EmptyContext
 
 -- FIXME: The error reporting is very basic now to reflect the flattened error that gets
 -- returned i.e. [QueryValidationerror], will change once we have a richer, nested error type.
-queryHandler :: QueryBackend qb => qb -> QueryConfiguration -> Token -> Query -> Handler QueryResult
-queryHandler qb qc token q =
+queryHandler :: Token -> Query -> AppT QueryResult
+queryHandler token q = do
+  BackendConfig { qbe = qb , qcfg = qc } <- ask
   -- FIXME: hardcoded role check for now
   if RoleAdmin `List.notElem` roles token
     then

@@ -11,6 +11,7 @@ default-extensions:
 - RankNTypes
 - DeriveFunctor
 - DeriveGeneric
+- GeneralizedNewtypeDeriving
 - OverloadedStrings
 - LambdaCase
 - MultiParamTypeClasses
@@ -43,10 +44,12 @@ dependencies:
 - filepath
 - hedis
 - jwt
+- mtl
 - prometheus-client
 - servant
 - servant-server
 - text
+- transformers
 - universum
 - wai
 - wai-cors

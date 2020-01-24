@@ -4,12 +4,13 @@ import Universum
 
 import qualified Control.Concurrent as C
 import Dashboard.Auth.Types (LoginContext(..), Role(..), Token(..))
-import Dashboard.Query.Backend.BigQuery (newBigQueryBackend)
+import Dashboard.Query.Backend.BigQuery (BackendConfig(..), newBigQueryBackend)
 import Dashboard.Query.Config
 import qualified Network.Wai.Handler.Warp as Warp
-import Servant (Proxy(..), serve)
+import Servant (hoistServer, Proxy(..), serve)
 
 import Console.API (QueryAPINoAuth, queryHandler)
+import Console.HTTPServer (server, toHandler)
 
 testPort = 8084
 
@@ -47,8 +48,10 @@ queryAPINoAuth = Proxy
 withConsoleServer :: IO () -> IO ()
 withConsoleServer action = do
   backend <- newBigQueryBackend "bq-dashboard-test" (Just bqCreds)
-  let handler = queryHandler backend ecQueryConf token
+  let bec = BackendConfig backend ecQueryConf
+  let app = serve queryAPINoAuth $
+              hoistServer queryAPINoAuth (toHandler bec) (server token)
 
-  bracket (liftIO $ C.forkIO $ Warp.run testPort $ serve queryAPINoAuth handler)
+  bracket (liftIO $ C.forkIO $ Warp.run testPort app)
     C.killThread
     (const action)

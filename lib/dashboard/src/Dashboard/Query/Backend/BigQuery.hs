@@ -29,6 +29,12 @@ data BigQueryBackend = BigQueryBackend { project :: Text
                                        , env     :: Env '["https://www.googleapis.com/auth/bigquery"]
                                        }
 
+data BackendConfig = forall qb. QueryBackend qb =>
+  BackendConfig
+    { qbe  :: qb
+    , qcfg :: QT.QueryConfiguration
+    }
+
 newBigQueryBackend :: Text -> Maybe Text -> IO BigQueryBackend
 newBigQueryBackend project jsonCreds = do
   manager <- newManager tlsManagerSettings

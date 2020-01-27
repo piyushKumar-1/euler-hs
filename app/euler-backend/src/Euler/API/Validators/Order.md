@@ -40,4 +40,8 @@ Fields to validate:
   ISO Country code
   Default value: IND
 
+- merchant_id should not be null when creating Order
+
 - ...Other fields, see API & code
+
+- _options_create_mandate should be defaulted to DISABLED.

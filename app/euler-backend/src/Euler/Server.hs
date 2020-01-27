@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -82,7 +83,7 @@ type EulerAPI
 -- Order update
   :<|> "orders"
       :> Capture "orderId" Text
-      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.Order
       :> Post '[JSON] ApiOrder.OrderStatusResponse
 
 -- Other APIS
@@ -295,7 +296,7 @@ type OrderCreateEndpoint
   --  Remote host
   :>  RemoteHost
   --  POST Body
-  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.Order
   --  Response
   :>  Post '[JSON] ApiOrder.OrderCreateResponse
 
@@ -325,25 +326,12 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
   -- EHS: TODO: move validations from validateOrderParams
   -- validateOrderParams orderCreateReq
 
+  -- EHS: function `orderCreate` is also about validation.
   case eValidated of
     Failure err -> error "Not implemented"   -- TODO: EHS: return error.
-    Success validatedOrder -> do
-
-        -- EHS: what these logs for?
-        liftIO $ putTextLn $ "orderCreateStart"
-        liftIO $ putTextLn $ show $ lookupRP @Version rps
-        liftIO $ putTextLn $ show rps
-
-        -- EHS: counting times should be a wrapper function
-        start <- liftIO getCurrentTime
-
-        r <- runFlow "orderCreate" rps (toJSON ordReq)
-          $ AS.withMacc OrderCreate.orderCreate validatedOrder rps
-
-        end <- liftIO getCurrentTime
-
-        liftIO $ putTextLn $ show $ diffUTCTime end start
-        pure r
+    Success validatedOrder ->
+      runFlow "orderCreate" rps (toJSON ordReq)
+          $ AS.withMacc OrderCreate.orderCreate rps validatedOrder
 
 orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do

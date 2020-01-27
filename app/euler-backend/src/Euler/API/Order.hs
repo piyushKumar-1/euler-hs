@@ -1,22 +1,31 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass  #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Euler.API.Order where
 
-import EulerHS.Prelude
-import Data.Aeson
-import Data.Time
-import Servant
-import Web.FormUrlEncoded
+import           Data.Aeson
+import           Data.Time
+import           EulerHS.Prelude
+import           Servant
+import           Web.FormUrlEncoded
 
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Prelude as P
+import qualified Data.ByteString.Lazy         as BSL
+import qualified Data.HashMap.Strict          as HM
+import qualified Data.Map.Strict              as Map
+import qualified Data.Text                    as T
+import qualified Data.Text.Encoding           as T
+import qualified Prelude                      as P
 
-import Euler.Common.Types.Order (OrderStatus(..), MandateFeature)
-import Euler.Common.Types.Promotion
+import           Euler.Common.Types.Order     (MandateFeature, OrderStatus (..))
+import           Euler.Common.Types.Promotion
+
+
+
+data OrderCreateTemplate = OrderCreateTemplate
+  { order_id                          :: Text
+  , options_create_mandate            :: MandateFeature     -- Default: DISABLED
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, ToForm)
 
 
 -- Previously: OrderCreateReq
@@ -126,7 +135,7 @@ instance FromForm OrderCreateRequest where
     auto_refund <- parseMaybe "auto_refund" f
     options_create_mandate <- liftA2 (<|>) (parseMaybe "options.create_mandate" f) (parseMaybe "options_create_mandate" f)
     options_get_client_auth_token <- liftA2 (<|>) (parseMaybe "options.get_client_auth_token" f) (parseMaybe "options_get_client_auth_token" f)
-    pure OrderCreateRequest{..}
+    pure Order{..}
 
 instance FromJSON OrderCreateRequest where
   parseJSON = withObject "OrderCreateRequest" $ \o -> do
@@ -183,7 +192,7 @@ instance FromJSON OrderCreateRequest where
     auto_refund <- o .: "auto_refund"
     options_create_mandate <- o .: "options.create_mandate" <|> o .: "options_create_mandate"
     options_get_client_auth_token <- o .: "options.get_client_auth_token" <|> o .: "options_get_client_auth_token"
-    pure OrderCreateRequest{..}
+    pure Order{..}
 
 fromStrValue :: Value -> Maybe Text
 fromStrValue s = case s of
@@ -192,9 +201,9 @@ fromStrValue s = case s of
 
 appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
 appendOnlyJust xs (Just k, Just v) = (k,v) : xs
-appendOnlyJust xs _ = xs
+appendOnlyJust xs _                = xs
 
--- instance FromFormUrlEncoded OrderCreateRequest where
+-- instance FromFormUrlEncoded Order where
 --   fromFormUrlEncoded inputs =
 --     User <$> lkp "email" <*> lkp "password"
 --

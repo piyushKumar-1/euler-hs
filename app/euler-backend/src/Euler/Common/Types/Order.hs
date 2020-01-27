@@ -16,6 +16,8 @@ import qualified Data.Text as T (pack, unpack)
 import qualified Prelude as P (show)
 import qualified Text.Read as TR (readEither)
 
+type OrderId = Text
+
 data OrderType
   = MANDATE_REGISTER
   | MANDATE_PAYMENT

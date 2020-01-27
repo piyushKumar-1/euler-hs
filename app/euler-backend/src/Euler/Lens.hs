@@ -3,6 +3,10 @@ module Euler.Lens where
 import EulerHS.Prelude (Lens)
 import Data.Generics.Product.Fields
 
+-- EHS: not lens for "Euler", but rather for domain / api types.
+-- Should not be on the top level?
+--
+
 _merchantAccountId :: HasField' "merchantAccountId" s a => Lens s s a a --  t a b
 _merchantAccountId = field' @"merchantAccountId"
 

@@ -1,9 +1,11 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+
 module Euler.Product.OLTP.Order.Create where
 
 import EulerHS.Prelude hiding (id, show, get)
 import qualified EulerHS.Prelude as EHP
 import EulerHS.Language
-import Euler.Lens
 import WebService.Language
 
 import           Data.Generics.Product.Fields
@@ -11,18 +13,11 @@ import           Data.Generics.Product.Subtype
 import           Data.List (lookup, span)
 import           Servant.Server
 
-import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Gateway
-import Euler.Common.Types.Order
-import Euler.Common.Types.OrderMetadata
-import Euler.Product.Domain.Order
-import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
-import Euler.Product.OLTP.Services.RedisService
-
 -- EHS: Storage interaction should be extracted from here into separate modules
 import Euler.Storage.Types.Customer
 import Euler.Storage.Types.Mandate
-import Euler.Storage.Types.MerchantAccount
+import qualified Euler.Storage.Types.MerchantAccount as DBMA
+import qualified Euler.Storage.Types.OrderAddress as Address (id)
 import Euler.Storage.Types.MerchantIframePreferences
 import Euler.Storage.Types.OrderAddress
 import Euler.Storage.Types.OrderMetadataV2
@@ -37,61 +32,73 @@ import qualified Data.Aeson           as A
 import qualified Data.Text            as Text
 import qualified Text.Read            as TR
 
--- EHS: Should not depend on API
+-- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
+import qualified Euler.API.Order            as API
 
+import Euler.Common.Types.DefaultDate
+import Euler.Common.Types.Gateway
+import Euler.Common.Types.Order
+import Euler.Common.Types.OrderMetadata
 import qualified Euler.Common.Types.Mandate as M
 import qualified Euler.Common.Types.Order   as C
 import qualified Euler.Common.Metric        as Metric
+import Euler.Product.Domain.Order
+import Euler.Product.Domain.MerchantAccount
+import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
+import Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Config.Config        as Config
 import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Storage.Types.OrderAddress as Address (id)
 
+import Euler.Lens
 import Euler.Storage.DBConfig
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
-orderCreate :: Order -> RP.RouteParameters -> MerchantAccount -> Flow  OrderCreateResponse
-orderCreate Order {..} routeParams mAccnt = do
-
-  -- EHS: HTTP error codes should exist only on the server level, not in business logic.
-  merchantId' <- maybe (throwException err500 {errBody = "1"}) pure (mAccnt ^. _merchantId)
--- * state update. This functionality repeated in another methods.
--- state update with order_id and merchantId
---
--- * end
-  (orderIfExists :: Maybe OrderReference) <- do
-    conn <- getConn eulerDB
+loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
+loadOrder orderId' merchantId' = do
+    conn <- getConn eulerDB       -- EHS: withDB
     res <- runDB conn $ do
-      let predicate OrderReference {orderId, merchantId} =
-            (orderId    ==. B.just_ (B.val_ $ orderCreateReq ^. _order_id)) &&.
-            (merchantId ==. B.just_ (B.val_ merchantId'))
 
+      let predicate OrderReference {orderId, merchantId} =
+            (orderId    ==. B.just_ (B.val_ orderId')) &&.
+            (merchantId ==. B.just_ (B.val_ merchantId'))
       findRow
         $ B.select
         $ B.limit_ 1
         $ B.filter_ predicate
         $ B.all_ (order_reference eulerDBSchema)
+
     case res of
       Right mordRef -> pure mordRef
-    --   Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
       Left err -> do
         logError "Find OrderReference" $ toText $ P.show err
+
+        -- EHS: magical number
+        -- EHS: why throwing error?
+        --      Is this a critical situation?
+        --      Rework the return type. Should return Either / Maybe instead of throwing.
+        -- EHS: what flow should be on not found?
         throwException err500 {errBody = "2"}
-  --pure $ Nothing --findOne "ECRDB" $
-  --    where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]
-  resp <- case (orderIfExists) of
-            (Just orderRef) -> do --this is only create function
-              throwException err400 {errBody = "Order already created."}
-    --          _ <- updateOrder updatedOrderCreateReq order routeParams mAccnt
-    --          -- *             ^ return OrderReference
-    --          getOrderStatusWithoutAuth (getOrderStatusRequest orderId) routeParams mAccnt true (Just updatedOrderCreateReq) (Just $ order)
-    --          -- * ^ return Foreign (encoded OrderStatusResponse), also may change fields from snake case to camel case in checkEnableCaseForResponse
-            Nothing -> createOrder orderCreateReq routeParams mAccnt
-       -- * ^ return Foreign (encoded OrderAPIResponse) -- encoded to Foreign because
-                                                        -- original function can return different types
-  --  log "createOrUpdateOrder response: " resp
+
+-- EHS: should not depend on API types. Rethink OrderCreateResponse.
+-- EHS: this function is about validation.
+orderCreate :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
+orderCreate routeParams order' mAccnt = do
+
+  -- EHS: HTTP error codes should exist only on the server level, not in business logic.
+  -- EHS: loading merchant is a effectful pre-validation procedure.
+  --      Should be done on the validation layer.
+  -- EHS: (Maybe MerchantId) should not be Maybe.
+  merchantId' <- maybe (throwException err500 {errBody = "1"}) pure (mAccnt ^. _merchantId)
+
+  existingOrder <- loadOrder (order' ^. _order_id) merchantId'
+
+  resp <- case existingOrder of
+        -- EHS: rework exceptions
+      Just orderRef -> throwException err400 {errBody = "Order already created."}
+      Nothing       -> doOrderCreate routeParams order' mAccnt
   pure resp
 
 mkUdf :: OrderCreateRequest -> UDF
@@ -117,14 +124,19 @@ mkUdf orderCreateReq@OrderCreateRequest {..} =
 
 -- CREATE
 
-createOrder :: OrderCreateRequest -> RP.RouteParameters -> MerchantAccount -> Flow OrderCreateResponse -- OrderAPIResponse
-createOrder orderCreateReq routeParams mAccnt@MerchantAccount{..} = do
-  merchantId <- maybe (throwException err500 {errBody = "4"}) pure merchantId
-  mandateOrder <- isMandateOrder orderCreateReq routeParams merchantId -- mAccnt
-  orderRef <- createOrder' orderCreateReq routeParams mAccnt mandateOrder
-  orderIdPrimary <- getOrderId orderRef
+doOrderCreate :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse -- OrderAPIResponse
+doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
+
+  mandateOrder <- isMandateOrder routeParams order' merchantId
+
+  orderRef <- createOrder' routeParams order' mAccnt mandateOrder
+
+  -- EHS: orderIdPrimary should exist to the moment.
+  -- orderIdPrimary <- getOrderId orderRef
+
   let orderStatus = getField @"status" orderRef
       maybeResellerId = resellerId --  mAccnt
+
   maybeResellerEndpoint <- maybe (pure Nothing) handleReseller maybeResellerId
   orderResponse <- makeOrderResponse orderRef maybeResellerEndpoint
  -- _ <- logAnomaly orderRef
@@ -183,18 +195,25 @@ addOrderToken orderId OrderCreateRequest{..} merchantId = do
                                 }
     Nothing -> pure Nothing
 
-isMandateOrder :: OrderCreateRequest -> RP.RouteParameters -> Text {- MerchantAccount -} -> Flow Bool
-isMandateOrder orderCreateReq routeParams merchantId {-mAccnt-} = do
- -- merchantId <- maybe (liftErr internalError) pure (unNullOrUndefined <<< _.merchantId <<< unwrap $ mAccnt)
-  mandateFeature <- pure $ fromMaybe DISABLED (orderCreateReq ^. _options_create_mandate)
-  if mandateFeature == DISABLED
-    then pure False
-    else do
-      validMandate <- isMandateValid orderCreateReq merchantId -- never returns False
-      if validMandate
-        then pure True
-        else throwException $ err400 {errBody = "invalid mandate params"} -- throwCustomException 400 "INVALID_REQUEST" "invalid mandate params"
+isMandateOrder :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantId -> Flow Bool
+isMandateOrder routeParams order' merchantId = do
 
+  -- EHS: _options_create_mandate should be defaulted to DISABLED in validators
+
+  case order' ^. _options_create_mandate of
+    DISABLED -> pure False
+    _        -> do
+      validMandate <- isMandateValid order' merchantId
+
+      -- EHS: rework exceptions.
+      -- throwCustomException 400 "INVALID_REQUEST" "invalid mandate params"
+      -- EHS: isMandateValid never returns False? Then throwing is not needed
+      unless validMandate $ throwException $ err400 {errBody = "invalid mandate params"}
+
+      pure True
+
+
+-- EHS: this function is really bad.
 isMandateValid :: OrderCreateRequest -> Text -> Flow Bool
 isMandateValid oReq@OrderCreateRequest {..} merchantId = if isTrueString $ customer_id -- orderCreateReq
   then do
@@ -234,64 +253,63 @@ isTrueString val =
     Just _ -> True
     Nothing -> False
 
-createOrder' ::  OrderCreateRequest -> RP.RouteParameters -> MerchantAccount -> Bool -> Flow OrderReference
-createOrder' orderCreateReq routeParams mAccnt@MerchantAccount{..} isMandate = do
-  merchantId' <- maybe (throwException err500 {errBody = "5"}) pure (merchantId)
-  merchantPrefs <- do
-    conn <- getConn eulerDB
-    res <- runDB conn $ do
-      let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (merchant_iframe_preferences eulerDBSchema)
-    case res of
-      Right (Just mIP) -> pure mIP
-      Right Nothing -> do
-        logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
-        throwException err500 {errBody = "6"}
-      Left err -> do
-        logError "SQLDB Interraction." $ toText $ P.show err
-        throwException err500 {errBody = "7"}
-  --pure defaultMerchantIframePreferences -- findOneWithErr ecDB (where_ := WHERE ["merchantId'" /\ String merchantId]) internalError
-  billingAddrId <- getBillingAddrId orderCreateReq mAccnt
-  shippingAddrId <- getShippingAddrId orderCreateReq
-  orderRefVal <- mkOrder mAccnt merchantPrefs orderCreateReq billingAddrId shippingAddrId
-  -- Need sql [insert/update/delete] methods that return values
+-- EHS: should be MerchantIframePreferences converted to domain type?
+loadMerchantPrefs :: MerchantId -> Flow MerchantIframePreferences
+loadMerchantPrefs merchantId' = do
+  conn <- getConn eulerDB   -- EHS: withDB
+  res <- runDB conn $ do
+    let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (merchant_iframe_preferences eulerDBSchema)
+
+  case res of
+    Right (Just mIPrefs) -> pure mIPrefs
+    Right Nothing -> do
+      logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
+      throwException err500 {errBody = "6"}   -- EHS: rework exceptions
+    Left err -> do
+      logError "SQLDB Interraction." $ toText $ P.show err
+      throwException err500 {errBody = "7"}
+
+createOrder' :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
+createOrder' routeParams order' mAccnt isMandate = do
+
+  merchantPrefs <- loadMerchantPrefs $ mAccnt ^. _merchantId
+
+  billingAddrId <- getBillingAddrId order' mAccnt
+  shippingAddrId <- getShippingAddrId order'
+
+  orderRefVal <- mkOrder mAccnt merchantPrefs order' billingAddrId shippingAddrId
+
   orderRef :: OrderReference <- do
     mOref <- withDB eulerDB $ do
-      insertRowsReturningList -- insertRows
+      insertRowsReturningList
         $ B.insert (order_reference eulerDBSchema)
         $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
-     -- findRow
-     --   $ B.select
-     --   $ B.filter_ (\ref -> ref ^. _orderId ==. (B.val_ $ orderRefVal ^. _orderId))
-     --   $ B.all_ (order_reference eulerDBSchema)
-    --maybe (throwException err500 {errBody = "8"}) pure mOref -- orderRefVal
     case mOref of
       [ordRef] -> pure ordRef
       x -> throwException err500 {errBody = EHP.show x}
-    --pure orderRefVal -- createWithErr ecDB orderRefVal internalError
   orderIdPrimary <- getOrderId orderRef
   -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
-  defaultMetaData <- mkMetadata routeParams orderCreateReq orderIdPrimary
+  defaultMetaData <- mkMetadata routeParams order' orderIdPrimary
   _ <- do
     conn <- getConn eulerDB
     runDB conn $ do
       insertRows
         $ B.insert (order_metadata_v2 eulerDBSchema)
         $ B.insertExpressions [ B.val_ defaultMetaData]
-  -- pure () -- createWithErr ecDB (defaultMetaData) internalError
   orderId <- maybe (throwException err500 {errBody = "9"}) pure (getField @"orderId"  orderRef)
   _ <- setCacheWithExpiry (merchantId' <> "_orderid_" <> orderId) orderRef Config.orderTtl
   _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId')
-  --skipIfB (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId') (not isMandate)
   pure orderRef
 
-getBillingAddrId :: OrderCreateRequest -> MerchantAccount -> Flow  (Maybe Int)
-getBillingAddrId orderCreateReq mAccnt = do
-  orderReq <- addCustomerInfoToRequest orderCreateReq mAccnt
+getBillingAddrId :: API.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
+getBillingAddrId order' mAccnt = do
+  orderReq <- addCustomerInfoToRequest order' mAccnt
+
   if (present orderReq)
   then do
     let newAddr = mkBillingAddress $ upcast orderReq
@@ -299,12 +317,6 @@ getBillingAddrId orderCreateReq mAccnt = do
       insertRowsReturningList -- insertRows
         $ B.insert (order_address eulerDBSchema)
         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-      -- findRow $ B.select -- what if insert fail?
-      --   $ B.limit_ 1
-      --   $ B.orderBy_ (B.desc_ . Address.id ) -- B.aggregate_ (\addr -> B.max_ (addr ^. _id ))
-      --   $ B.all_ (order_address eulerDBSchema)
-   -- Need sql [insert/update] methods that return values
-
     pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
   else pure Nothing
   where present (OrderCreateRequest {..}) = isJust
@@ -372,36 +384,39 @@ getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
 --   , countryCodeIso = billing_address_country_code_iso
 --   }
 -- add firstName and lastName
-addCustomerInfoToRequest :: OrderCreateRequest -> MerchantAccount -> Flow  OrderCreateRequest
-addCustomerInfoToRequest orderCreateReq mAccnt = do
-  if (shouldAddCustomerNames orderCreateReq) then do
+
+---- ????????????
+addCustomerInfoToRequest :: API.OrderCreateTemplate -> MerchantAccount -> Flow OrderCreateRequest
+addCustomerInfoToRequest order' mAccnt = do
+
+  if shouldAddCustomerNames order' then do
+
+    -- EHS: rework query
     maybeCustomer :: Maybe Customer <- withDB eulerDB $ do
       let predicate Customer {merchantAccountId, id, objectReferenceId}
-            = (   id ==.  (B.val_ $  orderCreateReq ^. _customer_id)
-              ||. objectReferenceId ==. (B.val_ $  orderCreateReq ^. _customer_id)
+            = (   id ==.  (B.val_ $  order' ^. _customer_id)
+              ||. objectReferenceId ==. (B.val_ $  order' ^. _customer_id)  -- EHS: objectReferenceId is customerId ?
               )
             &&. ( B.maybe_ (B.val_ False) (merchantAccountId ==. ) ( B.as_ @(Maybe Int) $ B.val_  $ mAccnt ^. _id))
       findRow
         $ B.select
         $ B.filter_ predicate
         $ B.all_ (customer eulerDBSchema)
-      --Customer.findMaybeByMerchantAccountAndCustId (orderCreateReq .^. _customer_id) (mAccnt .^. _id)
+
     case maybeCustomer of
       Just (Customer {..}) ->
-       -- let  orderReq = (unwrap orderCreateReq)
-       -- in pure $ OrderCreateReq orderReq
-          let OrderCreateRequest {..} = orderCreateReq
+          let OrderCreateRequest {..} = order'
           in
-            pure (orderCreateReq :: OrderCreateRequest)
+            pure (order' :: OrderCreateRequest)
                    { billing_address_first_name = (billing_address_first_name <|> firstName)
                    , billing_address_last_name = (billing_address_last_name <|> lastName)
                    }
-      Nothing -> pure orderCreateReq
-  else pure orderCreateReq
+      Nothing -> pure order'
+  else pure order'
 
   where shouldAddCustomerNames OrderCreateRequest {..} =
-           (isJust customer_id) -- isPresent = isJust
-              && ((isNothing billing_address_first_name)  -- isAbsent = isNothing
+           (isJust customer_id)
+              && ((isNothing billing_address_first_name)
                  || (isNothing billing_address_last_name))
 
 -- from src/Types/Storage/EC/Customer.purs
@@ -574,10 +589,10 @@ validateOrderParams OrderCreateRequest {..} = if amount < 1
   then throwException $ err400 {errBody = "Invalid amount"}
   else pure ()
 
-getOrderId :: OrderReference -> Flow Int
-getOrderId OrderReference{..} = case id of
-    Just x -> pure x
-    _ -> throwException err500 {errBody = "NO ORDER FOUND"} -- defaultThrowECException "NO_ORDER_FOUND" "NO ORDER FOUND"
+-- getOrderId :: OrderReference -> Flow Int
+-- getOrderId OrderReference{..} = case id of
+--     Just x -> pure x
+--     _ -> throwException err500 {errBody = "NO ORDER FOUND"} -- defaultThrowECException "NO_ORDER_FOUND" "NO ORDER FOUND"
 
 
 setMandateInCache :: OrderCreateRequest -> Int -> Text -> Text -> Flow ()

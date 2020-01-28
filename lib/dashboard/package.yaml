@@ -39,7 +39,6 @@ library:
   - src
   ghc-options:
   - -Wall
-  - -O2
   dependencies:
   - aeson
   - aeson-utils

@@ -117,7 +117,9 @@ library:
   - WebService.UUID
   ghc-options:
   - -Wall
-  - -O2
+  - -Wcompat
+  - -Widentities
+  - -fhide-source-paths
   dependencies:
   - euler-hs
 

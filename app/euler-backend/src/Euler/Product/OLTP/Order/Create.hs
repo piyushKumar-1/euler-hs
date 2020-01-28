@@ -272,17 +272,25 @@ loadMerchantPrefs merchantId' = do
       throwException err500 {errBody = "6"}   -- EHS: rework exceptions
     Left err -> do
       logError "SQLDB Interraction." $ toText $ P.show err
-      throwException err500 {errBody = "7"}
+      throwException err500 {errBody = "7"}   -- EHS: rework exceptions
+
+(<<|>>) :: Flow (Maybe a) -> Flow a -> Flow a
+(<<|>>) f1 f2 = do
+  mbRes <- f1
+  case mbRes of
+    Nothing -> f2
+    Just res -> pure res
 
 createOrder' :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
 createOrder' routeParams order' mAccnt isMandate = do
 
-  merchantPrefs <- loadMerchantPrefs $ mAccnt ^. _merchantId
+  merchantPrefs  <- loadMerchantPrefs $ mAccnt ^. _merchantId
 
-  billingAddrId <- getBillingAddrId order' mAccnt
+  -- billingAddrId  <- getBillingAddrId order' mAccnt
+  billingAddr    <- loadBillingAddr order' mAccnt <<|>> createBillingAddr order' mAccnt
   shippingAddrId <- getShippingAddrId order'
 
-  orderRefVal <- mkOrder mAccnt merchantPrefs order' billingAddrId shippingAddrId
+  orderRefVal    <- mkOrder mAccnt merchantPrefs order' billingAddrId shippingAddrId
 
   orderRef :: OrderReference <- do
     mOref <- withDB eulerDB $ do
@@ -306,6 +314,38 @@ createOrder' routeParams order' mAccnt isMandate = do
   _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId')
   pure orderRef
 
+
+
+
+loadBillingAddr :: API.OrderCreateTemplate -> MerchantAccount -> Flow (Maybe BillingAddress)
+loadBillingAddr order' mAccnt = do
+  orderReq <- addCustomerInfoToRequest order' mAccnt
+  --
+  -- if (present orderReq)
+  -- then do
+  --   let newAddr = mkBillingAddress $ upcast orderReq
+  --
+  --   mAddr <- withDB eulerDB $ do
+  --     insertRowsReturningList -- insertRows
+  --       $ B.insert (order_address eulerDBSchema)
+  --       $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
+  --
+  --   pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
+  -- else pure Nothing
+  -- where present (OrderCreateRequest {..}) = isJust
+  --         $   billing_address_first_name
+  --         <|> billing_address_last_name
+  --         <|> billing_address_line1
+  --         <|> billing_address_line2
+  --         <|> billing_address_line3
+  --         <|> billing_address_city
+  --         <|> billing_address_state
+  --         <|> billing_address_country
+  --         <|> billing_address_postal_code
+  --         <|> billing_address_phone
+  --         <|> billing_address_country_code_iso
+
+-- EHS: get function invalidly does inserting into DB.
 getBillingAddrId :: API.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
 getBillingAddrId order' mAccnt = do
   orderReq <- addCustomerInfoToRequest order' mAccnt
@@ -313,10 +353,12 @@ getBillingAddrId order' mAccnt = do
   if (present orderReq)
   then do
     let newAddr = mkBillingAddress $ upcast orderReq
+
     mAddr <- withDB eulerDB $ do
       insertRowsReturningList -- insertRows
         $ B.insert (order_address eulerDBSchema)
         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
+
     pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
   else pure Nothing
   where present (OrderCreateRequest {..}) = isJust
@@ -332,6 +374,7 @@ getBillingAddrId order' mAccnt = do
           <|> billing_address_phone
           <|> billing_address_country_code_iso
 
+-- EHS: get function invalidly does inserting into DB.
 getShippingAddrId ::  OrderCreateRequest -> Flow (Maybe Int)
 getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
   if (present orderCreateReq)
@@ -341,11 +384,6 @@ getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
       insertRowsReturningList -- insertRows
         $ B.insert (order_address eulerDBSchema)
         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-      --findRow $ B.select -- what if insert fail?
-      --  $ B.limit_ 1
-      --  $ B.orderBy_ (B.desc_ . Address.id ) -- B.aggregate_ (\addr -> B.max_ (addr ^. _id ))
-      --  $ B.all_ (order_address eulerDBSchema)
-     -- Need sql [insert/update/delete] methods that return values
     case mAddr of
       [] -> throwException err500 {errBody = "emptyaddr"}
       x -> runIO $ putStrLn $ P.show x

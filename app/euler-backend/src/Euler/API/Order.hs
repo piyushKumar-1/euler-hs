@@ -16,16 +16,22 @@ import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
 import qualified Prelude                      as P
 
+import           Euler.Common.Types.Currency (Currency)
 import           Euler.Common.Types.Order     (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Promotion
 
+import           Euler.Product.Domain.Money (Money)
 
 
+-- move to another place - used domain type Money inside
+-- or move Money to Common types ?
 data OrderCreateTemplate = OrderCreateTemplate
   { order_id                          :: Text
+  , amount                            :: Money
+  , currency                          :: Currency           -- Default: INR
   , options_create_mandate            :: MandateFeature     -- Default: DISABLED
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, ToForm)
+  deriving (Show, Eq, Ord, Generic, ToJSON)
 
 
 -- Previously: OrderCreateReq
@@ -135,7 +141,7 @@ instance FromForm OrderCreateRequest where
     auto_refund <- parseMaybe "auto_refund" f
     options_create_mandate <- liftA2 (<|>) (parseMaybe "options.create_mandate" f) (parseMaybe "options_create_mandate" f)
     options_get_client_auth_token <- liftA2 (<|>) (parseMaybe "options.get_client_auth_token" f) (parseMaybe "options_get_client_auth_token" f)
-    pure Order{..}
+    pure OrderCreateRequest{..}
 
 instance FromJSON OrderCreateRequest where
   parseJSON = withObject "OrderCreateRequest" $ \o -> do
@@ -192,7 +198,7 @@ instance FromJSON OrderCreateRequest where
     auto_refund <- o .: "auto_refund"
     options_create_mandate <- o .: "options.create_mandate" <|> o .: "options_create_mandate"
     options_get_client_auth_token <- o .: "options.get_client_auth_token" <|> o .: "options_get_client_auth_token"
-    pure Order{..}
+    pure OrderCreateRequest{..}
 
 fromStrValue :: Value -> Maybe Text
 fromStrValue s = case s of

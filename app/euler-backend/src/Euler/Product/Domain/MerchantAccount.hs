@@ -3,7 +3,7 @@
 
 module Euler.Product.Domain.MerchantAccount where
 
-
+import EulerHS.Prelude
 
 
 

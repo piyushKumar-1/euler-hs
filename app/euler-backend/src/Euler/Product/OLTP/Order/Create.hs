@@ -76,10 +76,13 @@ loadOrder orderId' merchantId' = do
         logError "Find OrderReference" $ toText $ P.show err
 
         -- EHS: magical number
+        -- A: number only for debug
         -- EHS: why throwing error?
         --      Is this a critical situation?
         --      Rework the return type. Should return Either / Maybe instead of throwing.
+        -- A: this error from db interraction (lost connection, etc) so should be 505 internal error
         -- EHS: what flow should be on not found?
+        -- A: return type is Maybe, so return Nothing and consumer chose what to do
         throwException err500 {errBody = "2"}
 
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
@@ -346,6 +349,8 @@ loadBillingAddr order' mAccnt = do
   --         <|> billing_address_country_code_iso
 
 -- EHS: get function invalidly does inserting into DB.
+-- A: Address field "id" in DB is autoincremental, cant be created in flow
+-- maybe another function name will be better
 getBillingAddrId :: API.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
 getBillingAddrId order' mAccnt = do
   orderReq <- addCustomerInfoToRequest order' mAccnt
@@ -375,6 +380,8 @@ getBillingAddrId order' mAccnt = do
           <|> billing_address_country_code_iso
 
 -- EHS: get function invalidly does inserting into DB.
+-- A: Address field "id" in DB is autoincremental, cant be created in flow
+-- maybe another function name will be better
 getShippingAddrId ::  OrderCreateRequest -> Flow (Maybe Int)
 getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
   if (present orderCreateReq)

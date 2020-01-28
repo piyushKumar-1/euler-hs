@@ -13,6 +13,7 @@ module EulerHS.Extra.Validation
   , module X
   , withField
   , extractJust
+  , extractMaybeWithDefault
   , decode
   , insideJust
   , parValidate
@@ -66,6 +67,9 @@ insideJust val (Just a) = Just <$> val a
 --   if value is Nothing then raise Failure
 extractJust :: Transformer (Maybe a) a
 extractJust r = ReaderT (\ctx -> maybe (Left [ctx <> " not present"]) Right r)
+
+extractMaybeWithDefault :: a -> Transformer (Maybe a) a
+extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)
 
 -- | Extract value and run validators on it
 withField

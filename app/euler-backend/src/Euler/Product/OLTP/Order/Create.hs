@@ -248,6 +248,7 @@ readMayT = TR.readMaybe . Text.unpack
 
     -- from src/Engineering/Commons.purs
 -- In groovy empty string is `falsy` value
+-- added validator "notBlank" for "customer_id" field in OrderCreateRequest
 isTrueString :: Maybe Text -> Bool
 isTrueString val =
   case val of

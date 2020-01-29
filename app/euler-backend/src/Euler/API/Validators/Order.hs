@@ -19,15 +19,12 @@ instance Transform APIO.OrderCreateRequest APIO.OrderCreateTemplate where
   transform sm = APIO.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
     <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
-    <*> withField @"currency" sm (extractMaybeWithDefault "INR" >=> decode)
+    <*> withField @"currency" sm (extractMaybeWithDefault INR)
+    <*> withField @"customer_id" sm (insideJust customerIdValidators)
+--    <*> withField @"billing_address_country_code_iso" sm (extractMaybeWithDefault "IND")
+--    <*> withField @"shipping_address_country_code_iso" sm (extractMaybeWithDefault "IND")
     <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
 
-
-notNegative :: Validator Int
-notNegative = mkValidator "Should not be negative." (>= 0)
-
-textNotEmpty :: Validator Text
-textNotEmpty = mkValidator "can't be empty" (not . T.null)
 
 amountValidators :: Validator Double
 amountValidators =
@@ -35,6 +32,21 @@ amountValidators =
     [ max2DecimalDigits
     , gteOne
     ]
+
+customerIdValidators :: Validator Text
+customerIdValidators =
+  parValidate
+    [ notBlank
+    ]
+
+notBlank :: Validator Text
+notBlank = mkValidator "Can't be blank" (not . T.null . T.strip)
+
+notNegative :: Validator Int
+notNegative = mkValidator "Should not be negative." (>= 0)
+
+textNotEmpty :: Validator Text
+textNotEmpty = mkValidator "Can't be empty" (not . T.null)
 
 --Will accept double values with upto two decimal places.
 max2DecimalDigits :: Validator Double

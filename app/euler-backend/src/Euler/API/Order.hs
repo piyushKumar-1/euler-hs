@@ -29,6 +29,9 @@ data OrderCreateTemplate = OrderCreateTemplate
   { order_id                          :: Text
   , amount                            :: Money
   , currency                          :: Currency           -- Default: INR
+  , customer_id                       :: Maybe Text
+ -- , billing_address_country_code_iso  :: Text               -- Default value: "IND"
+ -- , shipping_address_country_code_iso :: Text               -- Default value: "IND"
   , options_create_mandate            :: MandateFeature     -- Default: DISABLED
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)
@@ -38,7 +41,7 @@ data OrderCreateTemplate = OrderCreateTemplate
 data OrderCreateRequest = OrderCreateRequest
   { order_id                          :: Text
   , amount                            :: Double
-  , currency                          :: Maybe Text -- EUR, USD, GBP,  Default value: INR
+  , currency                          :: Maybe Currency -- Text -- EUR, USD, GBP,  Default value: INR
   , customer_id                       :: Maybe Text
   , customer_email                    :: Maybe Text
   , customer_phone                    :: Maybe Text

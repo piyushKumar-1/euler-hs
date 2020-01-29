@@ -12,7 +12,7 @@ import           EulerHS.Interpreters
 import           EulerHS.Types hiding (error)
 
 import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Order (OrderStatus(..))
+import Euler.Common.Types.Order (OrderStatus(..), MandateFeature(..))
 import Euler.API.RouteParameters
 
 import qualified Euler.API.Order                        as OrderAPI
@@ -49,6 +49,85 @@ withEmptyDB act = withFlowRuntime Nothing (\rt -> do
       `finally` error ("Preparing test values failed: " <> (toText $ P.show e))
     Right _ -> act rt `finally` runFlow rt rmTestDB
     )
+
+orderReqTemplate :: OrderAPI.OrderCreateRequest
+orderReqTemplate = OrderAPI.OrderCreateRequest
+  { order_id                          = "" -- :: Text
+  , amount                            = 0 -- :: Double
+  , currency                          = Nothing -- :: Maybe Text -- EUR, USD, GBP,  Default value: INR
+  , customer_id                       = Nothing -- :: Maybe Text
+  , customer_email                    = Nothing -- :: Maybe Text
+  , customer_phone                    = Nothing -- :: Maybe Text
+  , description                       = Nothing -- :: Maybe Text
+  , return_url                        = Nothing -- :: Maybe Text
+  , product_id                        = Nothing -- :: Maybe Text
+  , billing_address_first_name        = Nothing -- :: Maybe Text
+  , billing_address_last_name         = Nothing -- :: Maybe Text
+  , billing_address_line1             = Nothing -- :: Maybe Text
+  , billing_address_line2             = Nothing -- :: Maybe Text
+  , billing_address_line3             = Nothing -- :: Maybe Text
+  , billing_address_city              = Nothing -- :: Maybe Text
+  , billing_address_state             = Nothing -- :: Maybe Text
+  , billing_address_country           = Nothing -- :: Maybe Text
+  , billing_address_postal_code       = Nothing -- :: Maybe Text
+  , billing_address_phone             = Nothing -- :: Maybe Text
+  , billing_address_country_code_iso  = Nothing -- :: Maybe Text -- Default value: IND
+  , shipping_address_first_name       = Nothing -- :: Maybe Text
+  , shipping_address_last_name        = Nothing -- :: Maybe Text
+  , shipping_address_line1            = Nothing -- :: Maybe Text
+  , shipping_address_line2            = Nothing -- :: Maybe Text
+  , shipping_address_line3            = Nothing -- :: Maybe Text
+  , shipping_address_city             = Nothing -- :: Maybe Text
+  , shipping_address_state            = Nothing -- :: Maybe Text
+  , shipping_address_country          = Nothing -- :: Maybe Text
+  , shipping_address_postal_code      = Nothing -- :: Maybe Text
+  , shipping_address_phone            = Nothing -- :: Maybe Text
+  , shipping_address_country_code_iso = Nothing -- :: Maybe Text -- Default value: IND
+  , udf1                              = Nothing -- Just "udf1" -- :: Maybe Text
+  , udf2                              = Nothing -- Just "udf2" -- :: Maybe Text
+  , udf3                              = Nothing -- Just "udf3" -- :: Maybe Text
+  , udf4                              = Nothing -- Just "udf4" -- :: Maybe Text
+  , udf5                              = Nothing -- Just "udf5" -- :: Maybe Text
+  , udf6                              = Nothing -- Just "udf6" -- :: Maybe Text
+  , udf7                              = Nothing -- Just "udf7" -- :: Maybe Text
+  , udf8                              = Nothing -- Just "udf8" -- :: Maybe Text
+  , udf9                              = Nothing -- Just "udf9" -- :: Maybe Text
+  , udf10                             = Nothing -- Just "udf10" -- :: Maybe Text
+  , metaData                          = Nothing -- :: Maybe Text
+  , gateway_id                        = Nothing -- :: Maybe Text -- converted to Int, why Text?
+  , mandate_max_amount                = Nothing -- :: Maybe Text
+  , auto_refund                       = Nothing -- :: Maybe Bool
+  , options_create_mandate            = Nothing
+  , options_get_client_auth_token     = Nothing -- Just True
+  }
+
+-- order_id textNotEmpty
+-- amount max2DecimalDigits gteOne
+-- currency default: INR
+-- customer_id notBlank if present
+-- options_create_mandate default: DISABLED
+ordReqForValidators = orderReqTemplate
+  { amount = 0.0104
+  , customer_id = Just "  "}
+
+ordReqExisted = orderReqTemplate
+  {order_id = "orderId"
+  , amount = 1
+  }
+
+ordReqMandateFeatureFailData = orderReqTemplate
+  { order_id = "wrongMandateParams"
+  , amount = 500
+  , mandate_max_amount = Nothing
+  , options_create_mandate = Just OPTIONAL
+  }
+
+ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
+  { order_id = "wrongMandateParams"
+  , amount = 50000
+  , mandate_max_amount = Just "100500"
+  , options_create_mandate = Just OPTIONAL
+  }
 
 ordReq :: OrderAPI.OrderCreateRequest
 ordReq = OrderAPI.OrderCreateRequest
@@ -276,6 +355,50 @@ spec =
           && amount == Just 1000.0
          -- && juspay ==
           )
+
+      it "Order with ordReqForValidators" $ \rt -> do
+        eRes <- do
+          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                            (Version "2018-07-01")
+                            (UserAgent "Uagent")
+          let validatedReq = transform ordReqForValidators
+          case validatedReq of
+            Left err -> pure err
+            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+          eRes `shouldBe` ""
+
+      it "Order with ordReqExisted" $ \rt -> do
+        eRes <- do
+          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                            (Version "2018-07-01")
+                            (UserAgent "Uagent")
+          let validatedReq = transform ordReqExisted
+          case validatedReq of
+            Left err -> pure err
+            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+          eRes `shouldBe` ""
+
+      it "Order with ordReqMandateFeatureFailData" $ \rt -> do
+        eRes <- do
+          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                            (Version "2018-07-01")
+                            (UserAgent "Uagent")
+          let validatedReq = transform ordReqMandateFeatureFailData
+          case validatedReq of
+            Left err -> pure err
+            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+          eRes `shouldBe` ""
+
+      it "Order with ordReqMandateFeatureTooBigMandateMaxAmount" $ \rt -> do
+        eRes <- do
+          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                            (Version "2018-07-01")
+                            (UserAgent "Uagent")
+          let validatedReq = transform ordReqMandateFeatureTooBigMandateMaxAmount
+          case validatedReq of
+            Left err -> pure err
+            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+          eRes `shouldBe` ""
 
       it "OrderStatus" $ \rt -> do
         eRes <- runFlow rt $ prepareDBConnections *> OrderStatus.processOrderStatusGET "orderId" "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI="

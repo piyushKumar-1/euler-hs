@@ -28,7 +28,8 @@ import           Euler.Product.Domain.Money (Money)
 data OrderCreateRequest = OrderCreateRequest
   { order_id                          :: Text
   , amount                            :: Double
-  , currency                          :: Maybe Currency -- Text -- EUR, USD, GBP,  Default value: INR
+  , currency                          :: Maybe Currency -- Text -- EUR, USD, GBP,
+--  Default value: MerchantIframePreferences defaultCurrency or INR
   , customer_id                       :: Maybe Text
   , customer_email                    :: Maybe Text
   , customer_phone                    :: Maybe Text

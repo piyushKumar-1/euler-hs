@@ -54,7 +54,8 @@ orderReqTemplate :: OrderAPI.OrderCreateRequest
 orderReqTemplate = OrderAPI.OrderCreateRequest
   { order_id                          = "" -- :: Text
   , amount                            = 0 -- :: Double
-  , currency                          = Nothing -- :: Maybe Text -- EUR, USD, GBP,  Default value: INR
+  , currency                          = Nothing -- :: Maybe Text -- EUR, USD, GBP,
+--  Default value: MerchantIframePreferences defaultCurrency or INR
   , customer_id                       = Nothing -- :: Maybe Text
   , customer_email                    = Nothing -- :: Maybe Text
   , customer_phone                    = Nothing -- :: Maybe Text
@@ -103,7 +104,6 @@ orderReqTemplate = OrderAPI.OrderCreateRequest
 
 -- order_id textNotEmpty
 -- amount max2DecimalDigits gteOne
--- currency default: INR
 -- customer_id notBlank if present
 -- options_create_mandate default: DISABLED
 ordReqForValidators = orderReqTemplate

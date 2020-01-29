@@ -19,7 +19,7 @@ instance Transform APIO.OrderCreateRequest APIO.OrderCreateTemplate where
   transform sm = APIO.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
     <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
-    <*> withField @"currency" sm (extractMaybeWithDefault INR)
+    <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
     <*> withField @"customer_id" sm (insideJust customerIdValidators)
 --    <*> withField @"billing_address_country_code_iso" sm (extractMaybeWithDefault "IND")
 --    <*> withField @"shipping_address_country_code_iso" sm (extractMaybeWithDefault "IND")

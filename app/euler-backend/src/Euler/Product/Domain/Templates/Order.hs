@@ -17,7 +17,7 @@ import           Euler.Product.Domain.Templates.Customer
 
 data OrderCreateTemplate = OrderCreateTemplate
   { orderId                        :: Text
-  , currency                       :: Currency             -- Default: INR
+  , currency                       :: Maybe Currency -- Default value: MerchantIframePreferences defaultCurrency or INR
   , amount                         :: Money
   -- , customer_id                       :: Maybe Text        -- EHS: fill billing_addr_customer_info instead
  -- , shipping_address_country_code_iso :: Text               -- Default: "IND"

@@ -17,24 +17,11 @@ import qualified Data.Text.Encoding           as T
 import qualified Prelude                      as P
 
 import           Euler.Common.Types.Currency (Currency)
+import           Euler.Common.Types.Customer (CustomerId)
 import           Euler.Common.Types.Order     (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Promotion
 
 import           Euler.Product.Domain.Money (Money)
-
-
--- move to another place - used domain type Money inside
--- or move Money to Common types ?
-data OrderCreateTemplate = OrderCreateTemplate
-  { order_id                          :: Text
-  , amount                            :: Money
-  , currency                          :: Currency           -- Default: INR
-  , customer_id                       :: Maybe Text
- -- , billing_address_country_code_iso  :: Text               -- Default value: "IND"
- -- , shipping_address_country_code_iso :: Text               -- Default value: "IND"
-  , options_create_mandate            :: MandateFeature     -- Default: DISABLED
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON)
 
 
 -- Previously: OrderCreateReq
@@ -48,8 +35,10 @@ data OrderCreateRequest = OrderCreateRequest
   , description                       :: Maybe Text
   , return_url                        :: Maybe Text
   , product_id                        :: Maybe Text
+
   , billing_address_first_name        :: Maybe Text
   , billing_address_last_name         :: Maybe Text
+
   , billing_address_line1             :: Maybe Text
   , billing_address_line2             :: Maybe Text
   , billing_address_line3             :: Maybe Text

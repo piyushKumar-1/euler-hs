@@ -1,9 +1,12 @@
 -- {-# LANGUAGE DeriveAnyClass #-}
 --
 module Euler.Common.Types.Address where
---
+
 -- import EulerHS.Prelude hiding (id, state)
---
+
+type AddressId = Int
+
+
 -- data OrderAddress = OrderAddress
 --   { id             :: Maybe Int
 --   , version        :: Int

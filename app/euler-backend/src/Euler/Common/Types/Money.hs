@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Product.Domain.Money
+module Euler.Common.Types.Money
   ( Money
   , mkMoney
   , fromMoney

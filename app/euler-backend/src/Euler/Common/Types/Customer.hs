@@ -7,8 +7,10 @@ import Data.Time
 
 import Euler.Common.Types.DefaultDate
 
+type CustomerId = Text
+
 data Customer = Customer
-  { id                :: Maybe Text
+  { id                :: Maybe CustomerId
   , version           :: Int
   , dateCreated       :: LocalTime
   , emailAddress      :: Maybe Text

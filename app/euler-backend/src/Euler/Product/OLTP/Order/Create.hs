@@ -50,6 +50,8 @@ import Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Config.Config        as Config
 import qualified Euler.Config.ServiceConfiguration as SC
 
+import qualified Euler.Product.Domain.Templates as Ts
+
 import Euler.Lens
 import Euler.Storage.DBConfig
 import qualified Database.Beam as B
@@ -87,7 +89,7 @@ loadOrder orderId' merchantId' = do
 
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
 -- EHS: this function is about validation.
-orderCreate :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
+orderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 orderCreate routeParams order' mAccnt = do
 
   -- EHS: HTTP error codes should exist only on the server level, not in business logic.
@@ -127,7 +129,7 @@ mkUdf orderCreateReq@OrderCreateRequest {..} =
 
 -- CREATE
 
-doOrderCreate :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse -- OrderAPIResponse
+doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse -- OrderAPIResponse
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 
   mandateOrder <- isMandateOrder routeParams order' merchantId
@@ -285,13 +287,17 @@ loadMerchantPrefs merchantId' = do
     Nothing -> f2
     Just res -> pure res
 
-createOrder' :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
+createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
 createOrder' routeParams order' mAccnt isMandate = do
 
   merchantPrefs  <- loadMerchantPrefs $ mAccnt ^. _merchantId
 
-  -- billingAddrId  <- getBillingAddrId order' mAccnt
-  billingAddr    <- loadBillingAddr order' mAccnt <<|>> createBillingAddr order' mAccnt
+  do
+    -- EHS: loadBillingAddr knows too much about customer
+    -- EHS: previously addCustomerInfoToRequest
+    billingAddrCustomerInfo <- loadCustomerInfo (order' ^. _billingAddrCustomerInfo) (mAccnt ^. _id)
+    billingAddr             <- updateBillingAddr (order' ^. _billingAddr) billingAddrCustomerInfo
+
   shippingAddrId <- getShippingAddrId order'
 
   orderRefVal    <- mkOrder mAccnt merchantPrefs order' billingAddrId shippingAddrId
@@ -318,41 +324,44 @@ createOrder' routeParams order' mAccnt isMandate = do
   _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId')
   pure orderRef
 
+loadCustomerInfo :: Ts.CustomerInfoTemplate -> MerchantAccountId -> Flow Ts.CustomerInfoTemplate
+loadCustomerInfo ci@(Ts.CustomerInfoTemplate Nothing _ _) _ = pure ci
+loadCustomerInfo ci@(Ts.CustomerInfoTemplate (Just customerId) mbFirstName mbLastName) mAccntId = do
 
+    -- EHS: after refactoring, we query DB every time when customerId is available.
+    -- EHS: rework query (in addCustomerInfoToRequest as well)
+    -- EHS: DB type Customer should be explicit or qualified
+    mbCustomer :: Maybe Customer <- withDB eulerDB $ do
+      let predicate Customer {merchantAccountId, id, objectReferenceId}
+            = (   id ==.  (B.val_ customerId)
+              ||. objectReferenceId ==. (B.val_ customerId)  -- EHS: objectReferenceId is customerId ?
+              )
+            &&. (B.maybe_ (B.val_ False) (merchantAccountId ==.) (B.as_ @(Maybe Int) $ B.val_ mAccntId))
+      findRow
+        $ B.select
+        $ B.filter_ predicate
+        $ B.all_ (customer eulerDBSchema)
 
+    pure $ case mbCustomer of
+      Just (Customer {..}) -> Ts.CustomerInfoTemplate customerId (mbFirstName <|> firstName) (mbLastName <|> lastName)
+      Nothing              -> ci
 
-loadBillingAddr :: API.OrderCreateTemplate -> MerchantAccount -> Flow (Maybe BillingAddress)
-loadBillingAddr order' mAccnt = do
-  orderReq <- addCustomerInfoToRequest order' mAccnt
-  --
-  -- if (present orderReq)
-  -- then do
-  --   let newAddr = mkBillingAddress $ upcast orderReq
-  --
-  --   mAddr <- withDB eulerDB $ do
-  --     insertRowsReturningList -- insertRows
-  --       $ B.insert (order_address eulerDBSchema)
-  --       $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-  --
-  --   pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
-  -- else pure Nothing
-  -- where present (OrderCreateRequest {..}) = isJust
-  --         $   billing_address_first_name
-  --         <|> billing_address_last_name
-  --         <|> billing_address_line1
-  --         <|> billing_address_line2
-  --         <|> billing_address_line3
-  --         <|> billing_address_city
-  --         <|> billing_address_state
-  --         <|> billing_address_country
-  --         <|> billing_address_postal_code
-  --         <|> billing_address_phone
-  --         <|> billing_address_country_code_iso
+updateBillingAddr :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Flow (Maybe AddressId)
+updateBillingAddr addr customerInfo =
+  case toDBBillingAddress addr customerInfo of
+    Nothing -> pure Nothing
+    Just dbAddr -> do
+      mAddr <- withDB eulerDB $ do
+        insertRowsReturningList
+          $ B.insert (order_address eulerDBSchema)
+          $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
+      pure $ (^. _id) =<< (safeHead mAddr)
+
 
 -- EHS: get function invalidly does inserting into DB.
 -- A: Address field "id" in DB is autoincremental, cant be created in flow
 -- maybe another function name will be better
-getBillingAddrId :: API.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
+getBillingAddrId :: Ts.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
 getBillingAddrId order' mAccnt = do
   orderReq <- addCustomerInfoToRequest order' mAccnt
 
@@ -410,25 +419,51 @@ getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
           <|>  shipping_address_phone
           <|>  shipping_address_country_code_iso
 
--- mkBillingAddress :: OrderCreateRequest -> OrderAddress
--- mkBillingAddress OrderCreateRequest {..} = OrderAddress
---   { id             = Nothing -- in DB it Not Null, Auto increment
---   , version        = 1 -- defaultVersion
--- -- from src/Config/Constants.purs
--- --  defaultVersion :: Int
--- --  defaultVersion = 1
---   , firstName      = billing_address_first_name
---   , lastName       = billing_address_last_name
---   , line1          = billing_address_line1
---   , line2          = billing_address_line2
---   , line3          = billing_address_line3
---   , city           = billing_address_city
---   , state          = billing_address_state
---   , country        = billing_address_country
---   , postalCode     = billing_address_postal_code
---   , phone          = billing_address_phone
---   , countryCodeIso = billing_address_country_code_iso
---   }
+-- EHS: DB types should be denoted explicitly.
+toDBBillingAddress :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Maybe OrderAddress
+toDBBillingAddress (Ts.AddressTemplate {..}) (Ts.CustomerInfoTemplate {..})
+  | nothingSet = Nothing
+  | otherwise = Just $ OrderAddress
+        { id             = Nothing  -- in DB it's not Null, Auto increment
+        , version        = 1        -- defaultVersion
+      -- from src/Config/Constants.purs
+      --  defaultVersion :: Int
+      --  defaultVersion = 1
+        ..
+        }
+  where
+    nothingSet = isNothing
+      $   firstName
+      <|> lastName
+      <|> line1
+      <|> line2
+      <|> line3
+      <|> city
+      <|> state
+      <|> country
+      <|> postalCode
+      <|> phone
+      <|> countryCodeIso
+
+mkBillingAddress :: OrderCreateRequest -> OrderAddress
+mkBillingAddress OrderCreateRequest {..} = OrderAddress
+  { id             = Nothing -- in DB it Not Null, Auto increment
+  , version        = 1 -- defaultVersion
+-- from src/Config/Constants.purs
+--  defaultVersion :: Int
+--  defaultVersion = 1
+  , firstName      = billing_address_first_name
+  , lastName       = billing_address_last_name
+  , line1          = billing_address_line1
+  , line2          = billing_address_line2
+  , line3          = billing_address_line3
+  , city           = billing_address_city
+  , state          = billing_address_state
+  , country        = billing_address_country
+  , postalCode     = billing_address_postal_code
+  , phone          = billing_address_phone
+  , countryCodeIso = billing_address_country_code_iso
+  }
 -- add firstName and lastName
 
 ---- ????????????

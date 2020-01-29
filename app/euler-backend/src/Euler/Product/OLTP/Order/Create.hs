@@ -335,6 +335,9 @@ loadCustomerInfo ci@(Ts.CustomerInfoTemplate (Just customerId) mbFirstName mbLas
       let predicate Customer {merchantAccountId, id, objectReferenceId}
             = (   id ==.  (B.val_ customerId)
               ||. objectReferenceId ==. (B.val_ customerId)  -- EHS: objectReferenceId is customerId ?
+                                                             -- A: in customer DB table "objectReferenceId" - id from merchant
+                                                             -- (how merchant identifies customer in their DB eg. by email or mobile number )
+                                                             -- and "id" - our id. So merchant can use both
               )
             &&. (B.maybe_ (B.val_ False) (merchantAccountId ==.) (B.as_ @(Maybe Int) $ B.val_ mAccntId))
       findRow
@@ -477,6 +480,9 @@ addCustomerInfoToRequest order' mAccnt = do
       let predicate Customer {merchantAccountId, id, objectReferenceId}
             = (   id ==.  (B.val_ $  order' ^. _customer_id)
               ||. objectReferenceId ==. (B.val_ $  order' ^. _customer_id)  -- EHS: objectReferenceId is customerId ?
+                                                                            -- A: in customer DB table "objectReferenceId" - id from merchant
+                                                                            -- (how merchant identifies customer in their DB eg. by email or mobile number )
+                                                                            -- and "id" - our id. So merchant can use both
               )
             &&. ( B.maybe_ (B.val_ False) (merchantAccountId ==. ) ( B.as_ @(Maybe Int) $ B.val_  $ mAccnt ^. _id))
       findRow

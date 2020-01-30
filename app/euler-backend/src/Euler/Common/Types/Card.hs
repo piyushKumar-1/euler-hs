@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Euler.Common.Types.Transaction where
+module Euler.Common.Types.Card where
 
 import EulerHS.Prelude
 
@@ -13,21 +13,30 @@ import Database.Beam.MySQL
 import qualified Data.Text as T
 
 
-data AuthType
-  = ATMPIN
-  | THREE_DS
-  | OTP
-  | VISA_CHECKOUT
+data CardType
+  = CREDIT
+  | DEBIT
+  | PREPAID
+  | NB
+  | WALLET
+  | PAYLATER
+  | UPI
+  | ATM_CARD
+  | REWARD
+  | CONSUMER_FINANCE
+  | CASH
+  | BLANK
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
 
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be AuthType where
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be CardType where
   sqlValueSyntax = autoSqlValueSyntax
 
-instance FromBackendRow Postgres AuthType where
+instance FromBackendRow Postgres CardType where
   fromBackendRow = read . T.unpack <$> fromBackendRow
 
-instance FromBackendRow Sqlite AuthType where
+instance FromBackendRow Sqlite CardType where
   fromBackendRow = read . T.unpack <$> fromBackendRow
 
-instance FromBackendRow MySQL AuthType where
+instance FromBackendRow MySQL CardType where
   fromBackendRow = read . T.unpack <$> fromBackendRow
+

@@ -24,5 +24,7 @@ data OrderCreateTemplate = OrderCreateTemplate
   , optionsCreateMandate           :: MandateFeature       -- Default: DISABLED
   , billingAddrCustomerInfo        :: CustomerInfoTemplate
   , billingAddr                    :: AddressTemplate
+  , shippingAddrCustomerInfo       :: CustomerInfoTemplate
+  , shippingAddr                   :: AddressTemplate
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)

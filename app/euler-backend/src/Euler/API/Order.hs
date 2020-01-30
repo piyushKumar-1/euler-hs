@@ -39,7 +39,6 @@ data OrderCreateRequest = OrderCreateRequest
 
   , billing_address_first_name        :: Maybe Text
   , billing_address_last_name         :: Maybe Text
-
   , billing_address_line1             :: Maybe Text
   , billing_address_line2             :: Maybe Text
   , billing_address_line3             :: Maybe Text
@@ -49,6 +48,7 @@ data OrderCreateRequest = OrderCreateRequest
   , billing_address_postal_code       :: Maybe Text
   , billing_address_phone             :: Maybe Text
   , billing_address_country_code_iso  :: Maybe Text -- Default value: IND
+
   , shipping_address_first_name       :: Maybe Text
   , shipping_address_last_name        :: Maybe Text
   , shipping_address_line1            :: Maybe Text

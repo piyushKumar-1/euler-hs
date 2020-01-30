@@ -280,25 +280,16 @@ loadMerchantPrefs merchantId' = do
       logError "SQLDB Interraction." $ toText $ P.show err
       throwException err500 {errBody = "7"}   -- EHS: rework exceptions
 
-(<<|>>) :: Flow (Maybe a) -> Flow a -> Flow a
-(<<|>>) f1 f2 = do
-  mbRes <- f1
-  case mbRes of
-    Nothing -> f2
-    Just res -> pure res
-
 createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
 createOrder' routeParams order' mAccnt isMandate = do
 
   merchantPrefs  <- loadMerchantPrefs $ mAccnt ^. _merchantId
 
   do
-    -- EHS: loadBillingAddr knows too much about customer
-    -- EHS: previously addCustomerInfoToRequest
     billingAddrCustomerInfo <- loadCustomerInfo (order' ^. _billingAddrCustomerInfo) (mAccnt ^. _id)
-    billingAddr             <- updateBillingAddr (order' ^. _billingAddr) billingAddrCustomerInfo
-
-  shippingAddrId <- getShippingAddrId order'
+    billingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrCustomerInfo
+    -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
+    shippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrCustomerInfo)
 
   orderRefVal    <- mkOrder mAccnt merchantPrefs order' billingAddrId shippingAddrId
 
@@ -349,9 +340,9 @@ loadCustomerInfo ci@(Ts.CustomerInfoTemplate (Just customerId) mbFirstName mbLas
       Just (Customer {..}) -> Ts.CustomerInfoTemplate customerId (mbFirstName <|> firstName) (mbLastName <|> lastName)
       Nothing              -> ci
 
-updateBillingAddr :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Flow (Maybe AddressId)
-updateBillingAddr addr customerInfo =
-  case toDBBillingAddress addr customerInfo of
+updateAddress :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Flow (Maybe AddressId)
+updateAddress addr customerInfo =
+  case toDBAddress addr customerInfo of
     Nothing -> pure Nothing
     Just dbAddr -> do
       mAddr <- withDB eulerDB $ do
@@ -423,8 +414,8 @@ getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
           <|>  shipping_address_country_code_iso
 
 -- EHS: DB types should be denoted explicitly.
-toDBBillingAddress :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Maybe OrderAddress
-toDBBillingAddress (Ts.AddressTemplate {..}) (Ts.CustomerInfoTemplate {..})
+toDBAddress :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Maybe OrderAddress
+toDBAddress (Ts.AddressTemplate {..}) (Ts.CustomerInfoTemplate {..})
   | nothingSet = Nothing
   | otherwise = Just $ OrderAddress
         { id             = Nothing  -- in DB it's not Null, Auto increment

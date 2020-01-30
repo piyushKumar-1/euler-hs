@@ -1,7 +1,5 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Euler.Storage.Types.Feature
   ( FeatureT(..)

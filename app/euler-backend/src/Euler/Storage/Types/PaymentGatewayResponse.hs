@@ -97,3 +97,4 @@ defaultPaymentGatewayResponse' id' = PaymentGatewayResponse
   , responseXml =  Nothing -- -- Maybe Text
   , txnId = Just "" -- Maybe Text
   }
+

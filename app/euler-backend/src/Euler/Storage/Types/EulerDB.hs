@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Euler.Storage.Types.EulerDB
@@ -64,6 +63,7 @@ data EulerDb f = EulerDb
   , txn_detail ::  f (B.TableEntity STxnDetail.TxnDetailT)
   , txn_risk_check ::  f (B.TableEntity STxnRiskCheck.TxnRiskCheckT)
   , test_table :: f (B.TableEntity SSQLite.TestTableT)
+
   } deriving (Generic, B.Database be)
 
 eulerDb :: B.DatabaseSettings be EulerDb

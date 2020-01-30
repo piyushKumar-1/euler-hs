@@ -129,6 +129,48 @@ ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   , options_create_mandate = Just OPTIONAL
   }
 
+ordReqUdf = orderReqTemplate
+  { orderId = "udfId"
+  , amount = 100
+  , udf1 = "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf2 = "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf3 = "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf4 = "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf5 = "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf6 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf7 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf8 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf9 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf10 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  }
+
+ordReqWithAddresses = orderReqTemplate
+  { orderId = "orderWithAddr"
+  , amount = 100
+  , billing_address_first_name = Just "billing_address_first_name"
+  , billing_address_last_name = Just "billing_address_last_name"
+  , billing_address_line1 = Just "billing_address_line1"
+  , billing_address_line2 = Just "billing_address_line2"
+  , billing_address_line3 = Just "billing_address_line3"
+  , billing_address_city = Just "billing_address_city"
+  , billing_address_state = Just "billing_address_state"
+  , billing_address_country = Just "billing_address_country"
+  , billing_address_postal_code = Just "billing_address_postal_code"
+  , billing_address_phone = Just "billing_address_phone"
+  , billing_address_country_code_iso = Just "billing_address_country_code_iso"
+  , shipping_address_first_name = Just "shipping_address_first_name"
+  , shipping_address_last_name = Just "shipping_address_last_name"
+  , shipping_address_line1 = Just "shipping_address_line1"
+  , shipping_address_line2 = Just "shipping_address_line2"
+  , shipping_address_line3 = Just "shipping_address_line3"
+  , shipping_address_city = Just "shipping_address_city"
+  , shipping_address_state = Just "shipping_address_state"
+  , shipping_address_country = Just "shipping_address_country"
+  , shipping_address_postal_code = Just "shipping_address_postal_code"
+  , shipping_address_phone = Just "shipping_address_phone"
+  , shipping_address_country_code_iso = Just "shipping_address_country_code_iso"
+  }
+
 ordReq :: OrderAPI.OrderCreateRequest
 ordReq = OrderAPI.OrderCreateRequest
   { order_id                          = "orderId2" -- :: Text
@@ -400,6 +442,29 @@ spec =
             Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
           eRes `shouldBe` ""
 
+      it "Order UDF cleaned" $ \rt -> do
+        eRes <- do
+          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                            (Version "2018-07-01")
+                            (UserAgent "Uagent")
+          let validatedReq = transform ordReqUdf
+          case validatedReq of
+            Left err -> pure err
+            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+          eRes `shouldBe` ""
+
+      it "Order with addresses" $ \rt -> do
+        eRes <- do
+          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                            (Version "2018-07-01")
+                            (UserAgent "Uagent")
+          let validatedReq = transform ordReqWithAddresses
+          case validatedReq of
+            Left err -> pure err
+            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+          eRes `shouldBe` ""
+
       it "OrderStatus" $ \rt -> do
         eRes <- runFlow rt $ prepareDBConnections *> OrderStatus.processOrderStatusGET "orderId" "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI="
         eRes `shouldBe` orderStatusResp
+

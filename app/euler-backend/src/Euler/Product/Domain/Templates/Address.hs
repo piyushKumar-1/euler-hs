@@ -17,3 +17,10 @@ data AddressTemplate = AddressTemplate
   , countryCodeIso    :: Maybe Text -- Default value: IND
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)
+
+
+data AddressHolderTemplate = AddressHolderTemplate
+  { firstName  :: Maybe Text
+  , lastName   :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON)

@@ -5,11 +5,15 @@ module Euler.Common.Types.Gateway where
 
 import EulerHS.Prelude
 
+import qualified Data.Map as Map
+import qualified Data.Text as T
+
 import Database.Beam.Backend.SQL
 import Database.Beam.Postgres
 import Database.Beam.Sqlite
 import Database.Beam.MySQL
-import qualified Data.Text as T
+
+type GatewayId = Int
 
 -- from src/Types/Storage/EC/TxnDetail/Types.purs
 data Gateway =
@@ -91,9 +95,10 @@ instance FromBackendRow Sqlite Gateway where
 instance FromBackendRow MySQL Gateway where
   fromBackendRow = read . T.unpack <$> fromBackendRow
 
--- from src/Types/Storage/EC/TxnDetail/Types.purs
-gatewayMap :: [(Gateway, Int)]
-gatewayMap =
+-- EHS: these functions and constants should not be here.
+-- Preferably, this should be set up as a config.
+gatewayList :: [(Gateway, GatewayId)]
+gatewayList =
   [ (AXIS, 1)
   , (HDFC, 2)
   , (ICICI, 3)
@@ -158,3 +163,12 @@ gatewayMap =
   , (LINEPAY, 600)
   , (CASH, 700)
   ]
+
+gatewayMap :: Map.Map Gateway GatewayId
+gatewayMap = Map.fromList gatewayList
+
+gatewayRMap :: Map.Map GatewayId Gateway
+gatewayRMap = Map.fromList $ map swap gatewayList
+
+lookupGatewayName :: GatewayId -> Maybe Text
+lookupGatewayName = Map.looukup gatewayRMap >>= Just . show

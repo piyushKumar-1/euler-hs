@@ -7,23 +7,24 @@ import EulerHS.Extra.Validation as V
 
 import           Euler.Common.Types.Currency (Currency(..))
 import           Euler.Common.Types.Order     (MandateFeature(..))
+import           Euler.Common.Types.Money (mkMoney)
 
-import qualified Euler.API.Order as APIO
+import qualified Euler.Product.Domain.Templates.Order as Ts
 
-import           Euler.Product.Domain.Money (mkMoney)
 
 import qualified Data.Text as T
 
-
-instance Transform APIO.OrderCreateRequest APIO.OrderCreateTemplate where
-  transform sm = APIO.OrderCreateTemplate
+-- EHS: OrderCreateTemplate has changed, update the validator
+instance Transform Ts.OrderCreateRequest Ts.OrderCreateTemplate where
+  transform sm = Ts.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
     <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
     <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
     <*> withField @"customer_id" sm (insideJust customerIdValidators)
+    <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
+    -- <*> -- fill order_type with getOrderType & mandate feature
 --    <*> withField @"billing_address_country_code_iso" sm (extractMaybeWithDefault "IND")
 --    <*> withField @"shipping_address_country_code_iso" sm (extractMaybeWithDefault "IND")
-    <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
 
 
 amountValidators :: Validator Double

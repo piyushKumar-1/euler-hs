@@ -200,12 +200,9 @@ addOrderToken orderId OrderCreateRequest{..} merchantId = do
                                 }
     Nothing -> pure Nothing
 
-isMandateOrder :: RP.RouteParameters -> API.OrderCreateTemplate -> MerchantId -> Flow Bool
-isMandateOrder routeParams order' merchantId = do
-
-  -- EHS: _options_create_mandate should be defaulted to DISABLED in validators
-
-  case order' ^. _options_create_mandate of
+isMandateOrder :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantId -> Flow Bool
+isMandateOrder routeParams (Ts.OrderCreateTemplate {optionsCreateMandate}) merchantId = do
+  case optionsCreateMandate of
     DISABLED -> pure False
     _        -> do
       validMandate <- isMandateValid order' merchantId
@@ -260,6 +257,7 @@ isTrueString val =
     Nothing -> False
 
 -- EHS: should be MerchantIframePreferences converted to domain type?
+-- EHS: rework this function.
 loadMerchantPrefs :: MerchantId -> Flow MerchantIframePreferences
 loadMerchantPrefs merchantId' = do
   conn <- getConn eulerDB   -- EHS: withDB
@@ -283,15 +281,19 @@ loadMerchantPrefs merchantId' = do
 createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
 createOrder' routeParams order' mAccnt isMandate = do
 
+  -- EHS: TODO
   merchantPrefs  <- loadMerchantPrefs $ mAccnt ^. _merchantId
 
   do
-    billingAddrCustomerInfo <- loadCustomerInfo (order' ^. _billingAddrCustomerInfo) (mAccnt ^. _id)
-    billingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrCustomerInfo
-    -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
-    shippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrCustomerInfo)
+    mbCustomer                <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
+    let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
 
-  orderRefVal    <- mkOrder mAccnt merchantPrefs order' billingAddrId shippingAddrId
+    mbBillingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrHolder
+    -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
+    mbShippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
+
+    -- .............................................................................
+    orderRefVal               <- mkOrder order' mAccnt merchantPrefs mbBillingAddrId mbShippingAddrId billingAddrCustomer
 
   orderRef :: OrderReference <- do
     mOref <- withDB eulerDB $ do
@@ -315,12 +317,18 @@ createOrder' routeParams order' mAccnt isMandate = do
   _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId')
   pure orderRef
 
-loadCustomerInfo :: Ts.CustomerInfoTemplate -> MerchantAccountId -> Flow Ts.CustomerInfoTemplate
-loadCustomerInfo ci@(Ts.CustomerInfoTemplate Nothing _ _) _ = pure ci
-loadCustomerInfo ci@(Ts.CustomerInfoTemplate (Just customerId) mbFirstName mbLastName) mAccntId = do
+fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> AddressHolderTemplate -> Ts.AddressHolderTemplate
+fillBillingAddressHolder Nothing addressHolder = addressHolder
+fillBillingAddressHolder (Just (TS.CustomerTemplate _ mbFirstName mbLastName)) (Ts.AddressHolderTemplate {..})
+  = Ts.AddressHolderTemplate (firstName <|> mbFirstName) (lastName <|> mbLastName)
+
+
+loadCustomer :: Maybe CustomerId -> MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
+loadCustomer Nothing _ = pure Nothing
+loadCustomer (Just customerId) mAccntId = do
 
     -- EHS: after refactoring, we query DB every time when customerId is available.
-    -- EHS: rework query (in addCustomerInfoToRequest as well)
+    -- EHS: rework query
     -- EHS: DB type Customer should be explicit or qualified
     mbCustomer :: Maybe Customer <- withDB eulerDB $ do
       let predicate Customer {merchantAccountId, id, objectReferenceId}
@@ -330,6 +338,8 @@ loadCustomerInfo ci@(Ts.CustomerInfoTemplate (Just customerId) mbFirstName mbLas
                                                              -- (how merchant identifies customer in their DB eg. by email or mobile number )
                                                              -- and "id" - our id. So merchant can use both
               )
+
+            -- EHS: B.as_ @(Maybe Int) ? Why Maybe?
             &&. (B.maybe_ (B.val_ False) (merchantAccountId ==.) (B.as_ @(Maybe Int) $ B.val_ mAccntId))
       findRow
         $ B.select
@@ -337,12 +347,12 @@ loadCustomerInfo ci@(Ts.CustomerInfoTemplate (Just customerId) mbFirstName mbLas
         $ B.all_ (customer eulerDBSchema)
 
     pure $ case mbCustomer of
-      Just (Customer {..}) -> Ts.CustomerInfoTemplate customerId (mbFirstName <|> firstName) (mbLastName <|> lastName)
-      Nothing              -> ci
+      Just (Customer {..}) -> Just $ Ts.CustomerTemplate customerId firstName lastName
+      Nothing              -> Nothing
 
-updateAddress :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Flow (Maybe AddressId)
-updateAddress addr customerInfo =
-  case toDBAddress addr customerInfo of
+updateAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+updateAddress addr addrHolder =
+  case toDBAddress addr addrHolder of
     Nothing -> pure Nothing
     Just dbAddr -> do
       mAddr <- withDB eulerDB $ do
@@ -355,67 +365,67 @@ updateAddress addr customerInfo =
 -- EHS: get function invalidly does inserting into DB.
 -- A: Address field "id" in DB is autoincremental, cant be created in flow
 -- maybe another function name will be better
-getBillingAddrId :: Ts.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
-getBillingAddrId order' mAccnt = do
-  orderReq <- addCustomerInfoToRequest order' mAccnt
-
-  if (present orderReq)
-  then do
-    let newAddr = mkBillingAddress $ upcast orderReq
-
-    mAddr <- withDB eulerDB $ do
-      insertRowsReturningList -- insertRows
-        $ B.insert (order_address eulerDBSchema)
-        $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-
-    pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
-  else pure Nothing
-  where present (OrderCreateRequest {..}) = isJust
-          $   billing_address_first_name
-          <|> billing_address_last_name
-          <|> billing_address_line1
-          <|> billing_address_line2
-          <|> billing_address_line3
-          <|> billing_address_city
-          <|> billing_address_state
-          <|> billing_address_country
-          <|> billing_address_postal_code
-          <|> billing_address_phone
-          <|> billing_address_country_code_iso
+-- getBillingAddrId :: Ts.OrderCreateTemplate -> MerchantAccount -> Flow  (Maybe Int)
+-- getBillingAddrId order' mAccnt = do
+--   orderReq <- addCustomerInfoToRequest order' mAccnt
+--
+--   if (present orderReq)
+--   then do
+--     let newAddr = mkBillingAddress $ upcast orderReq
+--
+--     mAddr <- withDB eulerDB $ do
+--       insertRowsReturningList
+--         $ B.insert (order_address eulerDBSchema)
+--         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
+--
+--     pure $   (^. _id) =<< (safeHead mAddr) -- getField @"id" mAddr -- <$> createWithErr ecDB (mkBillingAddress orderReq) internalError
+--   else pure Nothing
+--   where present (OrderCreateRequest {..}) = isJust
+--           $   billing_address_first_name
+--           <|> billing_address_last_name
+--           <|> billing_address_line1
+--           <|> billing_address_line2
+--           <|> billing_address_line3
+--           <|> billing_address_city
+--           <|> billing_address_state
+--           <|> billing_address_country
+--           <|> billing_address_postal_code
+--           <|> billing_address_phone
+--           <|> billing_address_country_code_iso
 
 -- EHS: get function invalidly does inserting into DB.
 -- A: Address field "id" in DB is autoincremental, cant be created in flow
 -- maybe another function name will be better
-getShippingAddrId ::  OrderCreateRequest -> Flow (Maybe Int)
-getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
-  if (present orderCreateReq)
-  then do
-    let newAddr = mkShippingAddress $ upcast orderCreateReq
-    mAddr <- withDB eulerDB $ do
-      insertRowsReturningList -- insertRows
-        $ B.insert (order_address eulerDBSchema)
-        $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
-    case mAddr of
-      [] -> throwException err500 {errBody = "emptyaddr"}
-      x -> runIO $ putStrLn $ P.show x
-    pure $ (^. _id) =<< (safeHead mAddr) -- (getField @"id") <$> createWithErr ecDB (mkShippingAddress orderCreateReq) internalError
-  else pure Nothing
-  where present (OrderCreateRequest {..}) = isJust
-          $    shipping_address_first_name
-          <|>  shipping_address_last_name
-          <|>  shipping_address_line1
-          <|>  shipping_address_line2
-          <|>  shipping_address_line3
-          <|>  shipping_address_city
-          <|>  shipping_address_state
-          <|>  shipping_address_country
-          <|>  shipping_address_postal_code
-          <|>  shipping_address_phone
-          <|>  shipping_address_country_code_iso
+-- getShippingAddrId ::  OrderCreateRequest -> Flow (Maybe Int)
+-- getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
+--   if (present orderCreateReq)
+--   then do
+--     let newAddr = mkShippingAddress $ upcast orderCreateReq
+--     mAddr <- withDB eulerDB $ do
+--       insertRowsReturningList -- insertRows
+--         $ B.insert (order_address eulerDBSchema)
+--         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
+--     case mAddr of
+--       [] -> throwException err500 {errBody = "emptyaddr"}
+--       x -> runIO $ putStrLn $ P.show x
+--     pure $ (^. _id) =<< (safeHead mAddr) -- (getField @"id") <$> createWithErr ecDB (mkShippingAddress orderCreateReq) internalError
+--   else pure Nothing
+--   where present (OrderCreateRequest {..}) = isJust
+--           $    shipping_address_first_name
+--           <|>  shipping_address_last_name
+--           <|>  shipping_address_line1
+--           <|>  shipping_address_line2
+--           <|>  shipping_address_line3
+--           <|>  shipping_address_city
+--           <|>  shipping_address_state
+--           <|>  shipping_address_country
+--           <|>  shipping_address_postal_code
+--           <|>  shipping_address_phone
+--           <|>  shipping_address_country_code_iso
 
 -- EHS: DB types should be denoted explicitly.
-toDBAddress :: Ts.AddressTemplate -> Ts.CustomerInfoTemplate -> Maybe OrderAddress
-toDBAddress (Ts.AddressTemplate {..}) (Ts.CustomerInfoTemplate {..})
+toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe OrderAddress
+toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
   | nothingSet = Nothing
   | otherwise = Just $ OrderAddress
         { id             = Nothing  -- in DB it's not Null, Auto increment
@@ -461,70 +471,93 @@ mkBillingAddress OrderCreateRequest {..} = OrderAddress
 -- add firstName and lastName
 
 ---- ????????????
-addCustomerInfoToRequest :: API.OrderCreateTemplate -> MerchantAccount -> Flow OrderCreateRequest
-addCustomerInfoToRequest order' mAccnt = do
+-- addCustomerInfoToRequest :: Ts.OrderCreateTemplate -> MerchantAccount -> Flow OrderCreateRequest
+-- addCustomerInfoToRequest order' mAccnt = do
+--
+--   if shouldAddCustomerNames order' then do
+--
+--     -- EHS: rework query
+--     maybeCustomer :: Maybe Customer <- withDB eulerDB $ do
+--       let predicate Customer {merchantAccountId, id, objectReferenceId}
+--             = (   id ==.  (B.val_ $  order' ^. _customer_id)
+--               ||. objectReferenceId ==. (B.val_ $  order' ^. _customer_id)  -- EHS: objectReferenceId is customerId ?
+--                                                                             -- A: in customer DB table "objectReferenceId" - id from merchant
+--                                                                             -- (how merchant identifies customer in their DB eg. by email or mobile number )
+--                                                                             -- and "id" - our id. So merchant can use both
+--               )
+--             &&. ( B.maybe_ (B.val_ False) (merchantAccountId ==. ) ( B.as_ @(Maybe Int) $ B.val_  $ mAccnt ^. _id))
+--       findRow
+--         $ B.select
+--         $ B.filter_ predicate
+--         $ B.all_ (customer eulerDBSchema)
+--
+--     case maybeCustomer of
+--       Just (Customer {..}) ->
+--           let OrderCreateRequest {..} = order'
+--           in
+--             pure (order' :: OrderCreateRequest)
+--                    { billing_address_first_name = (billing_address_first_name <|> firstName)
+--                    , billing_address_last_name = (billing_address_last_name <|> lastName)
+--                    }
+--       Nothing -> pure order'
+--   else pure order'
+--
+--   where shouldAddCustomerNames OrderCreateRequest {..} =
+--            (isJust customer_id)
+--               && ((isNothing billing_address_first_name)
+--                  || (isNothing billing_address_last_name))
 
-  if shouldAddCustomerNames order' then do
+-- EHS: previously findMaybeByMerchantAccountAndCustId
+-- EHS: why it does nothing???
+-- findMaybeByMerchantAccountAndCustId :: Text -> Int -> Flow (Maybe Customer)
+-- findMaybeByMerchantAccountAndCustId custId mId = pure Nothing
+-- -- (DB.findOne ecDB $ where_ := And ["merchant_account_id" ==? Int mId, Or ["id" ==? String custId, "object_reference_id" ==? String custId]] :: Where Customer)
 
-    -- EHS: rework query
-    maybeCustomer :: Maybe Customer <- withDB eulerDB $ do
-      let predicate Customer {merchantAccountId, id, objectReferenceId}
-            = (   id ==.  (B.val_ $  order' ^. _customer_id)
-              ||. objectReferenceId ==. (B.val_ $  order' ^. _customer_id)  -- EHS: objectReferenceId is customerId ?
-                                                                            -- A: in customer DB table "objectReferenceId" - id from merchant
-                                                                            -- (how merchant identifies customer in their DB eg. by email or mobile number )
-                                                                            -- and "id" - our id. So merchant can use both
-              )
-            &&. ( B.maybe_ (B.val_ False) (merchantAccountId ==. ) ( B.as_ @(Maybe Int) $ B.val_  $ mAccnt ^. _id))
-      findRow
-        $ B.select
-        $ B.filter_ predicate
-        $ B.all_ (customer eulerDBSchema)
+-- EHS: 'mk' is a bad prefix for this.
+mkOrder
+  :: Ts.OrderCreateTemplate
+  -> MerchantAccount
+  -> MerchantIframePreferences
+  -> Maybe Int
+  -> Maybe Int
+  -> CustomerInfoTemplate
+  -> Flow OrderReference
+mkOrder (order'@Ts.OrderCreateTemplate {..}) mAccnt prefs mbBillingAddrId mbShippingAddrId customer = do
 
-    case maybeCustomer of
-      Just (Customer {..}) ->
-          let OrderCreateRequest {..} = order'
-          in
-            pure (order' :: OrderCreateRequest)
-                   { billing_address_first_name = (billing_address_first_name <|> firstName)
-                   , billing_address_last_name = (billing_address_last_name <|> lastName)
-                   }
-      Nothing -> pure order'
-  else pure order'
+  -- Returns UUID with deleted '-'.
+  -- EHS: what are other requirements to UUID?
+  -- EHS: magic constant
+  orderUuid      <- ("ordeu_" <> ) <$> getUUID32
 
-  where shouldAddCustomerNames OrderCreateRequest {..} =
-           (isJust customer_id)
-              && ((isNothing billing_address_first_name)
-                 || (isNothing billing_address_last_name))
+  -- EHS: is this time ok?
+  currentDate    <- getCurrentTimeUTC
 
--- from src/Types/Storage/EC/Customer.purs
-findMaybeByMerchantAccountAndCustId :: Text -> Int -> Flow (Maybe Customer)
-findMaybeByMerchantAccountAndCustId custId mId = pure Nothing -- (DB.findOne ecDB $ where_ := And ["merchant_account_id" ==? Int mId, Or ["id" ==? String custId, "object_reference_id" ==? String custId]] :: Where Customer)
+  let mbGatewayName = gatewayId >>= lookupGatewayName
 
-mkOrder :: MerchantAccount -> MerchantIframePreferences -> OrderCreateRequest -> Maybe Int -> Maybe Int -> Flow OrderReference
-mkOrder account prefs req@OrderCreateRequest{..} billingAddrId shippingAddrId = do
-  orderUuid      <- ("ordeu_" <> ) <$> getUUID32 -- pure "someUUID32" -- getUUID32 -- returns UUID with deleted '-' . From src/Utils/PrestoBackend.js
-  currentDate    <- getCurrentTimeUTC --getCurrentDate -- UTC from src/Engineering/DB/Types.js
-  gatewayName    <- getGatewayName $ gateway_id -- req
-  autoRefund     <- pure $ maybe (Just False) Just auto_refund -- req -- !* not used?
-  mandateFeature <- pure $ Just DISABLED -- just (nullOrUndefinedToAny req."options.create_mandate" DISABLED)
-  orderType      <- pure $ getOrderType (fromMaybe DISABLED mandateFeature) -- nullOrUndefinedToAny = flip fromMaybe
-  mId            <- maybe (throwException err500 {errBody = "10"}) pure (getField @"id" account)
-  maybeCustomer  <- maybe (pure Nothing) (\x -> findMaybeByMerchantAccountAndCustId x mId) customer_id
-  customerId     <- case (isJust maybeCustomer, orderType == MANDATE_REGISTER) of
-                      (False,True) -> throwException $ err500 {errBody = "Customer not found"} -- defaultThrowECException "INVALID_REQUEST" "Customer not found"
-                      _            -> pure customer_id
-      -- * roundOff2 looks like
-      -- * foo x = (\(a,b) -> read @Double $ a <> b) $ bimap id (take 3) $ span (/='.') $ show x
-  roundedAmount         <- pure $ testRoundOff2 amount -- roundOff2 $ req.amount
+   -- EHS: not used?
+  -- autoRefund     <- pure $ maybe (Just False) Just auto_refund
+
+  -- maybeCustomer  <- maybe (pure Nothing) (\x -> findMaybeByMerchantAccountAndCustId x (mAccnt ^. _id)) customer_id
+  -- EHS: we're updated addresses in the DB when realized the request is invalid.
+  -- EHS: this is essentially a security problem.
+  -- EHS: this rule should be enforced earlier, before any updates.
+  mbCustomerId <- case (customer ^. _id, orderType == MANDATE_REGISTER) of
+      (Nothing, True) -> throwException $ err500 {errBody = "Customer not found"}
+      (mbCId, _)      -> pure mbCId
+
+
+  -- * roundOff2 looks like
+  -- * foo x = (\(a,b) -> read @Double $ a <> b) $ bimap id (take 3) $ span (/='.') $ show x
+  -- EHS: we need a test on this rounding logic.
+  let roundedAmount = testRoundOff2 amount -- roundOff2 $ req.amount
   let orderRef = defaultOrderReference
-          { orderId = Just order_id
+          { orderId = Just orderId
           , merchantId = getField @"merchantId" account
           , amount = Just roundedAmount
-          , billingAddressId  = billingAddrId
-          , shippingAddressId = shippingAddrId
+          , billingAddressId  = mbBillingAddrId
+          , shippingAddressId = mbShippingAddrId
           , currency = currency'
-          , customerId = customerId
+          , customerId = mbCustomerId
           , customerEmail = customer_email
           , customerPhone = customer_phone
           , returnUrl = returnUrl'
@@ -536,13 +569,13 @@ mkOrder account prefs req@OrderCreateRequest{..} billingAddrId shippingAddrId = 
           , dateCreated = currentDate
           , lastModified = currentDate
           , orderType = Just orderType
-          , mandateFeature = mandateFeature
+          , mandateFeature = optionsCreateMandate
           }
   addCustomerInfo req account (mapUDFParams req orderRef)
   where currency'              =  ( currency) <|> (defaultCurrency prefs) <|> Just "INR"
         returnUrl'             =  (( return_url) <|> Nothing)
         description'           =  (( description) <|> Just "")
-        getOrderType mandate  = if mandate == REQUIRED then MANDATE_REGISTER else ORDER_PAYMENT
+
 
 testRoundOff2 x = (\(a,b) -> read @Double $ a <> b) $ bimap EHP.id (take 3) $ span (/='.') $ P.show x
 
@@ -574,26 +607,25 @@ mapUDFParams req params =  smash newUDF params
       , udf10 = udf10
       }
     newUDF = newUDF' reqUDF
-  -- * Why are udf fields 1-5 cleaned and the rest not?
+  -- EHS: Why are udf fields 1-5 cleaned and the rest not?
 
-
-
-getGatewayName :: Maybe Text -> Flow (Maybe Text)
-getGatewayName gatewayId = pure $ toText . P.show <$> (fromVal =<< gatewayId)
+-- EHS: Bad funciton
+-- getGatewayName :: Maybe Text -> Flow (Maybe Text)
+-- getGatewayName gatewayId = pure $ toText . P.show <$> (fromVal =<< gatewayId)
  --  case gatewayId of
  --    Just id -> case (fromVal id) of
  --      Just gatewayName -> pure $ Just (show gatewayName)
  --      Nothing          -> pure $ Nothing
  --    Nothing -> pure $ nothing
 
-
--- from src/Product/Gateway/Utils.purs
-fromVal :: Text -> Maybe Gateway
-fromVal = (flip lookup $ swap <$> gatewayMap) <=< readMayT
- -- * fromString :: String -> Maybe Int
- -- case fromString strVal of
- --   Just val -> lookup val $ map swap gatewayMap
- --   Nothing -> Nothing
+-- EHS: awful function
+-- -- from src/Product/Gateway/Utils.purs
+-- fromVal :: Text -> Maybe Gateway
+-- fromVal = (flip lookup $ swap <$> gatewayMap) <=< readMayT
+--  -- * fromString :: String -> Maybe Int
+--  -- case fromString strVal of
+--  --   Just val -> lookup val $ map swap gatewayMap
+--  --   Nothing -> Nothing
 
 addCustomerInfo :: OrderCreateRequest -> MerchantAccount -> OrderReference -> Flow OrderReference
 addCustomerInfo orderCreateReq account orderRef =

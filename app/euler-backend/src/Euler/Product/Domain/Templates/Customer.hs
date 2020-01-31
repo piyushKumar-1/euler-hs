@@ -7,8 +7,8 @@ import           EulerHS.Prelude
 
 import           Euler.Common.Types.Customer (CustomerId)
 
-data CustomerInfoTemplate = CustomerInfoTemplate
-  { customerId :: Maybe CustomerId
+data CustomerTemplate = CustomerTemplate
+  { customerId :: CustomerId
   , firstName  :: Maybe Text
   , lastName   :: Maybe Text
   }

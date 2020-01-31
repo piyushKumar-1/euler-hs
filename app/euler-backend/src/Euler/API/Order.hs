@@ -71,7 +71,7 @@ data OrderCreateRequest = OrderCreateRequest
   , udf9                              :: Maybe Text
   , udf10                             :: Maybe Text
   , metaData                          :: Maybe Text
-  , gateway_id                        :: Maybe Text -- converted to Int, why Text?
+  , gateway_id                        :: Maybe Text -- EHS: converted to Int, why Text?
   , options_create_mandate            :: Maybe MandateFeature
   , mandate_max_amount                :: Maybe Text
   , auto_refund                       :: Maybe Bool

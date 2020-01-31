@@ -1,11 +1,14 @@
 Type correspondence
 ===================
+- NullOrUndefined -> Maybe
+
+Storage types
 - Number -> Double
 - String -> Text
 - Date -> LocalTime
-- NullOrUndefined -> Maybe
 
-
+API types
+- Foreign -> Text
 
 Storage
 =======
@@ -20,12 +23,13 @@ Storage
 API
 ===
 - Customer(?)
-- Feature
-- Mandate
-- Promotions
-- Risk' для RiskManagementAccount
-- MerchantSecondFactorResponse для SecondFactorResponse, достаётся через SecondFactor
-- Card (?)
+- Feature (не нужен)
+- Mandate (+)
+- Promotions (+)
+- Risk' (+) для RiskManagementAccount
+- MerchantSecondFactorResponse (+) для SecondFactorResponse, достаётся через SecondFactor
+- Card (+)
+- TxnFlowInfo (+)
 
 Общие вопросы
 =============

@@ -86,7 +86,7 @@ instance FromForm OrderCreateRequest where
           $ HM.filterWithKey (\k _ -> T.isPrefixOf "metadata." k) $ unForm f
     metaData <- case metaData' of
       [] -> pure Nothing
-      l -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
+      l  -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
     order_id <- parseUnique "order_id" f
     amount <- parseUnique "amount" f
     currency <- parseMaybe "currency" f
@@ -143,7 +143,7 @@ instance FromJSON OrderCreateRequest where
           $ HM.filterWithKey (\k _ -> T.isPrefixOf "metadata." k) o
     metaData <- case metaData' of
       [] -> pure Nothing
-      l -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
+      l  -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
     order_id <- o .: "order_id"
     amount <- o .: "amount"
     currency <- o .: "currency"
@@ -199,7 +199,7 @@ fromStrValue s = case s of
 
 appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
 appendOnlyJust xs (Just k, Just v) = (k,v) : xs
-appendOnlyJust xs _ = xs
+appendOnlyJust xs _                = xs
 
 fromStrValue :: Value -> Maybe Text
 fromStrValue s = case s of
@@ -538,6 +538,7 @@ data Mandate' = Mandate'
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+<<<<<<< HEAD
 data EmandateDetail = EmandateDetail
   { id :: Maybe Text
   , bank_name :: Maybe Text
@@ -547,6 +548,21 @@ data EmandateDetail = EmandateDetail
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+=======
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+data Risk' = Risk'
+  { provider            :: Maybe Text
+  , status              :: Maybe Text
+  , message             :: Maybe Text
+  , flagged             :: Maybe Bool
+  , recommended_action  :: Maybe Text
+  , ebs_risk_level      :: Maybe Text
+  , ebs_payment_status  :: Maybe Text
+  , ebs_bin_country     :: Maybe Text
+  , ebs_risk_percentage :: Maybe Int
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+>>>>>>> Add MerchantSecondFactorResponse and Risk' api types
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Risk = Risk
@@ -620,6 +636,13 @@ data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
    }
    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+data MerchantSecondFactorResponse = MerchantSecondFactorResponse
+  {  cavv :: Text -- Foreign with comment (nullable, so keeping it as Foreign to send it as null with key)
+  ,  eci :: Text
+  ,  xid :: Text
+  ,  pares_status :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
 

@@ -1,7 +1,7 @@
 module Main where
 
 import Console.HTTPServer (app)
-import Console.Config (enableCors, httpPort, jwtSecret, loadConfig, queryConfig, redis, redisDb, redisHost, redisPort)
+import Console.Config (bqProject, enableCors, httpPort, jwtSecret, loadConfig, queryConfig, redis, redisDb, redisHost, redisPort)
 import qualified Database.Redis as Redis
 import Dashboard.Auth.Types (AuthContext(AuthContext))
 import Dashboard.Query.Backend.BigQuery (BackendConfig(BackendConfig), newBigQueryBackend)
@@ -16,8 +16,8 @@ import Web.JWT (hmacSecret)
 
 main :: IO ()
 main = do
-  backend <- newBigQueryBackend "godel-big-q" Nothing
   config  <- loadConfig
+  backend <- newBigQueryBackend (bqProject config) Nothing
   rConn   <- Redis.checkedConnect . connInfo $ redis config
   let port    = naturalToInt $ httpPort config
       authCtx = AuthContext rConn (hmacSecret $ jwtSecret config)

@@ -72,6 +72,7 @@ data:
        , redisDb = 0
        }
     , enableCors = False
+    , bqProject = "godel-big-q"
     , queryConfig =
         { tables =
             [ { tableName = "godel-big-q.express_checkout_v2.express_checkout"

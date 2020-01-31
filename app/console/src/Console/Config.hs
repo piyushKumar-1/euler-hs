@@ -36,6 +36,7 @@ data App =
     , jwtSecret :: Text
     , redis :: Redis
     , enableCors :: Bool
+    , bqProject :: Text
     , queryConfig :: QueryConfiguration
     }
   deriving (Generic, Show)

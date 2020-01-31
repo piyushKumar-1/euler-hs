@@ -48,9 +48,10 @@ in { httpPort = 9000
       , redisDb = 0
       }
    , enableCors = True {- DON'T DO THIS IN PROD -}
+   , bqProject = "bq-dashboard-test"
    , queryConfig =
        { tables =
-           [ { tableName = "godel-big-q.express_checkout_v2.express_checkout"
+           [ { tableName = "bq-dashboard-test.express_checkout_sessions_v2.express_checkout"
              , fields =
                  [ F // { fieldName = "amount", fieldType = FieldType.FloatType }
                  , F // { fieldName = "card_issuer_bank_name", fieldType = FieldType.StringType }

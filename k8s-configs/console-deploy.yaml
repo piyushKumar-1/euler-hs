@@ -1,0 +1,132 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: console-master
+  namespace: ec-test
+  labels:
+    app: console
+    version: master
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: console
+        version: master
+    spec:
+      containers:
+      - name: console
+        env:
+        - name: CONSOLE_CONFIG
+          value: "/etc/console/console.dhall"
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/var/secrets/google/key.json"
+        volumeMounts:
+        - name: config
+          mountPath: "/etc/console"
+          readOnly: true
+        - name: bq-key
+          mountPath: "/var/secrets/google"
+          readOnly: true
+        image: asia.gcr.io/jp-k8s-internal/console:$BUILD_VERSION
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2
+            memory: 2Gi
+        ports:
+        - containerPort: 9000
+          name: http
+      imagePullSecrets:
+      - name: jp-gcr-ec
+      terminationGracePeriodSeconds: 60
+      restartPolicy: Always
+      volumes:
+      - name: bq-key
+        secret:
+          secretName: bq-key
+      - name: config
+        configMap:
+          name: console-master
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: console-master
+  namespace: ec-test
+data:
+  console.dhall: |
+    let FieldType : Type = < IntType | FloatType | StringType | DateTimeType >
+    let F = { fieldName = "", fieldType = FieldType.StringType, fieldValueMap = [ ] : List { _1: Text, _2: Text } }
+    in
+    { httpPort = 9000
+    , jwtSecret = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ"
+    , redis =
+       { redisHost = "beta.ec-redis.juspay.in"
+       , redisPort = 6379
+       , redisDb = 0
+       }
+    , enableCors = False
+    , bqProject = "godel-big-q"
+    , queryConfig =
+        { tables =
+            [ { tableName = "godel-big-q.express_checkout_v2.express_checkout"
+              , fields =
+                  [ F // { fieldName = "amount", fieldType = FieldType.FloatType }
+                  , F // { fieldName = "card_issuer_bank_name", fieldType = FieldType.StringType }
+                  , F // { fieldName = "gateway", fieldType = FieldType.StringType }
+                  , F // { fieldName = "merchant_id", fieldType = FieldType.StringType }
+                  , F // { fieldName = "order_last_modified", fieldType = FieldType.StringType }
+                  , F // { fieldName = "order_status", fieldType = FieldType.StringType }
+                  , F // { fieldName = "payment_method", fieldType = FieldType.StringType }
+                  , { fieldName = "card_type"
+                    , fieldType = FieldType.StringType
+                    , fieldValueMap =
+                        [ { _1 = "CREDIT", _2 = "Credit Card" }
+                        , { _1 = "DEBIT", _2 = "Debit Card" }
+                        , { _1 = "NB", _2 = "Netbanking" }
+                        , { _1 = "REWARD", _2 = "Reward" }
+                        , { _1 = "Unknown", _2 = "Others" }
+                        , { _1 = "UPI", _2 = "UPI" }
+                        , { _1 = "WALLET", _2 = "Wallet" }
+                        ]
+                    }
+                  , { fieldName = "payment_method_type"
+                    , fieldType = FieldType.StringType
+                    , fieldValueMap =
+                        [ { _1 = "CARD", _2 = "Card" }
+                        , { _1 = "CASH", _2 = "Cash" }
+                        , { _1 = "CONSUMER_FINANCE", _2 = "Consumer Finance" }
+                        , { _1 = "NB", _2 = "Netbanking" }
+                        , { _1 = "REWARD", _2 = "Reward" }
+                        , { _1 = "UPI", _2 = "UPI" }
+                        , { _1 = "WALLET" , _2 = "Wallet" }
+                        ]
+                    }
+                  ]
+              }
+            ]
+        }
+    }
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: ec-test
+  name: console
+  labels:
+    app: console
+spec:
+  ports:
+  - port: 9000
+    targetPort: 9000
+    name: http
+  selector:
+    app: console

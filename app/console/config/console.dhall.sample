@@ -1,0 +1,91 @@
+-- Query configuration
+
+let FieldType : Type =
+  < IntType | FloatType | StringType | DateTimeType >
+
+let FieldValueMapEntry = { _1 : Text, _2 : Text }
+
+let FieldConfiguration : Type =
+  { fieldName : Text
+  , fieldType : FieldType
+  , fieldValueMap : List FieldValueMapEntry
+  }
+
+let F = { fieldName = "", fieldType = FieldType.StringType, fieldValueMap = [ ] : List FieldValueMapEntry }
+
+let TableConfiguration : Type =
+  { tableName : Text
+  , fields : List FieldConfiguration
+  }
+
+let QueryConfiguration : Type =
+  { tables : List TableConfiguration
+  }
+
+-- Top level app configuration
+
+let Redis : Type =
+  { redisHost : Text
+  , redisPort : Natural
+  , redisDb : Natural
+  }
+
+let App : Type =
+  { httpPort : Natural
+  , jwtSecret : Text
+  , redis : Redis
+  , enableCors : Bool
+  , queryConfig : QueryConfiguration
+  }
+
+-- Actual configuration
+
+in { httpPort = 9000
+   , jwtSecret = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ"
+   , redis =
+      { redisHost = "localhost"
+      , redisPort = 6379
+      , redisDb = 0
+      }
+   , enableCors = True {- DON'T DO THIS IN PROD -}
+   , bqProject = "bq-dashboard-test"
+   , queryConfig =
+       { tables =
+           [ { tableName = "bq-dashboard-test.express_checkout_sessions_v2.express_checkout"
+             , fields =
+                 [ F // { fieldName = "amount", fieldType = FieldType.FloatType }
+                 , F // { fieldName = "card_issuer_bank_name", fieldType = FieldType.StringType }
+                 , F // { fieldName = "gateway", fieldType = FieldType.StringType }
+                 , F // { fieldName = "merchant_id", fieldType = FieldType.StringType }
+                 , F // { fieldName = "order_last_modified", fieldType = FieldType.StringType }
+                 , F // { fieldName = "order_status", fieldType = FieldType.StringType }
+                 , F // { fieldName = "payment_method", fieldType = FieldType.StringType }
+                 , { fieldName = "card_type"
+                   , fieldType = FieldType.StringType
+                   , fieldValueMap =
+                       [ { _1 = "CREDIT", _2 = "Credit Card" }
+                       , { _1 = "DEBIT", _2 = "Debit Card" }
+                       , { _1 = "NB", _2 = "Netbanking" }
+                       , { _1 = "REWARD", _2 = "Reward" }
+                       , { _1 = "Unknown", _2 = "Others" }
+                       , { _1 = "UPI", _2 = "UPI" }
+                       , { _1 = "WALLET", _2 = "Wallet" }
+                       ]
+                   }
+                 , { fieldName = "payment_method_type"
+                   , fieldType = FieldType.StringType
+                   , fieldValueMap =
+                       [ { _1 = "CARD", _2 = "Card" }
+                       , { _1 = "CASH", _2 = "Cash" }
+                       , { _1 = "CONSUMER_FINANCE", _2 = "Consumer Finance" }
+                       , { _1 = "NB", _2 = "Netbanking" }
+                       , { _1 = "REWARD", _2 = "Reward" }
+                       , { _1 = "UPI", _2 = "UPI" }
+                       , { _1 = "WALLET" , _2 = "Wallet" }
+                       ]
+                   }
+                 ]
+             }
+           ]
+       }
+   }

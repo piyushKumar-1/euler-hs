@@ -423,6 +423,7 @@ data OrderStatusResponse = OrderStatusResponse
   ,  payer_vpa                 :: Maybe Text -- Foreign
   ,  payer_app_name            :: Maybe Text -- Foreign
   ,  juspay                    :: Maybe OrderTokenResp
+  ,  second_factor_response    :: Maybe MerchantSecondFactorResponse
   ,  txn_flow_info             :: Maybe TxnFlowInfo
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
@@ -479,6 +480,8 @@ defaultOrderStatusResponse = OrderStatusResponse
   ,  payer_vpa                 = Nothing -- :: Maybe Text -- Foreign
   ,  payer_app_name            = Nothing -- :: Maybe Text -- Foreign
   ,  juspay                    = Nothing -- :: Maybe OrderTokenResp
+  ,  second_factor_response    = Nothing -- :: Maybe MerchantSecondFactorResponse
+  ,  txn_flow_info             = Nothing -- :: Maybe TxnFlowInfo
   }
 
 -- from src/Externals/EC/Common.purs

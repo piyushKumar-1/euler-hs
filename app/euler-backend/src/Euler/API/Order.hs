@@ -710,3 +710,5 @@ data TxnFlowInfo = TxnFlowInfo
   ,  error_code    :: Text -- Foreign
   ,  error_message :: Text -- Foreign
   }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+

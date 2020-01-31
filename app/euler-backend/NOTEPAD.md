@@ -1,12 +1,21 @@
+Type correspondence
+===================
+- Number -> Double
+- String -> Text
+- Date -> LocalTime
+- NullOrUndefined -> Maybe
+
+
+
 Storage
 =======
-- Chrageback
-- PaymentGatewayResponse
-- Refund
-- RiskManagementAccount
-- SecondFactor
-- SecondFactorResponse
-- TxnCardInfo
+++ Chargeback
+++ PaymentGatewayResponse (!!! PaymentGatewayResponseV1 use other functions at EC.PaymentGatewayResponseV1)
+++ Refund (+ RefundStatus)
+++ RiskManagementAccount
+++ SecondFactor
+++ SecondFactorResponse
+++ TxnCardInfo
 
 API
 ===

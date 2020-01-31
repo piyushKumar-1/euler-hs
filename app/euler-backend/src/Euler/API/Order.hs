@@ -423,6 +423,7 @@ data OrderStatusResponse = OrderStatusResponse
   ,  payer_vpa                 :: Maybe Text -- Foreign
   ,  payer_app_name            :: Maybe Text -- Foreign
   ,  juspay                    :: Maybe OrderTokenResp
+  ,  txn_flow_info             :: Maybe TxnFlowInfo
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -538,7 +539,6 @@ data Mandate' = Mandate'
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-<<<<<<< HEAD
 data EmandateDetail = EmandateDetail
   { id :: Maybe Text
   , bank_name :: Maybe Text
@@ -548,7 +548,6 @@ data EmandateDetail = EmandateDetail
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-=======
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Risk' = Risk'
   { provider            :: Maybe Text
@@ -562,7 +561,6 @@ data Risk' = Risk'
   , ebs_risk_percentage :: Maybe Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
->>>>>>> Add MerchantSecondFactorResponse and Risk' api types
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Risk = Risk
@@ -702,3 +700,10 @@ data OrderUpdateRequest = OrderUpdateRequest
   , udf10                             :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+data TxnFlowInfo = TxnFlowInfo
+  {  flow_type     :: Text -- Foreign
+  ,  status        :: Text -- Foreign
+  ,  error_code    :: Text -- Foreign
+  ,  error_message :: Text -- Foreign
+  }

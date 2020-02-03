@@ -2,9 +2,7 @@ resolver: lts-14.4
 
 packages:
 - lib/euler-hs
-- lib/dashboard
 - lib/web-service
-- app/console
 - app/credit-platform
 - app/euler-backend
 

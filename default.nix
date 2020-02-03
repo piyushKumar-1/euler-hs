@@ -30,9 +30,6 @@ let
             self.callPackage ./nix/beam-mysql.nix { };
           cryptostore =
             self.callPackage ./nix/cryptostore.nix { };
-          # We need a different upstream for purescript-bridge for now
-          purescript-bridge =
-            self.callPackage ./nix/purescript-bridge.nix { };
           # Our own packages
           euler-hs =
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };
@@ -42,10 +39,6 @@ let
             self.callCabal2nix "euler-backend" ./app/euler-backend { };
           credit-platform =
             self.callCabal2nix "credit-platform" ./app/credit-platform { };
-          dashboard =
-            self.callCabal2nix "dashboard" ./lib/dashboard { };
-          console =
-            self.callCabal2nix "console" ./app/console { };
         };
       };
     };
@@ -58,9 +51,4 @@ in {
   web-service = pkgs.haskellPackages.web-service;
   credit-platform = pkgs.haskellPackages.credit-platform;
   euler-backend = pkgs.haskellPackages.euler-backend;
-  dashboard = pkgs.haskellPackages.dashboard;
-  # some tests that run automatically during nix build do not work in
-  # an unprepared environment, so you can disable them as follows:
-  # console = pkgs.haskell.lib.dontCheck pkgs.haskellPackages.console;
-  console = pkgs.haskellPackages.console;
 }

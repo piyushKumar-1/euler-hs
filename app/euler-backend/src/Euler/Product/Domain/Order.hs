@@ -14,25 +14,24 @@ import Euler.Common.Types.GatewayMetadata (GatewayMetadata)
 -- Previously: OrderReference
 
 data Order = Order
-  {
-  -- id                :: Maybe Int  -- EHS: what is this field about? Does it exist in DB?
-    version           :: Int
-  -- , amount            :: Double
-  -- , currency          :: Currency
-  -- , merchantId        :: Text
-  -- , orderId           :: Text
-  -- , orderUuid         :: Maybe Text
-  -- , orderType         :: OrderType
-  -- , orderStatus       :: OrderStatus
-  -- , customerId        :: Maybe Text
-  -- , customerEmail     :: Maybe Text
-  -- , customerPhone     :: Maybe Text
+  { id                :: Int
+  , version           :: Int
+  , amount            :: Money
+  , currency          :: Currency
+  , merchantId        :: MerchantId
+  , orderId           :: OrderId
+  , orderUuid         :: Text
+  , orderType         :: OrderType
+  , orderStatus       :: OrderStatus
+  , customerId        :: Maybe Text
+  , customerEmail     :: Maybe Text
+  , customerPhone     :: Maybe Text
   -- , udf               :: UDF
   -- -- , browser           :: Maybe Text       EHS: ?
   -- -- , browserVersion    :: Maybe Text       EHS: ?
   -- -- , popupLoaded       :: Maybe Bool       EHS: ?
   -- -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
-  -- , description       :: Maybe Text
+  , description       :: Maybe Text
   -- , returnUrl         :: Maybe Text
   -- , amountRefunded    :: Maybe Double
   -- , refundedEntirely  :: Maybe Bool

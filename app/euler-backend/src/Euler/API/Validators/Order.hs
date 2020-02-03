@@ -4,6 +4,7 @@ module Euler.API.Validators.Order where
 
 import EulerHS.Prelude
 import EulerHS.Extra.Validation as V
+import qualified Data.Text as T
 
 import           Euler.Common.Types.Currency (Currency(..))
 import           Euler.Common.Types.Order     (MandateFeature(..))
@@ -11,8 +12,6 @@ import           Euler.Common.Types.Money (mkMoney)
 
 import qualified Euler.Product.Domain.Templates.Order as Ts
 
-
-import qualified Data.Text as T
 
 -- EHS: OrderCreateTemplate has changed, update the validator
 instance Transform Ts.OrderCreateRequest Ts.OrderCreateTemplate where
@@ -22,11 +21,19 @@ instance Transform Ts.OrderCreateRequest Ts.OrderCreateTemplate where
     <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
     <*> withField @"customer_id" sm (insideJust customerIdValidators)
     <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
-    -- <*> -- fill order_type with getOrderType & mandate feature
+    -- <*> -- EHS: fill order_type with getOrderType & mandate feature
 --    <*> withField @"billing_address_country_code_iso" sm (extractMaybeWithDefault "IND")
 --    <*> withField @"shipping_address_country_code_iso" sm (extractMaybeWithDefault "IND")
 
+-- EHS: add converter for desctiption:
+-- when (isJust description) then use description
+-- when (isNothing description) then (Just "").
+-- (There was code `(description <|> Just "")` ).
+-- EHS: doesn't seem valid. Why not just write null?
 
+-- EHS: fill customerEmail & phone
+
+-- EHS: DRY for validators. A lot of them is repeated many times.
 amountValidators :: Validator Double
 amountValidators =
   parValidate

@@ -13,7 +13,8 @@ import           Data.Generics.Product.Subtype
 import           Data.List (lookup, span)
 import           Servant.Server
 
--- EHS: Storage interaction should be extracted from here into separate modules
+-- EHS: Storage interaction should be extracted from here into separate modules.
+-- EHS: Storage namespace should have a single top level module.
 import Euler.Storage.Types.Customer
 import Euler.Storage.Types.Mandate
 import qualified Euler.Storage.Types.MerchantAccount as DBMA
@@ -22,6 +23,7 @@ import Euler.Storage.Types.MerchantIframePreferences
 import Euler.Storage.Types.OrderAddress
 import Euler.Storage.Types.OrderMetadataV2
 import Euler.Storage.Types.OrderReference
+import qualified Euler.Storage.Types.OrderReference as DB
 import Euler.Storage.Types.ResellerAccount
 
 import Euler.KVDB.Redis (rGet, setCacheWithExpiry)
@@ -36,6 +38,8 @@ import qualified Text.Read            as TR
 import qualified Euler.API.RouteParameters  as RP
 import qualified Euler.API.Order            as API
 
+-- EHS: rework imports. Use top level modules.
+-- EHS: do not duplicate imports. Each import should not be specified several times.
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway
 import Euler.Common.Types.Order
@@ -43,7 +47,7 @@ import Euler.Common.Types.OrderMetadata
 import qualified Euler.Common.Types.Mandate as M
 import qualified Euler.Common.Types.Order   as C
 import qualified Euler.Common.Metric        as Metric
-import Euler.Product.Domain.Order
+import qualified Euler.Product.Domain.Order as D
 import Euler.Product.Domain.MerchantAccount
 import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
 import Euler.Product.OLTP.Services.RedisService
@@ -134,7 +138,7 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 
   mandateOrder <- isMandateOrder routeParams order' merchantId
 
-  orderRef <- createOrder' routeParams order' mAccnt mandateOrder
+  orderRef     <- createOrder' routeParams order' mAccnt mandateOrder
 
   -- EHS: orderIdPrimary should exist to the moment.
   -- orderIdPrimary <- getOrderId orderRef
@@ -281,40 +285,36 @@ loadMerchantPrefs merchantId' = do
 createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
 createOrder' routeParams order' mAccnt isMandate = do
 
-  -- EHS: TODO
-  merchantPrefs  <- loadMerchantPrefs $ mAccnt ^. _merchantId
+  let merchantId = mAccnt ^. _merchantId
+  -- EHS: rework this function.
+  merchantPrefs <- loadMerchantPrefs merchantId
+  let currency' = (order' ^. _currency)
+        <|> defaultCurrency merchantPrefs
+        <|> Just INR
 
-  do
-    mbCustomer                <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
-    let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
+  mbCustomer                <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
+  let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
 
-    mbBillingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrHolder
-    -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
-    mbShippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
+  mbBillingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrHolder
+  -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
+  mbShippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
 
-    -- .............................................................................
-    orderRefVal               <- mkOrder order' mAccnt merchantPrefs mbBillingAddrId mbShippingAddrId billingAddrCustomer
+  -- EHS: why findMaybeByMerchantAccountAndCustId does nothing?
+  -- maybeCustomer  <- maybe (pure Nothing) (\x -> findMaybeByMerchantAccountAndCustId x (mAccnt ^. _id)) customer_id
+  -- EHS: Situation: we're updated addresses in the DB when realized the request is invalid.
+  -- EHS: This is essentially a security problem.
+  -- EHS: This rule should be enforced earlier, before any updates.
+  mbCustomerId <- case (customer ^. _id, orderType == MANDATE_REGISTER) of
+      (Nothing, True) -> throwException $ err500 {errBody = "Customer not found"}
+      (mbCId, _)      -> pure mbCId
 
-  orderRef :: OrderReference <- do
-    mOref <- withDB eulerDB $ do
-      insertRowsReturningList
-        $ B.insert (order_reference eulerDBSchema)
-        $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
-    case mOref of
-      [ordRef] -> pure ordRef
-      x -> throwException err500 {errBody = EHP.show x}
-  orderIdPrimary <- getOrderId orderRef
-  -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
-  defaultMetaData <- mkMetadata routeParams order' orderIdPrimary
-  _ <- do
-    conn <- getConn eulerDB
-    runDB conn $ do
-      insertRows
-        $ B.insert (order_metadata_v2 eulerDBSchema)
-        $ B.insertExpressions [ B.val_ defaultMetaData]
-  orderId <- maybe (throwException err500 {errBody = "9"}) pure (getField @"orderId"  orderRef)
-  _ <- setCacheWithExpiry (merchantId' <> "_orderid_" <> orderId) orderRef Config.orderTtl
-  _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId')
+  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer
+
+  -------------------------------
+  -- EHS: rework this.
+  let orderId = order ^. _orderId
+  _ <- setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) orderRef Config.orderTtl
+  _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId)
   pure orderRef
 
 fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> AddressHolderTemplate -> Ts.AddressHolderTemplate
@@ -355,8 +355,8 @@ updateAddress addr addrHolder =
   case toDBAddress addr addrHolder of
     Nothing -> pure Nothing
     Just dbAddr -> do
-      mAddr <- withDB eulerDB $ do
-        insertRowsReturningList
+      mAddr <- withDB eulerDB
+          $ insertRowsReturningList
           $ B.insert (order_address eulerDBSchema)
           $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
       pure $ (^. _id) =<< (safeHead mAddr)
@@ -373,8 +373,8 @@ updateAddress addr addrHolder =
 --   then do
 --     let newAddr = mkBillingAddress $ upcast orderReq
 --
---     mAddr <- withDB eulerDB $ do
---       insertRowsReturningList
+--     mAddr <- withDB eulerDB
+--         $ insertRowsReturningList
 --         $ B.insert (order_address eulerDBSchema)
 --         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
 --
@@ -401,8 +401,8 @@ updateAddress addr addrHolder =
 --   if (present orderCreateReq)
 --   then do
 --     let newAddr = mkShippingAddress $ upcast orderCreateReq
---     mAddr <- withDB eulerDB $ do
---       insertRowsReturningList -- insertRows
+--     mAddr <- withDB eulerDB
+--         $ insertRowsReturningList
 --         $ B.insert (order_address eulerDBSchema)
 --         $ B.insertExpressions [ (B.val_ newAddr)  & _id .~ B.default_]
 --     case mAddr of
@@ -513,70 +513,91 @@ mkBillingAddress OrderCreateRequest {..} = OrderAddress
 -- findMaybeByMerchantAccountAndCustId custId mId = pure Nothing
 -- -- (DB.findOne ecDB $ where_ := And ["merchant_account_id" ==? Int mId, Or ["id" ==? String custId, "object_reference_id" ==? String custId]] :: Where Customer)
 
--- EHS: 'mk' is a bad prefix for this.
-mkOrder
+-- EHS: previously mkOrder. Didn't do any writings into DB. Now does.
+saveOrder
   :: Ts.OrderCreateTemplate
   -> MerchantAccount
-  -> MerchantIframePreferences
+  -> Maybe Currency
   -> Maybe Int
   -> Maybe Int
-  -> CustomerInfoTemplate
-  -> Flow OrderReference
-mkOrder (order'@Ts.OrderCreateTemplate {..}) mAccnt prefs mbBillingAddrId mbShippingAddrId customer = do
+  -> Maybe CustomerId
+  -> Flow D.Order
+saveOrder
+  (order'@Ts.OrderCreateTemplate {..})
+  mAccnt
+  currency'
+  mbBillingAddrId
+  mbShippingAddrId
+  mbCustomerId = do
 
   -- Returns UUID with deleted '-'.
-  -- EHS: what are other requirements to UUID?
+  -- EHS: what are other requirements to UUID? What about curly braces?
   -- EHS: magic constant
   orderUuid      <- ("ordeu_" <> ) <$> getUUID32
 
   -- EHS: is this time ok?
   currentDate    <- getCurrentTimeUTC
 
-  let mbGatewayName = gatewayId >>= lookupGatewayName
-
-   -- EHS: not used?
+   -- EHS: not used? Check euler-ps
   -- autoRefund     <- pure $ maybe (Just False) Just auto_refund
 
-  -- maybeCustomer  <- maybe (pure Nothing) (\x -> findMaybeByMerchantAccountAndCustId x (mAccnt ^. _id)) customer_id
-  -- EHS: we're updated addresses in the DB when realized the request is invalid.
-  -- EHS: this is essentially a security problem.
-  -- EHS: this rule should be enforced earlier, before any updates.
-  mbCustomerId <- case (customer ^. _id, orderType == MANDATE_REGISTER) of
-      (Nothing, True) -> throwException $ err500 {errBody = "Customer not found"}
-      (mbCId, _)      -> pure mbCId
-
-
-  -- * roundOff2 looks like
-  -- * foo x = (\(a,b) -> read @Double $ a <> b) $ bimap id (take 3) $ span (/='.') $ show x
-  -- EHS: we need a test on this rounding logic.
-  let roundedAmount = testRoundOff2 amount -- roundOff2 $ req.amount
-  let orderRef = defaultOrderReference
-          { orderId = Just orderId
-          , merchantId = getField @"merchantId" account
-          , amount = Just roundedAmount
-          , billingAddressId  = mbBillingAddrId
-          , shippingAddressId = mbShippingAddrId
-          , currency = currency'
-          , customerId = mbCustomerId
-          , customerEmail = customer_email
-          , customerPhone = customer_phone
-          , returnUrl = returnUrl'
-          , description = description'
-          , orderUuid = Just orderUuid
-          , productId = product_id
-          , preferredGateway = gatewayName
-          , status = NEW
-          , dateCreated = currentDate
-          , lastModified = currentDate
-          , orderType = Just orderType
-          , mandateFeature = optionsCreateMandate
+  let orderRefVal = DB.defaultOrderReference
+          { DB.orderId            = Just orderId
+          , DB.merchantId         = account ^. _merchantId
+          , DB.amount             = Just $ testRoundOff2 amount -- EHS: We need a test on this rounding logic.
+          , DB.billingAddressId   = mbBillingAddrId
+          , DB.shippingAddressId  = mbShippingAddrId
+          , DB.currency           = currency'
+          , DB.customerId         = mbCustomerId
+          , DB.customerEmail      = customerEmail
+          , DB.customerPhone      = customerPhone
+          , DB.returnUrl          = returnUrl
+          , DB.description        = description
+          , DB.orderUuid          = Just orderUuid
+          , DB.productId          = productId
+          , DB.preferredGateway   = gatewayId >>= lookupGatewayName
+          , DB.status             = NEW
+          , DB.dateCreated        = currentDate
+          , DB.lastModified       = currentDate
+          , DB.orderType          = Just orderType
+          , DB.mandateFeature     = optionsCreateMandate
           }
+
+  -- EHS: rework it, skipping for now.
+  -- It's not clear what this function does.
+  -- Doesn't seem to be a right place for it.
   addCustomerInfo req account (mapUDFParams req orderRef)
-  where currency'              =  ( currency) <|> (defaultCurrency prefs) <|> Just "INR"
-        returnUrl'             =  (( return_url) <|> Nothing)
-        description'           =  (( description) <|> Just "")
+  -- -- --
+
+  refs <- withDB eulerDB
+      $ insertRowsReturningList
+      $ B.insert (order_reference eulerDBSchema)
+      $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
+
+  -- EHS: this extraction should be done much easier.
+  -- Move it into a combinator based on the `insertRowsReturningList`.
+  -- (Better to have id not null)
+  orderPId <- case refs of
+    [orderRef] -> getOrderId orderRef
+    x          -> throwException err500 {errBody = EHP.show x}   -- EHS: rework exception codes
+
+  -- EHS: Investigate this TODO.
+  -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
+  -- EHS: Rework this, skipping for now.
+  defaultMetaData <- mkMetadata routeParams order' orderIdPrimary
+
+  -- EHS: why we're rejecting the result? What if error?
+  void
+    $ withDB eulerDB
+    $ insertRows
+    $ B.insert (order_metadata_v2 eulerDBSchema)
+    $ B.insertExpressions [ B.val_ defaultMetaData]
+
+  -- EHS: fill the Order data type, skipping for now.
+  pure $ D.Order {..}
 
 
+-- EHS: should be tested.
 testRoundOff2 x = (\(a,b) -> read @Double $ a <> b) $ bimap EHP.id (take 3) $ span (/='.') $ P.show x
 
 cleanUp :: Maybe Text -> Maybe Text
@@ -627,6 +648,7 @@ mapUDFParams req params =  smash newUDF params
 --  --   Just val -> lookup val $ map swap gatewayMap
 --  --   Nothing -> Nothing
 
+-- EHS: very bad function.
 addCustomerInfo :: OrderCreateRequest -> MerchantAccount -> OrderReference -> Flow OrderReference
 addCustomerInfo orderCreateReq account orderRef =
   if hasPartialCustomerInfo
@@ -699,10 +721,11 @@ validateOrderParams OrderCreateRequest {..} = if amount < 1
   then throwException $ err400 {errBody = "Invalid amount"}
   else pure ()
 
--- getOrderId :: OrderReference -> Flow Int
--- getOrderId OrderReference{..} = case id of
---     Just x -> pure x
---     _ -> throwException err500 {errBody = "NO ORDER FOUND"} -- defaultThrowECException "NO_ORDER_FOUND" "NO ORDER FOUND"
+-- EHS: bad function.
+getOrderId :: OrderReference -> Flow Int
+getOrderId OrderReference {id} = case id of
+    Just x -> pure x
+    _ -> throwException err500 {errBody = "NO ORDER FOUND"} -- defaultThrowECException "NO_ORDER_FOUND" "NO ORDER FOUND"
 
 
 setMandateInCache :: OrderCreateRequest -> Int -> Text -> Text -> Flow ()

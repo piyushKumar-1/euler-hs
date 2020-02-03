@@ -42,6 +42,8 @@ import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.OrderReference
 import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.ResellerAccount
+import Euler.Storage.Types.TxnDetail
+
 import Euler.Storage.Types.EulerDB
 -- import Euler.Storage.Types.EulerDB as EDB
 
@@ -412,16 +414,6 @@ defaultConfig = Config
     }
 
 
--- fillStatusResp :: Order ->
---   fillOrderDetails Boolean
---                 -> Paymentlinks -- new, created with getPaymentLink
---                 -> Order
---                 -> OrderStatusResponse -> Flow OrderStatusResponse
---                   isAuthenticated
---                   paymentLinks
---                   ord
---                   status
-
 fillOrderDetails :: Bool
   -> Paymentlinks
   -> OrderReference
@@ -677,6 +669,31 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                   , orderId     = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
+
+-- TODO OS rewrite to Text -> TxnDetail and lift?
+getTxnFromTxnUuid :: OrderReference -> Maybe Text -> Flow (Maybe TxnDetail)
+getTxnFromTxnUuid order maybeTxnUuid = do
+  case maybeTxnUuid of
+    Just txnUuid' -> do
+      orderId' <- whenNothing (getField @"orderId" order) (throwException err500) -- unNullOrErr500 $ order ^. _orderId
+      merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)--unNullOrErr500 $ order ^. _merchantId
+
+      txnDetail <- withDB eulerDB $ do
+        let predicate TxnDetail {orderId, merchantId, txnUuid} =
+              orderId ==. B.val_ orderId'
+              &&. merchantId ==. B.just_ (B.val_ merchantId')
+              &&. txnUuid ==. B.just_ (B.val_ txnUuid')
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (Euler.Storage.Types.EulerDB.txn_detail eulerDBSchema)
+      -- DB.findOne ecDB $ where_ := WHERE
+      --   [ "order_id" /\ String orderId
+      --   , "merchant_id" /\ String merchantId
+      --   , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
+      return txnDetail
+    Nothing -> pure Nothing
 
 myerr400 n = err400 { errBody = "Err # " <> n }
 
@@ -997,18 +1014,6 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
         >>= addChargeBacks txn
         >>= addGatewayResponse txn
       Nothing ->  pure ordResp
-
-getTxnFromTxnUuid :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> Maybe String -> BackendFlow st _ (Maybe TxnDetail)
-getTxnFromTxnUuid order maybeTxnUuid = do
-  case maybeTxnUuid of
-    Just txnUuid -> do
-      orderId <- unNullOrErr500 $ order ^. _orderId
-      merchantId <- unNullOrErr500 $ order ^. _merchantId
-      DB.findOne ecDB $ where_ := WHERE
-        [ "order_id" /\ String orderId
-        , "merchant_id" /\ String merchantId
-        , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
-    Nothing -> pure Nothing
 
 fillOrderDetails :: forall st rt r.
   Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r }

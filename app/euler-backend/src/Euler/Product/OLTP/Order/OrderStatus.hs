@@ -6,6 +6,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE TypeApplications          #-}
+
 module Euler.Product.OLTP.Order.OrderStatus where
 
 
@@ -21,14 +22,17 @@ import Servant.Server
 import Data.Generics.Product.Fields
 
 import Euler.API.Order
+import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
+import Euler.Product.Domain.Order (Order)
 import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
 
 import Euler.Storage.Types.Customer
+import Euler.Storage.Types.TxnDetail
 import Euler.Storage.Types.Feature
 import Euler.Storage.Types.Mandate
 import Euler.Storage.Types.MerchantAccount
@@ -673,6 +677,54 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
 
+myerr400 n = err400 { errBody = "Err # " <> n }
+
+getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
+getOrderId orderReq routeParam = do
+  let ordId = lookupRP @OrderId routeParam
+  let orderid = ordId <|> getField @"orderId" orderReq <|> getField @"order_id" orderReq
+  maybe (throwException $ myerr400 "invalid_request") pure orderid
+
+getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
+getLastTxn orderRef = do
+  let orderId = getField @"orderId" orderReference
+  let merchantId = getField @"merchantId" orderReference
+
+  txns <- withDB eulerDB $ do
+    let predicate TxnDetail {orderId, merchantId} =
+          orderId ==. B.just_ $ B.val_ orderId
+            &&. merchantId ==. B.just_ $ B.val_ merchantId
+    findRows
+      $ B.select
+      $ B.filter_ predicate
+      $ B.all_ (txn_detail eulerDBSchema)
+
+  case res of
+    Left err -> do
+      logError "Find TxnDetail" $ toText $ P.show err
+      throwException err500
+    Right [] -> do
+      logError "get_last_txn" ("No last txn found for orderId: " <> orderId <> " :merchant:" <> merchantId)
+      pure Nothing
+    Right txnDetails -> do
+      let chargetxn = find (\TxnDetail{..} -> (status == CHARGED)) txnDetails
+      maybe (pure $ head txnDetails) pure
+
+
+  -- txns <- DB.findAll ecDB $
+
+  --         order := [["dateCreated" , "DESC"]]
+  --         <>  where_ := WHERE [ "order_id" /\ String orderId
+  --                             , "merchant_id" /\ String merchantId] :: WHERE TxnDetail
+  -- case (length txns) of
+  --   0 -> do
+  --     _ <- log "get_last_txn" ("No last txn found for:" <> orderId <> ":merchant:"<> merchantId)
+  --     pure Nothing
+  --   _ -> do
+  --     let chargetxn = find (\txn -> (txn ^. _status == CHARGED)) txns
+  --     case chargetxn of
+  --       Just chrgtxn -> pure $ Just chrgtxn
+  --       Nothing -> pure (txns !! 0)
 
 -- <- #################################
 -- <- #################################
@@ -973,31 +1025,6 @@ getTxnFromTxnUuid order maybeTxnUuid = do
         , "merchant_id" /\ String merchantId
         , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
     Nothing -> pure Nothing
-
-getOrderId :: forall st r rt. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderStatusRequest -> RouteParameters -> BackendFlow st rt String
-getOrderId (OrderStatusRequest req) routeParam = do
-  ordId <- pure $ (StrMap.lookup "orderId" routeParam) <|> (StrMap.lookup "order_id" routeParam)
-  let orderid = ordId <|> (unNullOrUndefined req.orderId) <|> (unNullOrUndefined req.order_id)
-  maybe (liftErr badRequest) pure orderid
-
-getLastTxn :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> BackendFlow st _ (Maybe TxnDetail)
-getLastTxn orderRef = do
-  orderId <- unNullOrErr500 $ orderRef ^. _orderId
-  merchantId <- unNullOrErr500 $ orderRef ^. _merchantId
-  txns <- DB.findAll ecDB $
-          order := [["dateCreated" , "DESC"]]
-          <>  where_ := WHERE [ "order_id" /\ String orderId
-                              , "merchant_id" /\ String merchantId] :: WHERE TxnDetail
-  case (length txns) of
-    0 -> do
-      _ <- log "get_last_txn" ("No last txn found for:" <> orderId <> ":merchant:"<> merchantId)
-      pure Nothing
-    _ -> do
-      let chargetxn = find (\txn -> (txn ^. _status == CHARGED)) txns
-      case chargetxn of
-        Just chrgtxn -> pure $ Just chrgtxn
-        Nothing -> pure (txns !! 0)
-
 
 fillOrderDetails :: forall st rt r.
   Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r }

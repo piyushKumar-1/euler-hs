@@ -40,6 +40,7 @@ import Euler.Storage.Types.MerchantAccount
 import Euler.Storage.Types.MerchantIframePreferences
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.OrderReference
+import Euler.Storage.Types.PaymentGatewayResponse
 import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.ResellerAccount
 import Euler.Storage.Types.TxnDetail
@@ -725,7 +726,111 @@ getLastTxn orderRef = do
       let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
       maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
+addGatewayResponse :: TxnDetail -> Bool -> OrderStatusResponse -> Flow OrderStatusResponse
+addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
 
+  -- TODO OS: We need to have this clarified with Sushobhith
+  -- they introduces PGRV1 in early 2020
+
+  -- paymentGatewayResp <- sequence $ findMaybePGRById <$> unNullOrUndefined (txn ^. _successResponseId)
+  
+  -- findMaybePGRById :: forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe PaymentGatewayResponseV1)
+  -- findMaybePGRById pgrRefId = DB.findOne ecDB $ where_ := WHERE ["id" /\ String pgrRefId]
+
+  respId <- whenNothing (getField @"successResponseId" txn)  (throwException err500)
+
+  mPaymentGatewayResp <- withDB eulerDB $ do
+    let predicate PaymentGatewayResponse {id} =
+          id ==. B.just_ (B.val_ $ show respId)
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (Euler.Storage.Types.EulerDB.payment_gateway_response eulerDBSchema)
+
+  --case join paymentGatewayResp of
+  case mPaymentGatewayResp of
+    Just pgr -> do
+      ordStatus <- getPaymentGatewayResponse txn pgr orderStatus
+      
+      -- unNullOrUndefined (ordStatus ^._payment_gateway_response'))
+      -- TODO do we need unNullOrUndefined here?
+      let mPgr' = getField @"payment_gateway_response'" ordStatus
+      case mPgr' of 
+        Just pgr' -> do
+          gatewayResponse <- getGatewayResponseInJson pgr shouldSendFullGatewayResponse
+          let r = MerchantPaymentGatewayResponse {
+               resp_code = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.resp_code nullVal
+            ,  rrn = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.rrn nullVal
+            ,  created = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.created nullVal
+            ,  epg_txn_id = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.epg_txn_id nullVal
+            ,  resp_message = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.resp_message nullVal
+            ,  auth_id_code = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.auth_id_code nullVal
+            ,  txn_id = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.txn_id nullVal
+            ,  offer = getField @"offer" pgr' -- : pgr'.offer
+            ,  offer_type = getField @"offer_type" pgr' -- : pgr'.offer_type
+            ,  offer_availed = getField @"offer_availed" pgr' -- : pgr'.offer_availed
+            ,  discount_amount = getField @"discount_amount" pgr' -- : pgr'.discount_amount
+            ,  offer_failure_reason = getField @"offer_failure_reason" pgr' -- : pgr'.offer_failure_reason
+            ,  gateway_response = gatewayResponse -- TODO Text/ByteString?
+          }
+
+          -- ordStatus' = ordStatus # _payment_gateway_response' .~ (NullOrUndefined Nothing)
+          --pure $ ordStatus' # _payment_gateway_response .~ (just pgr)
+          return orderStatus
+
+        Nothing -> return orderStatus  
+    Nothing -> return orderStatus
+
+  -- TODO move to common utils or sth to that effect
+  where 
+    checkNull :: Maybe Text -> Text
+    checkNull (Just resp)  
+      | resp == "null" = nullVal  --  (unNull resp "") == "null" = nullVal
+      | otherwise      = resp -- TODO original: toForeign $ (unNull resp "")
+      where
+        -- TODO what's that?  nullVal   <- pure $ nullValue unit
+        nullVal = mempty
+    checkNull Nothing = mempty
+
+-- TODO port
+getPaymentGatewayResponse ::
+  -- ∀ st r.
+  --     Newtype st
+  --       { orderId           :: Maybe String
+  --       , merchantId        :: Maybe String
+  --       , isDBMeshEnabled   :: Maybe Boolean
+  --       , isMemCacheEnabled :: Boolean
+  --       | r }
+  --     => 
+  TxnDetail
+  -> PaymentGatewayResponse
+  -> OrderStatusResponse
+  -> Flow OrderStatusResponse
+getPaymentGatewayResponse txn pgr orderStatusResp =
+  -- getResponseXMLTuple pgrXml
+  --   <#>
+  --     (casematch txn pgr upgr gateway >>> just >>> \v → orderStatusResp # _payment_gateway_response' .~ v)
+
+  -- where
+  --       gateway = unNull (txn ^. _gateway) ""
+  --       pgrXml  = unNull (pgr ^. _responseXml) ""
+  --       date    = pgr ^. _dateCreated # unNullOrUndefined >>> maybe nothing (_dateToString >>> just)
+  --       upgr    = defaultPaymentGatewayResponse # _created .~ date
+  return orderStatusResp
+
+-- TODO port
+getGatewayResponseInJson :: 
+--forall st rt e. Newtype st (TState e) =>
+  PaymentGatewayResponse 
+  -> Bool
+  -> Flow (Maybe Text) -- TODO Text/ByteString?
+getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
+  -- if shouldSendFullGatewayResponse then do
+  --   jsonPgr <- createJsonFromPGRXmlResponse <$> (O.getResponseXml (paymentGatewayResponse ^.. _responseXml $ ""))
+  --   pure $ just $ jsonPgr
+  --   else pure nothing
+  pure Nothing
 
 -- <- #################################
 -- <- #################################

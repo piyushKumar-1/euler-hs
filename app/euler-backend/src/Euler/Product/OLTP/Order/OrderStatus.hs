@@ -25,6 +25,7 @@ import Euler.API.Order
 import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
+import Euler.Common.Utils
 import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
@@ -43,19 +44,20 @@ import Euler.Storage.Types.OrderReference
 import Euler.Storage.Types.PaymentGatewayResponse
 import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.ResellerAccount
-import Euler.Storage.Types.TxnDetail
+import Euler.Storage.Types.TxnCardInfo
 
-import Euler.Storage.Types.EulerDB
--- import Euler.Storage.Types.EulerDB as EDB
+import Euler.Storage.Types.EulerDB as EDB
 
 import qualified Euler.Common.Types.Order as C
 import qualified Euler.Common.Metric      as Metric
-
 
 import Euler.Storage.DBConfig
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
+
+
+
 -- No state
 --updateState :: String -> Maybe String -> BackendFlow OrderLocalState Configs OrderLocalState
 --updateState merchantId orderId = do
@@ -465,7 +467,7 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
        }
 
 
-addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow  OrderStatusResponse
+addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
 addPromotionDetails orderRef orderStatus = do
   -- Order contains two id -like fields (better names?)
   let orderId  = getField @"id" orderRef -- unNull (orderRef ^. _id) 0 -- id Int
@@ -688,7 +690,7 @@ getTxnFromTxnUuid order maybeTxnUuid = do
           $ B.select
           $ B.limit_ 1
           $ B.filter_ predicate
-          $ B.all_ (Euler.Storage.Types.EulerDB.txn_detail eulerDBSchema)
+          $ B.all_ (EDB.txn_detail eulerDBSchema)
       -- DB.findOne ecDB $ where_ := WHERE
       --   [ "order_id" /\ String orderId
       --   , "merchant_id" /\ String merchantId
@@ -716,7 +718,7 @@ getLastTxn orderRef = do
     findRows
       $ B.select
       $ B.filter_ predicate
-      $ B.all_ (Euler.Storage.Types.EulerDB.txn_detail eulerDBSchema)
+      $ B.all_ (EDB.txn_detail eulerDBSchema)
 
   case txnDetails of
     [] -> do
@@ -733,7 +735,7 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
   -- they introduces PGRV1 in early 2020
 
   -- paymentGatewayResp <- sequence $ findMaybePGRById <$> unNullOrUndefined (txn ^. _successResponseId)
-  
+
   -- findMaybePGRById :: forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe PaymentGatewayResponseV1)
   -- findMaybePGRById pgrRefId = DB.findOne ecDB $ where_ := WHERE ["id" /\ String pgrRefId]
 
@@ -746,17 +748,17 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (Euler.Storage.Types.EulerDB.payment_gateway_response eulerDBSchema)
+      $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
 
   --case join paymentGatewayResp of
   case mPaymentGatewayResp of
     Just pgr -> do
       ordStatus <- getPaymentGatewayResponse txn pgr orderStatus
-      
+
       -- unNullOrUndefined (ordStatus ^._payment_gateway_response'))
       -- TODO do we need unNullOrUndefined here?
       let mPgr' = getField @"payment_gateway_response'" ordStatus
-      case mPgr' of 
+      case mPgr' of
         Just pgr' -> do
           gatewayResponse <- getGatewayResponseInJson pgr shouldSendFullGatewayResponse
           let r = MerchantPaymentGatewayResponse {
@@ -779,13 +781,13 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
           --pure $ ordStatus' # _payment_gateway_response .~ (just pgr)
           return orderStatus
 
-        Nothing -> return orderStatus  
+        Nothing -> return orderStatus
     Nothing -> return orderStatus
 
   -- TODO move to common utils or sth to that effect
-  where 
+  where
     checkNull :: Maybe Text -> Text
-    checkNull (Just resp)  
+    checkNull (Just resp)
       | resp == "null" = nullVal  --  (unNull resp "") == "null" = nullVal
       | otherwise      = resp -- TODO original: toForeign $ (unNull resp "")
       where
@@ -802,7 +804,7 @@ getPaymentGatewayResponse ::
   --       , isDBMeshEnabled   :: Maybe Boolean
   --       , isMemCacheEnabled :: Boolean
   --       | r }
-  --     => 
+  --     =>
   TxnDetail
   -> PaymentGatewayResponse
   -> OrderStatusResponse
@@ -820,9 +822,9 @@ getPaymentGatewayResponse txn pgr orderStatusResp =
   return orderStatusResp
 
 -- TODO port
-getGatewayResponseInJson :: 
+getGatewayResponseInJson ::
 --forall st rt e. Newtype st (TState e) =>
-  PaymentGatewayResponse 
+  PaymentGatewayResponse
   -> Bool
   -> Flow (Maybe Text) -- TODO Text/ByteString?
 getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
@@ -831,6 +833,17 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   --   pure $ just $ jsonPgr
   --   else pure nothing
   pure Nothing
+
+
+addCardInfo :: TxnDetail -> TxnCardInfo -> Bool -> Maybe Text -> OrderStatusResponse -> OrderStatusResponse
+addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
+  if isBlankMaybe (getField @"cardIsin" txnCardInfo) then
+    let ordStatus1 = setField @"payment_method" (if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN") ordStatus
+        ordStatus2 = setField @"payment_method_type" (Just "CARD") ordStatus1
+    in  setField @"card" (Just $ (undefined :: Card)) ordStatus2 -- TODO getCardDetails txnCardInfo txnDetail shouldSendCardIsin
+  else ordStatus
+
+
 
 -- <- #################################
 -- <- #################################

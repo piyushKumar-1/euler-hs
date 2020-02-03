@@ -25,6 +25,7 @@ import Euler.API.Order
 import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
+import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
 import Euler.Product.Domain.Order (Order)
@@ -41,8 +42,8 @@ import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.OrderReference
 import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.ResellerAccount
-
 import Euler.Storage.Types.EulerDB
+-- import Euler.Storage.Types.EulerDB as EDB
 
 import qualified Euler.Common.Types.Order as C
 import qualified Euler.Common.Metric      as Metric
@@ -491,7 +492,7 @@ addPromotionDetails orderRef orderStatus = do
         throwException err500
    -- pure [] -- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
   case (length promotions) of
-    0 -> pure $ orderStatus
+    0 -> pure orderStatus
     _ -> do
       promotion' <- pure $ find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
       case promotion' of
@@ -687,44 +688,27 @@ getOrderId orderReq routeParam = do
 
 getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
 getLastTxn orderRef = do
-  let orderId = getField @"orderId" orderReference
-  let merchantId = getField @"merchantId" orderReference
+  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500) -- unNullOrErr500 $ order ^. _orderId
+  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500) --unNullOrErr500 $ order ^. _merchantId
 
-  txns <- withDB eulerDB $ do
+  txnDetails <- withDB eulerDB $ do
     let predicate TxnDetail {orderId, merchantId} =
-          orderId ==. B.just_ $ B.val_ orderId
-            &&. merchantId ==. B.just_ $ B.val_ merchantId
+          orderId ==. B.val_ orderId'
+            &&. merchantId ==. B.just_ (B.val_ merchantId')
     findRows
       $ B.select
       $ B.filter_ predicate
-      $ B.all_ (txn_detail eulerDBSchema)
+      $ B.all_ (Euler.Storage.Types.EulerDB.txn_detail eulerDBSchema)
 
-  case res of
-    Left err -> do
-      logError "Find TxnDetail" $ toText $ P.show err
-      throwException err500
-    Right [] -> do
-      logError "get_last_txn" ("No last txn found for orderId: " <> orderId <> " :merchant:" <> merchantId)
+  case txnDetails of
+    [] -> do
+      logError "get_last_txn" ("No last txn found for orderId: " <> orderId' <> " :merchant:" <> merchantId')
       pure Nothing
-    Right txnDetails -> do
-      let chargetxn = find (\TxnDetail{..} -> (status == CHARGED)) txnDetails
-      maybe (pure $ head txnDetails) pure
+    _ -> do
+      let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+      maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
 
-  -- txns <- DB.findAll ecDB $
-
-  --         order := [["dateCreated" , "DESC"]]
-  --         <>  where_ := WHERE [ "order_id" /\ String orderId
-  --                             , "merchant_id" /\ String merchantId] :: WHERE TxnDetail
-  -- case (length txns) of
-  --   0 -> do
-  --     _ <- log "get_last_txn" ("No last txn found for:" <> orderId <> ":merchant:"<> merchantId)
-  --     pure Nothing
-  --   _ -> do
-  --     let chargetxn = find (\txn -> (txn ^. _status == CHARGED)) txns
-  --     case chargetxn of
-  --       Just chrgtxn -> pure $ Just chrgtxn
-  --       Nothing -> pure (txns !! 0)
 
 -- <- #################################
 -- <- #################################

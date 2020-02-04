@@ -37,3 +37,24 @@ instance FromBackendRow MySQL TxnStatus where
 
 data TxnObjectType = SUBSCRIPTION_REGISTER | SUBSCRIPTION_PAYMENT | ORDER_PAYMENT
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
+
+
+txnStatusToInt :: TxnStatus -> Int
+txnStatusToInt AUTHENTICATION_FAILED = 26
+txnStatusToInt AUTHORIZATION_FAILED = 27
+txnStatusToInt AUTHORIZING = 28
+txnStatusToInt CHARGED = 21
+txnStatusToInt JUSPAY_DECLINED = 22
+txnStatusToInt PENDING_VBV = 23
+txnStatusToInt STARTED = 20
+txnStatusToInt VBV_SUCCESSFUL = 24
+txnStatusToInt AUTHORIZED = 25
+txnStatusToInt COD_INITIATED = 29
+txnStatusToInt VOIDED = 31
+txnStatusToInt VOID_INITIATED = 32
+txnStatusToInt NOP = -1
+txnStatusToInt CAPTURE_INITIATED = 33
+txnStatusToInt CAPTURE_FAILED = 34
+txnStatusToInt VOID_FAILED = 35
+-- txnStatusToInt NEW = 10
+-- txnStatusToInt _ = -1

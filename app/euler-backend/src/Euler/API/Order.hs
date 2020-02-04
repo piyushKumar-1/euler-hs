@@ -597,7 +597,7 @@ data TxnDetail' = TxnDetail'
   , error_message    :: Maybe Text
   , error_code       :: Maybe Text -- Foreign
   , txn_object_type  :: Maybe Text
-  , source_object    :: Maybe (Text)
+  , source_object    :: Maybe Text
   , source_object_id :: Maybe Text
   , created          :: Maybe LocalTime
 }

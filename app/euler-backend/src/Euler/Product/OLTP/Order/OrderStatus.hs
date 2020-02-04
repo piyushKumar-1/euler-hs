@@ -26,6 +26,7 @@ import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
 import Euler.Common.Utils
+import Euler.Common.Types.Gateway
 import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
@@ -673,6 +674,21 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
 
+getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
+getOrderId orderReq routeParam = do
+  let ordId = lookupRP @OrderId routeParam
+  let orderid = ordId <|> getField @"orderId" orderReq <|> getField @"order_id" orderReq
+  maybe (throwException $ myerr400 "invalid_request") pure orderid
+
+
+
+
+
+------------------------------------------------------------------------------------
+-- TxnDetail
+------------------------------------------------------------------------------------
+
+
 -- TODO OS rewrite to Text -> TxnDetail and lift?
 getTxnFromTxnUuid :: OrderReference -> Maybe Text -> Flow (Maybe TxnDetail)
 getTxnFromTxnUuid order maybeTxnUuid = do
@@ -700,11 +716,6 @@ getTxnFromTxnUuid order maybeTxnUuid = do
 
 myerr400 n = err400 { errBody = "Err # " <> n }
 
-getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
-getOrderId orderReq routeParam = do
-  let ordId = lookupRP @OrderId routeParam
-  let orderid = ordId <|> getField @"orderId" orderReq <|> getField @"order_id" orderReq
-  maybe (throwException $ myerr400 "invalid_request") pure orderid
 
 getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
 getLastTxn orderRef = do
@@ -727,6 +738,55 @@ getLastTxn orderRef = do
     _ -> do
       let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
       maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
+
+getChargedTxn :: OrderReference -> Flow (Maybe TxnDetail)
+getChargedTxn orderRef = do
+  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
+  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
+
+  txnDetails <- withDB eulerDB $ do
+    let predicate TxnDetail {orderId, merchantId} =
+          orderId ==. B.val_ orderId'
+            &&. merchantId ==. B.just_ (B.val_ merchantId')
+    findRows
+      $ B.select
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_detail eulerDBSchema)
+
+  case txnDetails of
+    [] -> pure Nothing
+    _ -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+
+
+addTxnDetailsToResponse :: TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+addTxnDetailsToResponse txn ordRef orderStatus = do
+  let gateway   = fromMaybe "" (getField @"gateway" txn)
+      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
+  gatewayRefId <- (undefined :: Flow Text) -- TODO: getGatewayReferenceId txn ordRef
+  logInfo "gatewayRefId " gatewayRefId
+  pure $ orderStatus
+    { status = show $ getField @"status" txn
+    , status_id = txnStatusToInt $ getField @"status" txn
+    , txn_id = Just $ getField @"txnId" txn
+    , txn_uuid = getField @"txnUuid" txn
+    , gateway_id = Just gatewayId
+    , gateway_reference_id = Just gatewayRefId
+    , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
+    , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+    , gateway_payload = addGatewayPayload txn
+    , txn_detail = Just (undefined :: TxnDetail') -- TODO: mapTxnDetail txn
+    }
+  where addGatewayPayload txn =
+         if (isBlankMaybe $ getField @"gatewayPayload" txn)
+           then getField @"gatewayPayload" txn
+           else Nothing
+
+
+------------------------------------------------------------------------------------------
+
+
+
+
 
 addGatewayResponse :: TxnDetail -> Bool -> OrderStatusResponse -> Flow OrderStatusResponse
 addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
@@ -834,58 +894,48 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   --   else pure nothing
   pure Nothing
 
--- It can be used below at 'addCardInfo'
--- setFieldMany [] s = s
--- setFieldMany ((field,value):xs) s =
---   let s1 = setField field value s
---   in setFieldMany xs s1
 
+
+------------------------------------------------------------------------------------------
+-- Card
+------------------------------------------------------------------------------------------
 addCardInfo :: TxnDetail -> TxnCardInfo -> Bool -> Maybe Text -> OrderStatusResponse -> OrderStatusResponse
 addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
   if isBlankMaybe (getField @"cardIsin" txnCardInfo) then
-    let payment_method' =if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN"
-        ordStatus1 = setField @"payment_method" payment_method' ordStatus
-        ordStatus2 = setField @"payment_method_type" (Just "CARD") ordStatus1
-    in  setField @"card" (Just $ getCardDetails txnCardInfo txnDetail shouldSendCardIsin) ordStatus2
+    let payment_method' = if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN"
+        cardDetails = Just $ getCardDetails txnCardInfo txnDetail shouldSendCardIsin
+    in ordStatus
+        { payment_method = payment_method'
+        , payment_method_type = (Just "CARD")
+        , card = cardDetails
+        }
   else ordStatus
+
 
 getCardDetails :: TxnCardInfo -> TxnDetail -> Bool -> Card
 getCardDetails card txn shouldSendCardIsin = Card
-  { expiry_year = maybe (Just "") Just (getField @"cardExpYear" card)
-  , card_reference = maybe (Just "") Just (getField @"cardReferenceId" card)
+  { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
+  , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
   , saved_to_locker = isSavedToLocker card txn
-  , expiry_month = maybe (Just "") Just  (getField @"cardExpMonth" card)
-  , name_on_card = maybe (Just "") Just  (getField @"nameOnCard" card)
-  , card_issuer = maybe (Just "") Just  (getField @"cardIssuerBankName" card)
-  , last_four_digits = maybe (Just "") Just  (getField @"cardLastFourDigits" card)
+  , expiry_month = whenNothing  (getField @"cardExpMonth" card) (Just "")
+  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
+  , card_issuer = whenNothing  (getField @"cardIssuerBankName" card) (Just "")
+  , last_four_digits = whenNothing  (getField @"cardLastFourDigits" card) (Just "")
   , using_saved_card = getField @"expressCheckout" txn
-  , card_fingerprint = maybe (Just "") Just  (getField @"cardFingerprint" card)
+  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
   , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
-  , card_type = maybe (Just "") Just  (getField @"cardType" card)
-  , card_brand = maybe (Just "") Just  (getField @"cardSwitchProvider" card)
+  , card_type = whenNothing  (getField @"cardType" card) (Just "")
+  , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
   }
   where
     isSavedToLocker cardObj txnObj = Just $
       isTrueMaybe (getField @"addToLocker" txn) && (isBlankMaybe $ getField @"cardReferenceId" card)
 
+--------------------------------------------------------------------------------------
 
-getChargedTxn :: OrderReference -> Flow (Maybe TxnDetail)
-getChargedTxn orderRef = do
-  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
-  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
 
-  txnDetails <- withDB eulerDB $ do
-    let predicate TxnDetail {orderId, merchantId} =
-          orderId ==. B.val_ orderId'
-            &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRows
-      $ B.select
-      $ B.filter_ predicate
-      $ B.all_ (EDB.txn_detail eulerDBSchema)
 
-  case txnDetails of
-    [] -> pure Nothing
-    _ -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+
 
 
 -- <- #################################
@@ -1229,88 +1279,6 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
 
 
 
-
-createPaymentLinks :: String -> Maybe String -> Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint =
-  Paymentlinks {
-    web: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid,
-    mobile: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true",
-    iframe: NullOrUndefined $ Just (host <> "/merchant/ipay/") <> Just orderUuid
-  }
-  where
-    config = getECRConfig
-    protocol = (unwrap config).protocol
-    host = maybe (protocol <> "://" <> (unwrap config).host) id maybeResellerEndpoint
-
-addPromotionDetails :: forall st r rt. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> OrderStatusResponse -> BackendFlow st { sessionId :: String | rt} OrderStatusResponse
-addPromotionDetails orderRef orderStatus = do
-  let orderId  = unNull (orderRef ^. _id) 0
-      ordId = unNull (orderRef ^. _orderId) ""
-  promotions <- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
-  case (length promotions) of
-    0 -> pure $ orderStatus
-    _ -> do
-      promotion' <- pure $ find (\promotion -> (promotion ^. _status == "ACTIVE")) promotions
-      case promotion' of
-        Just promotionVal -> do
-          promotion  <- decryptPromotionRules ordId promotionVal
-          let amount  = (orderStatus ^.. _amount $ 0.0) + (promotion ^.. _discount_amount $ 0.0)
-              ordS    = orderStatus # _amount .~ (just $ sanitizeAmount amount)
-          pure $ ordS # _promotion .~ (just promotion)
-        Nothing -> pure orderStatus
-      -- promotion' <- filterA (\promotion -> pure (promotion ^. _status == "ACTIVE")) promotions
-      -- promotion  <- traverse (decryptPromotionRules ordId) promotion'
-      -- let ordS    = orderStatus # _promotion .~ (just promotion)
-      --     amount  = (ordS ^.. _amount $ 0.0) + (promotion ^.. _discount_amount $ 0.0)
-      -- pure $ orderStatus # _amount .~ (just $ sanitizeAmount amount)
-
-decryptPromotionRules :: forall st r rt. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => String -> Promotions -> BackendFlow st rt Promotion'
-decryptPromotionRules ordId promotions = do
-  let promotion = unwrap promotions
-  keyForDecryption <- doAffRR' "ecTempCardCred" (ecTempCardCred)
-  resp <- case (decryptAESRaw "aes-256-ecb" (base64ToHex (promotion.rules)) keyForDecryption Nothing) of
-    Right result -> pure result
-    Left err -> throwErr $ show err
-  rules  <- pure $ getRulesFromString resp
-  rValue <- pure $ getMaskedAccNo (rules ^. _value)
-  pure $ Promotion'
-          { id : just $ show (promotion.id)
-          , order_id : just ordId
-          , rules : just $ singleton (rules # _value .~ rValue)
-          , created : just $ _dateToString (promotion.dateCreated)
-          , discount_amount : just $ promotion.discountAmount
-          , status :just $ promotion.status
-          }
-
-addTxnDetailsToResponse :: forall r st.
-  Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r }
-  => TxnDetail
-  -> OrderReference
-  -> OrderStatusResponse
-  -> BackendFlow st _ OrderStatusResponse
-addTxnDetailsToResponse txn ordRef orderStatus = do
-  let ordStatus = unwrap orderStatus
-      txnDetail = unwrap txn
-      gateway   = unNull txnDetail.gateway ""
-      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
-  gatewayRefId <- getGatewayReferenceId txn ordRef
-  _ <- log "gatewayRefId " gatewayRefId
-  pure $ wrap $ (unwrap orderStatus) {
-                status = show $ txnDetail.status,
-                status_id = txnStatusToInt txnDetail.status,
-                txn_id = just $ txnDetail.txnId,
-                txn_uuid = txnDetail.txnUuid,
-                gateway_id = just gatewayId,
-                gateway_reference_id = just gatewayRefId,
-                bank_error_code = just $ unNull txnDetail.bankErrorCode "",
-                bank_error_message = just $ unNull txnDetail.bankErrorMessage "",
-                gateway_payload =  addGatewayPayload txnDetail,
-                txn_detail = just (mapTxnDetail txn)
-        }
-  where addGatewayPayload txnDetail =
-         if (isTrueString txnDetail.gatewayPayload)
-           then txnDetail.gatewayPayload
-           else nothing
 
 getGatewayReferenceId :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
 getGatewayReferenceId txn ordRef = do

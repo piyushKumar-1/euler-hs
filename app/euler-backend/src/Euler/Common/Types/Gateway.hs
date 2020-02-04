@@ -4,6 +4,7 @@
 module Euler.Common.Types.Gateway where
 
 import EulerHS.Prelude
+import qualified Prelude as P
 
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -173,5 +174,12 @@ gatewayRMap = Map.fromList $ map swap gatewayList
 lookupGatewayName :: GatewayId -> Maybe Text
 lookupGatewayName k = Map.lookup k gatewayRMap >>= Just . show
 
-gatewayIdFromGateway :: Gateway -> Maybe GatewayId
-gatewayIdFromGateway k = Map.lookup k gatewayMap
+gatewayIdFromGatewayMaybe :: Gateway -> Maybe GatewayId
+gatewayIdFromGatewayMaybe k = Map.lookup k gatewayMap
+
+
+stringToGateway :: Text -> Maybe Gateway
+stringToGateway = readMaybe . T.unpack
+
+gatewayIdFromGateway :: Gateway -> Int
+gatewayIdFromGateway gateway = fromMaybe 0 $ P.lookup gateway gatewayMap

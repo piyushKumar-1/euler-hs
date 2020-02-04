@@ -4,8 +4,7 @@
 module EulerHS.Extra.Validation
   (
     -- * Extra Validation
-    Transform(..)
-  , mkValidator
+    mkValidator
   , Transformer
   , Validator
   , V

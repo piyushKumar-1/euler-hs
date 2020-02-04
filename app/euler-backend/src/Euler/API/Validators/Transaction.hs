@@ -22,7 +22,6 @@ import Euler.Common.Types.Transaction (AuthType(..))
 -- TODO Probably we can factor explicit apiTxn out with the help of ReaderT
 
 
-type V a = Validation [Text] a
 
 transApiTxToDomTx :: AT.Transaction -> V DT.Transaction
 transApiTxToDomTx apiTxn = DT.Transaction

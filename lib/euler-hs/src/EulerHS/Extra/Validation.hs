@@ -4,9 +4,11 @@
 module EulerHS.Extra.Validation
   (
     -- * Extra Validation
-    mkValidator
+    Transform(..)
+  , mkValidator
   , Transformer
   , Validator
+  , V
   , Errors
   , module X
   , withField
@@ -30,9 +32,15 @@ import           Type.Reflection
 
 type Ctx = Text
 type Errors = [Text]
+type V a = Validation [Text] a
 
 -- TODO: Looks like Profunctor. Does it hold laws?
 -- | Represents Transformer from one type to another.
+
+--- | This class represents transformation abilities between types.
+class Transform a b where
+  transform :: a -> Validation [Text] b
+
 type Transformer a b = a -> ReaderT Ctx (Either Errors) b
 
 -- | Represents the value parameter validator.

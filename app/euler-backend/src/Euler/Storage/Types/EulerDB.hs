@@ -32,6 +32,7 @@ import qualified Euler.Storage.Types.SecondFactorResponse      as SSecondFactorR
 import qualified Euler.Storage.Types.ServiceConfiguration      as SServiceConfiguration
 import qualified Euler.Storage.Types.TxnCardInfo               as STxnCardInfo
 import qualified Euler.Storage.Types.TxnDetail                 as STxnDetail
+import qualified Euler.Storage.Types.TxnRiskCheck              as STxnRiskCheck
 
 import qualified Euler.Storage.Types.SqliteTest as SSQLite
 
@@ -59,6 +60,7 @@ data EulerDb f = EulerDb
   , service_configuration :: f (B.TableEntity SServiceConfiguration.ServiceConfigurationT)
   , txn_card_info ::  f (B.TableEntity STxnCardInfo.TxnCardInfoT)
   , txn_detail ::  f (B.TableEntity STxnDetail.TxnDetailT)
+  , txn_risk_check ::  f (B.TableEntity STxnRiskCheck.TxnRiskCheckT)
   , test_table :: f (B.TableEntity SSQLite.TestTableT)
 
   } deriving (Generic, B.Database be)
@@ -86,8 +88,9 @@ eulerDb = B.defaultDbSettings `B.withDbModification`
     , second_factor = SSecondFactor.secondFactorEMod
     , second_factor_response = SSecondFactorResponse.secondFactorResponseEMod
     , service_configuration = SServiceConfiguration.serviceConfigurationEMod
-    , txn_detail = STxnDetail.txnDetailEMod
     , txn_card_info = STxnCardInfo.txnCardInfoEMod
+    , txn_detail = STxnDetail.txnDetailEMod
+    , txn_risk_check = STxnRiskCheck.txnRiskCheckEMod
     , test_table = SSQLite.testTableEMod
     }
 

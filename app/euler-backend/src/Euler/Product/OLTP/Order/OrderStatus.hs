@@ -869,7 +869,23 @@ getCardDetails card txn shouldSendCardIsin = Card
       isTrueMaybe (getField @"addToLocker" txn) && (isBlankMaybe $ getField @"cardReferenceId" card)
 
 
+getChargedTxn :: OrderReference -> Flow (Maybe TxnDetail)
+getChargedTxn orderRef = do
+  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
+  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
 
+  txnDetails <- withDB eulerDB $ do
+    let predicate TxnDetail {orderId, merchantId} =
+          orderId ==. B.val_ orderId'
+            &&. merchantId ==. B.just_ (B.val_ merchantId')
+    findRows
+      $ B.select
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_detail eulerDBSchema)
+
+  case txnDetails of
+    [] -> pure Nothing
+    _ -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
 
 
 -- <- #################################
@@ -1211,62 +1227,8 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
        , udf10 = unNull ordObj.udf10 ""
        }
 
-addMandateDetails :: forall st r rt. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> OrderStatusResponse -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
-addMandateDetails ordRef orderStatus =
-  case (unNullOrUndefined $ ordRef ^._orderType) of
-    Just orderType ->
-      if orderType == MANDATE_REGISTER then do
-        orderId <- unNullOrErr500 $ ordRef ^. _id
-        mandate :: Maybe Mandate <- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ Int orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
-        case mandate of
-          Just mandateVal -> pure $ orderStatus # _mandate .~ (just $ mapMandate $ mandateVal)
-          Nothing -> pure $ orderStatus
-        else pure $ orderStatus
-    Nothing -> pure $ orderStatus
-
-getPaymentLink :: forall st rt r.
-  Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r }
-  => OrderReference
-  -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} Paymentlinks
-getPaymentLink orderRef = do
-  merchantAccount <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
-  case merchantAccount of
-    Just account -> do
-      maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
-      let maybeResellerEndpoint =  maybe Nothing (unNullOrUndefined <<< _.resellerApiEndpoint <<< unwrap) maybeResellerAccount
-      pure $ createPaymentLinks (nullOrUndefinedToStr (unwrap orderRef).orderUuid) maybeResellerEndpoint
-    Nothing -> liftErr internalError --check correct Error
-
-getReturnUrl :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> Boolean -> BackendFlow st _ String
-getReturnUrl orderRef includeParams = do
-  merchantAccount <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
-  case merchantAccount of
-    Just merchantAcc -> do
-      merchantIframePreferences :: Maybe MerchantIframePreferences <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (merchantAcc ^._merchantId) "")] :: WHERE MerchantIframePreferences)
-      let merchantIframeReturnUrl = fromMaybe "" (maybe Nothing (unNullOrUndefined <<< _.returnUrl <<< unwrap) merchantIframePreferences)
-          mirrorGatewayResponse   = maybe Nothing (unNullOrUndefined <<< _.mirrorGatewayResponse <<< unwrap) merchantIframePreferences
-          orderRefReturnUrl       = fromMaybe "" (unNullOrUndefined (orderRef ^._returnUrl))
-      finalReturnUrl <- if (orderRefReturnUrl == "") then pure $ fromMaybe merchantIframeReturnUrl (unNullOrUndefined (merchantAcc ^._returnUrl)) else pure orderRefReturnUrl
-      pure $ finalReturnUrl
-      -- if (finalReturnUrl /= "") then do
-      --     maybeTxn <- runMaybeT $ MaybeT (getChargedTxn orderRef) <|> MaybeT (getLastTxn orderRef)
-      --     -- if (includeParams == true) then do
-      --     params   <- getParamsForReturnUrl maybeTxn mirrorGatewayResponse orderRef
-      --     isParams <- null params
-      --     --params'  <- getParamsHash params `skipIfB` isParams
-      --     pure $ finalReturnUrl
-      --  else pure $ finalReturnUrl
-    Nothing -> pure $ ""
 
 
-getChargedTxn :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> BackendFlow st _ (Maybe TxnDetail)
-getChargedTxn orderRef = do
-  orderId    <- unNullOrErr500 $ orderRef ^. _orderId
-  merchantId <- unNullOrErr500 $ orderRef ^. _merchantId
-  txns <- DB.findAll ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId] :: WHERE TxnDetail)
-  case (length txns) of
-    0 -> pure Nothing
-    _ -> pure $ find (\txn -> (txn ^. _status == CHARGED)) txns
 
 createPaymentLinks :: String -> Maybe String -> Paymentlinks
 createPaymentLinks orderUuid maybeResellerEndpoint =

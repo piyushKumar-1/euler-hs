@@ -46,7 +46,7 @@ import qualified Euler.Common.Types.Order   as C
 -- import Euler.Product.Domain.Order
 import Euler.Product.Domain.MerchantAccount
 -- import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
--- import Euler.Product.OLTP.Services.RedisService
+import Euler.Product.OLTP.Services.RedisService
 -- import qualified Euler.Config.Config        as Config
 -- import qualified Euler.Config.ServiceConfiguration as SC
 --
@@ -60,7 +60,7 @@ import qualified Euler.Product.Domain.Templates as Ts
 
 
 -- EHS: since original update function consumed orderCreate type - fields "amount" and "order_id"
--- are mandatory. But what if we dont whant to update amount? Also we dont need order_id field
+-- was mandatory. But what if we dont whant to update amount? Also we dont need order_id field
 -- because we take order_id from route parameters.
 -- We can update only amount, address and UDF fields.
 -- All this fields in new OrderUpdateRequest type are optional.
@@ -96,6 +96,60 @@ cleanUp mStr =  cleanUpSpecialChars <$>  mStr
 cleanUpSpecialChars :: Text -> Text
 cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: String))
 
+createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+createAddress addr addrHolder =
+  case toDBAddress addr addrHolder of
+    Nothing -> pure Nothing
+    Just dbAddr -> do
+      mAddr <- withDB eulerDB
+          $ insertRowsReturningList
+          $ B.insert (order_address eulerDBSchema)
+          $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
+      pure $ (^. _id) =<< (safeHead mAddr)
+
+
+updateAddress :: Maybe AddressId -> Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+updateAddress curAddrId addrT addrHolderT =
+  case (currAddrId, toDBAddress addrT addrHolderT) of
+    (_, Nothing) -> pure Nothing
+    (Just addrId, Just dbAddr) -> do
+      withDB eulerDB
+        $ updateRows
+        $ B.save (order_address eulerDBSchema)
+        $ dbAddr & _id .~ (Just addrId)
+      pure addrId
+    (Nothing, Just dbAddr) -> do
+      mAddr <- withDB eulerDB
+          $ insertRowsReturningList
+          $ B.insert (order_address eulerDBSchema)
+          $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
+      pure $ (^. _id) =<< (safeHead mAddr)
+
+
+toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe OrderAddress
+toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
+  | nothingSet = Nothing
+  | otherwise = Just $ OrderAddress
+        { id             = Nothing  -- in DB it's not Null, Auto increment
+        , version        = 1        -- defaultVersion
+      -- from src/Config/Constants.purs
+      --  defaultVersion :: Int
+      --  defaultVersion = 1
+        ..
+        }
+  where
+    nothingSet = isNothing
+      $   firstName
+      <|> lastName
+      <|> line1
+      <|> line2
+      <|> line3
+      <|> city
+      <|> state
+      <|> country
+      <|> postalCode
+      <|> phone
+      <|> countryCodeIso
 -- ### ###
 
 
@@ -124,38 +178,15 @@ doOrderUpdate orderUpdateT order@OrderReference {..}  mAccnt = do
     _ ->  do
       let mNewAmount <- getField @"amount" orderUpdateT
       let newUDF = cleanUpUDF $ udf orderUpdateT
-      let newShippingAddr = mkShippingAddress $ upcast orderUpdateT
-      let newBillingAddr  = mkBillingAddress $ upcast orderUpdateT
-
-      -- update shipping address
-      shippingAddressId' <- if isAddressEmpty newShippingAddr
-        then pure Nothing
-        else
-          case (shippingAddressId) of
-            Nothing -> getShippingAddrId orderUpdateReq
-            Just saId -> do
-              _ <- updateOrderAddress $ newShippingAddr & _id .~ (Just saId)
-              pure Nothing
-
-      -- update billing address
-      billingAddressId' <- if isAddressEmpty newBillingAddr
-        then pure Nothing
-        else
-          case (billingAddressId) of
-          Nothing -> getBillingAddrId orderUpdateReq mAccnt
-          Just baId -> do
-            _ <- updateOrderAddress $ newBillingAddr & _id .~ (Just baId)
-            pure Nothing
-
-      -- update amount, udf and last modified
-
-      currentDate <-  getCurrentDateUTC
+      shippingAddressId' <- updateAddress shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)
+      billingAddressId' <- updateAddress billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
+      currentDate' <-  getCurrentDateUTC
       updateOrderRefAndInValidateCache (smash udf $ order
-        { amount = Just newAmount
+        { amount = newAmount <|> (Just amount)
         , billingAddressId = billingAddressId'
         , shippingAddressId = shippingAddressId'
-        , lastModified = currentDate
-      })
+        , lastModified = currentDate'
+        })
 
 
 
@@ -163,17 +194,20 @@ doOrderUpdate orderUpdateT order@OrderReference {..}  mAccnt = do
 -- from src/Types/Storage/EC/OrderReference.purs
 updateOrderRefAndInValidateCache :: OrderReference -> Flow OrderReference
 updateOrderRefAndInValidateCache order = do
- -- order <- DB.updateOne' ecDB order $ where_ := WHERE ["id" /\ Int (order .^. _id)] :: WHERE OrderReference
- -- _     <- RedisService.invalidateOrderStatusCache (order .^. _orderId) (order .^. _merchantId)
+  _ <- withDB eulerDB
+         $ updateRows
+         $ B.save (order_reference eulerDBSchema) order
+        --DB.updateOne' ecDB order $ where_ := WHERE ["id" /\ Int (order .^. _id)] :: WHERE OrderReference
+  _     <- invalidateOrderStatusCache (order .^. _orderId) (order .^. _merchantId)
   pure order
 
 -- from src/Types/Storage/EC/OrderAddress.purs
-updateOrderAddress :: OrderAddress -> Flow OrderAddress
-updateOrderAddress orderAddress = do --pure orderAddress --do
-  withDB eulerDB
-    $ updateRows
-    $ B.save (order_address eulerDBSchema)
-    $ orderAddress
-  pure orderAddress
+-- updateOrderAddress :: OrderAddress -> Flow OrderAddress
+-- updateOrderAddress orderAddress = do --pure orderAddress --do
+--   withDB eulerDB
+--     $ updateRows
+--     $ B.save (order_address eulerDBSchema)
+--     $ orderAddress
+--   pure orderAddress
 --  let opts = getOrderAddressOpts orderAddress
 --  (update "ECRDB" opts $ where_ := WHERE ["id" /\ Int id] :: WHERE OrderAddress) >>= extractUpdateOneObj

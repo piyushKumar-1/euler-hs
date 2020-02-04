@@ -92,16 +92,18 @@ parseAndDecodeJson tval errorCode errorMessage = case (A.eitherDecode $ BSL.from
         throwException err500 {errBody = "parseAndDecodeJson"}
 
 invalidateCardListForMerchantCustomer :: Text -> Text -> Flow ()
-invalidateCardListForMerchantCustomer merchantId customerId = do
- -- _ <- delCache Constants.ecRedis $ "ec_cards_:" <> merchantId <> ":" <> customerId
-  pure ()
+invalidateCardListForMerchantCustomer merchantId customerId =
+  void $ rDel ["ec_cards_:" <> merchantId <> ":" <> customerId]
+
 
 invalidateOrderStatusCache :: Text -> Text -> Flow ()
 invalidateOrderStatusCache orderId merchantId = do
-  _ <- logError "invalidateOrderStatusCache" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
- -- _ <- delCache Constants.ecRedis $ "euler_ostatus_" <> merchantId <> "_" <> orderId
- -- _ <- delCache Constants.ecRedis $ "euler_ostatus_unauth_" <> merchantId <> "_" <> orderId
- -- _ <- delCache Constants.ecRedis $ "ostatus_" <> merchantId <> "_" <> orderId
- -- _ <- delCache Constants.ecRedis $ "ostatus_unauth_" <> merchantId <> "_" <> orderId
- -- _ <- logError "invalidateOrderStatusCache" $ "Invalidated order status cache for " <> merchantId <> " and order_id " <> orderId
-  pure ()
+  logInfo "invalidateOrderStatusCacheStart" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
+  void $ rDel
+        [ "euler_ostatus_" <> merchantId <> "_" <> orderId
+        , "euler_ostatus_unauth_" <> merchantId <> "_" <> orderId
+        , "ostatus_" <> merchantId <> "_" <> orderId
+        , "ostatus_unauth_" <> merchantId <> "_" <> orderId
+        ]
+  logInfo "invalidateOrderStatusCacheEnd" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
+

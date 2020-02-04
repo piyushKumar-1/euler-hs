@@ -19,10 +19,10 @@ import           Euler.Product.Domain.Templates.Customer
 data OrderUpdateTemplate = OrderUpdateTemplate
   { amount             :: Maybe Money
   , udf                :: UDF
-  , billingAddrHolder  :: BillingAddressHolderTemplate   -- EHS: previously CustomerInfo
-  , billingAddr        :: BillingAddressTemplate
-  , shippingAddrHolder :: ShippingAddressHolderTemplate
-  , shippingAddr       :: ShippingAddressTemplate
+  , billingAddrHolder  :: AddressHolderTemplate   -- EHS: previously CustomerInfo
+  , billingAddr        :: AddressTemplate
+  , shippingAddrHolder :: AddressHolderTemplate
+  , shippingAddr       :: AddressTemplate
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)
 

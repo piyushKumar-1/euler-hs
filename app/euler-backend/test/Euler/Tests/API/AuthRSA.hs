@@ -23,6 +23,8 @@ import           Network.HTTP.Types
 import           Servant.Server (serve)
 import           Servant.API
 import           Servant.Client
+import           System.Process
+import           System.Exit
 
 import           Test.Hspec
 
@@ -165,13 +167,18 @@ testDBName = "./test/Euler/TestData/authRSAtest.db"
 testDBTemplateName :: String
 testDBTemplateName = "./test/Euler/TestData/authRSAtest.db.template"
 
-rmTestDB :: Flow ()
-rmTestDB = void $ runSysCmd $ "rm -f " <> testDBName
+rmTestDB :: IO ()
+rmTestDB = void $ try @_ @SomeException $ system $ "rm -f " <> testDBName
 
-prepareTestDB :: FlowRuntime -> IO ()
-prepareTestDB rt = void $ try @_ @SomeException $ runFlow rt $ do
-  rmTestDB
-  void $ runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
+cpTestDB :: IO ()
+cpTestDB = do
+  res <- try @_ @SomeException $ system $ "cp " <> testDBTemplateName <> " " <> testDBName
+  case res of
+    Right ExitSuccess -> pure ()
+    _                 -> error "Unable to copy rsa test db mockup"
+
+prepareTestDB :: IO() -> IO ()
+prepareTestDB action = bracket_ rmTestDB rmTestDB (cpTestDB >> action)
 
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
@@ -181,11 +188,11 @@ prepareDBConnections = do
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
 
 prepareDB :: (FlowRuntime -> IO ()) -> IO()
-prepareDB next = withFlowRuntime Nothing $ \flowRt -> do
-  prepareTestDB flowRt
-  try (runFlow flowRt prepareDBConnections) >>= \case
-    Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
-    Right _ -> next flowRt
+prepareDB next = withFlowRuntime Nothing $ \flowRt ->
+  prepareTestDB $
+    try (runFlow flowRt prepareDBConnections) >>= \case
+      Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
+      Right _ -> next flowRt
 
 runServer :: IO () -> FlowRuntime -> IO ()
 runServer act flowRt = do

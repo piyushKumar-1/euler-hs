@@ -7,7 +7,7 @@ import           EulerHS.Prelude
 
 import           Euler.Common.Types.Currency (Currency)
 import           Euler.Common.Types.Customer (CustomerId)
-import           Euler.Common.Types.Order     (MandateFeature (..), OrderStatus (..), OrderType (..))
+import           Euler.Common.Types.Order     (MandateFeature (..), OrderStatus (..), OrderType (..), UDF)
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Gateway (GatewayId)
 import           Euler.Common.Types.Money (Money)
@@ -15,6 +15,16 @@ import           Euler.Common.Types.Money (Money)
 import           Euler.Product.Domain.Templates.Address
 import           Euler.Product.Domain.Templates.Customer
 
+
+data OrderUpdateTemplate = OrderUpdateTemplate
+  { amount             :: Maybe Money
+  , udf                :: UDF
+  , billingAddrHolder  :: BillingAddressHolderTemplate   -- EHS: previously CustomerInfo
+  , billingAddr        :: BillingAddressTemplate
+  , shippingAddrHolder :: ShippingAddressHolderTemplate
+  , shippingAddr       :: ShippingAddressTemplate
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON)
 
 data OrderCreateTemplate = OrderCreateTemplate
   { orderId                        :: Text

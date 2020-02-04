@@ -608,3 +608,45 @@ type FeatureAll a =
   | a
   }
 -}
+
+
+-- The only amount, address and UDF fields can be updated.
+data OrderUpdateRequest = OrderUpdateRequest
+  { amount                            :: Maybe Double
+
+  , billing_address_first_name        :: Maybe Text
+  , billing_address_last_name         :: Maybe Text
+  , billing_address_line1             :: Maybe Text
+  , billing_address_line2             :: Maybe Text
+  , billing_address_line3             :: Maybe Text
+  , billing_address_city              :: Maybe Text
+  , billing_address_state             :: Maybe Text
+  , billing_address_country           :: Maybe Text
+  , billing_address_postal_code       :: Maybe Text
+  , billing_address_phone             :: Maybe Text
+  , billing_address_country_code_iso  :: Maybe Text
+
+  , shipping_address_first_name       :: Maybe Text
+  , shipping_address_last_name        :: Maybe Text
+  , shipping_address_line1            :: Maybe Text
+  , shipping_address_line2            :: Maybe Text
+  , shipping_address_line3            :: Maybe Text
+  , shipping_address_city             :: Maybe Text
+  , shipping_address_state            :: Maybe Text
+  , shipping_address_country          :: Maybe Text
+  , shipping_address_postal_code      :: Maybe Text
+  , shipping_address_phone            :: Maybe Text
+  , shipping_address_country_code_iso :: Maybe Text
+
+  , udf1                              :: Maybe Text
+  , udf2                              :: Maybe Text
+  , udf3                              :: Maybe Text
+  , udf4                              :: Maybe Text
+  , udf5                              :: Maybe Text
+  , udf6                              :: Maybe Text
+  , udf7                              :: Maybe Text
+  , udf8                              :: Maybe Text
+  , udf9                              :: Maybe Text
+  , udf10                             :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)

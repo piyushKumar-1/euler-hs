@@ -1,6 +1,7 @@
 Type correspondence
 ===================
 - NullOrUndefined -> Maybe
+unNullOrUndefined :: forall a. NullOrUndefined a -> Maybe a
 
 Storage types
 - Number -> Double

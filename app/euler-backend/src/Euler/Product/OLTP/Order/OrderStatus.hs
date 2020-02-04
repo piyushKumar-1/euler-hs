@@ -834,14 +834,41 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   --   else pure nothing
   pure Nothing
 
+-- It can be used below at 'addCardInfo'
+-- setFieldMany [] s = s
+-- setFieldMany ((field,value):xs) s =
+--   let s1 = setField field value s
+--   in setFieldMany xs s1
 
 addCardInfo :: TxnDetail -> TxnCardInfo -> Bool -> Maybe Text -> OrderStatusResponse -> OrderStatusResponse
 addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
   if isBlankMaybe (getField @"cardIsin" txnCardInfo) then
-    let ordStatus1 = setField @"payment_method" (if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN") ordStatus
+    let payment_method' =if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN"
+        ordStatus1 = setField @"payment_method" payment_method' ordStatus
         ordStatus2 = setField @"payment_method_type" (Just "CARD") ordStatus1
-    in  setField @"card" (Just $ (undefined :: Card)) ordStatus2 -- TODO getCardDetails txnCardInfo txnDetail shouldSendCardIsin
+    in  setField @"card" (Just $ getCardDetails txnCardInfo txnDetail shouldSendCardIsin) ordStatus2
   else ordStatus
+
+getCardDetails :: TxnCardInfo -> TxnDetail -> Bool -> Card
+getCardDetails card txn shouldSendCardIsin = Card
+  { expiry_year = maybe (Just "") Just (getField @"cardExpYear" card)
+  , card_reference = maybe (Just "") Just (getField @"cardReferenceId" card)
+  , saved_to_locker = isSavedToLocker card txn
+  , expiry_month = maybe (Just "") Just  (getField @"cardExpMonth" card)
+  , name_on_card = maybe (Just "") Just  (getField @"nameOnCard" card)
+  , card_issuer = maybe (Just "") Just  (getField @"cardIssuerBankName" card)
+  , last_four_digits = maybe (Just "") Just  (getField @"cardLastFourDigits" card)
+  , using_saved_card = getField @"expressCheckout" txn
+  , card_fingerprint = maybe (Just "") Just  (getField @"cardFingerprint" card)
+  , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
+  , card_type = maybe (Just "") Just  (getField @"cardType" card)
+  , card_brand = maybe (Just "") Just  (getField @"cardSwitchProvider" card)
+  }
+  where
+    isSavedToLocker cardObj txnObj = Just $
+      isTrueMaybe (getField @"addToLocker" txn) && (isBlankMaybe $ getField @"cardReferenceId" card)
+
+
 
 
 
@@ -1433,41 +1460,6 @@ addEmi txn ordStatus =
   if(isTrue (txn ^. _isEmi))
   then wrap $ (unwrap ordStatus) { emi_tenure = txn ^. _emiTenure, emi_bank = txn ^. _emiBank }
   else ordStatus
-
-addCardInfo :: TxnDetail -> TxnCardInfo -> Boolean -> Maybe String -> OrderStatusResponse -> OrderStatusResponse
-addCardInfo txn card shouldSendCardIsin cardBrandMaybe ordStatus = do
-  let ordStatObj = unwrap ordStatus
-      cardObj = unwrap card
-  case isCardTxn cardObj of
-    true  -> wrap $ ordStatObj
-                     { payment_method = if isJust cardBrandMaybe then NullOrUndefined cardBrandMaybe else just "UNKNOWN"
-                     , payment_method_type = just $ "CARD"
-                     , card = just $ getCardDetails card txn shouldSendCardIsin
-                     }
-    false -> ordStatus
-  where isCardTxn cardObj = isTrueString cardObj.cardIsin
-
-getCardDetails :: TxnCardInfo -> TxnDetail -> Boolean -> Card
-getCardDetails card txn shouldSendCardIsin = do
-  let cardObj = unwrap card
-      txnObj = unwrap txn
-  Card $
-    {  expiry_year: just $ unNull cardObj.cardExpYear ""
-    ,  card_reference: just $ unNull cardObj.cardReferenceId ""
-    ,  saved_to_locker: isSavedToLocker cardObj txnObj
-    ,  expiry_month: just $ unNull cardObj.cardExpMonth ""
-    ,  name_on_card: just $ unNull cardObj.nameOnCard ""
-    ,  card_issuer: just $ unNull cardObj.cardIssuerBankName ""
-    ,  last_four_digits: just $ unNull cardObj.cardLastFourDigits ""
-    ,  using_saved_card: isUsingSavedCard txnObj
-    ,  card_fingerprint: just $ unNull cardObj.cardFingerprint ""
-    ,  card_isin: if shouldSendCardIsin then cardObj.cardIsin else (just "")
-    ,  card_type: just $ unNull cardObj.cardType  "" -- TODO (Some transformation required)
-    ,  card_brand: just $ unNull cardObj.cardSwitchProvider ""
-    }
-  where isSavedToLocker cardObj txnObj = just $ isTrue txnObj.addToLocker && (isTrueString cardObj.cardReferenceId)
-        isUsingSavedCard {expressCheckout: NullOrUndefined (Just true)} = just true
-        isUsingSavedCard _ = just false
 
 -- getCardBrandValue :: String -> String -> String
 -- getCardBrandValue cardIsin cardSwitchProvider =

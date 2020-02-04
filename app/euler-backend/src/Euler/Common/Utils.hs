@@ -12,3 +12,7 @@ isBlank = Text.null . Text.strip
 isBlankMaybe :: Maybe Text -> Bool
 isBlankMaybe Nothing = False
 isBlankMaybe (Just val) = isBlank val
+
+isTrueMaybe :: Maybe Bool -> Bool
+isTrueMaybe (Just True) = True
+isTrueMaybe _ = False

@@ -20,39 +20,43 @@ import Euler.Common.Types.Transaction (AuthType(..))
 
 
 -- TODO Probably we can factor explicit apiTxn out with the help of ReaderT
-instance Transform AT.Transaction DT.Transaction where
-  transform apiTxn = DT.Transaction
+
+
+type V a = Validation [Text] a
+
+transApiTxToDomTx :: AT.Transaction -> V DT.Transaction
+transApiTxToDomTx apiTxn = DT.Transaction
       <$> (OrderId    <$> withField @"order_id"    apiTxn textNotEmpty) -- :: OrderId                -- ^
       <*> (MerchantId <$> withField @"merchant_id" apiTxn textNotEmpty) -- :: MerchantId
-      <*> transform apiTxn                                               -- :: TransactionType
+      <*> transApiTxToDomTxType apiTxn                                               -- :: TransactionType
       <*> withField @"redirect_after_payment" apiTxn pure                -- :: Bool
       <*> withField @"format" apiTxn textNotEmpty                       -- :: _
 
-instance Transform AT.Transaction DT.TransactionType where
-  transform apiTxn = case ( getField @"payment_method_type" apiTxn
+transApiTxToDomTxType :: AT.Transaction -> V DT.TransactionType
+transApiTxToDomTxType apiTxn =  case ( getField @"payment_method_type" apiTxn
                           , getField @"auth_type" apiTxn
                           , getField @"direct_wallet_token" apiTxn) of
-    (AT.CARD  , Just ATMPIN, _      ) -> DT.ATMRedirectionTransaction    <$> transform apiTxn
-                                     <!> DT.ATMSeamlessTransaction       <$> transform apiTxn
-    (AT.CARD  , _          , _      ) -> DT.CardTransaction              <$> transform apiTxn
-    (AT.NB    , _          , _      ) -> DT.NBTransaction                <$> transform apiTxn
-    (AT.WALLET, _          , Nothing) -> DT.WalletTransaction            <$> transform apiTxn
-    (AT.WALLET, _          , Just _ ) -> DT.WalletDirectDebitTransaction <$> transform apiTxn
-    (AT.UPI   , _          , _      ) -> DT.UPITransaction               <$> transform apiTxn
+    (AT.CARD  , Just ATMPIN, _      ) -> DT.ATMRedirectionTransaction    <$> transApiTxToDomAtmRP apiTxn
+                                     <!> DT.ATMSeamlessTransaction       <$> transApiTxToDomAtmSP apiTxn
+    (AT.CARD  , _          , _      ) -> DT.CardTransaction              <$> transApiTxToDomCardP apiTxn
+    (AT.NB    , _          , _      ) -> DT.NBTransaction                <$> transApiTxToDomNBP apiTxn
+    (AT.WALLET, _          , Nothing) -> DT.WalletTransaction            <$> transApiTxToDomWalletP apiTxn
+    (AT.WALLET, _          , Just _ ) -> DT.WalletDirectDebitTransaction <$> transApiTxToDomDirectWalletP apiTxn
+    (AT.UPI   , _          , _      ) -> DT.UPITransaction               <$> transApiTxToDomUPIP apiTxn
 
-instance Transform AT.Transaction ATMSeamlessPayment where
-  transform apiTxn = ATMSeamlessPayment
+transApiTxToDomAtmSP :: AT.Transaction -> V ATMSeamlessPayment
+transApiTxToDomAtmSP apiTxn = ATMSeamlessPayment
     <$> withField @"payment_method" apiTxn (extractJust >=> decode)
-    <*> transform apiTxn
+    <*> transApiTxToDomCardPType apiTxn                 --CardPaymentType
     <*> withField @"auth_type"      apiTxn (extractJust >=> isAtmCardAuthType)
 
-instance Transform AT.Transaction ATMRedirectionPayment where
-  transform apiTxn = ATMRedirectionPayment
+transApiTxToDomAtmRP :: AT.Transaction -> V ATMRedirectionPayment
+transApiTxToDomAtmRP apiTxn = ATMRedirectionPayment
     <$> withField @"payment_method" apiTxn (extractJust >=> decode)
     <*> withField @"auth_type"      apiTxn (extractJust >=> isAtmCardAuthType)
 
-instance Transform AT.Transaction UPIPayment where
-  transform apiTxn
+transApiTxToDomUPIP :: AT.Transaction -> V UPIPayment
+transApiTxToDomUPIP apiTxn
     =   UPICollect
         <$> withField @"payment_method" apiTxn (extractJust >=> decode)
         <*> withField @"txn_type"       apiTxn (extractJust >=> decode >=> isUPICollectTxnType)
@@ -61,30 +65,30 @@ instance Transform AT.Transaction UPIPayment where
         <$> withField @"payment_method" apiTxn (extractJust >=> decode)
         <*> withField @"txn_type"       apiTxn (extractJust >=> decode >=> isUPIPayTxnType)
 
-instance Transform AT.Transaction WalletPayment where
-  transform apiTxn = WalletPayment
+transApiTxToDomWalletP :: AT.Transaction -> V WalletPayment
+transApiTxToDomWalletP apiTxn = WalletPayment
     <$> withField @"payment_method" apiTxn (extractJust >=> decode)
 
-instance Transform AT.Transaction DirectWalletPayment where
-  transform apiTxn = DirectWalletPayment
+transApiTxToDomDirectWalletP :: AT.Transaction -> V DirectWalletPayment
+transApiTxToDomDirectWalletP apiTxn = DirectWalletPayment
     <$> withField @"payment_method"      apiTxn (extractJust >=> decode)
     <*> withField @"direct_wallet_token" apiTxn (extractJust >=> textNotEmpty)
 
-instance Transform AT.Transaction NBPayment where
-  transform apiTxn = NBPayment
+transApiTxToDomNBP :: AT.Transaction -> V NBPayment
+transApiTxToDomNBP apiTxn = NBPayment
     <$> withField @"payment_method" apiTxn (extractJust >=> decode)
 
-instance Transform AT.Transaction CardPayment where
-  transform apiTxn = CardPayment
+transApiTxToDomCardP :: AT.Transaction -> V CardPayment
+transApiTxToDomCardP apiTxn = CardPayment
     <$> withField @"payment_method" apiTxn (extractJust >=> decode)
-    <*> transform apiTxn
+    <*> transApiTxToDomCardPType apiTxn
     <*> withField @"is_emi"     apiTxn pure
     <*> withField @"emi_bank"   apiTxn (insideJust textNotEmpty)
     <*> withField @"emi_tenure" apiTxn pure
     <*> withField @"auth_type"  apiTxn (insideJust isRegularCardAuthType)
 
-instance Transform AT.Transaction CardPaymentType where
-  transform apiTxn
+transApiTxToDomCardPType :: AT.Transaction -> V CardPaymentType
+transApiTxToDomCardPType apiTxn
     =   SavedCardPayment
           <$> withField @"card_token"         apiTxn (extractJust >=> textNotEmpty)
           <*> withField @"card_security_code" apiTxn (extractJust >=> textNotEmpty)
@@ -95,8 +99,6 @@ instance Transform AT.Transaction CardPaymentType where
           <*> withField @"card_exp_year"      apiTxn (extractJust >=> textNotEmpty)
           <*> withField @"card_security_code" apiTxn (extractJust >=> textNotEmpty)
           <*> withField @"save_to_locker"     apiTxn extractJust
-
-
 ----------------------------------------------------------------------
 
 isRegularCardAuthType :: Validator AuthType

@@ -533,57 +533,57 @@ spec =
   describe "Transaction transformations tests" $ do
 
     it "API Regular New Card Txn to Domain Regular New Card Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiRegularNewCardTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiRegularNewCardTxn
       res `shouldBe` (Success domainRegularNewCardTxn)
 
     it "API Regular Saved Card Txn to Domain Regular Saved Card Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiRegularSavedCardTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiRegularSavedCardTxn
       res `shouldBe` (Success domainRegularSavedCardTxn)
 
     it "API Seamless New Card Txn to Domain Seamless New Card Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiSeamlessNewCardTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiSeamlessNewCardTxn
       res `shouldBe` (Success domainSeamlessNewCardTxn)
 
     it "API Seamless Saved Card Txn to Domain Seamless Saved Card Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiSeamlessSavedCardTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiSeamlessSavedCardTxn
       res `shouldBe` (Success domainSeamlessSavedCardTxn)
 
     it "API ATM Redirect Card Txn to Domain ATM Redirect Card Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiATMRedirectCardTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiATMRedirectCardTxn
       res `shouldBe` (Success domainATMRedirectCardTxn)
 
     it "API UPI Collect Txn to Domain UPI Collect Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiUpiCollectTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiUpiCollectTxn
       res `shouldBe` (Success domainUpiCollectTxn)
 
     it "API UPI PAY Txn to Domain UPI PAY Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiUpiPAYTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiUpiPAYTxn
       res `shouldBe` (Success domainUpiPAYTxn)
 
     it "API Wallet Txn to Domain Wallet Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiWalletTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiWalletTxn
       res `shouldBe` (Success domainWalletTxn)
 
     it "API Direct Wallet Txn to Domain Direct Wallet Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiDirectWalletTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiDirectWalletTxn
       res `shouldBe` (Success domainDirectWalletTxn)
 
     it "API Netbanking Txn to Domain Netbanking Txn" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiNetbankingTxn
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiNetbankingTxn
       res `shouldBe` (Success domainNetbankingTxn)
 
     it "API Netbanking Txn fail with empty text fields" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiNBTxnEmptyTextFields
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiNBTxnEmptyTextFields
       res `shouldBe` (Failure ["order_id can't be empty","merchant_id can't be empty","format can't be empty"])
 
     it "API Direct Wallet Txn fail with incorrect PM" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiDirectWalletTxnIncorrectPM
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiDirectWalletTxnIncorrectPM
       res `shouldBe` (Failure ["Can't decode IncorrectPM from field payment_method, should be one of [MOBIKWIK,PAYTM,FREECHARGE,OLAMONEY]"])
 
     it "API Netbanking Txn fail with missing mandatory field" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiDirectWalletTxnNoMandatoryField
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiDirectWalletTxnNoMandatoryField
       res `shouldBe` (Failure ["payment_method not present"])
 
     it "API Regular New Card Txn fail with few Failures" $  do
-      let (res :: (Validation [Text] DT.Transaction)) = transform apiRegularNewCardTxnFewFailures
+      let (res :: (Validation [Text] DT.Transaction)) = transApiTxToDomTx apiRegularNewCardTxnFewFailures
       res `shouldBe` (Failure ["merchant_id can't be empty","Can't decode MISsA from field payment_method, should be one of [VISA,MASTERCARD,MAESTRO,AMEX,RUPAY]","card_number can't be empty","card_security_code not present"])

@@ -63,9 +63,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port --
--- to update --
--- completed --
+-- to port '-- TODO port' - 40
+-- to update '-- TODO update' - 17
+-- completed '-- done' - 11
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -827,6 +827,7 @@ getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated r
 
 -- ----------------------------------------------------------------------------
 -- function: getTxnFromTxnUuid
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -871,6 +872,7 @@ getTxnFromTxnUuid order maybeTxnUuid = do
 
 -- ----------------------------------------------------------------------------
 -- function: getOrderId
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -890,6 +892,7 @@ getOrderId orderReq routeParam = do
 
 -- ----------------------------------------------------------------------------
 -- function: getLastTxn
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -937,6 +940,7 @@ getLastTxn orderRef = do
 
 -- ----------------------------------------------------------------------------
 -- function: fillOrderDetails
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1221,6 +1225,7 @@ getReturnUrl orderRef somebool = do
 
 -- ----------------------------------------------------------------------------
 -- function: getChargedTxn
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1307,7 +1312,7 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 
 -- ----------------------------------------------------------------------------
 -- function: addPromotionDetails
--- TODO: Update
+-- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1453,10 +1458,10 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayReferenceId
--- TODO: Update
+-- TODO update
 -- ----------------------------------------------------------------------------
 
-{-
+{-PS
 getGatewayReferenceId ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
 getGatewayReferenceId txn ordRef = do
   ordMeta <- DB.findOne ecDB (where_ := WHERE ["order_reference_id" /\ String (unNull (ordRef ^. _id) "")] :: WHERE OrderMetadataV2)
@@ -1698,7 +1703,7 @@ addAuthType card ordStatus = wrap $ (unwrap ordStatus) { auth_type = just $ unNu
 
 -- ----------------------------------------------------------------------------
 -- function: addEmi
--- TODO update/port
+-- TODO port
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1712,6 +1717,7 @@ addEmi txn ordStatus =
 
 -- ----------------------------------------------------------------------------
 -- function: addCardInfo
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1744,6 +1750,7 @@ addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
 
 -- ----------------------------------------------------------------------------
 -- function: getCardDetails
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1953,7 +1960,7 @@ lookupRespXml xml str1 str2 = do
 
 -- ----------------------------------------------------------------------------
 -- function: lookupRespXml'
--- TODO update/port
+-- TODO port
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2020,6 +2027,7 @@ hierarchyObjectLookup xml key1 key2 = do
 
 -- ----------------------------------------------------------------------------
 -- function: addGatewayResponse
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2636,7 +2644,7 @@ getTokenExpiryData = do
 
 -- ----------------------------------------------------------------------------
 -- function: getAxisUpiTxnIdFromPgr
--- TODO update/port
+-- TODO port
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2654,7 +2662,7 @@ getAxisUpiTxnIdFromPgr txn pgResponse = do
 
 -- ----------------------------------------------------------------------------
 -- function: getAxisUpiRequestIdFromPgr
--- TODO update/port
+-- TODO port
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2702,7 +2710,7 @@ xmlToJsonPgrAccumulater strmap xml = do
 
 -- ----------------------------------------------------------------------------
 -- function:
--- TODO update/port
+-- TODO port
 -- ----------------------------------------------------------------------------
 
 {-PS

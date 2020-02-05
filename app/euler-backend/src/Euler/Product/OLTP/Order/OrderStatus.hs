@@ -143,7 +143,7 @@ instance OptionEntity FlowStateOption FlowState
 
 -- TODO inside authentication used "x-forwarded-for" header
 -- TODO can we collect all headers in Map and save them in state? before we run the flow?
-processOrderStatusGET :: Text -> APIKey -> Flow OrderStatusResponse 
+processOrderStatusGET :: Text -> APIKey -> Flow OrderStatusResponse
 processOrderStatusGET orderId apiKey = do
   -- if merchantAccount don't exists - throw access denied exception
   (merchantAccount, isAuthenticated) <- authenticateWithAPIKey apiKey
@@ -188,13 +188,13 @@ getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeO
   checkEnableCaseForResponse req routeParams ordResp
 -}
 
-getOrderStatusWithoutAuth 
-  :: OrderStatusRequest 
-  -> Text {-RouteParameters-} 
-  -> MerchantAccount 
+getOrderStatusWithoutAuth
+  :: OrderStatusRequest
+  -> Text {-RouteParameters-}
+  -> MerchantAccount
   -> Bool
-  -> (Maybe OrderCreateRequest) 
-  -> (Maybe OrderReference) 
+  -> (Maybe OrderCreateRequest)
+  -> (Maybe OrderReference)
   -> Flow OrderStatusResponse -- Foreign
 getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
   merchId <- case (getField @"merchantId" merchantAccount) of
@@ -269,7 +269,7 @@ addOrderTokenToOrderStatus orderId (OrderCreateReq orderCreateReq) merchantId = 
     _ -> pure $ nothing
 -}
 
-addOrderTokenToOrderStatus :: Int -> OrderCreateRequest -> Text -> Flow (Maybe OrderTokenResp)
+addOrderTokenToOrderStatus :: Text -> OrderCreateRequest -> Text -> Flow (Maybe OrderTokenResp)
 addOrderTokenToOrderStatus orderId orderCreateReq merchantId = do
   case  (Just True) of -- (getField @"options.get_client_auth_token" orderCreateReq) of
     Just True -> do
@@ -662,7 +662,7 @@ addToCache req isAuthenticated mAccnt routeParam ordStatusResp = do
       keyPrefix false = "euler_ostatus_unauth_"
 -}
 
-addToCache :: 
+addToCache ::
      OrderStatusRequest
   -> Bool
   -> MerchantAccount
@@ -1266,7 +1266,7 @@ data Config = Config
   , internalECHost :: Text
   }
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
-  
+
 defaultConfig = Config
     { protocol = "https"
     , host = "defaulthost"
@@ -1319,8 +1319,8 @@ addPromotionDetails orderRef orderStatus = do
 addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
 addPromotionDetails orderRef orderStatus = do
   -- Order contains two id -like fields (better names?)
-  let orderId  = getField @"id" orderRef -- unNull (orderRef ^. _id) 0 -- id Int
-      ordId = fromMaybe "" (getField @"orderId" orderRef)-- unNull (orderRef ^. _orderId) "" --orderId Maybe Text
+  let orderId  = getField @"id" orderRef
+      ordId = fromMaybe "" (getField @"orderId" orderRef)
   promotions <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
@@ -1436,13 +1436,40 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
          if (isBlankMaybe $ getField @"gatewayPayload" txn)
            then getField @"gatewayPayload" txn
            else Nothing
-           
+
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayReferenceId
 -- ----------------------------------------------------------------------------
 
 {-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+
+{-
+
+
+
 getGatewayReferenceId ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
 getGatewayReferenceId txn ordRef = do
   ordMeta <- DB.findOne ecDB (where_ := WHERE ["order_reference_id" /\ String (unNull (ordRef ^. _id) "")] :: WHERE OrderMetadataV2)
@@ -1462,7 +1489,7 @@ getGatewayReferenceId txn ordRef = do
 getGatewayReferenceId :: TxnDetail -> OrderReference -> Flow Text
 getGatewayReferenceId txn ordRef = do
 
-  let ordRefId = fromMaybe 0 (getField @"id" ordRef)
+  let ordRefId = fromMaybe "" (getField @"id" ordRef)
   ordMeta <- withDB eulerDB $ do
         let predicate OrderMetadataV2 {orderReferenceId} =
               orderReferenceId ==. B.val_ ordRefId
@@ -2045,7 +2072,7 @@ hierarchyObjectLookup xml key1 key2 = do
 -- ----------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------
 -- ----------------------------------------------------------------------------
- 
+
 {-
 
 

@@ -36,7 +36,7 @@ data MandateT f = Mandate
   ,  paymentMethodId          :: B.C f (Maybe Text)
   ,  gateway                  :: B.C f (Maybe Gateway)      -- EHS: check this conversion on real DB
   ,  gatewayParams            :: B.C f (Maybe Text)
-  ,  authOrderId              :: B.C f (Maybe Int)
+  ,  authOrderId              :: B.C f (Maybe Text)
   ,  activatedAt              :: B.C f (Maybe LocalTime)
   ,  dateCreated              :: B.C f LocalTime
   ,  lastModified             :: B.C f LocalTime
@@ -108,7 +108,7 @@ defaultMandate = Mandate
   ,  paymentMethodId           = Nothing -- :: Maybe Text
   ,  gateway                   = Nothing -- :: Maybe Gateway
   ,  gatewayParams             = Nothing -- :: Maybe Text
-  ,  authOrderId               = Nothing -- :: Maybe Int
+  ,  authOrderId               = Nothing -- :: Maybe Text
   ,  activatedAt               = Nothing -- :: Maybe LocalTime
   ,  dateCreated               = defaultDate -- :: LocalTime
   ,  lastModified              = defaultDate -- :: LocalTime

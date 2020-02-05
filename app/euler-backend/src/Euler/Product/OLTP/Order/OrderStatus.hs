@@ -63,9 +63,10 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 41
--- to update '-- TODO update' - 19
--- completed '-- done' - 9
+-- to port '-- TODO port' - 40
+-- to update '-- TODO update' - 18
+-- completed '-- done' - 11
+-- Sum all functions = 69
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -1342,7 +1343,7 @@ addPromotionDetails orderRef orderStatus = do
   promotions <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
-      let predicate Promotions {orderReferenceId} = orderReferenceId ==. B.val_ orderId
+      let predicate Promotions {orderReferenceId} = orderReferenceId ==. B.val_ orderId -- TODO Text -> Int or change Promotions
       findRows
         $ B.select
         $ B.filter_ predicate
@@ -1458,7 +1459,7 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayReferenceId
--- TODO update
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1498,31 +1499,45 @@ getGatewayReferenceId txn ordRef = do
         Just md -> do
           let md' = (decode $ BSL.fromStrict $ T.encodeUtf8 md) :: Maybe (Map Text Text)
           case md' of
-            Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+            Nothing -> checkGatewayRefIdForVodafone ordRef txn
             Just metadata -> do
               gRefId <- pure $ Map.lookup ((fromMaybe "" $ getField @"gateway" txn) <> ":gateway_reference_id") metadata
               jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
               case (gRefId <|> jusId) of
                 Just v -> pure v
-                Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
-        Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
-    Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+                Nothing -> checkGatewayRefIdForVodafone ordRef txn
+        Nothing -> checkGatewayRefIdForVodafone ordRef txn
+    Nothing -> checkGatewayRefIdForVodafone ordRef txn
 
 
 -- ----------------------------------------------------------------------------
 -- function: checkGatewayRefIdForVodafone
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
-{-PS
-checkGatewayRefIdForVodafone ::forall st rt e. Newtype st (TState e) => OrderReference -> TxnDetail -> BackendFlow st _ Foreign
+checkGatewayRefIdForVodafone :: OrderReference -> TxnDetail -> Flow Text
 checkGatewayRefIdForVodafone ordRef txn = do
-  meybeFeature <- DB.findOne ecDB (where_ := WHERE ["name" /\ String ("USE_UDF2_FOR_GATEWAY_REFERENCE_ID"), "merchant_id" /\ String (ordRef .^. _merchantId)] :: WHERE Feature)
-  case meybeFeature of
-    Just feature -> if ((unNull (txn ^._gateway) "") == "HSBC_UPI") && (feature ^. _enabled) && (isPresent (ordRef ^. _udf2)) then pure $ toForeign (unNull (ordRef ^. _udf2) "") else pure $ nullValue unit
-    Nothing -> pure $ nullValue unit
--}
+  merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500) -- ordRef .^. _merchantId
 
+  meybeFeature <- withDB eulerDB $ do
+    let predicate Feature {name, merchantId} =
+          name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
+          &&. merchantId ==. B.just_ (B.val_ merchantId')
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.feature eulerDBSchema)
+
+
+  case meybeFeature of
+    Just feature ->
+        if ((fromMaybe "" $ getField @"gateway" txn) == "HSBC_UPI")
+            && (getField @"enabled" feature)
+            && (isJust $ getField @"udf2" ordRef)
+        then pure $ fromMaybe "" $ getField @"udf2" ordRef
+        else pure mempty -- nullValue unit
+    Nothing -> pure mempty -- nullValue unit
 
 -- ----------------------------------------------------------------------------
 -- function: addRiskCheckInfoToResponse

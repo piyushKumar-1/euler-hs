@@ -303,7 +303,7 @@ isMandateValid oReq@OrderCreateRequest {..} merchantId = if isTrueString $ custo
     case maybeMaxAmount of
       Nothing -> throwException $ err400 {errBody = "Pass mandate_max_amount also to create a mandate order"} -- throwCustomException 400 "INVALID_REQUEST" "Pass mandate_max_amount also to create a mandate order"
       Just maxAmount -> do
-        mayMaxAmLimit <- rGet $ merchantId <> "_mandate_max_amount_limit" -- pure Nothing -- fetchFromRedisWithMaybe ecRedis (merchantId <> "_mandate_max_amount_limit")
+        mayMaxAmLimit <- L.rGet $ merchantId <> "_mandate_max_amount_limit" -- pure Nothing -- fetchFromRedisWithMaybe ecRedis (merchantId <> "_mandate_max_amount_limit")
         maxAmLim <- fromStringToNumber $ case mayMaxAmLimit of
           Just val -> val
           Nothing -> Config.mandateMaxAmountAllowed -- why Text/String not Double?

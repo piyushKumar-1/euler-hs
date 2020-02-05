@@ -930,7 +930,6 @@ getLastTxn orderRef = do
 
 -- ----------------------------------------------------------------------------
 -- function: fillOrderDetails
--- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1039,133 +1038,25 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
 
 
 -- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
+-- function: formatAmount
+-- TODO port or use sanitizeAmount/sanitizeNullAmount?
 -- ----------------------------------------------------------------------------
 
 {-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
-
-
-
-
 formatAmount ::forall st rt. NullOrUndefined Number -> BackendFlow st rt (NullOrUndefined Number)
 formatAmount (NullOrUndefined Nothing) = pure $ nothing
 formatAmount (NullOrUndefined (Just amt)) = do
   amount <- roundOff2 amt
   pure $ just $ amount
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addMandateDetails
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 addMandateDetails :: forall st r e rt. Newtype st (TState e) => OrderReference -> OrderStatusResponse -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
 addMandateDetails ordRef orderStatus =
   case (unNullOrUndefined $ ordRef ^._orderType) of
@@ -1178,7 +1069,43 @@ addMandateDetails ordRef orderStatus =
           Nothing -> pure $ orderStatus
         else pure $ orderStatus
     Nothing -> pure $ orderStatus
+-}
 
+addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow  OrderStatusResponse
+addMandateDetails ordRef orderStatus =
+  case (orderType ordRef) of
+    Just orderType ->
+      if orderType == C.MANDATE_REGISTER then do
+        orderId <- pure $ getField @"id" ordRef  -- unNullOrErr500 $ ordRef ^. _id
+        mandate :: Maybe Mandate <- do
+          conn <- getConn eulerDB
+          let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
+                &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
+          res <- runDB conn $ do
+            findRow
+              $ B.select
+              $ B.limit_ 1
+              $ B.filter_ predicate
+              $ B.all_ (eulerDBSchema ^. _mandate)
+          case res of
+            Right m -> pure m
+            Left err -> do
+              logError "Find Mandate" $ toText $ P.show err
+              throwException err500
+          -- pure Nothing -- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ Int orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
+        case mandate of
+          Just mandateVal -> pure $ setField @"mandate" (Just $ mapMandate $ mandateVal) orderStatus -- # _mandate .~ (just $ mapMandate $ mandateVal)
+          Nothing -> pure $ orderStatus
+        else pure $ orderStatus
+    Nothing -> pure $ orderStatus
+
+
+-- ----------------------------------------------------------------------------
+-- function: getPaymentLink
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 getPaymentLink :: forall st e rt r.
   Newtype st (TState e)
   => OrderReference
@@ -1191,7 +1118,39 @@ getPaymentLink orderRef = do
       let maybeResellerEndpoint =  maybe Nothing (unNullOrUndefined <<< _.resellerApiEndpoint <<< unwrap) maybeResellerAccount
       pure $ createPaymentLinks (nullOrUndefinedToStr (unwrap orderRef).orderUuid) maybeResellerEndpoint
     Nothing -> liftErr internalError --check correct Error
+-}
 
+getPaymentLink :: MerchantAccount
+ -> OrderReference
+ -> Flow Paymentlinks
+getPaymentLink mAcc orderRef = do
+ -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
+ -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
+  maybeResellerEndpoint <- do
+    conn <- getConn eulerDB
+    res  <- runDB conn $ do
+      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" $ mAcc ^. _resellerId)
+      findRow
+        $ B.select
+        $ B.limit_ 1
+        $ B.filter_ predicate
+        $ B.all_ (reseller_account eulerDBSchema)
+    case res of
+      Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
+     -- Right Nothing -> pure Nothing
+      Left err -> do
+        logError "Find ResellerAccount" $ toText $ P.show err
+        throwException err500
+  -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
+  pure $ createPaymentLinks (fromMaybe "" $ getField @"orderUuid" orderRef) maybeResellerEndpoint
+
+
+-- ----------------------------------------------------------------------------
+-- function: getReturnUrl
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 getReturnUrl ::forall st rt e. Newtype st (TState e) => OrderReference -> Boolean -> BackendFlow st _ String
 getReturnUrl orderRef includeParams = do
   merchantAccount <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
@@ -1204,7 +1163,53 @@ getReturnUrl orderRef includeParams = do
       finalReturnUrl <- if (orderRefReturnUrl == "") then pure $ fromMaybe merchantIframeReturnUrl (unNullOrUndefined (merchantAcc ^._returnUrl)) else pure orderRefReturnUrl
       pure $ finalReturnUrl
     Nothing -> pure $ ""
+-}
 
+getReturnUrl ::  OrderReference -> Bool -> Flow Text
+getReturnUrl orderRef somebool = do
+  conn <- getConn eulerDB
+  merchantAccount <- do
+    res <- runDB conn $ do
+      let predicate MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
+      findRow
+        $ B.select
+        $ B.limit_ 1
+        $ B.filter_ predicate
+        $ B.all_ (merchant_account eulerDBSchema)
+    case res of
+      Right mMAcc -> pure mMAcc
+      Left err -> do
+        logError "Find MerchantAccount" $ toText $ P.show err
+        throwException err500
+   -- pure $ Just defaultMerchantAccount -- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
+  case merchantAccount of
+    Just merchantAcc -> do
+          merchantIframePreferences <- do
+            res <- runDB conn $ do
+              let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
+              findRow
+                $ B.select
+                $ B.limit_ 1
+                $ B.filter_ predicate
+                $ B.all_ (merchant_iframe_preferences eulerDBSchema)
+            case res of
+              Right mMIP -> pure mMIP
+              Left err -> do
+                logError "SQLDB Interraction." $ toText $ P.show err
+                throwException err500
+          -- pure $ Just defaultMerchantIframePreferences -- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String merchantId] :: WHERE MerchantIframePreferences)
+          let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
+     -- not used         mirrorGatewayResponse   = maybe Nothing (unNullOrUndefined <<< _.mirrorGatewayResponse <<< unwrap) merchantIframePreferences
+              orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" orderRef )
+          finalReturnUrl <- if (orderRefReturnUrl == "") then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc ) else pure orderRefReturnUrl
+          pure $ finalReturnUrl
+    Nothing -> pure $ ""
+
+-- ----------------------------------------------------------------------------
+-- function: getChargedTxn
+-- ----------------------------------------------------------------------------
+
+{-PS
 getChargedTxn ::forall st rt e. Newtype st (TState e) => OrderReference -> BackendFlow st _ (Maybe TxnDetail)
 getChargedTxn orderRef = do
   orderId    <- unNullOrErr500 $ orderRef ^. _orderId
@@ -1213,7 +1218,33 @@ getChargedTxn orderRef = do
   case (length txns) of
     0 -> pure Nothing
     _ -> pure $ find (\txn -> (txn ^. _status == CHARGED)) txns
+-}
 
+getChargedTxn :: OrderReference -> Flow (Maybe TxnDetail)
+getChargedTxn orderRef = do
+  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
+  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
+
+  txnDetails <- withDB eulerDB $ do
+    let predicate TxnDetail {orderId, merchantId} =
+          orderId ==. B.val_ orderId'
+            &&. merchantId ==. B.just_ (B.val_ merchantId')
+    findRows
+      $ B.select
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_detail eulerDBSchema)
+
+  case txnDetails of
+    [] -> pure Nothing
+    _ -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+
+
+-- ----------------------------------------------------------------------------
+-- function: createPaymentLinks
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 createPaymentLinks :: String -> Maybe String -> Paymentlinks
 createPaymentLinks orderUuid maybeResellerEndpoint =
   Paymentlinks {
@@ -1225,7 +1256,46 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     config = getECRConfig
     protocol = (unwrap config).protocol
     host = maybe (protocol <> "://" <> (unwrap config).host) id maybeResellerEndpoint
+-}
 
+data Config = Config
+  { protocol :: Text
+  , host :: Text
+  , internalECHost :: Text
+  }
+  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
+  
+defaultConfig = Config
+    { protocol = "https"
+    , host = "defaulthost"
+    , internalECHost = "defaultInternalECHost"
+    }
+
+createPaymentLinks :: Text -> Maybe Text -> Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint =
+  Paymentlinks
+    { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
+    , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"
+    , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
+  }
+  where
+    config = defaultConfig -- getECRConfig -- from (src/Config/Config.purs) looks like constant, but depend on ENV
+    {-
+     data Config = Config
+      { protocol :: String
+      , host :: String
+      , internalECHost :: String
+      }
+    -}
+    protocol = getField @"protocol" config-- (unwrap config).protocol
+    host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
+
+
+-- ----------------------------------------------------------------------------
+-- function: addPromotionDetails
+-- ----------------------------------------------------------------------------
+
+{-PS
 addPromotionDetails :: forall st r e rt. Newtype st (TState e) => OrderReference -> OrderStatusResponse -> BackendFlow st { sessionId :: String | rt} OrderStatusResponse
 addPromotionDetails orderRef orderStatus = do
   let orderId  = unNull (orderRef ^. _id) ""
@@ -1242,7 +1312,46 @@ addPromotionDetails orderRef orderStatus = do
           let ordS    = orderStatus # _amount .~ (just amount)
           pure $ ordS # _promotion .~ (just promotion)
         Nothing -> pure orderStatus
+-}
 
+addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+addPromotionDetails orderRef orderStatus = do
+  -- Order contains two id -like fields (better names?)
+  let orderId  = getField @"id" orderRef -- unNull (orderRef ^. _id) 0 -- id Int
+      ordId = fromMaybe "" (getField @"orderId" orderRef)-- unNull (orderRef ^. _orderId) "" --orderId Maybe Text
+  promotions <- do
+    conn <- getConn eulerDB
+    res  <- runDB conn $ do
+      let predicate Promotions {orderReferenceId} = orderReferenceId ==. B.val_ orderId
+      findRows
+        $ B.select
+        $ B.filter_ predicate
+        $ B.all_ (promotions eulerDBSchema)
+    case res of
+      Right proms -> pure proms
+      Left err -> do
+        logError "Find Promotions" $ toText $ P.show err
+        throwException err500
+   -- pure [] -- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
+  case (length promotions) of
+    0 -> pure orderStatus
+    _ -> do
+      promotion' <- pure $ find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
+      case promotion' of
+        Just promotionVal -> do
+          promotion  <- decryptPromotionRules ordId promotionVal
+          let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
+              ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
+          pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
+        Nothing -> pure orderStatus
+
+
+-- ----------------------------------------------------------------------------
+-- function: decryptPromotionRules
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 decryptPromotionRules :: forall st e r rt. Newtype st (TState e) => String -> Promotions -> BackendFlow st rt Promotion'
 decryptPromotionRules ordId promotions = do
   let promotion = unwrap promotions
@@ -1260,7 +1369,18 @@ decryptPromotionRules ordId promotions = do
           , discount_amount : just $ promotion.discountAmount
           , status :just $ promotion.status
           }
+-}
 
+decryptPromotionRules :: Text -> Promotions -> Flow Promotion'
+decryptPromotionRules ordId promotions = pure defaultPromotion'
+
+
+-- ----------------------------------------------------------------------------
+-- function: addTxnDetailsToResponse
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 addTxnDetailsToResponse :: forall r st e.
   Newtype st (TState e)
   => TxnDetail
@@ -1290,6 +1410,64 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
          if (isTrueString txnDetail.gatewayPayload)
            then txnDetail.gatewayPayload
            else nothing
+-}
+
+addTxnDetailsToResponse :: TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+addTxnDetailsToResponse txn ordRef orderStatus = do
+  let gateway   = fromMaybe "" (getField @"gateway" txn)
+      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
+  gatewayRefId <- (undefined :: Flow Text) -- TODO: getGatewayReferenceId txn ordRef
+  logInfo "gatewayRefId " gatewayRefId
+  pure $ orderStatus
+    { status = show $ getField @"status" txn
+    , status_id = txnStatusToInt $ getField @"status" txn
+    , txn_id = Just $ getField @"txnId" txn
+    , txn_uuid = getField @"txnUuid" txn
+    , gateway_id = Just gatewayId
+    , gateway_reference_id = Just gatewayRefId
+    , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
+    , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+    , gateway_payload = addGatewayPayload txn
+    , txn_detail = Just (undefined :: TxnDetail') -- TODO: mapTxnDetail txn
+    }
+  where addGatewayPayload txn =
+         if (isBlankMaybe $ getField @"gatewayPayload" txn)
+           then getField @"gatewayPayload" txn
+           else Nothing
+           
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+ 
+{-
+
+
 
 getGatewayReferenceId ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
 getGatewayReferenceId txn ordRef = do
@@ -1626,9 +1804,9 @@ hierarchyObjectLookup xml key1 key2 = do
       lookupRespXml' vA key2 ""
     Nothing -> pure ""
 
+
+
 -}
-
-
 
 
 -- ----------------------------------------------------------------------------
@@ -1652,95 +1830,11 @@ hierarchyObjectLookup xml key1 key2 = do
 --   -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
 --   pure defaultOrderReference
 
-getPaymentLink :: MerchantAccount
- -> OrderReference
- -> Flow Paymentlinks
-getPaymentLink mAcc orderRef = do
- -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
- -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
-  maybeResellerEndpoint <- do
-    conn <- getConn eulerDB
-    res  <- runDB conn $ do
-      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" $ mAcc ^. _resellerId)
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (reseller_account eulerDBSchema)
-    case res of
-      Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
-     -- Right Nothing -> pure Nothing
-      Left err -> do
-        logError "Find ResellerAccount" $ toText $ P.show err
-        throwException err500
-  -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
-  pure $ createPaymentLinks (fromMaybe "" $ getField @"orderUuid" orderRef) maybeResellerEndpoint
-
-createPaymentLinks :: Text -> Maybe Text -> Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint =
-  Paymentlinks
-    { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
-    , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"
-    , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
-  }
-  where
-    config = defaultConfig -- getECRConfig -- from (src/Config/Config.purs) looks like constant, but depend on ENV
-    {-
-     data Config = Config
-      { protocol :: String
-      , host :: String
-      , internalECHost :: String
-      }
-    -}
-    protocol = getField @"protocol" config-- (unwrap config).protocol
-    host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
-
-data Config = Config
-  { protocol :: Text
-  , host :: Text
-  , internalECHost :: Text
-  }
-  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
-defaultConfig = Config
-    { protocol = "https"
-    , host = "defaulthost"
-    , internalECHost = "defaultInternalECHost"
-    }
 
 
 
 
 
-addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
-addPromotionDetails orderRef orderStatus = do
-  -- Order contains two id -like fields (better names?)
-  let orderId  = getField @"id" orderRef -- unNull (orderRef ^. _id) 0 -- id Int
-      ordId = fromMaybe "" (getField @"orderId" orderRef)-- unNull (orderRef ^. _orderId) "" --orderId Maybe Text
-  promotions <- do
-    conn <- getConn eulerDB
-    res  <- runDB conn $ do
-      let predicate Promotions {orderReferenceId} = orderReferenceId ==. B.val_ orderId
-      findRows
-        $ B.select
-        $ B.filter_ predicate
-        $ B.all_ (promotions eulerDBSchema)
-    case res of
-      Right proms -> pure proms
-      Left err -> do
-        logError "Find Promotions" $ toText $ P.show err
-        throwException err500
-   -- pure [] -- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
-  case (length promotions) of
-    0 -> pure orderStatus
-    _ -> do
-      promotion' <- pure $ find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
-      case promotion' of
-        Just promotionVal -> do
-          promotion  <- decryptPromotionRules ordId promotionVal
-          let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
-              ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
-          pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
-        Nothing -> pure orderStatus
 
 -- from src/Validation/Offers/Validation.purs
 -- sanitizeAmount :: Number -> Number
@@ -1748,51 +1842,6 @@ addPromotionDetails orderRef orderStatus = do
 sanitizeAmount x = x
 sanitizeNullAmount = fmap sanitizeAmount
 
-decryptPromotionRules ::   Text -> Promotions -> Flow Promotion'
-decryptPromotionRules ordId promotions = pure defaultPromotion' --do
---   let promotion = unwrap promotions
---   keyForDecryption <- doAffRR' "ecTempCardCred" (ecTempCardCred)
---   resp <- case (decryptAESRaw "aes-256-ecb" (base64ToHex (promotion.rules)) keyForDecryption Nothing) of
---     Right result -> pure result
---     Left err -> throwErr $ show err
---   rules  <- pure $ getRulesFromString resp
---   rValue <- pure $ getMaskedAccNo (rules ^. _value)
---   pure $ Promotion'
---           { id : just $ show (promotion.id)
---           , order_id : just ordId
---           , rules : just $ singleton (rules # _value .~ rValue)
---           , created : just $ _dateToString (promotion.dateCreated)
---           , discount_amount : just $ promotion.discountAmount
---           , status :just $ promotion.status
---           }
-
-addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow  OrderStatusResponse
-addMandateDetails ordRef orderStatus =
-  case (orderType ordRef) of
-    Just orderType ->
-      if orderType == C.MANDATE_REGISTER then do
-        orderId <- pure $ getField @"id" ordRef  -- unNullOrErr500 $ ordRef ^. _id
-        mandate :: Maybe Mandate <- do
-          conn <- getConn eulerDB
-          let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
-                &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
-          res <- runDB conn $ do
-            findRow
-              $ B.select
-              $ B.limit_ 1
-              $ B.filter_ predicate
-              $ B.all_ (eulerDBSchema ^. _mandate)
-          case res of
-            Right m -> pure m
-            Left err -> do
-              logError "Find Mandate" $ toText $ P.show err
-              throwException err500
-          -- pure Nothing -- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ Int orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
-        case mandate of
-          Just mandateVal -> pure $ setField @"mandate" (Just $ mapMandate $ mandateVal) orderStatus -- # _mandate .~ (just $ mapMandate $ mandateVal)
-          Nothing -> pure $ orderStatus
-        else pure $ orderStatus
-    Nothing -> pure $ orderStatus
 
 -- from src/Types/Storage/EC/Mandate.purs
 mapMandate :: Mandate -> Mandate'
@@ -1802,45 +1851,7 @@ mapMandate Mandate {..} =
              , mandate_id = mandateId
             }
 
-getReturnUrl ::  OrderReference -> Bool -> Flow Text
-getReturnUrl orderRef somebool = do
-  conn <- getConn eulerDB
-  merchantAccount <- do
-    res <- runDB conn $ do
-      let predicate MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (merchant_account eulerDBSchema)
-    case res of
-      Right mMAcc -> pure mMAcc
-      Left err -> do
-        logError "Find MerchantAccount" $ toText $ P.show err
-        throwException err500
-   -- pure $ Just defaultMerchantAccount -- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
-  case merchantAccount of
-    Just merchantAcc -> do
-          merchantIframePreferences <- do
-            res <- runDB conn $ do
-              let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
-              findRow
-                $ B.select
-                $ B.limit_ 1
-                $ B.filter_ predicate
-                $ B.all_ (merchant_iframe_preferences eulerDBSchema)
-            case res of
-              Right mMIP -> pure mMIP
-              Left err -> do
-                logError "SQLDB Interraction." $ toText $ P.show err
-                throwException err500
-          -- pure $ Just defaultMerchantIframePreferences -- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String merchantId] :: WHERE MerchantIframePreferences)
-          let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
-     -- not used         mirrorGatewayResponse   = maybe Nothing (unNullOrUndefined <<< _.mirrorGatewayResponse <<< unwrap) merchantIframePreferences
-              orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" orderRef )
-          finalReturnUrl <- if (orderRefReturnUrl == "") then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc ) else pure orderRefReturnUrl
-          pure $ finalReturnUrl
-    Nothing -> pure $ ""
+
 
 
 
@@ -1870,47 +1881,10 @@ myerr400 n = err400 { errBody = "Err # " <> n }
 
 
 
-getChargedTxn :: OrderReference -> Flow (Maybe TxnDetail)
-getChargedTxn orderRef = do
-  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
-  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
-
-  txnDetails <- withDB eulerDB $ do
-    let predicate TxnDetail {orderId, merchantId} =
-          orderId ==. B.val_ orderId'
-            &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRows
-      $ B.select
-      $ B.filter_ predicate
-      $ B.all_ (EDB.txn_detail eulerDBSchema)
-
-  case txnDetails of
-    [] -> pure Nothing
-    _ -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
 
 
-addTxnDetailsToResponse :: TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
-addTxnDetailsToResponse txn ordRef orderStatus = do
-  let gateway   = fromMaybe "" (getField @"gateway" txn)
-      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
-  gatewayRefId <- (undefined :: Flow Text) -- TODO: getGatewayReferenceId txn ordRef
-  logInfo "gatewayRefId " gatewayRefId
-  pure $ orderStatus
-    { status = show $ getField @"status" txn
-    , status_id = txnStatusToInt $ getField @"status" txn
-    , txn_id = Just $ getField @"txnId" txn
-    , txn_uuid = getField @"txnUuid" txn
-    , gateway_id = Just gatewayId
-    , gateway_reference_id = Just gatewayRefId
-    , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
-    , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
-    , gateway_payload = addGatewayPayload txn
-    , txn_detail = Just (undefined :: TxnDetail') -- TODO: mapTxnDetail txn
-    }
-  where addGatewayPayload txn =
-         if (isBlankMaybe $ getField @"gatewayPayload" txn)
-           then getField @"gatewayPayload" txn
-           else Nothing
+
+
 
 
 ------------------------------------------------------------------------------------------

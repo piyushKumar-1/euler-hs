@@ -64,9 +64,9 @@ import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
 -- to port '-- TODO port' - 40
--- to update '-- TODO update' - 18
--- completed '-- done' - 11
--- Sum all functions = 69
+-- to update '-- TODO update' - 17
+-- completed '-- done' - 13
+-- Sum all functions = 70
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -1398,7 +1398,7 @@ decryptPromotionRules ordId promotions = pure defaultPromotion'
 
 -- ----------------------------------------------------------------------------
 -- function: addTxnDetailsToResponse
--- TODO update
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1437,7 +1437,7 @@ addTxnDetailsToResponse :: TxnDetail -> OrderReference -> OrderStatusResponse ->
 addTxnDetailsToResponse txn ordRef orderStatus = do
   let gateway   = fromMaybe "" (getField @"gateway" txn)
       gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
-  gatewayRefId <- (undefined :: Flow Text) -- TODO: getGatewayReferenceId txn ordRef
+  gatewayRefId <- getGatewayReferenceId txn ordRef
   logInfo "gatewayRefId " gatewayRefId
   pure $ orderStatus
     { status = show $ getField @"status" txn
@@ -1449,7 +1449,7 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
     , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
     , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
     , gateway_payload = addGatewayPayload txn
-    , txn_detail = Just (undefined :: TxnDetail') -- TODO: mapTxnDetail txn
+    , txn_detail = Just $ mapTxnDetail txn
     }
   where addGatewayPayload txn =
          if (isBlankMaybe $ getField @"gatewayPayload" txn)
@@ -2791,3 +2791,86 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                   , orderId     = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
+
+
+
+
+
+
+
+
+
+-- ---------------------------------------------------------------------
+-- Functions added from other modules
+------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------
+-- function: mapTxnDetail
+-- added from Types.Communication.OLTP.OrderStatus
+-- done
+-- ----------------------------------------------------------------------------
+
+{-
+mapTxnDetail :: TxnDetail -> TxnDetail'
+mapTxnDetail (TxnDetail txn) =
+    TxnDetail' {
+          txn_id : txn.txnId,
+          order_id : txn.orderId,
+          txn_uuid : txn.txnUuid,
+          gateway_id : just (maybe 0 gatewayIdFromGateway $ stringToGateway (unNull txn.gateway "")),
+          status : show txn.status,
+          gateway : txn.gateway,
+          express_checkout : txn.expressCheckout,
+          redirect : txn.redirect,
+          net_amount : just (if (isPresent txn.netAmount) then toForeign (unNull txn.netAmount 0.0) else nullValue unit),
+          surcharge_amount : just (if (isPresent txn.surchargeAmount) then toForeign (unNull txn.surchargeAmount 0.0) else nullValue unit),
+          tax_amount : just (if (isPresent txn.taxAmount) then toForeign (unNull txn.taxAmount 0.0) else nullValue unit),
+          txn_amount : just (if (isPresent txn.txnAmount) then toForeign (unNull txn.txnAmount 0.0) else nullValue unit),
+          currency : txn.currency,
+          error_message : just (unNull txn.bankErrorMessage ""),
+          error_code : just (if (isPresent txn.bankErrorCode) then toForeign (unNull txn.bankErrorCode "") else nullValue unit),
+          created : txn.dateCreated,
+          txn_object_type : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.txnObjectType else nothing,
+          source_object : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.sourceObject else nothing,
+          source_object_id : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.sourceObjectId else nothing
+        }
+-}
+
+mapTxnDetail :: TxnDetail -> TxnDetail'
+mapTxnDetail txn = TxnDetail'
+  { txn_id = getField @"txnId" txn
+  , order_id = getField @"orderId" txn
+  , txn_uuid = getField @"txnUuid" txn
+  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ stringToGateway $ fromMaybe mempty $ getField @"gateway" txn
+  , status = show $ getField @"status" txn
+  , gateway = getField @"gateway" txn
+  , express_checkout = getField @"expressCheckout" txn
+  , redirect = getField @"redirect" txn
+  , net_amount = Just $ if isJust (getField @"netAmount" txn)
+      then show $ fromMaybe 0 (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
+      else mempty
+  , surcharge_amount = Just $ if isJust (getField @"surchargeAmount" txn)
+      then show $ fromMaybe 0 (getField @"surchargeAmount" txn)
+      else mempty
+  , tax_amount = Just $ if isJust (getField @"taxAmount" txn)
+      then show $ fromMaybe 0 (getField @"taxAmount" txn)
+      else mempty
+  , txn_amount = Just $ if isJust (getField @"txnAmount" txn)
+      then show $ fromMaybe 0 (getField @"txnAmount" txn)
+      else mempty
+  , currency = getField @"currency" txn
+  , error_message = Just $ fromMaybe mempty $ getField @"bankErrorMessage" txn
+  , error_code = Just $ if isJust (getField @"bankErrorCode" txn)
+      then fromMaybe mempty (getField @"bankErrorCode" txn)
+      else mempty
+  , created = getField @"dateCreated" txn
+  , txn_object_type = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"txnObjectType" txn
+      else Nothing
+  , source_object = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"sourceObject" txn
+      else Nothing
+  , source_object_id = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"sourceObjectId" txn
+      else Nothing
+        }

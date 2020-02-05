@@ -63,9 +63,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 40
--- to update '-- TODO update' - 17
--- completed '-- done' - 11
+-- to port '-- TODO port' - 41
+-- to update '-- TODO update' - 19
+-- completed '-- done' - 9
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }

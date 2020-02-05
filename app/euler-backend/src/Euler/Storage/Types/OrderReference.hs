@@ -24,7 +24,7 @@ import qualified Database.Beam as B
 -- EHS :: ORDER OF FIELDS MATTERS!
 -- https://github.com/tathougies/beam/issues/372
 data OrderReferenceT f = OrderReference
-  { id                :: B.C f (Maybe Int)
+  { id                :: B.C f (Maybe Text)
   , version           :: B.C f Int
   , amount            :: B.C f (Maybe Double)
   , currency          :: B.C f (Maybe Currency)
@@ -38,7 +38,7 @@ data OrderReferenceT f = OrderReference
   , browser           :: B.C f (Maybe Text)
   , browserVersion    :: B.C f (Maybe Text)
   , popupLoaded       :: B.C f (Maybe Bool)
-  , popupLoadedTime   :: B.C f (Maybe LocalTime)
+  , popupLoadedTime   :: B.C f (Maybe Text)
   , description       :: B.C f (Maybe Text)
   , udf1              :: B.C f (Maybe Text)
   , udf10             :: B.C f (Maybe Text)
@@ -56,8 +56,8 @@ data OrderReferenceT f = OrderReference
   , preferredGateway  :: B.C f (Maybe Text)
   , customerPhone     :: B.C f (Maybe Text)
   , productId         :: B.C f (Maybe Text)
-  , billingAddressId  :: B.C f (Maybe Int)
-  , shippingAddressId :: B.C f (Maybe Int)
+  , billingAddressId  :: B.C f (Maybe Text)
+  , shippingAddressId :: B.C f (Maybe Text)
   , orderUuid         :: B.C f (Maybe Text)
   , lastSynced        :: B.C f (Maybe LocalTime)
   , orderType         :: B.C f (Maybe OrderType)
@@ -68,7 +68,7 @@ data OrderReferenceT f = OrderReference
 
 instance B.Table OrderReferenceT where
   data PrimaryKey OrderReferenceT f =
-    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type OrderReference = OrderReferenceT Identity
@@ -142,7 +142,7 @@ defaultOrderReference = OrderReference
   , browser           = Nothing  -- :: Maybe Text
   , browserVersion    = Nothing  -- :: Maybe Text
   , popupLoaded       = Nothing  -- :: Maybe Bool
-  , popupLoadedTime   = Nothing  -- :: Maybe LocalTime
+  , popupLoadedTime   = Nothing  -- :: Maybe Text
   , description       = Nothing  -- :: Maybe Text
   , udf1              = Nothing  -- :: Maybe Text
   , udf10             = Nothing  -- :: Maybe Text
@@ -160,8 +160,8 @@ defaultOrderReference = OrderReference
   , preferredGateway  = Nothing  -- :: Maybe Text
   , customerPhone     = Nothing  -- :: Maybe Text
   , productId         = Nothing  -- :: Maybe Text
-  , billingAddressId  = Nothing  -- :: Maybe Int
-  , shippingAddressId = Nothing  -- :: Maybe Int
+  , billingAddressId  = Nothing  -- :: Maybe Text
+  , shippingAddressId = Nothing  -- :: Maybe Text
   , orderUuid         = Just "orderUuid" -- Nothing  -- :: Maybe Text
   , lastSynced        = Nothing  -- :: Maybe LocalTime
   , orderType         = Nothing  -- :: Maybe OrderType

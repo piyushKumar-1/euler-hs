@@ -15,7 +15,7 @@ import           Data.Time
 import qualified Database.Beam as B
 
 data ChargebackT f = Chargeback
-  { id                :: B.C f (Text)
+  { id                :: B.C f Text
   , version           :: B.C f Int
   , amount            :: B.C f Double
   , dateCreated       :: B.C f LocalTime

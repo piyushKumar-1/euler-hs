@@ -40,18 +40,20 @@ import Euler.Product.Domain.Order (Order)
 import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
 
-import Euler.Storage.Types.Customer
-import Euler.Storage.Types.Feature
-import Euler.Storage.Types.Mandate
-import Euler.Storage.Types.MerchantAccount
-import Euler.Storage.Types.MerchantIframePreferences
-import Euler.Storage.Types.MerchantKey
-import Euler.Storage.Types.OrderReference
-import Euler.Storage.Types.PaymentGatewayResponse
-import Euler.Storage.Types.ResellerAccount
-import Euler.Storage.Types.Promotions
-import Euler.Storage.Types.TxnCardInfo
-import Euler.Storage.Types.TxnDetail
+import           Euler.Storage.Types.Customer
+import           Euler.Storage.Types.Feature
+import           Euler.Storage.Types.Mandate
+import           Euler.Storage.Types.MerchantAccount
+import           Euler.Storage.Types.MerchantIframePreferences
+import           Euler.Storage.Types.MerchantKey
+import           Euler.Storage.Types.OrderReference
+import           Euler.Storage.Types.PaymentGatewayResponse
+import           Euler.Storage.Types.Promotions
+import           Euler.Storage.Types.ResellerAccount
+import           Euler.Storage.Types.RiskManagementAccount
+import           Euler.Storage.Types.TxnCardInfo
+import           Euler.Storage.Types.TxnDetail
+import           Euler.Storage.Types.TxnRiskCheck
 
 import Euler.Storage.Types.EulerDB as EDB
 
@@ -532,7 +534,7 @@ rejectIfUnauthenticatedCallDisabled mAccnt =
 
 -- ----------------------------------------------------------------------------
 -- function: rejectIfMerchantIdMissing
--- TODO port unsed?
+-- TODO unsed
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1052,7 +1054,8 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
 
 -- ----------------------------------------------------------------------------
 -- function: formatAmount
--- TODO port or use sanitizeAmount/sanitizeNullAmount?
+-- TODO unused 
+-- ported version uses sanitizeAmount/sanitizeNullAmount instead
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1590,10 +1593,68 @@ addRiskCheckInfoToResponse txn orderStatus = do
     where getString a = if (isNotString a) then "" else a
 -}
 
+addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
+addRiskCheckInfoToResponse txn orderStatus = do
+  --txnRiskCheck <- DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String (unNull (txn ^. _id) "")] :: WHERE TxnRiskCheck)
+  -- ? txn without _id -- whether it's an error or not?  
+  let txnId = getField @"id" txn
+  when (isNothing txnId) return orderStatus
+  
+  mTxnRiskCheck <- withDB eulerDB $ do
+    let preficate TxnRiskCheck {txnDetailId} = 
+          txnDetailId ==. B.val_ fromJust txnId
+    findRow  
+      $ B.select $ B.limit_ 1 $ B.filter_ predicate $ B.all_ (txn_risk_check eulerDBSchema)
+
+  case mTxnRiskCheck of    
+    Just trc -> do
+        --riskMngAcc  <- DB.findOne ecDB (where_ := WHERE ["id" /\ Int (trc ^. _riskManagementAccountId)] :: WHERE RiskManagementAccount)
+        let accId = getField @"riskManagementAccountId" trc -- mandatory
+
+        mRiskMngAcc <- withDB eulerDB $ do
+          let predicate RiskManagementAccount {id} = id ==. B.val_ accId
+          findRow
+            $ B.select $ B.limit_ 1 $ B.filter_ predicate $ B.all_ (risk_management_account eulerDBSchema)
+
+        let mProvider = maybe Nothing (getField @"provider" mRiskMngAcc) mRiskMngAcc
+
+        let risk = Risk' {  provider = mProvider -- NullOrUndefined $ maybe Nothing (Just <<< _.provider <<< unwrap) riskMngAcc
+                          , status = getField @"status" trc 
+                          , message = getField @"message" trc
+                          , flagged = getField @"flagged" -- getEmptyBooleanVal (trc ^. _flagged)
+                          , recommended_action = fromMaybe mempty (getField @"recommendedAction" trc ) -- just (unNull (trc ^. _recommendedAction) "")
+                          , ebs_risk_level = Nothing
+                          , ebs_payment_status = Nothing
+                          , ebs_risk_percentage = Nothing
+                          , ebs_bin_country = Nothing
+                         }
+
+        case (fromMaybe mempty mProvider) of
+          "ebs" -> do
+            -- TODO not sure is this reliable enough? how port it?
+            -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
+            -- outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
+            -- responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
+            -- outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
+            -- let r' = wrap (unwrap risk) {
+            --   ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
+            --   ebs_payment_status = (trc ^. _riskStatus),
+            --   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
+            --   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
+            -- }
+            -- r  <- addRiskObjDefaultValueAsNull r'
+            -- pure $ orderStatus # _risk .~ (just r)
+            return orderStatus
+          otherwise -> do
+            r <- addRiskObjDefaultValueAsNull risk
+            return $ setField @"risk" (Just r) orderStatus -- pure $ orderStatus # _risk .~ (just r)            
+    Nothing -> return orderStatus
+    where getString a = if (isNotString a) then "" else a
+
 
 -- ----------------------------------------------------------------------------
 -- function: addRiskObjDefaultValueAsNull
--- TODO port
+-- TODO check foreign fields seem to be the same in out design
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1618,6 +1679,30 @@ addRiskObjDefaultValueAsNull risk' = do
                               }
    else pure risk
 -}
+
+addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
+addRiskObjDefaultValueAsNull risk' = do
+  let risk = Risk 
+        { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
+        , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
+        , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
+        , flagged = getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
+        , recommended_action = getField @"recommended_action" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
+        , ebs_risk_level = Nothing -- NullOrUndefined Nothing
+        , ebs_payment_status = Nothing -- NullOrUndefined Nothing
+        , ebs_risk_percentage =Nothing -- NullOrUndefined Nothing
+        , ebs_bin_country = Nothing -- NullOrUndefined Nothing
+        }
+
+  case (fromMaybe mempty (getField @"provide" risk')) of
+    "ebs" -> do
+      return $ risk 
+        { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
+        , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
+        , ebs_risk_percentage = getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
+        , ebs_bin_country = getField @"ebs_bin_country" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
+        }
+    otherwise -> return risk
 
 
 -- ----------------------------------------------------------------------------

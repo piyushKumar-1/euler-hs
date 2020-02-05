@@ -62,13 +62,20 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
+-- 403 error with error message
+myerr n = err403 { errBody = "Err # " <> n }
 
 -- PS Will be removing gateways one by one from here as part of direct upi integrations.
 -- used in `casematch` function
 eulerUpiGateways :: [Gateway]
 eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
 
+-- ----------------------------------------------------------------------------
+-- function: updateState
+-- TODO unused
 -- Not needed, since we have no state, use `setOption` instead
+-- ----------------------------------------------------------------------------
+
 {-PS
 updateState :: String -> Maybe String -> BackendFlow SyncStatusState Configs SyncStatusState
 updateState merchantId orderId = do
@@ -84,7 +91,11 @@ updateState merchantId orderId = do
   put updState
 -}
 
--- Seems not used in the module
+-- ----------------------------------------------------------------------------
+-- function: updateState
+-- TODO unused
+-- ----------------------------------------------------------------------------
+
 {-PS
 createOrderStatusResponse :: forall st rt e. Newtype st (TState e)
                 => String -> String -> MerchantAccount -> BackendFlow st _ Unit
@@ -208,7 +219,7 @@ getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrder
   pure ordResp
 
 -- ----------------------------------------------------------------------------
--- checkAndAddOrderToken
+-- function: checkAndAddOrderToken
 -- TODO update
 -- TODO use Euler.Constant.Version?
 -- ----------------------------------------------------------------------------
@@ -236,24 +247,12 @@ checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchan
       pure $ setField @"juspay" orderTokenData resp
     else pure resp
 
-
-
-
-
-
 -- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
+-- function: addOrderTokenToOrderStatus
+-- TODO update
 -- ----------------------------------------------------------------------------
 
-
-{-
-
+{-PS
 addOrderTokenToOrderStatus :: forall st r e rt. Newtype st (TState e) =>
    String -> OrderCreateReq -> String -> BackendFlow st _ (NullOrUndefined OrderTokenResp)
 addOrderTokenToOrderStatus orderId (OrderCreateReq orderCreateReq) merchantId = do
@@ -266,12 +265,42 @@ addOrderTokenToOrderStatus orderId (OrderCreateReq orderCreateReq) merchantId = 
             , client_auth_token_expiry : just $ expiry
             }
     _ -> pure $ nothing
+-}
 
+addOrderTokenToOrderStatus :: Int -> OrderCreateRequest -> Text -> Flow (Maybe OrderTokenResp)
+addOrderTokenToOrderStatus orderId orderCreateReq merchantId = do
+  case  (Just True) of -- (getField @"options.get_client_auth_token" orderCreateReq) of
+    Just True -> do
+      (token, expiry) <- pure ("token", "expiry") -- RedisService.tokenizeResource (toForeign orderId) "ORDER" merchantId
+
+      runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
+
+      pure $ Just $ OrderTokenResp {
+              client_auth_token = Just token
+            , client_auth_token_expiry = Just expiry
+            }
+    _ -> pure $ Nothing
+
+
+-- ----------------------------------------------------------------------------
+-- function: checkEnableCaseForResponse
+-- TODO use flex casing functionality instead ()
+-- ----------------------------------------------------------------------------
+
+{-PS
 checkEnableCaseForResponse ::forall st rt e. Newtype st (TState e) => OrderStatusRequest -> RouteParameters -> OrderStatusResponse -> BackendFlow st _ Foreign
 checkEnableCaseForResponse req params resp =
   if isJust (StrMap.lookup "orderId" params) || isPresent (req ^. _orderId) then pure $ snakeCaseToCamelCase (encode resp)
    else pure (encode resp)
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: authenticateReqAndGetMerchantAcc / authenticateWithAPIKey
+-- TODO update/use common auth service
+-- ----------------------------------------------------------------------------
+
+{-PS
 authenticateReqAndGetMerchantAcc ::
      OrderStatusRequest
   -> RouteParameters
@@ -304,8 +333,57 @@ authenticateReqAndGetMerchantAcc ostatusReq@(OrderStatusRequest req) headers = d
           merchantId <- maybe (liftErr merchantIdMissing) pure maybeMerchantId
           merchantAccount <- DB.findOneWithErr ecDB (where_ := WHERE ["merchantId" /\ String merchantId]) merchantAccountNull
           pure $ {merchantAccount, isAuthenticated : false }
+-}
 
+-- part of authenticateReqAndGetMerchantAcc
+-- looks like authenticateRequest src/Product/OLTP/Services/AuthenticationService.purs
+authenticateWithAPIKey :: APIKey -> Flow (MerchantAccount, Bool)
+authenticateWithAPIKey apiKeyStr = do
+  let eApiKey = extractApiKey apiKeyStr
+  case eApiKey of
+    Right key -> do
+      logDebug "Extracted API key" key
+      conn <- getConn eulerDB
+      merchantKey <- runDB conn $ do
+        let predicate MerchantKey {apiKey, status} = (apiKey ==. (B.just_ $ B.val_ key))
+              &&. (status ==. B.just_ "ACTIVE")
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (merchant_key eulerDBSchema)
+      --pure $ Just defaultMerchantKey--DB.findOne ecDB
+      --(where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"])
+      case merchantKey of
+        Right (Just mKey) -> do
+          merchantAcc <- runDB conn $ do
+            let predicate MerchantAccount {id} = id ==. B.val_ (mKey ^. _merchantAccountId  )
+            findRow
+              $ B.select
+              $ B.limit_ 1
+              $ B.filter_ predicate
+              $ B.all_ (merchant_account eulerDBSchema)
+           -- pure defaultMerchantAccount --DB.findOneWithErr ecDB
+           -- (where_ := WHERE ["id" /\ Int (fromMaybe 0 (unNullOrUndefined merchantKey.merchantAccountId))]) ecAccessDenied
+          merchantAccount <- case merchantAcc of
+            Right (Just ma) -> pure $ setField @"apiKey" (Just key) ma-- merchantAcc # _apiKey .~ (just $ apiKeyStr)
+            _ -> throwException err403
+          _ <- pure True -- ipAddressFilters merchantAccount headers   --- checking IP whitelist in case of authenticated call
+          pure $ (merchantAccount, True)
+        Right Nothing -> throwException err403
+        Left err -> do
+          runIO $ putTextLn $ toText $ P.show err
+          throwException $ myerr "2" -- liftErr ecAccessDenied
+    Left err -> do
+      logError "Authentication" $ "Invalid API key: " <> err
+      throwException err403 {errBody = "Invalid API key."}
 
+-- ----------------------------------------------------------------------------
+-- function: updateAuthTokenUsage
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 updateAuthTokenUsage :: AuthToken -> ClientAuthTokenData -> BackendFlow SyncStatusState _ Unit
 updateAuthTokenUsage authToken (ClientAuthTokenData clientAuthToken) = do
   let usageCount = maybe 1 (add 1) $ unNullOrUndefined clientAuthToken.usageCount
@@ -318,7 +396,29 @@ updateAuthTokenUsage authToken (ClientAuthTokenData clientAuthToken) = do
       -- let ttl = show expiryInSeconds
       _ <- setCacheEC ttl authToken (ClientAuthTokenData clientAuthToken {usageCount = just usageCount})
       pure unit
+-}
 
+-- from src/Types/Alias.purs
+type AuthToken = Text
+
+updateAuthTokenUsage :: AuthToken -> C.ClientAuthTokenData -> Flow ()
+updateAuthTokenUsage authToken clientAuthToken@C.ClientAuthTokenData {..} = do
+  let newUsageCount = maybe 1 (+1) usageCount
+  case (newUsageCount == tokenMaxUsage) of
+    True -> pure () -- delCachedValEC authToken *> pure ()
+    False -> do
+      tokenExpiryData <- pure C.defaultOrderTokenExpiryData -- unwrap <$> getTokenExpiryData
+     -- let ttl = convertDuration $ Seconds $ toNumber tokenExpiryData.expiryInSeconds
+      _ <- pure () --setCacheEC ttl authToken (clientAuthToken {usageCount = Just newUsageCount})
+      pure ()
+
+
+-- ----------------------------------------------------------------------------
+-- function: authenticateReqWithClientAuthToken
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 authenticateReqWithClientAuthToken ::
   OrderStatusRequest
   -> AuthToken
@@ -332,7 +432,30 @@ authenticateReqWithClientAuthToken (OrderStatusRequest req) authToken headers = 
       merchantAccount <- getMerchantAccountForAuthToken authTokenData
       pure {merchantAccount, isAuthenticated: true}
     Nothing -> liftErr ecAccessDenied
+-}
 
+authenticateReqWithClientAuthToken ::
+ -- OrderStatusRequest
+ -- ->
+   AuthToken
+ -- -> RouteParameters
+  -> Flow (MerchantAccount, Bool)
+authenticateReqWithClientAuthToken authToken = do
+  maybeAuthTokenData :: Maybe C.ClientAuthTokenData <- pure $ Just C.defaultClientAuthTokenData -- getCachedValEC authToken
+  case maybeAuthTokenData of
+    Just authTokenData -> do
+      _ <- pure () -- updateAuthTokenUsage authToken authTokenData
+      merchantAccount <- getMerchantAccountForAuthToken authTokenData
+      pure (merchantAccount, True)
+    Nothing -> throwException err403
+
+
+-- ----------------------------------------------------------------------------
+-- function: getMerchantAccountForAuthToken
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 getMerchantAccountForAuthToken ::forall st rt e. Newtype st (TState e) => ClientAuthTokenData -> BackendFlow st _ MerchantAccount
 getMerchantAccountForAuthToken (ClientAuthTokenData otokenData@{resourceType: "ORDER"}) = do
   OrderReference orderReference <- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int (parseInt otokenData.resourceId)]) ecAccessDenied
@@ -346,12 +469,64 @@ getMerchantAccountForAuthToken (ClientAuthTokenData otokenData@{resourceType: "C
 getMerchantAccountForAuthToken (ClientAuthTokenData otokenData@{resourceType: _}) =
   liftErr ecAccessDenied
 
+-}
+
+getMerchantAccountForAuthToken :: C.ClientAuthTokenData -> Flow MerchantAccount
+getMerchantAccountForAuthToken (C.ClientAuthTokenData {..}) = do
+  case resourceType of
+    "ORDER" -> do
+      OrderReference{..}  <- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int (parseInt otokenData.resourceId)]) ecAccessDenied
+      merchantId <- maybe (throwException err500) pure merchantId
+      pure defaultMerchantAccount -- DB.findOneWithErr ecDB (where_ := WHERE ["merchant_id" /\ String merchantId]) ecAccessDenied
+    "CUSTOMER" -> do
+      Customer {..} <- pure defaultCustomer -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ String otokenData.resourceId]) ecAccessDenied
+      pure defaultMerchantAccount -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int merchantAccountId]) ecAccessDenied
+    _          -> throwException err403
+
+
+-- ----------------------------------------------------------------------------
+-- function: rejectIfUnauthenticatedCallDisabled
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 rejectIfUnauthenticatedCallDisabled :: MerchantAccount -> BackendFlow SyncStatusState _ Unit
 rejectIfUnauthenticatedCallDisabled mAccnt =
   if isTrue (mAccnt ^. _enableUnauthenticatedOrderStatusApi)
   then continue unit
   else liftErr ecForbidden
 
+-}
+
+rejectIfUnauthenticatedCallDisabled :: MerchantAccount -> Flow ()
+rejectIfUnauthenticatedCallDisabled mAccnt =
+  case  (enableUnauthenticatedOrderStatusApi mAccnt) of
+    Just True -> pure ()
+    _ -> throwException $ myerr "1" -- ecForbidden
+     -- * alot of errors predefined in Servant.Server
+     -- * https://hackage.haskell.org/package/servant-server-0.16.2/docs/Servant-Server.html#v:err404
+     -- * body message (and another parameters) can be redefined
+     -- * err403 { errBody = "Please login first." }
+     {- err403 :: ServerError
+
+        data ServerError = ServerError
+            { errHTTPCode     :: Int
+            , errReasonPhrase :: String
+            , errBody         :: LBS.ByteString
+            , errHeaders      :: [HTTP.Header]
+            }
+          deriving (Show, Eq, Read, Typeable)
+
+        instance Exception ServerError
+     -}
+
+
+-- ----------------------------------------------------------------------------
+-- function: rejectIfMerchantIdMissing
+-- TODO port unsed?
+-- ----------------------------------------------------------------------------
+
+{-PS
 rejectIfMerchantIdMissing :: OrderStatusRequest -> BackendFlow SyncStatusState _ Unit
 rejectIfMerchantIdMissing (OrderStatusRequest req) =
   let maybeMerchantId = unNullOrUndefined req.merchantId
@@ -360,7 +535,15 @@ rejectIfMerchantIdMissing (OrderStatusRequest req) =
   if isJust maybeMerchantId
   then continue unit
   else liftErr merchantIdMissing
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: getCachedOrdStatus
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 getCachedOrdStatus :: forall st e rt r.
   Newtype st (TState e)
   => Boolean
@@ -394,8 +577,64 @@ getCachedOrdStatus isAuthenticated req mAccnt routeParam = do
             pure Nothing
       keyPrefix true = "euler_ostatus_"
       keyPrefix false = "euler_ostatus_unauth_"
+-}
+
+getCachedOrdStatus -- really need orderId and merchantId
+  :: Bool
+ -- -> OrderStatusRequest
+ -- -> MerchantAccount
+ -- -> RouteParameters
+  -> Text
+  -> Text
+  -> Flow  (Maybe OrderStatusResponse)
+getCachedOrdStatus isAuthenticated orderId merchantId = do -- req mAccnt routeParam = do
+  conn <- getConn eulerDB
+  (maybeFeature :: Maybe Feature) <- do-- pure Nothing -- DB.findOne ecDB (where_ := WHERE [ "name" /\ String eulerOrderStatusCachingKey] :: WHERE Feature)
+    res <- runDB conn $ do
+      let predicate Feature {name} = name ==. B.val_ "eulerOrderStatusCachingKey"
+      findRow
+        $ B.select
+        $ B.limit_ 1
+        $ B.filter_ predicate
+        $ B.all_ (feature eulerDBSchema)
+    case res of
+      Right (Just f) -> pure $ Just f
+      Right Nothing -> pure Nothing
+      Left err -> do
+        logError "Find Feature" $ toText $ P.show err
+        pure Nothing
+  maybe (pure Nothing) (getCachedVal isAuthenticated merchantId orderId) maybeFeature
+    where
+      getCachedVal isAuthenticated merchantId orderId feature = do
+        case (getField @"enabled" feature) of
+          True -> do
+            _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is enabled"
+           -- orderId <- getOrderId req routeParam
+           -- merchantId <- unNullOrErr500 (mAccnt ^. _merchantId)
+            val <- getCachedResp ((keyPrefix isAuthenticated) <> merchantId <> "_" <> orderId)
+            case val of
+              Just value -> do
+                runIO $ Metric.incrementOrderStatusCacheHitCount merchantId
+                _ <- logInfo "order status api response from cache" ("merchant_id " <> merchantId <> " orderId " <> orderId)
+                _ <- logInfo "Fetch cache from order status" $ "Order status response found in cache for merchant_id " <> merchantId <> " orderId " <> orderId
+                pure val
+              Nothing -> do
+                runIO $ Metric.incrementOrderStatusCacheMissCount merchantId
+                _ <- logInfo "Fetch cache from order status" $ "Could not find order status response in cache for merchant_id " <> merchantId <> " orderId " <> orderId
+                pure val
+          False -> do
+            _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is not enabled"
+            pure Nothing
+      keyPrefix True = "euler_ostatus_"
+      keyPrefix False = "euler_ostatus_unauth_"
 
 
+-- ----------------------------------------------------------------------------
+-- function: addToCache
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addToCache :: forall st rt e r.
   Newtype st (TState e)
   => OrderStatusRequest
@@ -419,14 +658,38 @@ addToCache req isAuthenticated mAccnt routeParam ordStatusResp = do
           false -> continue unit
       keyPrefix true = "euler_ostatus_"
       keyPrefix false = "euler_ostatus_unauth_"
+-}
 
+addToCache :: 
+     OrderStatusRequest
+  -> Bool
+  -> MerchantAccount
+  -> RouteParameters
+  -> OrderStatusResponse
+  -> Flow ()
+addToCache = undefined
+
+-- ----------------------------------------------------------------------------
+-- function: setRespInCache
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 setRespInCache :: forall a b. Encode a => Milliseconds -> String -> a -> BackendFlow _ b Unit
 setRespInCache expiry key val = do
   eitherRes <- setCacheWithExpiry ecRedis key (jsonStringify (snakeCaseToCamelCase (encode val))) expiry
   case eitherRes of
     Right x -> continue unit
     Left err -> log "cache_save_error_" ("Error while persisting " <> key <> "_" <> (show err)) *> continue unit
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: getCachedResp
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 getCachedResp :: forall a. String -> BackendFlow _ a (Maybe OrderStatusResponse)
 getCachedResp key = do
   eitherVal <- Presto.getCache ecRedis key
@@ -439,7 +702,33 @@ getCachedResp key = do
           Left err -> log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
     Right Nothing -> log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
     Left err -> log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
+-}
 
+getCachedResp :: Text -> Flow (Maybe OrderStatusResponse)
+getCachedResp key = do
+  eitherVal <- pure $ Right Nothing -- Presto.getCache ecRedis key
+  case eitherVal of
+    Right (Just v) -> pure $ Just v -- * do
+      -- *  --let val' = S.replaceAll (S.Pattern "null") (S.Replacement (show "null")) v
+      -- *  --    val = S.replaceAll (S.Pattern "\"\"null\"\"") (S.Replacement (show "null")) val'
+      -- *  -- * Interesting transformations (maybe js - purescript related and we dont need it)
+      -- *  -- * parseAndReplaceWithStringNull
+      -- *  -- * camelCaseToSnakeCase
+      -- *  -- * replaceObjValWithForeignNull
+      -- *  let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
+      -- *  _ <- Presto.log ("Cache value for this order status cache key " <> key) v
+      -- *  case (runExcept (decode (camelCaseToSnakeCase resp))) of
+      -- *    Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
+      -- *    Left err -> pure Nothing -- log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
+    Right Nothing -> pure Nothing -- log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
+    Left err -> pure Nothing -- log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
+
+-- ----------------------------------------------------------------------------
+-- function: getOrdStatusResp
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 getOrdStatusResp :: forall st rt e r.
   Newtype st (TState e)
   => OrderStatusRequest
@@ -468,7 +757,72 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
         >>= addChargeBacks txn
         >>= addGatewayResponse txn shouldSendFullGatewayResponse
       Nothing ->  pure ordResp
+-}
 
+-- should we divide this method to:
+-- 1) getStatusResp, where we just get it from DB
+-- 2) fillStatusResp, where we apply:
+--  * fillOrderDetails
+--  * addPromotionDetails
+--  * addMandateDetails
+-- 3) addTxnInfo (this method only for POST orderStatus api method) where we:
+--  * addTxnDetailsToResponse
+--  * addRiskCheckInfoToResponse
+--  * addPaymentMethodInfo
+--  * addRefundDetails
+--  * addChargeBacks
+--  * addGatewayResponse
+
+getOrdStatusResp
+  :: OrderStatusRequest
+  -> MerchantAccount
+  -> Bool
+  -> Text -- RouteParameters
+  -> Flow OrderStatusResponse
+getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated routeParam = do
+    orderId'     <- pure routeParam -- getOrderId req routeParam
+    merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
+ --   _           <- logInfo "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
+    (order :: OrderReference) <- do
+      conn <- getConn eulerDB
+      res <- runDB conn $ do
+        let predicate OrderReference {orderId, merchantId} = (orderId ==. B.just_ (B.val_ orderId'))
+              &&. (merchantId ==. B.just_ (B.val_ merchantId'))
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (order_reference eulerDBSchema)
+      case res of
+        Right (Just ordRef) -> pure ordRef
+        Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
+        Left err -> do
+          logError "Find OrderReference" $ toText $ P.show err
+          throwException err500
+      -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
+ --   let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
+ --   maybeTxn    <- runMaybeT $ MaybeT (getTxnFromTxnUuid order maybeTxnUuid) <|> MaybeT (getLastTxn order)
+    paymentlink <- getPaymentLink mAccnt order
+    ordResp'    <- fillOrderDetails isAuthenticated paymentlink order defaultOrderStatusResponse
+                    >>= addPromotionDetails order
+    ordResp     <- addMandateDetails order ordResp'
+   -- used in POST method
+   --  case maybeTxn of
+   --    Just txn -> do
+   --      addTxnDetailsToResponse txn order ordResp
+   --      >>= addRiskCheckInfoToResponse txn
+   --      >>= addPaymentMethodInfo mAccnt txn
+   --      >>= addRefundDetails txn
+   --      >>= addChargeBacks txn
+   --      >>= addGatewayResponse txn
+   --    Nothing ->  pure ordResp
+    pure ordResp
+
+-- ----------------------------------------------------------------------------
+-- function: getTxnFromTxnUuid
+-- ----------------------------------------------------------------------------
+
+{-PS
 getTxnFromTxnUuid ::forall st rt e. Newtype st (TState e) => OrderReference -> Maybe String -> BackendFlow st _ (Maybe TxnDetail)
 getTxnFromTxnUuid order maybeTxnUuid = do
   case maybeTxnUuid of
@@ -480,13 +834,58 @@ getTxnFromTxnUuid order maybeTxnUuid = do
         , "merchant_id" /\ String merchantId
         , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
     Nothing -> pure Nothing
+-}
 
+-- TODO OS rewrite to Text -> TxnDetail and lift?
+getTxnFromTxnUuid :: OrderReference -> Maybe Text -> Flow (Maybe TxnDetail)
+getTxnFromTxnUuid order maybeTxnUuid = do
+  case maybeTxnUuid of
+    Just txnUuid' -> do
+      orderId' <- whenNothing (getField @"orderId" order) (throwException err500) -- unNullOrErr500 $ order ^. _orderId
+      merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)--unNullOrErr500 $ order ^. _merchantId
+
+      txnDetail <- withDB eulerDB $ do
+        let predicate TxnDetail {orderId, merchantId, txnUuid} =
+              orderId ==. B.val_ orderId'
+              &&. merchantId ==. B.just_ (B.val_ merchantId')
+              &&. txnUuid ==. B.just_ (B.val_ txnUuid')
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (EDB.txn_detail eulerDBSchema)
+      -- DB.findOne ecDB $ where_ := WHERE
+      --   [ "order_id" /\ String orderId
+      --   , "merchant_id" /\ String merchantId
+      --   , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
+      return txnDetail
+    Nothing -> pure Nothing
+
+
+-- ----------------------------------------------------------------------------
+-- function: getOrderId
+-- ----------------------------------------------------------------------------
+
+{-PS
 getOrderId :: forall st e r rt. Newtype st (TState e) => OrderStatusRequest -> RouteParameters -> BackendFlow st rt String
 getOrderId (OrderStatusRequest req) routeParam = do
   ordId <- pure $ (StrMap.lookup "orderId" routeParam) <|> (StrMap.lookup "order_id" routeParam)
   let orderid = ordId <|> (unNullOrUndefined req.orderId) <|> (unNullOrUndefined req.order_id)
   maybe (liftErr badRequest) pure orderid
+-}
 
+getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
+getOrderId orderReq routeParam = do
+  let ordId = lookupRP @OrderId routeParam
+  let orderid = ordId <|> getField @"orderId" orderReq <|> getField @"order_id" orderReq
+  maybe (throwException $ myerr400 "invalid_request") pure orderid
+
+
+-- ----------------------------------------------------------------------------
+-- function: getLastTxn
+-- ----------------------------------------------------------------------------
+
+{-PS
 getLastTxn ::forall st rt e. Newtype st (TState e) => OrderReference -> BackendFlow st _ (Maybe TxnDetail)
 getLastTxn orderRef = do
   orderId <- unNullOrErr500 $ orderRef ^. _orderId
@@ -504,8 +903,37 @@ getLastTxn orderRef = do
       case chargetxn of
         Just chrgtxn -> pure $ Just chrgtxn
         Nothing -> pure (txns !! 0)
+-}
+
+getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
+getLastTxn orderRef = do
+  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
+  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
+
+  txnDetails <- withDB eulerDB $ do
+    let predicate TxnDetail {orderId, merchantId} =
+          orderId ==. B.val_ orderId'
+            &&. merchantId ==. B.just_ (B.val_ merchantId')
+    findRows
+      $ B.select
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_detail eulerDBSchema)
+
+  case txnDetails of
+    [] -> do
+      logError "get_last_txn" ("No last txn found for orderId: " <> orderId' <> " :merchant:" <> merchantId')
+      pure Nothing
+    _ -> do
+      let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+      maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
 
+-- ----------------------------------------------------------------------------
+-- function: fillOrderDetails
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
 fillOrderDetails :: forall st e rt r.
   Newtype st (TState e)
   => Boolean
@@ -558,6 +986,179 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
        , udf9 = unNull ordObj.udf9 ""
        , udf10 = unNull ordObj.udf10 ""
        }
+-}
+
+fillOrderDetails :: Bool
+  -> Paymentlinks
+  -> OrderReference
+  -> OrderStatusResponse
+  -> Flow OrderStatusResponse
+fillOrderDetails isAuthenticated paymentLinks ord status = do
+  let --resp = status
+      -- ordObj = ord
+  id <- whenNothing (orderUuid ord) (throwException $ myerr "4")-- unNullOrErr500 ordObj.orderUuid
+  let nullVal = Nothing -- nullValue unit -- create foreign (JS) null value ???
+  customerId    <- case (customerId ord) of
+                    Just customerId -> pure customerId
+                    Nothing -> pure "" -- nullVal -- What is this? (Foreign null) ???
+  customerEmail <- case (customerEmail ord) of
+                      Just customerEmail -> if isAuthenticated then pure customerEmail else pure "" -- nullVal
+                      Nothing -> pure "" -- nullVal
+  customerPhone <- case (customerPhone ord) of
+                      Just customerPhone -> if isAuthenticated then pure customerPhone else pure "" -- nullVal
+                      Nothing -> pure "" -- nullVal
+  returnUrl     <- getReturnUrl ord True -- &&
+  pure $ (status :: OrderStatusResponse) -- wrap resp
+       { id = id
+       , merchant_id = (getField @"merchantId" ord)
+       , order_id = (getField @"orderId" ord)
+       , customer_id = Just customerId
+       , product_id = fromMaybe "" (productId ord)
+       , status = show $ (getField @"status" ord)
+       , status_id = C.orderStatusToInt (getField @"status" ord) -- &&
+       , amount =  sanitizeAmount <$> (getField @"amount" ord) -- &&
+       , currency = (getField @"currency" ord)
+       , refunded = (refundedEntirely ord)
+       , payment_links = paymentLinks
+       , amount_refunded = sanitizeNullAmount (amountRefunded ord) -- &&
+       , date_created = (show (getField @"dateCreated" ord) )
+       , customer_email = Just customerEmail
+       , customer_phone = Just customerPhone
+       , return_url = Just returnUrl
+       , udf1 = fromMaybe "" (getField @"udf1" ord)
+       , udf2 = fromMaybe "" (getField @"udf2" ord)
+       , udf3 = fromMaybe "" (getField @"udf3" ord)
+       , udf4 = fromMaybe "" (getField @"udf4" ord)
+       , udf5 = fromMaybe "" (getField @"udf5" ord)
+       , udf6 = fromMaybe "" (getField @"udf6" ord)
+       , udf7 = fromMaybe "" (getField @"udf7" ord)
+       , udf8 = fromMaybe "" (getField @"udf8" ord)
+       , udf9 = fromMaybe "" (getField @"udf9" ord)
+       , udf10 = fromMaybe "" (getField @"udf10" ord)
+       }
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+
+
+
 
 formatAmount ::forall st rt. NullOrUndefined Number -> BackendFlow st rt (NullOrUndefined Number)
 formatAmount (NullOrUndefined Nothing) = pure $ nothing
@@ -1040,234 +1641,10 @@ hierarchyObjectLookup xml key1 key2 = do
 -- ----------------------------------------------------------------------------
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 --
 -- OLD CODE
 --
 
-
-
-
-
-myerr n = err403 { errBody = "Err # " <> n }
-
-rejectIfUnauthenticatedCallDisabled :: MerchantAccount -> Flow ()
-rejectIfUnauthenticatedCallDisabled mAccnt =
-  case  (enableUnauthenticatedOrderStatusApi mAccnt) of
-    Just True -> pure ()
-    _ -> throwException $ myerr "1" -- ecForbidden
-     -- * alot of errors predefined in Servant.Server
-     -- * https://hackage.haskell.org/package/servant-server-0.16.2/docs/Servant-Server.html#v:err404
-     -- * body message (and another parameters) can be redefined
-     -- * err403 { errBody = "Please login first." }
-     {- err403 :: ServerError
-
-        data ServerError = ServerError
-            { errHTTPCode     :: Int
-            , errReasonPhrase :: String
-            , errBody         :: LBS.ByteString
-            , errHeaders      :: [HTTP.Header]
-            }
-          deriving (Show, Eq, Read, Typeable)
-
-        instance Exception ServerError
-     -}
-
--- part of authenticateReqAndGetMerchantAcc
--- looks like authenticateRequest src/Product/OLTP/Services/AuthenticationService.purs
-authenticateWithAPIKey :: APIKey -> Flow (MerchantAccount, Bool)
-authenticateWithAPIKey apiKeyStr = do
-  let eApiKey = extractApiKey apiKeyStr
-  case eApiKey of
-    Right key -> do
-      logDebug "Extracted API key" key
-      conn <- getConn eulerDB
-      merchantKey <- runDB conn $ do
-        let predicate MerchantKey {apiKey, status} = (apiKey ==. (B.just_ $ B.val_ key))
-              &&. (status ==. B.just_ "ACTIVE")
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (merchant_key eulerDBSchema)
-      --pure $ Just defaultMerchantKey--DB.findOne ecDB
-      --(where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"])
-      case merchantKey of
-        Right (Just mKey) -> do
-          merchantAcc <- runDB conn $ do
-            let predicate MerchantAccount {id} = id ==. B.val_ (mKey ^. _merchantAccountId  )
-            findRow
-              $ B.select
-              $ B.limit_ 1
-              $ B.filter_ predicate
-              $ B.all_ (merchant_account eulerDBSchema)
-           -- pure defaultMerchantAccount --DB.findOneWithErr ecDB
-           -- (where_ := WHERE ["id" /\ Int (fromMaybe 0 (unNullOrUndefined merchantKey.merchantAccountId))]) ecAccessDenied
-          merchantAccount <- case merchantAcc of
-            Right (Just ma) -> pure $ setField @"apiKey" (Just key) ma-- merchantAcc # _apiKey .~ (just $ apiKeyStr)
-            _ -> throwException err403
-          _ <- pure True -- ipAddressFilters merchantAccount headers   --- checking IP whitelist in case of authenticated call
-          pure $ (merchantAccount, True)
-        Right Nothing -> throwException err403
-        Left err -> do
-          runIO $ putTextLn $ toText $ P.show err
-          throwException $ myerr "2" -- liftErr ecAccessDenied
-    Left err -> do
-      logError "Authentication" $ "Invalid API key: " <> err
-      throwException err403 {errBody = "Invalid API key."}
-
--- from src/Types/Alias.purs
-type AuthToken = Text
-
-authenticateReqWithClientAuthToken ::
- -- OrderStatusRequest
- -- ->
-   AuthToken
- -- -> RouteParameters
-  -> Flow (MerchantAccount, Bool)
-authenticateReqWithClientAuthToken authToken = do
-  maybeAuthTokenData :: Maybe C.ClientAuthTokenData <- pure $ Just C.defaultClientAuthTokenData -- getCachedValEC authToken
-  case maybeAuthTokenData of
-    Just authTokenData -> do
-      _ <- pure () -- updateAuthTokenUsage authToken authTokenData
-      merchantAccount <- getMerchantAccountForAuthToken authTokenData
-      pure (merchantAccount, True)
-    Nothing -> throwException err403
-
-updateAuthTokenUsage :: AuthToken -> C.ClientAuthTokenData -> Flow ()
-updateAuthTokenUsage authToken clientAuthToken@C.ClientAuthTokenData {..} = do
-  let newUsageCount = maybe 1 (+1) usageCount
-  case (newUsageCount == tokenMaxUsage) of
-    True -> pure () -- delCachedValEC authToken *> pure ()
-    False -> do
-      tokenExpiryData <- pure C.defaultOrderTokenExpiryData -- unwrap <$> getTokenExpiryData
-     -- let ttl = convertDuration $ Seconds $ toNumber tokenExpiryData.expiryInSeconds
-      _ <- pure () --setCacheEC ttl authToken (clientAuthToken {usageCount = Just newUsageCount})
-      pure ()
-
-getMerchantAccountForAuthToken :: C.ClientAuthTokenData -> Flow MerchantAccount
-getMerchantAccountForAuthToken (C.ClientAuthTokenData {..}) = do
-  case resourceType of
-    "ORDER" -> do
-      OrderReference{..}  <- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int (parseInt otokenData.resourceId)]) ecAccessDenied
-      merchantId <- maybe (throwException err500) pure merchantId
-      pure defaultMerchantAccount -- DB.findOneWithErr ecDB (where_ := WHERE ["merchant_id" /\ String merchantId]) ecAccessDenied
-    "CUSTOMER" -> do
-      Customer {..} <- pure defaultCustomer -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ String otokenData.resourceId]) ecAccessDenied
-      pure defaultMerchantAccount -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int merchantAccountId]) ecAccessDenied
-    _          -> throwException err403
-
---getMerchantAccountForAuthToken (C.ClientAuthTokenData otokenData@{resourceType: "CUSTOMER"}) = do
---  Customer customer <- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ String otokenData.resourceId]) ecAccessDenied
---  DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int customer.merchantAccountId]) ecAccessDenied
---
---getMerchantAccountForAuthToken (C.ClientAuthTokenData otokenData@{resourceType: _}) =
---  liftErr ecAccessDenied
-
-
-
-
-
-addOrderTokenToOrderStatus :: Int -> OrderCreateRequest -> Text -> Flow (Maybe OrderTokenResp)
-addOrderTokenToOrderStatus orderId orderCreateReq merchantId = do
-  case  (Just True) of -- (getField @"options.get_client_auth_token" orderCreateReq) of
-    Just True -> do
-      (token, expiry) <- pure ("token", "expiry") -- RedisService.tokenizeResource (toForeign orderId) "ORDER" merchantId
-
-      runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
-
-      pure $ Just $ OrderTokenResp {
-              client_auth_token = Just token
-            , client_auth_token_expiry = Just expiry
-            }
-    _ -> pure $ Nothing
-
-getCachedOrdStatus -- really need orderId and merchantId
-  :: Bool
- -- -> OrderStatusRequest
- -- -> MerchantAccount
- -- -> RouteParameters
-  -> Text
-  -> Text
-  -> Flow  (Maybe OrderStatusResponse)
-getCachedOrdStatus isAuthenticated orderId merchantId = do -- req mAccnt routeParam = do
-  conn <- getConn eulerDB
-  (maybeFeature :: Maybe Feature) <- do-- pure Nothing -- DB.findOne ecDB (where_ := WHERE [ "name" /\ String eulerOrderStatusCachingKey] :: WHERE Feature)
-    res <- runDB conn $ do
-      let predicate Feature {name} = name ==. B.val_ "eulerOrderStatusCachingKey"
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (feature eulerDBSchema)
-    case res of
-      Right (Just f) -> pure $ Just f
-      Right Nothing -> pure Nothing
-      Left err -> do
-        logError "Find Feature" $ toText $ P.show err
-        pure Nothing
-  maybe (pure Nothing) (getCachedVal isAuthenticated merchantId orderId) maybeFeature
-    where
-      getCachedVal isAuthenticated merchantId orderId feature = do
-        case (getField @"enabled" feature) of
-          True -> do
-            _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is enabled"
-           -- orderId <- getOrderId req routeParam
-           -- merchantId <- unNullOrErr500 (mAccnt ^. _merchantId)
-            val <- getCachedResp ((keyPrefix isAuthenticated) <> merchantId <> "_" <> orderId)
-            case val of
-              Just value -> do
-                runIO $ Metric.incrementOrderStatusCacheHitCount merchantId
-                _ <- logInfo "order status api response from cache" ("merchant_id " <> merchantId <> " orderId " <> orderId)
-                _ <- logInfo "Fetch cache from order status" $ "Order status response found in cache for merchant_id " <> merchantId <> " orderId " <> orderId
-                pure val
-              Nothing -> do
-                runIO $ Metric.incrementOrderStatusCacheMissCount merchantId
-                _ <- logInfo "Fetch cache from order status" $ "Could not find order status response in cache for merchant_id " <> merchantId <> " orderId " <> orderId
-                pure val
-          False -> do
-            _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is not enabled"
-            pure Nothing
-      keyPrefix True = "euler_ostatus_"
-      keyPrefix False = "euler_ostatus_unauth_"
-
-getCachedResp :: Text -> Flow (Maybe OrderStatusResponse)
-getCachedResp key = do
-  eitherVal <- pure $ Right Nothing -- Presto.getCache ecRedis key
-  case eitherVal of
-    Right (Just v) -> pure $ Just v -- * do
-      -- *  --let val' = S.replaceAll (S.Pattern "null") (S.Replacement (show "null")) v
-      -- *  --    val = S.replaceAll (S.Pattern "\"\"null\"\"") (S.Replacement (show "null")) val'
-      -- *  -- * Interesting transformations (maybe js - purescript related and we dont need it)
-      -- *  -- * parseAndReplaceWithStringNull
-      -- *  -- * camelCaseToSnakeCase
-      -- *  -- * replaceObjValWithForeignNull
-      -- *  let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
-      -- *  _ <- Presto.log ("Cache value for this order status cache key " <> key) v
-      -- *  case (runExcept (decode (camelCaseToSnakeCase resp))) of
-      -- *    Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
-      -- *    Left err -> pure Nothing -- log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
-    Right Nothing -> pure Nothing -- log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
-    Left err -> pure Nothing -- log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
-
--- new ->
 
 -- getOrderReferenceFromDB :: Text -> Text -> Flow OrderReference -- OrderReference
 -- getOrderReferenceFromDB orderId merchantId = do
@@ -1331,54 +1708,7 @@ defaultConfig = Config
     }
 
 
-fillOrderDetails :: Bool
-  -> Paymentlinks
-  -> OrderReference
-  -> OrderStatusResponse
-  -> Flow OrderStatusResponse
-fillOrderDetails isAuthenticated paymentLinks ord status = do
-  let --resp = status
-      -- ordObj = ord
-  id <- whenNothing (orderUuid ord) (throwException $ myerr "4")-- unNullOrErr500 ordObj.orderUuid
-  let nullVal = Nothing -- nullValue unit -- create foreign (JS) null value ???
-  customerId    <- case (customerId ord) of
-                    Just customerId -> pure customerId
-                    Nothing -> pure "" -- nullVal -- What is this? (Foreign null) ???
-  customerEmail <- case (customerEmail ord) of
-                      Just customerEmail -> if isAuthenticated then pure customerEmail else pure "" -- nullVal
-                      Nothing -> pure "" -- nullVal
-  customerPhone <- case (customerPhone ord) of
-                      Just customerPhone -> if isAuthenticated then pure customerPhone else pure "" -- nullVal
-                      Nothing -> pure "" -- nullVal
-  returnUrl     <- getReturnUrl ord True -- &&
-  pure $ (status :: OrderStatusResponse) -- wrap resp
-       { id = id
-       , merchant_id = (getField @"merchantId" ord)
-       , order_id = (getField @"orderId" ord)
-       , customer_id = Just customerId
-       , product_id = fromMaybe "" (productId ord)
-       , status = show $ (getField @"status" ord)
-       , status_id = C.orderStatusToInt (getField @"status" ord) -- &&
-       , amount =  sanitizeAmount <$> (getField @"amount" ord) -- &&
-       , currency = (getField @"currency" ord)
-       , refunded = (refundedEntirely ord)
-       , payment_links = paymentLinks
-       , amount_refunded = sanitizeNullAmount (amountRefunded ord) -- &&
-       , date_created = (show (getField @"dateCreated" ord) )
-       , customer_email = Just customerEmail
-       , customer_phone = Just customerPhone
-       , return_url = Just returnUrl
-       , udf1 = fromMaybe "" (getField @"udf1" ord)
-       , udf2 = fromMaybe "" (getField @"udf2" ord)
-       , udf3 = fromMaybe "" (getField @"udf3" ord)
-       , udf4 = fromMaybe "" (getField @"udf4" ord)
-       , udf5 = fromMaybe "" (getField @"udf5" ord)
-       , udf6 = fromMaybe "" (getField @"udf6" ord)
-       , udf7 = fromMaybe "" (getField @"udf7" ord)
-       , udf8 = fromMaybe "" (getField @"udf8" ord)
-       , udf9 = fromMaybe "" (getField @"udf9" ord)
-       , udf10 = fromMaybe "" (getField @"udf10" ord)
-       }
+
 
 
 addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
@@ -1514,67 +1844,7 @@ getReturnUrl orderRef somebool = do
 
 
 
-  -- <- new
 
--- ?
--- should we divide this method to:
--- 1) getStatusResp, where we just get it from DB
--- 2) fillStatusResp, where we apply:
---  * fillOrderDetails
---  * addPromotionDetails
---  * addMandateDetails
--- 3) addTxnInfo (this method only for POST orderStatus api method) where we:
---  * addTxnDetailsToResponse
---  * addRiskCheckInfoToResponse
---  * addPaymentMethodInfo
---  * addRefundDetails
---  * addChargeBacks
---  * addGatewayResponse
-
-getOrdStatusResp
-  :: OrderStatusRequest
-  -> MerchantAccount
-  -> Bool
-  -> Text -- RouteParameters
-  -> Flow OrderStatusResponse
-getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated routeParam = do
-    orderId'     <- pure routeParam -- getOrderId req routeParam
-    merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
- --   _           <- logInfo "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
-    (order :: OrderReference) <- do
-      conn <- getConn eulerDB
-      res <- runDB conn $ do
-        let predicate OrderReference {orderId, merchantId} = (orderId ==. B.just_ (B.val_ orderId'))
-              &&. (merchantId ==. B.just_ (B.val_ merchantId'))
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (order_reference eulerDBSchema)
-      case res of
-        Right (Just ordRef) -> pure ordRef
-        Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
-        Left err -> do
-          logError "Find OrderReference" $ toText $ P.show err
-          throwException err500
-      -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
- --   let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
- --   maybeTxn    <- runMaybeT $ MaybeT (getTxnFromTxnUuid order maybeTxnUuid) <|> MaybeT (getLastTxn order)
-    paymentlink <- getPaymentLink mAccnt order
-    ordResp'    <- fillOrderDetails isAuthenticated paymentlink order defaultOrderStatusResponse
-                    >>= addPromotionDetails order
-    ordResp     <- addMandateDetails order ordResp'
-   -- used in POST method
-   --  case maybeTxn of
-   --    Just txn -> do
-   --      addTxnDetailsToResponse txn order ordResp
-   --      >>= addRiskCheckInfoToResponse txn
-   --      >>= addPaymentMethodInfo mAccnt txn
-   --      >>= addRefundDetails txn
-   --      >>= addChargeBacks txn
-   --      >>= addGatewayResponse txn
-   --    Nothing ->  pure ordResp
-    pure ordResp
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 getOrderStatusRequest :: Text -> OrderStatusRequest
@@ -1587,70 +1857,18 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
 
-getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
-getOrderId orderReq routeParam = do
-  let ordId = lookupRP @OrderId routeParam
-  let orderid = ordId <|> getField @"orderId" orderReq <|> getField @"order_id" orderReq
-  maybe (throwException $ myerr400 "invalid_request") pure orderid
 
 
 
 
 
-------------------------------------------------------------------------------------
--- TxnDetail
-------------------------------------------------------------------------------------
 
 
--- TODO OS rewrite to Text -> TxnDetail and lift?
-getTxnFromTxnUuid :: OrderReference -> Maybe Text -> Flow (Maybe TxnDetail)
-getTxnFromTxnUuid order maybeTxnUuid = do
-  case maybeTxnUuid of
-    Just txnUuid' -> do
-      orderId' <- whenNothing (getField @"orderId" order) (throwException err500) -- unNullOrErr500 $ order ^. _orderId
-      merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)--unNullOrErr500 $ order ^. _merchantId
-
-      txnDetail <- withDB eulerDB $ do
-        let predicate TxnDetail {orderId, merchantId, txnUuid} =
-              orderId ==. B.val_ orderId'
-              &&. merchantId ==. B.just_ (B.val_ merchantId')
-              &&. txnUuid ==. B.just_ (B.val_ txnUuid')
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (EDB.txn_detail eulerDBSchema)
-      -- DB.findOne ecDB $ where_ := WHERE
-      --   [ "order_id" /\ String orderId
-      --   , "merchant_id" /\ String merchantId
-      --   , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
-      return txnDetail
-    Nothing -> pure Nothing
 
 myerr400 n = err400 { errBody = "Err # " <> n }
 
 
-getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
-getLastTxn orderRef = do
-  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
-  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
 
-  txnDetails <- withDB eulerDB $ do
-    let predicate TxnDetail {orderId, merchantId} =
-          orderId ==. B.val_ orderId'
-            &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRows
-      $ B.select
-      $ B.filter_ predicate
-      $ B.all_ (EDB.txn_detail eulerDBSchema)
-
-  case txnDetails of
-    [] -> do
-      logError "get_last_txn" ("No last txn found for orderId: " <> orderId' <> " :merchant:" <> merchantId')
-      pure Nothing
-    _ -> do
-      let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
-      maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
 getChargedTxn :: OrderReference -> Flow (Maybe TxnDetail)
 getChargedTxn orderRef = do

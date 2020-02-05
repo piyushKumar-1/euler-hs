@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE AllowAmbiguousTypes       #-}
 {-# LANGUAGE DataKinds                 #-}
+{-# LANGUAGE DeriveAnyClass            #-}
 {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE DuplicateRecordFields     #-}
 {-# LANGUAGE FlexibleContexts          #-}
@@ -63,35 +63,58 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 
+-- PS Will be removing gateways one by one from here as part of direct upi integrations.
+-- used in `casematch` function
+eulerUpiGateways :: [Gateway]
+eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
 
--- No state
---updateState :: String -> Maybe String -> BackendFlow OrderLocalState Configs OrderLocalState
---updateState merchantId orderId = do
---  state       <- get
---  meshEnabled <- isDBMeshEnabled  merchantId orderId false
---  memCacheEnabled <- getCache C.ecRedis C.memCacheEnabled <#> (fromMaybe false)
---  _           <- log "isDBMeshEnabled" meshEnabled
---  let state'   = state # _merchantId .~ (Just merchantId)
---      updState' = state' # _orderId .~ orderId
---      updState'' = updState' # _isMemCacheEnabled .~ memCacheEnabled
---      updState  = updState'' # _isDBMeshEnabled .~ (Just meshEnabled)
---  _           <- put updState
---  put updState
+-- Not needed, since we have no state, use `setOption` instead
+{-PS
+updateState :: String -> Maybe String -> BackendFlow SyncStatusState Configs SyncStatusState
+updateState merchantId orderId = do
+  state       <- get
+  meshEnabled <- isDBMeshEnabled  merchantId orderId false
+  memCacheEnabled <- getCache C.ecRedis C.memCacheEnabled <#> (fromMaybe false)
+  _           <- log "isDBMeshEnabled" meshEnabled
+  let state'   = state # _merchantId .~ (Just merchantId)
+      updState' = state' # _orderId .~ orderId
+      updState'' = updState' # _isMemCacheEnabled .~ memCacheEnabled
+      updState  = updState'' # _isDBMeshEnabled .~ (Just meshEnabled)
+  _           <- put updState
+  put updState
+-}
 
--- Not used
--- createOrderStatusResponse :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r }
---                 => String -> String -> MerchantAccount -> BackendFlow st _ Unit
--- createOrderStatusResponse orderId merchantId merchantAccount =  do
---   _ <- Presto.log "createOrderStatusResponse" $ "Creating order status cache for " <> merchantId <> " and order_id " <> orderId
---   orderStatusReq <- pure $ getOrderStatusRequest orderId
---   _              <- getOrderStatusWithoutAuth orderStatusReq empty merchantAccount true Nothing Nothing
---   pure unit
+-- Seems not used in the module
+{-PS
+createOrderStatusResponse :: forall st rt e. Newtype st (TState e)
+                => String -> String -> MerchantAccount -> BackendFlow st _ Unit
+createOrderStatusResponse orderId merchantId merchantAccount =  do
+  _ <- Presto.log "createOrderStatusResponse" $ "Creating order status cache for " <> merchantId <> " and order_id " <> orderId
+  orderStatusReq <- pure $ getOrderStatusRequest orderId
+  _              <- getOrderStatusWithoutAuth orderStatusReq empty merchantAccount true Nothing Nothing
+  pure unit
+-}
 
--- -> #################
--- -> #################
--- -> #################
--- -> #################
--- -> #################
+-- ----------------------------------------------------------------------------
+-- processOrderStatus
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
+processOrderStatus :: OrderStatusRequest -> RouteParameters -> BackendFlow SyncStatusState _ Foreign
+processOrderStatus req routeParams = do
+  let orderId = maybe (unNullOrUndefined $ req ^. _order_id) pure $ routeParams ^. (at "order_id")
+  _ <- logOrderIdAndTxnUuid orderId Nothing
+  {merchantAccount, isAuthenticated} <- authenticateReqAndGetMerchantAcc req routeParams
+  _ <- updateState (merchantAccount .^. _merchantId) orderId
+  _ <- Monitoring.addMerchantIdToTrackingInfo $ merchantAccount .^. _merchantId
+  _  <- rejectIfUnauthenticatedCallDisabled merchantAccount `skipIfB` isAuthenticated
+  response <- getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated Nothing Nothing
+  _ <- Presto.log "Process Order Status Response" $ response
+  pure response
+-}
+
+type APIKey = Text
 
 data FlowState = FlowState
   { merchantId :: Maybe Text
@@ -105,11 +128,9 @@ data FlowStateOption = FlowStateOption
 
 instance OptionEntity FlowStateOption FlowState
 
-type APIKey = Text
-
--- * inside authentication used "x-forwarded-for" header
--- * can we collect all headers in Map and save them in state? before we run the flow?
-processOrderStatusGET :: Text -> APIKey -> Flow OrderStatusResponse -- processOrderStatus
+-- TODO inside authentication used "x-forwarded-for" header
+-- TODO can we collect all headers in Map and save them in state? before we run the flow?
+processOrderStatusGET :: Text -> APIKey -> Flow OrderStatusResponse 
 processOrderStatusGET orderId apiKey = do
   -- if merchantAccount don't exists - throw access denied exception
   (merchantAccount, isAuthenticated) <- authenticateWithAPIKey apiKey
@@ -125,6 +146,925 @@ processOrderStatusGET orderId apiKey = do
   response <- getOrderStatusWithoutAuth defaultOrderStatusRequest orderId {-routeParams-} merchantAccount isAuthenticated Nothing Nothing
  -- _ <- log "Process Order Status Response" $ response
   pure response
+
+-- ----------------------------------------------------------------------------
+-- getOrderStatusWithoutAuth
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
+getOrderStatusWithoutAuth :: forall st r e rt. Newtype st (TState e) =>
+  OrderStatusRequest -> RouteParameters -> MerchantAccount -> Boolean -> (Maybe OrderCreateReq) -> (Maybe OrderReference) -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} Foreign
+getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
+  cachedResp <- getCachedOrdStatus isAuthenticated req merchantAccount routeParams --TODO check for txn based refund
+  resp <- case cachedResp of
+            Nothing -> do
+              resp <- getOrdStatusResp req merchantAccount isAuthenticated routeParams
+              _    <- addToCache req isAuthenticated merchantAccount routeParams resp
+              pure resp
+            Just resp -> pure resp
+
+  ordResp'   <- versionSpecificTransforms routeParams resp
+
+  ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
+                    let order = unsafePartial $ fromJust $ maybeOrd
+                    let orderCreateReq = unsafePartial $ fromJust $ maybeOrderCreateReq
+                    checkAndAddOrderToken req orderCreateReq routeParams ordResp' merchantAccount order
+                  else pure ordResp'
+
+  checkEnableCaseForResponse req routeParams ordResp
+-}
+
+getOrderStatusWithoutAuth 
+  :: OrderStatusRequest 
+  -> Text {-RouteParameters-} 
+  -> MerchantAccount 
+  -> Bool
+  -> (Maybe OrderCreateRequest) 
+  -> (Maybe OrderReference) 
+  -> Flow OrderStatusResponse -- Foreign
+getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
+  merchId <- case (getField @"merchantId" merchantAccount) of
+                Nothing -> throwException $ myerr "3"
+                Just v -> pure v
+  cachedResp <- getCachedOrdStatus isAuthenticated orderId merchId  --TODO check for txn based refund
+  resp <- case cachedResp of
+            Nothing -> do
+              resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
+         -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp
+              pure resp
+            Just resp -> pure resp
+  ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
+
+  -- * This part probably shoul be moved to the separate function, used only for orderCreate request
+  ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
+                    let order = fromJust maybeOrd
+                    let orderCreateReq = fromJust maybeOrderCreateReq
+                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchId order
+                  else pure ordResp'
+ ------------------------------------------------
+ -- * encode response to Foreign inside, why?
+  -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
+  pure ordResp
+
+-- ----------------------------------------------------------------------------
+-- checkAndAddOrderToken
+-- TODO update
+-- TODO use Euler.Constant.Version?
+-- ----------------------------------------------------------------------------
+
+{-PS
+checkAndAddOrderToken :: forall st r e rt. Newtype st (TState e) =>
+   OrderStatusRequest -> OrderCreateReq -> RouteParameters -> OrderStatusResponse -> MerchantAccount -> OrderReference -> BackendFlow st _ OrderStatusResponse
+checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantAccount order = do
+  let orderIdPrimary = order .^. _id
+  merchantId <- unNullOrErr500 (merchantAccount ^. _merchantId)
+  let version = lookup "version" routeParams
+  if version >= Just "2018-07-01" then do
+      orderTokenData  <- addOrderTokenToOrderStatus orderIdPrimary orderCreateReq merchantId
+      pure $ resp # _juspay .~ (orderTokenData)
+    else pure resp
+-}
+
+checkAndAddOrderToken :: OrderStatusRequest -> OrderCreateRequest -> {-RouteParameters-} Text -> OrderStatusResponse -> Text {-MerchantAccount-} -> OrderReference -> Flow OrderStatusResponse
+checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantId order = do
+  orderIdPrimary <- maybe (throwException err500) pure (getField @"id" order)
+ -- merchantId <- unNullOrErr500 (merchantAccount ^. _merchantId)
+  let version = Just "2018-07-01" -- lookup "version" routeParams -- version should be in headers?
+  if version >= Just "2018-07-01" then do
+      orderTokenData  <- addOrderTokenToOrderStatus orderIdPrimary orderCreateReq merchantId
+      pure $ setField @"juspay" orderTokenData resp
+    else pure resp
+
+
+
+
+
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+
+
+{-
+
+addOrderTokenToOrderStatus :: forall st r e rt. Newtype st (TState e) =>
+   String -> OrderCreateReq -> String -> BackendFlow st _ (NullOrUndefined OrderTokenResp)
+addOrderTokenToOrderStatus orderId (OrderCreateReq orderCreateReq) merchantId = do
+  case (unNullOrUndefined orderCreateReq."options.get_client_auth_token") of
+    Just true -> do
+      {token,expiry} <- RedisService.tokenizeResource (ResourceStr $ orderId) "ORDER" merchantId
+      incrementClientAuthTokenGeneratedCount
+      pure $ just $ OrderTokenResp {
+              client_auth_token : just $ token
+            , client_auth_token_expiry : just $ expiry
+            }
+    _ -> pure $ nothing
+
+checkEnableCaseForResponse ::forall st rt e. Newtype st (TState e) => OrderStatusRequest -> RouteParameters -> OrderStatusResponse -> BackendFlow st _ Foreign
+checkEnableCaseForResponse req params resp =
+  if isJust (StrMap.lookup "orderId" params) || isPresent (req ^. _orderId) then pure $ snakeCaseToCamelCase (encode resp)
+   else pure (encode resp)
+
+authenticateReqAndGetMerchantAcc ::
+     OrderStatusRequest
+  -> RouteParameters
+  -> BackendFlow SyncStatusState _ {merchantAccount :: MerchantAccount, isAuthenticated :: Boolean}
+authenticateReqAndGetMerchantAcc ostatusReq@(OrderStatusRequest req) headers = do
+    let optApiKey = getApiKeyFromHeader headers
+        maybeAuthToken = StrMap.lookup "client_auth_token" headers
+    case [optApiKey, maybeAuthToken] of
+      [Just apiKey, _] -> authenticateMerchantWithApiKey apiKey
+      [_, Just authToken] -> authenticateReqWithClientAuthToken ostatusReq authToken headers
+      _ -> getMerchantAccountForUnauthenticatedCalls req headers
+  where authenticateMerchantWithApiKey apiKeyStr = do
+          merchantKey <- DB.findOne ecDB
+           (where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"])
+          case merchantKey of
+            Just (MerchantKey merchantKey) -> do
+              merchantAcc <- DB.findOneWithErr ecDB
+                (where_ := WHERE ["id" /\ Int (fromMaybe 0 (unNullOrUndefined merchantKey.merchantAccountId))]) ecAccessDenied
+              let merchantAccount = merchantAcc # _apiKey .~ (just $ apiKeyStr)
+              _ <- ipAddressFilters merchantAccount headers   --- checking IP whitelist in case of authenticated call
+              pure $ {merchantAccount, isAuthenticated: true}
+            Nothing -> liftErr ecAccessDenied
+        getApiKeyFromHeader :: RouteParameters -> Maybe String
+        getApiKeyFromHeader headers = do
+         ((S.split (S.Pattern ":") <<< decodeBase64) <$> ((S.split (S.Pattern " ") <$> (StrMap.lookup "Authorization" headers)) >>= last))
+          >>= head
+        getMerchantAccountForUnauthenticatedCalls req headers = do
+          let maybeMerchantId = unNullOrUndefined req.merchantId
+                                <|> (unNullOrUndefined req.merchant_id)
+          merchantId <- maybe (liftErr merchantIdMissing) pure maybeMerchantId
+          merchantAccount <- DB.findOneWithErr ecDB (where_ := WHERE ["merchantId" /\ String merchantId]) merchantAccountNull
+          pure $ {merchantAccount, isAuthenticated : false }
+
+
+updateAuthTokenUsage :: AuthToken -> ClientAuthTokenData -> BackendFlow SyncStatusState _ Unit
+updateAuthTokenUsage authToken (ClientAuthTokenData clientAuthToken) = do
+  let usageCount = maybe 1 (add 1) $ unNullOrUndefined clientAuthToken.usageCount
+  case (usageCount == clientAuthToken.tokenMaxUsage) of
+    true -> delCachedValEC authToken *> pure unit
+    false -> do
+      tokenExpiryData <- unwrap <$> getTokenExpiryData
+      let ttl = convertDuration $ Seconds $ toNumber tokenExpiryData.expiryInSeconds
+      -- {expiryInSeconds,tokenMaxUsage} <- RedisService.getTokenExpiryData "ORDER"
+      -- let ttl = show expiryInSeconds
+      _ <- setCacheEC ttl authToken (ClientAuthTokenData clientAuthToken {usageCount = just usageCount})
+      pure unit
+
+authenticateReqWithClientAuthToken ::
+  OrderStatusRequest
+  -> AuthToken
+  -> RouteParameters
+  -> BackendFlow SyncStatusState _ {merchantAccount :: MerchantAccount, isAuthenticated :: Boolean}
+authenticateReqWithClientAuthToken (OrderStatusRequest req) authToken headers = do
+  maybeAuthTokenData :: Maybe ClientAuthTokenData <- getCachedValEC authToken
+  case maybeAuthTokenData of
+    Just authTokenData -> do
+      _ <- updateAuthTokenUsage authToken authTokenData
+      merchantAccount <- getMerchantAccountForAuthToken authTokenData
+      pure {merchantAccount, isAuthenticated: true}
+    Nothing -> liftErr ecAccessDenied
+
+getMerchantAccountForAuthToken ::forall st rt e. Newtype st (TState e) => ClientAuthTokenData -> BackendFlow st _ MerchantAccount
+getMerchantAccountForAuthToken (ClientAuthTokenData otokenData@{resourceType: "ORDER"}) = do
+  OrderReference orderReference <- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int (parseInt otokenData.resourceId)]) ecAccessDenied
+  merchantId <- unNullOrErr500 orderReference.merchantId
+  DB.findOneWithErr ecDB (where_ := WHERE ["merchant_id" /\ String merchantId]) ecAccessDenied
+
+getMerchantAccountForAuthToken (ClientAuthTokenData otokenData@{resourceType: "CUSTOMER"}) = do
+  Customer customer <- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ String otokenData.resourceId]) ecAccessDenied
+  DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int customer.merchantAccountId]) ecAccessDenied
+
+getMerchantAccountForAuthToken (ClientAuthTokenData otokenData@{resourceType: _}) =
+  liftErr ecAccessDenied
+
+rejectIfUnauthenticatedCallDisabled :: MerchantAccount -> BackendFlow SyncStatusState _ Unit
+rejectIfUnauthenticatedCallDisabled mAccnt =
+  if isTrue (mAccnt ^. _enableUnauthenticatedOrderStatusApi)
+  then continue unit
+  else liftErr ecForbidden
+
+rejectIfMerchantIdMissing :: OrderStatusRequest -> BackendFlow SyncStatusState _ Unit
+rejectIfMerchantIdMissing (OrderStatusRequest req) =
+  let maybeMerchantId = unNullOrUndefined req.merchantId
+                        <|> (unNullOrUndefined req.merchant_id)
+  in
+  if isJust maybeMerchantId
+  then continue unit
+  else liftErr merchantIdMissing
+
+getCachedOrdStatus :: forall st e rt r.
+  Newtype st (TState e)
+  => Boolean
+  -> OrderStatusRequest
+  -> MerchantAccount
+  -> RouteParameters
+  -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} (Maybe OrderStatusResponse)
+getCachedOrdStatus isAuthenticated req mAccnt routeParam = do
+  maybeFeature <- DB.findOne ecDB (where_ := WHERE [ "name" /\ String eulerOrderStatusCachingKey] :: WHERE Feature)
+  maybe (pure Nothing) (getCachedVal isAuthenticated mAccnt routeParam) maybeFeature
+    where
+      getCachedVal isAuthenticated mAccnt routeParam feature = do
+        case (feature ^. _enabled) of
+          true -> do
+            _ <- Presto.log "Fetch orderStatus From Cache" $ "Order status cache feature is enabled"
+            orderId <- getOrderId req routeParam
+            merchantId <- unNullOrErr500 (mAccnt ^. _merchantId)
+            val <- getCachedResp ((keyPrefix isAuthenticated) <> merchantId <> "_" <> orderId)
+            case val of
+              Just value -> do
+                _ <- Monitoring.incrementOrderStatusCacheHitCount merchantId
+                _ <- log "order status api response from cache" ("merchant_id " <> merchantId <> " orderId " <> orderId)
+                _ <- Presto.log "Fetch orderStatus From Cache" $ "Order status response found in cache for merchant_id " <> merchantId <> " orderId " <> orderId
+                pure val
+              Nothing -> do
+                _ <- Monitoring.incrementOrderStatusCacheMissCount merchantId
+                _ <- Presto.log "Fetch orderStatus From Cache" $ "Could not find order status response in cache for merchant_id " <> merchantId <> " orderId " <> orderId
+                pure val
+          false -> do
+            _ <- Presto.log "Fetch orderStatus From Cache" $ "Order status cache feature is not enabled"
+            pure Nothing
+      keyPrefix true = "euler_ostatus_"
+      keyPrefix false = "euler_ostatus_unauth_"
+
+
+addToCache :: forall st rt e r.
+  Newtype st (TState e)
+  => OrderStatusRequest
+  -> Boolean
+  -> MerchantAccount
+  -> RouteParameters
+  -> OrderStatusResponse
+  -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} Unit
+addToCache req isAuthenticated mAccnt routeParam ordStatusResp = do
+  maybeFeature <- DB.findOne ecDB (where_ := WHERE [ "name" /\ String eulerOrderStatusCachingKey] :: WHERE Feature)
+  maybe (continue unit) (setCachedValue isAuthenticated mAccnt routeParam) maybeFeature
+    where
+      setCachedValue isAuthenticated mAccnt routeParam feature = do
+        case feature ^. _enabled of
+          true -> do
+            orderId <- getOrderId req routeParam
+            merchantId <- unNullOrErr500 (mAccnt ^. _merchantId)
+            _ <- Presto.log "Order Status add to cache" $ "adding order status response to cache for merchant_id " <> merchantId <> " orderId " <> orderId
+            _ <- setRespInCache orderStatusCacheTTL ((keyPrefix isAuthenticated) <> merchantId <> "_" <> orderId) ordStatusResp
+            Monitoring.incrementOrderStatusCacheAddCount merchantId
+          false -> continue unit
+      keyPrefix true = "euler_ostatus_"
+      keyPrefix false = "euler_ostatus_unauth_"
+
+setRespInCache :: forall a b. Encode a => Milliseconds -> String -> a -> BackendFlow _ b Unit
+setRespInCache expiry key val = do
+  eitherRes <- setCacheWithExpiry ecRedis key (jsonStringify (snakeCaseToCamelCase (encode val))) expiry
+  case eitherRes of
+    Right x -> continue unit
+    Left err -> log "cache_save_error_" ("Error while persisting " <> key <> "_" <> (show err)) *> continue unit
+
+getCachedResp :: forall a. String -> BackendFlow _ a (Maybe OrderStatusResponse)
+getCachedResp key = do
+  eitherVal <- Presto.getCache ecRedis key
+  case eitherVal of
+    Right (Just v) -> do
+        let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
+        _ <- Presto.log ("Cache value for this order status cache key " <> key) v
+        case (runExcept (decode (camelCaseToSnakeCase resp))) of
+          Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
+          Left err -> log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
+    Right Nothing -> log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
+    Left err -> log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
+
+getOrdStatusResp :: forall st rt e r.
+  Newtype st (TState e)
+  => OrderStatusRequest
+  -> MerchantAccount
+  -> Boolean
+  -> RouteParameters
+  -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
+getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routeParam = do
+    orderId     <- getOrderId req routeParam
+    merchantId  <- unNullOrErr500 (mAccnt ^. _merchantId)
+    _           <- Presto.log "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
+    order       <- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
+    let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
+    maybeTxn    <- runMaybeT $ MaybeT (getTxnFromTxnUuid order maybeTxnUuid) <|> MaybeT (getLastTxn order)
+    paymentlink <- getPaymentLink order
+    ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
+                    >>= addPromotionDetails order
+    ordResp     <- addMandateDetails order ordResp'
+    let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
+    case maybeTxn of
+      Just txn -> do
+        addTxnDetailsToResponse txn order ordResp
+        >>= addRiskCheckInfoToResponse txn
+        >>= addPaymentMethodInfo mAccnt txn
+        >>= addRefundDetails txn
+        >>= addChargeBacks txn
+        >>= addGatewayResponse txn shouldSendFullGatewayResponse
+      Nothing ->  pure ordResp
+
+getTxnFromTxnUuid ::forall st rt e. Newtype st (TState e) => OrderReference -> Maybe String -> BackendFlow st _ (Maybe TxnDetail)
+getTxnFromTxnUuid order maybeTxnUuid = do
+  case maybeTxnUuid of
+    Just txnUuid -> do
+      orderId <- unNullOrErr500 $ order ^. _orderId
+      merchantId <- unNullOrErr500 $ order ^. _merchantId
+      DB.findOne ecDB $ where_ := WHERE
+        [ "order_id" /\ String orderId
+        , "merchant_id" /\ String merchantId
+        , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
+    Nothing -> pure Nothing
+
+getOrderId :: forall st e r rt. Newtype st (TState e) => OrderStatusRequest -> RouteParameters -> BackendFlow st rt String
+getOrderId (OrderStatusRequest req) routeParam = do
+  ordId <- pure $ (StrMap.lookup "orderId" routeParam) <|> (StrMap.lookup "order_id" routeParam)
+  let orderid = ordId <|> (unNullOrUndefined req.orderId) <|> (unNullOrUndefined req.order_id)
+  maybe (liftErr badRequest) pure orderid
+
+getLastTxn ::forall st rt e. Newtype st (TState e) => OrderReference -> BackendFlow st _ (Maybe TxnDetail)
+getLastTxn orderRef = do
+  orderId <- unNullOrErr500 $ orderRef ^. _orderId
+  merchantId <- unNullOrErr500 $ orderRef ^. _merchantId
+  txns <- DB.findAll ecDB $
+          order := [["dateCreated" , "DESC"]]
+          <>  where_ := WHERE [ "order_id" /\ String orderId
+                              , "merchant_id" /\ String merchantId] :: WHERE TxnDetail
+  case (length txns) of
+    0 -> do
+      _ <- log "get_last_txn" ("No last txn found for:" <> orderId <> ":merchant:"<> merchantId)
+      pure Nothing
+    _ -> do
+      let chargetxn = find (\txn -> (txn ^. _status == CHARGED)) txns
+      case chargetxn of
+        Just chrgtxn -> pure $ Just chrgtxn
+        Nothing -> pure (txns !! 0)
+
+
+fillOrderDetails :: forall st e rt r.
+  Newtype st (TState e)
+  => Boolean
+  -> Paymentlinks
+  -> OrderReference
+  -> OrderStatusResponse
+  -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
+fillOrderDetails isAuthenticated paymentLinks ord status = do
+  let OrderStatusResponse resp = status
+      OrderReference ordObj = ord
+  id <- unNullOrErr500 ordObj.orderUuid
+  let nullVal = nullValue unit
+  customerId    <- case (unNullOrUndefined ordObj.customerId) of
+                    Just customerId -> pure $ toForeign customerId
+                    Nothing -> pure nullVal
+  customerEmail <- case (unNullOrUndefined ordObj.customerEmail) of
+                      Just customerEmail -> if isAuthenticated then pure $ toForeign $ customerEmail else pure nullVal
+                      Nothing -> pure nullVal
+  customerPhone <- case (unNullOrUndefined ordObj.customerPhone) of
+                      Just customerPhone -> if isAuthenticated then pure $ toForeign $ customerPhone else pure nullVal
+                      Nothing -> pure nullVal
+  returnUrl     <- getReturnUrl ord true
+  amount        <- formatAmount ordObj.amount
+  amountRefunded <- formatAmount ordObj.amountRefunded
+  pure $ wrap resp
+       { id = id
+       , merchant_id = ordObj.merchantId
+       , order_id = ordObj.orderId
+       , customer_id = just customerId
+       , product_id = unNull ordObj.productId ""
+       , status = show $ ordObj.status
+       , status_id = orderStatusToInt ordObj.status
+       , amount = amount
+       , currency = ordObj.currency
+       , refunded = ordObj.refundedEntirely
+       , payment_links = paymentLinks
+       , amount_refunded = amountRefunded
+       , date_created = (show ordObj.dateCreated) -- Handle return url
+       , customer_email = just customerEmail
+       , customer_phone = just customerPhone
+       , return_url = just returnUrl
+       , udf1 = unNull ordObj.udf1 ""
+       , udf2 = unNull ordObj.udf2 ""
+       , udf3 = unNull ordObj.udf3 ""
+       , udf4 = unNull ordObj.udf4 ""
+       , udf5 = unNull ordObj.udf5 ""
+       , udf6 = unNull ordObj.udf6 ""
+       , udf7 = unNull ordObj.udf7 ""
+       , udf8 = unNull ordObj.udf8 ""
+       , udf9 = unNull ordObj.udf9 ""
+       , udf10 = unNull ordObj.udf10 ""
+       }
+
+formatAmount ::forall st rt. NullOrUndefined Number -> BackendFlow st rt (NullOrUndefined Number)
+formatAmount (NullOrUndefined Nothing) = pure $ nothing
+formatAmount (NullOrUndefined (Just amt)) = do
+  amount <- roundOff2 amt
+  pure $ just $ amount
+
+addMandateDetails :: forall st r e rt. Newtype st (TState e) => OrderReference -> OrderStatusResponse -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
+addMandateDetails ordRef orderStatus =
+  case (unNullOrUndefined $ ordRef ^._orderType) of
+    Just orderType ->
+      if orderType == MANDATE_REGISTER then do
+        orderId <- unNullOrErr500 $ ordRef ^. _id
+        mandate :: Maybe Mandate <- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ String orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
+        case mandate of
+          Just mandateVal -> pure $ orderStatus # _mandate .~ (just $ mapMandate $ mandateVal)
+          Nothing -> pure $ orderStatus
+        else pure $ orderStatus
+    Nothing -> pure $ orderStatus
+
+getPaymentLink :: forall st e rt r.
+  Newtype st (TState e)
+  => OrderReference
+  -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} Paymentlinks
+getPaymentLink orderRef = do
+  merchantAccount <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
+  case merchantAccount of
+    Just account -> do
+      maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
+      let maybeResellerEndpoint =  maybe Nothing (unNullOrUndefined <<< _.resellerApiEndpoint <<< unwrap) maybeResellerAccount
+      pure $ createPaymentLinks (nullOrUndefinedToStr (unwrap orderRef).orderUuid) maybeResellerEndpoint
+    Nothing -> liftErr internalError --check correct Error
+
+getReturnUrl ::forall st rt e. Newtype st (TState e) => OrderReference -> Boolean -> BackendFlow st _ String
+getReturnUrl orderRef includeParams = do
+  merchantAccount <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
+  case merchantAccount of
+    Just merchantAcc -> do
+      merchantIframePreferences :: Maybe MerchantIframePreferences <- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (merchantAcc ^._merchantId) "")] :: WHERE MerchantIframePreferences)
+      let merchantIframeReturnUrl = fromMaybe "" (maybe Nothing (unNullOrUndefined <<< _.returnUrl <<< unwrap) merchantIframePreferences)
+          mirrorGatewayResponse   = maybe Nothing (unNullOrUndefined <<< _.mirrorGatewayResponse <<< unwrap) merchantIframePreferences
+          orderRefReturnUrl       = fromMaybe "" (unNullOrUndefined (orderRef ^._returnUrl))
+      finalReturnUrl <- if (orderRefReturnUrl == "") then pure $ fromMaybe merchantIframeReturnUrl (unNullOrUndefined (merchantAcc ^._returnUrl)) else pure orderRefReturnUrl
+      pure $ finalReturnUrl
+    Nothing -> pure $ ""
+
+getChargedTxn ::forall st rt e. Newtype st (TState e) => OrderReference -> BackendFlow st _ (Maybe TxnDetail)
+getChargedTxn orderRef = do
+  orderId    <- unNullOrErr500 $ orderRef ^. _orderId
+  merchantId <- unNullOrErr500 $ orderRef ^. _merchantId
+  txns <- DB.findAll ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId] :: WHERE TxnDetail)
+  case (length txns) of
+    0 -> pure Nothing
+    _ -> pure $ find (\txn -> (txn ^. _status == CHARGED)) txns
+
+createPaymentLinks :: String -> Maybe String -> Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint =
+  Paymentlinks {
+    web: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid,
+    mobile: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true",
+    iframe: NullOrUndefined $ Just (host <> "/merchant/ipay/") <> Just orderUuid
+  }
+  where
+    config = getECRConfig
+    protocol = (unwrap config).protocol
+    host = maybe (protocol <> "://" <> (unwrap config).host) id maybeResellerEndpoint
+
+addPromotionDetails :: forall st r e rt. Newtype st (TState e) => OrderReference -> OrderStatusResponse -> BackendFlow st { sessionId :: String | rt} OrderStatusResponse
+addPromotionDetails orderRef orderStatus = do
+  let orderId  = unNull (orderRef ^. _id) ""
+      ordId = unNull (orderRef ^. _orderId) ""
+  promotions <- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ String orderId] :: WHERE Promotions)
+  case (length promotions) of
+    0 -> pure $ orderStatus
+    _ -> do
+      promotion' <- pure $ find (\promotion -> (promotion ^. _status == "ACTIVE")) promotions
+      case promotion' of
+        Just promotionVal -> do
+          promotion  <- decryptPromotionRules ordId promotionVal
+          amount     <- roundOff2 ((orderStatus ^.. _amount $ 0.0) + (promotion ^.. _discount_amount $ 0.0))
+          let ordS    = orderStatus # _amount .~ (just amount)
+          pure $ ordS # _promotion .~ (just promotion)
+        Nothing -> pure orderStatus
+
+decryptPromotionRules :: forall st e r rt. Newtype st (TState e) => String -> Promotions -> BackendFlow st rt Promotion'
+decryptPromotionRules ordId promotions = do
+  let promotion = unwrap promotions
+  keyForDecryption <- doAffRR' "ecTempCardCred" (ecTempCardCred)
+  resp <- case (decryptAESRaw "aes-256-ecb" (base64ToHex (promotion.rules)) keyForDecryption Nothing) of
+    Right result -> pure result
+    Left err -> throwErr $ show err
+  rules  <- pure $ getRulesFromString resp
+  rValue <- pure $ getMaskedAccNo (rules ^. _value)
+  pure $ Promotion'
+          { id : just $ show (promotion.id)
+          , order_id : just ordId
+          , rules : just $ singleton (rules # _value .~ rValue)
+          , created : just $ _dateToString (promotion.dateCreated)
+          , discount_amount : just $ promotion.discountAmount
+          , status :just $ promotion.status
+          }
+
+addTxnDetailsToResponse :: forall r st e.
+  Newtype st (TState e)
+  => TxnDetail
+  -> OrderReference
+  -> OrderStatusResponse
+  -> BackendFlow st _ OrderStatusResponse
+addTxnDetailsToResponse txn ordRef orderStatus = do
+  let ordStatus = unwrap orderStatus
+      txnDetail = unwrap txn
+      gateway   = unNull txnDetail.gateway ""
+      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
+  gatewayRefId <- getGatewayReferenceId txn ordRef
+  _ <- log "gatewayRefId " gatewayRefId
+  pure $ wrap $ (unwrap orderStatus) {
+                status = show $ txnDetail.status,
+                status_id = txnStatusToInt txnDetail.status,
+                txn_id = just $ txnDetail.txnId,
+                txn_uuid = txnDetail.txnUuid,
+                gateway_id = just gatewayId,
+                gateway_reference_id = just gatewayRefId,
+                bank_error_code = just $ unNull txnDetail.bankErrorCode "",
+                bank_error_message = just $ unNull txnDetail.bankErrorMessage "",
+                gateway_payload =  addGatewayPayload txnDetail,
+                txn_detail = just (mapTxnDetail txn)
+        }
+  where addGatewayPayload txnDetail =
+         if (isTrueString txnDetail.gatewayPayload)
+           then txnDetail.gatewayPayload
+           else nothing
+
+getGatewayReferenceId ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
+getGatewayReferenceId txn ordRef = do
+  ordMeta <- DB.findOne ecDB (where_ := WHERE ["order_reference_id" /\ String (unNull (ordRef ^. _id) "")] :: WHERE OrderMetadataV2)
+  case ordMeta of
+    Just ordM ->
+      case (unNullEmptyStringAsNothing (ordM ^. _metadata)) of
+        Just md -> do
+          gRefId <- pure $ lookupJson ((unNull (txn ^._gateway) "") <> ":gateway_reference_id") (jsonParse md)
+          jusId  <- pure $ lookupJson "JUSPAY:gateway_reference_id" (jsonParse md)
+          case (gRefId <|> jusId) of
+            Just v -> pure $ toForeign v
+            Nothing -> checkGatewayRefIdForVodafone ordRef txn
+        Nothing -> checkGatewayRefIdForVodafone ordRef txn
+    Nothing -> checkGatewayRefIdForVodafone ordRef txn
+
+checkGatewayRefIdForVodafone ::forall st rt e. Newtype st (TState e) => OrderReference -> TxnDetail -> BackendFlow st _ Foreign
+checkGatewayRefIdForVodafone ordRef txn = do
+  meybeFeature <- DB.findOne ecDB (where_ := WHERE ["name" /\ String ("USE_UDF2_FOR_GATEWAY_REFERENCE_ID"), "merchant_id" /\ String (ordRef .^. _merchantId)] :: WHERE Feature)
+  case meybeFeature of
+    Just feature -> if ((unNull (txn ^._gateway) "") == "HSBC_UPI") && (feature ^. _enabled) && (isPresent (ordRef ^. _udf2)) then pure $ toForeign (unNull (ordRef ^. _udf2) "") else pure $ nullValue unit
+    Nothing -> pure $ nullValue unit
+
+addRiskCheckInfoToResponse :: forall st e rt r.
+  Newtype st (TState e)
+  => TxnDetail
+  -> OrderStatusResponse
+  -> BackendFlow st { sessionId :: String | rt} OrderStatusResponse
+addRiskCheckInfoToResponse txn orderStatus = do
+  txnRiskCheck <- DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String (unNull (txn ^. _id) "")] :: WHERE TxnRiskCheck)
+  case txnRiskCheck of
+    Just trc -> do
+        riskMngAcc  <- DB.findOne ecDB (where_ := WHERE ["id" /\ Int (trc ^. _riskManagementAccountId)] :: WHERE RiskManagementAccount)
+        let risk = Risk' {  provider : NullOrUndefined $ maybe Nothing (Just <<< _.provider <<< unwrap) riskMngAcc
+                          , status : (trc ^. _status)
+                          , message : (trc ^. _message)
+                          , flagged : getEmptyBooleanVal (trc ^. _flagged)
+                          , recommended_action : just (unNull (trc ^. _recommendedAction) "")
+                          , ebs_risk_level : NullOrUndefined Nothing
+                          , ebs_payment_status : NullOrUndefined Nothing
+                          , ebs_risk_percentage : NullOrUndefined Nothing
+                          , ebs_bin_country : NullOrUndefined Nothing
+                         }
+        if (unNull (risk ^. _provider) "") == "ebs" then do
+            completeResponseJson <- xml2Json (trc ^. _completeResponse)
+            outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
+            responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
+            outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
+            let r' = wrap (unwrap risk) {
+                                        ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
+                                        ebs_payment_status = (trc ^. _riskStatus),
+                                        ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
+                                        ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
+                                        }
+            r  <- addRiskObjDefaultValueAsNull r'
+            pure $ orderStatus # _risk .~ (just r)
+          else do
+            r <- addRiskObjDefaultValueAsNull risk
+            pure $ orderStatus # _risk .~ (just r)
+    Nothing -> pure orderStatus
+    where getString a = if (isNotString a) then "" else a
+
+addRiskObjDefaultValueAsNull ::forall st rt e. Newtype st (TState e) => Risk' -> BackendFlow st _ Risk
+addRiskObjDefaultValueAsNull risk' = do
+  let risk = Risk {   provider : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
+                    , status : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
+                    , message : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
+                    , flagged : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
+                    , recommended_action : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
+                    , ebs_risk_level : NullOrUndefined Nothing
+                    , ebs_payment_status : NullOrUndefined Nothing
+                    , ebs_risk_percentage : NullOrUndefined Nothing
+                    , ebs_bin_country : NullOrUndefined Nothing
+                  }
+  if (unNull (risk' ^. _provider) "") == "ebs" then do
+      pure $ wrap (unwrap risk) {
+                                  ebs_risk_level = if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
+                                , ebs_payment_status = if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
+                                , ebs_risk_percentage = if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
+                                , ebs_bin_country = if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
+                              }
+   else pure risk
+
+addPaymentMethodInfo :: forall e st r.
+  Newtype st (TState e)
+  => MerchantAccount
+  -> TxnDetail
+  -> OrderStatusResponse
+  -> BackendFlow st _ OrderStatusResponse
+addPaymentMethodInfo mAccnt txn ordStatus = do
+  optCard <- DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String (unNull (txn ^._id) "")])
+  let enableSendingCardIsin = unNull (mAccnt ^. _enableSendingCardIsin) false
+  case optCard of
+    Just card -> do
+       cardBrandMaybe <- getCardBrandFromIsin (unNull (card ^. _cardIsin) "")
+       orderStatus  <- updatePaymentMethodAndType txn card ordStatus
+       let orderStatus' = addCardInfo txn card enableSendingCardIsin cardBrandMaybe
+                            <<< addAuthType card
+                            <<< addEmi txn $ orderStatus
+       addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
+    Nothing -> pure ordStatus
+
+addSecondFactorResponseAndTxnFlowInfo :: forall st e r.
+  Newtype st (TState e)
+  => TxnDetail
+  -> TxnCardInfo
+  -> OrderStatusResponse
+  -> BackendFlow st _ OrderStatusResponse
+addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
+  if (card ^.. _authType $ "") == "VIES" then do
+    maybeSf <- findMaybeSecondFactorByTxnDetailId (txn .^. _id)
+    case maybeSf of
+      Just sf -> do
+        (authReqParams :: ViesGatewayAuthReqParams) <- parseAndDecodeJson (sf ^.. _gatewayAuthReqParams $  "{}") "INTERNAL_SERVER_ERROR" "INTERNAL_SERVER_ERROR"
+        let orderStatus' = wrap $ (unwrap orderStatus) { txn_flow_info = just $ mkTxnFlowInfo authReqParams }
+        maybeSfr <- findMaybeSFRBySfId (sf .^. _id)
+        case maybeSfr of
+          Just sfr -> do
+            let newSf = mkMerchantSecondFactorResponse sfr
+            pure $ orderStatus' # _second_factor_response .~ (just newSf)
+          _ -> do
+            pure $ orderStatus' -- SFR not available.
+      Nothing ->  pure orderStatus -- NO Sf present
+    else pure orderStatus --NON VIES Txn
+
+mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
+mkTxnFlowInfo params =  TxnFlowInfo
+  {  flow_type : maybe null encode $ unNullOrUndefined $ params ^. _flow
+  ,  status : maybe null toForeign $ unNullOrUndefined $ params ^. _flowStatus
+  ,  error_code : maybe null toForeign $ unNullOrUndefined $ params ^. _errorCode
+  ,  error_message : maybe null toForeign $ unNullOrUndefined $ params ^. _errorMessage
+  }
+
+mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
+mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
+  {  cavv : maybe null toForeign $ unNullOrUndefined $ sfr ^. _cavv
+  ,  eci : sfr ^. _eci
+  ,  xid : sfr ^. _xid
+  ,  pares_status : sfr ^. _status
+  }
+
+addAuthType :: TxnCardInfo -> OrderStatusResponse -> OrderStatusResponse
+addAuthType card ordStatus = wrap $ (unwrap ordStatus) { auth_type = just $ unNull (card ^. _authType) "" }
+
+addEmi :: TxnDetail -> OrderStatusResponse -> OrderStatusResponse
+addEmi txn ordStatus =
+  if(isTrue (txn ^. _isEmi))
+  then wrap $ (unwrap ordStatus) { emi_tenure = txn ^. _emiTenure, emi_bank = txn ^. _emiBank }
+  else ordStatus
+
+addCardInfo :: TxnDetail -> TxnCardInfo -> Boolean -> Maybe String -> OrderStatusResponse -> OrderStatusResponse
+addCardInfo txn card shouldSendCardIsin cardBrandMaybe ordStatus = do
+  let ordStatObj = unwrap ordStatus
+      cardObj = unwrap card
+  case isCardTxn cardObj of
+    true  -> wrap $ ordStatObj
+                     { payment_method = if isJust cardBrandMaybe then NullOrUndefined cardBrandMaybe else just "UNKNOWN"
+                     , payment_method_type = just $ "CARD"
+                     , card = just $ getCardDetails card txn shouldSendCardIsin
+                     }
+    false -> ordStatus
+  where isCardTxn cardObj = isTrueString cardObj.cardIsin
+
+getCardDetails :: TxnCardInfo -> TxnDetail -> Boolean -> Card
+getCardDetails card txn shouldSendCardIsin = do
+  let cardObj = unwrap card
+      txnObj = unwrap txn
+  Card $
+    {  expiry_year: just $ unNull cardObj.cardExpYear ""
+    ,  card_reference: just $ unNull cardObj.cardReferenceId ""
+    ,  saved_to_locker: isSavedToLocker cardObj txnObj
+    ,  expiry_month: just $ unNull cardObj.cardExpMonth ""
+    ,  name_on_card: just $ unNull cardObj.nameOnCard ""
+    ,  card_issuer: just $ unNull cardObj.cardIssuerBankName ""
+    ,  last_four_digits: just $ unNull cardObj.cardLastFourDigits ""
+    ,  using_saved_card: isUsingSavedCard txnObj
+    ,  card_fingerprint: just $ unNull cardObj.cardFingerprint ""
+    ,  card_isin: if shouldSendCardIsin then cardObj.cardIsin else (just "")
+    ,  card_type: just $ unNull cardObj.cardType  "" -- TODO (Some transformation required)
+    ,  card_brand: just $ unNull cardObj.cardSwitchProvider ""
+    }
+  where isSavedToLocker cardObj txnObj = just $ isTrue txnObj.addToLocker && (isTrueString cardObj.cardReferenceId)
+        isUsingSavedCard {expressCheckout: NullOrUndefined (Just true)} = just true
+        isUsingSavedCard _ = just false
+
+getPayerVpa ::forall st rt e. Newtype st (TState e) =>
+               TxnDetail -> TxnCardInfo -> BackendFlow st _ (NullOrUndefined Foreign)
+getPayerVpa txn txnCardInfo = do
+  if((txnCardInfo ^.. _paymentMethod $ "") == "GOOGLEPAY") then do
+      -- pgr <- DB.findOne ecDB (where_ := WHERE ["id" /\ String (unNull (txn ^. _successResponseId) "")])
+      pgr <- sequence $ findMaybePGRById <$> (unNullOrUndefined (txn ^. _successResponseId))
+      case join pgr of
+        Just (PaymentGatewayResponse pg) -> do
+          pgResponse  <- O.getResponseXml (unNull pg.responseXml "")
+          payervpa <- lookupRespXml' pgResponse "payerVpa" ""
+          if (payervpa == "") then pure nothing else pure $ just $ toForeign payervpa
+        Nothing -> pure nothing
+    else pure nothing
+
+
+updatePaymentMethodAndType ::forall st rt e. Newtype st (TState e) =>
+                              TxnDetail -> TxnCardInfo -> OrderStatusResponse -> BackendFlow st _ OrderStatusResponse
+updatePaymentMethodAndType txn card ordStatus = do
+  let cardObj = unwrap card
+      resp = unwrap ordStatus
+  case (unNullOrUndefined $ card ^. _cardType) of
+    Just "NB" ->
+      pure $ wrap $ resp
+                    { payment_method = just $ unNull cardObj.cardIssuerBankName ""
+                    , payment_method_type = NullOrUndefined $ Just "NB"
+                    }
+    Just "WALLET" -> do
+      payerVpa <- getPayerVpa txn card
+      pure $ wrap $ resp
+                    { payment_method =  just $ unNull cardObj.cardIssuerBankName ""
+                    , payment_method_type = NullOrUndefined $ Just "WALLET"
+                    , payer_vpa = payerVpa
+                    }
+    Just "UPI" -> do
+      let ord  = ordStatus # _payment_method .~ (just "UPI")
+          ordS = ord # _payment_method_type .~ (just "UPI")
+          paymentSource = if (card ^.. _paymentSource $ "null") == "null" then just $ nullValue unit else just $ toForeign (card ^.. _paymentSource $ "null")
+      if (txn ^.. _sourceObject $ "") == "UPI_COLLECT" || (txn ^.. _sourceObject $ "") == "upi_collect" then do
+         pure (ordS # _payer_vpa .~ paymentSource)
+       else do
+        addPayerVpaToResponse txn ordS paymentSource
+    Just "PAYLATER" ->
+      pure $ wrap $ resp
+                    { payment_method = NullOrUndefined $ Just "JUSPAY"
+                    , payment_method_type = NullOrUndefined $ Just "PAYLATER"
+                    }
+    Just "CARD" ->
+      pure $ wrap $ resp
+              { payment_method =  just $ unNull cardObj.cardIssuerBankName ""-- TODO : add logic of adding card type
+              , payment_method_type = NullOrUndefined $ Just "CARD"
+              }
+    Just "REWARD" ->
+      pure $ wrap $ resp
+                    { payment_method =  just $ unNull cardObj.cardIssuerBankName ""
+                    , payment_method_type = NullOrUndefined $ Just "REWARD"
+                    }
+    Just "ATM_CARD" ->
+      pure $ wrap $ resp
+                    { payment_method =  just $ unNull cardObj.cardIssuerBankName ""
+                    , payment_method_type = NullOrUndefined $ Just "CARD"
+                    }
+    Just _ -> checkPaymentMethodType card resp
+    Nothing -> checkPaymentMethodType card resp
+
+    where checkPaymentMethodType card resp = case unNullOrUndefined (card ^. _paymentMethodType) of
+                                                Just PMT.CASH ->
+                                                    pure $ wrap $ resp
+                                                            { payment_method = just $ unNull (card ^. _paymentMethod) ""
+                                                            , payment_method_type = NullOrUndefined $ Just "CASH"
+                                                            }
+                                                Just PMT.CONSUMER_FINANCE ->
+                                                    pure $ wrap $ resp
+                                                            { payment_method = just $ unNull (card ^. _paymentMethod) ""
+                                                            , payment_method_type = NullOrUndefined $ Just "CONSUMER_FINANCE"
+                                                            }
+                                                _ -> pure ordStatus
+
+addRefundDetails ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderStatusResponse -> BackendFlow st _ OrderStatusResponse
+addRefundDetails (TxnDetail txn) ordStatus = do
+  refunds <- DB.findAll ecDB ( order := [["dateCreated" , "ASC"]]
+     <> where_ := WHERE ["txn_detail_id" /\ String  (nullOrUndefinedToAny (txn.id) "")] :: WHERE Refund)
+  case (length refunds) of
+    -- No Refunds
+    0 -> pure ordStatus
+    -- Has Refunds
+    _ -> pure $ ordStatus # _refunds .~ (just $ mapRefund <$> refunds)
+
+
+addChargeBacks ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderStatusResponse -> BackendFlow st _ OrderStatusResponse
+addChargeBacks (TxnDetail txnDetail) orderStatus = do
+  txn <- pure $ mapTxnDetail (TxnDetail txnDetail)
+  chargeBacks <- DB.findAll ecDB (where_ := WHERE ["txn_detail_id" /\ String (nullOrUndefinedToAny (txnDetail.id) "")] :: WHERE Chargeback)
+  case length chargeBacks of
+    0 -> pure orderStatus
+    _ -> pure $ orderStatus # _chargebacks .~ (just $ mapChargeback txn <$> chargeBacks)
+
+lookupPgRespXml :: String -> String -> String -> BackendFlow _ _ String
+lookupPgRespXml respxml key defaultValue = do
+  respxmlVal <- O.getResponseXml respxml
+  let keyVal = find (\val -> (key == (fromMaybe "" (val.string !! 0)))) respxmlVal
+  pure $ case keyVal of
+    Just val -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then defaultValue else fromMaybe defaultValue (val.string !! 1)
+    Nothing -> defaultValue
+
+lookupRespXml :: forall st r e rt. Newtype st (TState e) => (Array _)  -> String -> String -> BackendFlow st rt String
+lookupRespXml xml str1 str2 = do
+  str1   <- pure $ find (\val -> (str1 == (fromMaybe "" (val.string !! 0)))) xml
+  str2   <- pure $ find (\val -> (str2 == (fromMaybe "" (val.string !! 0)))) xml
+  str3   <- case str2 of
+              Just value -> if isNotString $ fromMaybe "" (value.string !! 1) then pure "" else pure $ fromMaybe "" (value.string !! 1)
+              Nothing -> pure $ "null"
+  output <- case str1 of
+              Just value -> if isNotString $ fromMaybe "" (value.string !! 1) then pure "" else pure $ fromMaybe "" (value.string !! 1)
+              Nothing -> pure $ str3
+  pure $ output
+
+lookupRespXml' :: forall st r e rt. Newtype st (TState e) =>(Array _) -> String -> String -> BackendFlow st rt String
+lookupRespXml' xml str1 defaultValue = do
+  str1 <- pure $ find (\val -> (str1 == (fromMaybe "" (val.string !! 0)))) xml
+  case str1 of
+    Just val -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then pure $ defaultValue else pure $ fromMaybe defaultValue (val.string !! 1)
+    Nothing -> pure $ defaultValue
+
+lookupRespXmlVal :: String-> String -> String -> BackendFlow _ _ String
+lookupRespXmlVal respXml str1 defaultValue = do
+  xml <- O.getResponseXml respXml :: (BackendFlow _ _ (Array {string :: Array _}))
+  let upVal = find (\val -> (str1 == (fromMaybe "" ((val.string) !! 0)))) xml
+  pure $ case upVal of
+    Just val  -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then defaultValue else fromMaybe defaultValue (val.string !! 1)
+    Nothing -> defaultValue
+
+tempLookup :: forall st r e rt. Newtype st (TState e) => String -> String -> String -> BackendFlow st rt String
+tempLookup xml str1 defaultValue = do
+  x <- O.getResponseXml xml
+  str1 <- pure $ find (\val -> str1 == val.string) x
+  case str1 of
+    Just val -> do
+      obj <- pure $ getRecordValues val
+      pure $ fromMaybe defaultValue (obj !! 1)
+    Nothing -> pure defaultValue
+
+hierarchyObjectLookup :: forall st r e rt. Newtype st (TState e) => String -> String -> String -> BackendFlow st rt String
+hierarchyObjectLookup xml key1 key2 = do
+  xmlVal <- O.getResponseXml xml
+  val    <- pure $ find (\val -> (key1 == val.string)) xmlVal
+  case val of
+    Just v -> do
+      let vA = (v."org.codehaus.groovy.grails.web.json.JSONObject".myHashMap.entry) -- ::  Array { string :: Array String | t594}
+      lookupRespXml' vA key2 ""
+    Nothing -> pure ""
+
+-}
+
+
+
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--
+-- OLD CODE
+--
+
+
+
+
 
 myerr n = err403 { errBody = "Err # " <> n }
 
@@ -242,40 +1182,8 @@ getMerchantAccountForAuthToken (C.ClientAuthTokenData {..}) = do
 --  liftErr ecAccessDenied
 
 
-getOrderStatusWithoutAuth :: OrderStatusRequest -> Text {-RouteParameters-} -> MerchantAccount -> Bool -> (Maybe OrderCreateRequest) -> (Maybe OrderReference) -> Flow OrderStatusResponse -- Foreign
-getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
-  merchId <- case (getField @"merchantId" merchantAccount) of
-                Nothing -> throwException $ myerr "3"
-                Just v -> pure v
-  cachedResp <- getCachedOrdStatus isAuthenticated orderId merchId  --TODO check for txn based refund
-  resp <- case cachedResp of
-            Nothing -> do
-              resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
-         -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp
-              pure resp
-            Just resp -> pure resp
-  ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
 
-  -- * This part probably shoul be moved to the separate function, used only for orderCreate request
-  ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
-                    let order = fromJust maybeOrd
-                    let orderCreateReq = fromJust maybeOrderCreateReq
-                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchId order
-                  else pure ordResp'
- ------------------------------------------------
- -- * encode response to Foreign inside, why?
-  -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
-  pure ordResp
 
-checkAndAddOrderToken :: OrderStatusRequest -> OrderCreateRequest -> {-RouteParameters-} Text -> OrderStatusResponse -> Text {-MerchantAccount-} -> OrderReference -> Flow OrderStatusResponse
-checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantId order = do
-  orderIdPrimary <- maybe (throwException err500) pure (getField @"id" order)
- -- merchantId <- unNullOrErr500 (merchantAccount ^. _merchantId)
-  let version = Just "2018-07-01" -- lookup "version" routeParams -- version should be in headers?
-  if version >= Just "2018-07-01" then do
-      orderTokenData  <- addOrderTokenToOrderStatus orderIdPrimary orderCreateReq merchantId
-      pure $ setField @"juspay" orderTokenData resp
-    else pure resp
 
 addOrderTokenToOrderStatus :: Int -> OrderCreateRequest -> Text -> Flow (Maybe OrderTokenResp)
 addOrderTokenToOrderStatus orderId orderCreateReq merchantId = do

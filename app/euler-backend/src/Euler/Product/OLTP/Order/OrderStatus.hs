@@ -62,8 +62,10 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
--- 403 error with error message
-myerr n = err403 { errBody = "Err # " <> n }
+-- 40x error with error message
+myerr    n = err403 { errBody = "Err # " <> n }
+myerr400 n = err400 { errBody = "Err # " <> n }
+
 
 -- PS Will be removing gateways one by one from here as part of direct upi integrations.
 -- used in `casematch` function
@@ -1437,38 +1439,10 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
            
 
 -- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
+-- function: getGatewayReferenceId
 -- ----------------------------------------------------------------------------
 
 {-PS
-
--}
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update/port
--- ----------------------------------------------------------------------------
-
-{-PS
-
--}
-
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
- 
-{-
-
-
-
 getGatewayReferenceId ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
 getGatewayReferenceId txn ordRef = do
   ordMeta <- DB.findOne ecDB (where_ := WHERE ["order_reference_id" /\ String (unNull (ordRef ^. _id) "")] :: WHERE OrderMetadataV2)
@@ -1483,14 +1457,60 @@ getGatewayReferenceId txn ordRef = do
             Nothing -> checkGatewayRefIdForVodafone ordRef txn
         Nothing -> checkGatewayRefIdForVodafone ordRef txn
     Nothing -> checkGatewayRefIdForVodafone ordRef txn
+-}
 
+getGatewayReferenceId :: TxnDetail -> OrderReference -> Flow Text
+getGatewayReferenceId txn ordRef = do
+
+  let ordRefId = fromMaybe 0 (getField @"id" ordRef)
+  ordMeta <- withDB eulerDB $ do
+        let predicate OrderMetadataV2 {orderReferenceId} =
+              orderReferenceId ==. B.val_ ordRefId
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
+
+
+  case ordMeta of
+    Just ordM ->
+      case (blankToNothing (getField @"metadata" ordM)) of
+        Just md -> do
+          let md' = (decode $ BSL.fromStrict $ T.encodeUtf8 md) :: Maybe (Map Text Text)
+          case md' of
+            Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+            Just metadata -> do
+              gRefId <- pure $ Map.lookup ((fromMaybe "" $ getField @"gateway" txn) <> ":gateway_reference_id") metadata
+              jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
+              case (gRefId <|> jusId) of
+                Just v -> pure v
+                Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+        Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+    Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+
+
+-- ----------------------------------------------------------------------------
+-- function: checkGatewayRefIdForVodafone
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 checkGatewayRefIdForVodafone ::forall st rt e. Newtype st (TState e) => OrderReference -> TxnDetail -> BackendFlow st _ Foreign
 checkGatewayRefIdForVodafone ordRef txn = do
   meybeFeature <- DB.findOne ecDB (where_ := WHERE ["name" /\ String ("USE_UDF2_FOR_GATEWAY_REFERENCE_ID"), "merchant_id" /\ String (ordRef .^. _merchantId)] :: WHERE Feature)
   case meybeFeature of
     Just feature -> if ((unNull (txn ^._gateway) "") == "HSBC_UPI") && (feature ^. _enabled) && (isPresent (ordRef ^. _udf2)) then pure $ toForeign (unNull (ordRef ^. _udf2) "") else pure $ nullValue unit
     Nothing -> pure $ nullValue unit
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addRiskCheckInfoToResponse
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addRiskCheckInfoToResponse :: forall st e rt r.
   Newtype st (TState e)
   => TxnDetail
@@ -1529,7 +1549,15 @@ addRiskCheckInfoToResponse txn orderStatus = do
             pure $ orderStatus # _risk .~ (just r)
     Nothing -> pure orderStatus
     where getString a = if (isNotString a) then "" else a
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addRiskObjDefaultValueAsNull
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addRiskObjDefaultValueAsNull ::forall st rt e. Newtype st (TState e) => Risk' -> BackendFlow st _ Risk
 addRiskObjDefaultValueAsNull risk' = do
   let risk = Risk {   provider : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
@@ -1550,7 +1578,15 @@ addRiskObjDefaultValueAsNull risk' = do
                                 , ebs_bin_country = if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
                               }
    else pure risk
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addPaymentMethodInfo
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addPaymentMethodInfo :: forall e st r.
   Newtype st (TState e)
   => MerchantAccount
@@ -1569,7 +1605,15 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
                             <<< addEmi txn $ orderStatus
        addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
     Nothing -> pure ordStatus
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addSecondFactorResponseAndTxnFlowInfo
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addSecondFactorResponseAndTxnFlowInfo :: forall st e r.
   Newtype st (TState e)
   => TxnDetail
@@ -1592,7 +1636,15 @@ addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
             pure $ orderStatus' -- SFR not available.
       Nothing ->  pure orderStatus -- NO Sf present
     else pure orderStatus --NON VIES Txn
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: mkTxnFlowInfo
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
 mkTxnFlowInfo params =  TxnFlowInfo
   {  flow_type : maybe null encode $ unNullOrUndefined $ params ^. _flow
@@ -1600,7 +1652,15 @@ mkTxnFlowInfo params =  TxnFlowInfo
   ,  error_code : maybe null toForeign $ unNullOrUndefined $ params ^. _errorCode
   ,  error_message : maybe null toForeign $ unNullOrUndefined $ params ^. _errorMessage
   }
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: mkMerchantSecondFactorResponse
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
 mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
   {  cavv : maybe null toForeign $ unNullOrUndefined $ sfr ^. _cavv
@@ -1608,16 +1668,39 @@ mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
   ,  xid : sfr ^. _xid
   ,  pares_status : sfr ^. _status
   }
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addAuthType
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addAuthType :: TxnCardInfo -> OrderStatusResponse -> OrderStatusResponse
 addAuthType card ordStatus = wrap $ (unwrap ordStatus) { auth_type = just $ unNull (card ^. _authType) "" }
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addEmi
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addEmi :: TxnDetail -> OrderStatusResponse -> OrderStatusResponse
 addEmi txn ordStatus =
   if(isTrue (txn ^. _isEmi))
   then wrap $ (unwrap ordStatus) { emi_tenure = txn ^. _emiTenure, emi_bank = txn ^. _emiBank }
   else ordStatus
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addCardInfo
+-- ----------------------------------------------------------------------------
+
+{-PS
 addCardInfo :: TxnDetail -> TxnCardInfo -> Boolean -> Maybe String -> OrderStatusResponse -> OrderStatusResponse
 addCardInfo txn card shouldSendCardIsin cardBrandMaybe ordStatus = do
   let ordStatObj = unwrap ordStatus
@@ -1630,7 +1713,26 @@ addCardInfo txn card shouldSendCardIsin cardBrandMaybe ordStatus = do
                      }
     false -> ordStatus
   where isCardTxn cardObj = isTrueString cardObj.cardIsin
+-}
 
+addCardInfo :: TxnDetail -> TxnCardInfo -> Bool -> Maybe Text -> OrderStatusResponse -> OrderStatusResponse
+addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
+  if isBlankMaybe (getField @"cardIsin" txnCardInfo) then
+    let payment_method' = if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN"
+        cardDetails = Just $ getCardDetails txnCardInfo txnDetail shouldSendCardIsin
+    in ordStatus
+        { payment_method = payment_method'
+        , payment_method_type = (Just "CARD")
+        , card = cardDetails
+        }
+  else ordStatus
+
+
+-- ----------------------------------------------------------------------------
+-- function: getCardDetails
+-- ----------------------------------------------------------------------------
+
+{-PS
 getCardDetails :: TxnCardInfo -> TxnDetail -> Boolean -> Card
 getCardDetails card txn shouldSendCardIsin = do
   let cardObj = unwrap card
@@ -1652,7 +1754,33 @@ getCardDetails card txn shouldSendCardIsin = do
   where isSavedToLocker cardObj txnObj = just $ isTrue txnObj.addToLocker && (isTrueString cardObj.cardReferenceId)
         isUsingSavedCard {expressCheckout: NullOrUndefined (Just true)} = just true
         isUsingSavedCard _ = just false
+-}
 
+getCardDetails :: TxnCardInfo -> TxnDetail -> Bool -> Card
+getCardDetails card txn shouldSendCardIsin = Card
+  { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
+  , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
+  , saved_to_locker = isSavedToLocker card txn
+  , expiry_month = whenNothing  (getField @"cardExpMonth" card) (Just "")
+  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
+  , card_issuer = whenNothing  (getField @"cardIssuerBankName" card) (Just "")
+  , last_four_digits = whenNothing  (getField @"cardLastFourDigits" card) (Just "")
+  , using_saved_card = getField @"expressCheckout" txn
+  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
+  , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
+  , card_type = whenNothing  (getField @"cardType" card) (Just "")
+  , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
+  }
+  where
+    isSavedToLocker card' txn' = Just $
+      isTrueMaybe (getField @"addToLocker" txn') && (isBlankMaybe $ getField @"cardReferenceId" card')
+
+-- ----------------------------------------------------------------------------
+-- function: getPayerVpa
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 getPayerVpa ::forall st rt e. Newtype st (TState e) =>
                TxnDetail -> TxnCardInfo -> BackendFlow st _ (NullOrUndefined Foreign)
 getPayerVpa txn txnCardInfo = do
@@ -1666,8 +1794,15 @@ getPayerVpa txn txnCardInfo = do
           if (payervpa == "") then pure nothing else pure $ just $ toForeign payervpa
         Nothing -> pure nothing
     else pure nothing
+-}
 
 
+-- ----------------------------------------------------------------------------
+-- function: updatePaymentMethodAndType
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 updatePaymentMethodAndType ::forall st rt e. Newtype st (TState e) =>
                               TxnDetail -> TxnCardInfo -> OrderStatusResponse -> BackendFlow st _ OrderStatusResponse
 updatePaymentMethodAndType txn card ordStatus = do
@@ -1729,7 +1864,15 @@ updatePaymentMethodAndType txn card ordStatus = do
                                                             , payment_method_type = NullOrUndefined $ Just "CONSUMER_FINANCE"
                                                             }
                                                 _ -> pure ordStatus
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: addRefundDetails
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addRefundDetails ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderStatusResponse -> BackendFlow st _ OrderStatusResponse
 addRefundDetails (TxnDetail txn) ordStatus = do
   refunds <- DB.findAll ecDB ( order := [["dateCreated" , "ASC"]]
@@ -1739,8 +1882,15 @@ addRefundDetails (TxnDetail txn) ordStatus = do
     0 -> pure ordStatus
     -- Has Refunds
     _ -> pure $ ordStatus # _refunds .~ (just $ mapRefund <$> refunds)
+-}
 
 
+-- ----------------------------------------------------------------------------
+-- function: addChargeBacks
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 addChargeBacks ::forall st rt e. Newtype st (TState e) => TxnDetail -> OrderStatusResponse -> BackendFlow st _ OrderStatusResponse
 addChargeBacks (TxnDetail txnDetail) orderStatus = do
   txn <- pure $ mapTxnDetail (TxnDetail txnDetail)
@@ -1748,7 +1898,15 @@ addChargeBacks (TxnDetail txnDetail) orderStatus = do
   case length chargeBacks of
     0 -> pure orderStatus
     _ -> pure $ orderStatus # _chargebacks .~ (just $ mapChargeback txn <$> chargeBacks)
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: lookupPgRespXml
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 lookupPgRespXml :: String -> String -> String -> BackendFlow _ _ String
 lookupPgRespXml respxml key defaultValue = do
   respxmlVal <- O.getResponseXml respxml
@@ -1756,7 +1914,15 @@ lookupPgRespXml respxml key defaultValue = do
   pure $ case keyVal of
     Just val -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then defaultValue else fromMaybe defaultValue (val.string !! 1)
     Nothing -> defaultValue
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: lookupRespXml
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 lookupRespXml :: forall st r e rt. Newtype st (TState e) => (Array _)  -> String -> String -> BackendFlow st rt String
 lookupRespXml xml str1 str2 = do
   str1   <- pure $ find (\val -> (str1 == (fromMaybe "" (val.string !! 0)))) xml
@@ -1768,14 +1934,30 @@ lookupRespXml xml str1 str2 = do
               Just value -> if isNotString $ fromMaybe "" (value.string !! 1) then pure "" else pure $ fromMaybe "" (value.string !! 1)
               Nothing -> pure $ str3
   pure $ output
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: lookupRespXml'
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
 lookupRespXml' :: forall st r e rt. Newtype st (TState e) =>(Array _) -> String -> String -> BackendFlow st rt String
 lookupRespXml' xml str1 defaultValue = do
   str1 <- pure $ find (\val -> (str1 == (fromMaybe "" (val.string !! 0)))) xml
   case str1 of
     Just val -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then pure $ defaultValue else pure $ fromMaybe defaultValue (val.string !! 1)
     Nothing -> pure $ defaultValue
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: lookupRespXmlVal
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 lookupRespXmlVal :: String-> String -> String -> BackendFlow _ _ String
 lookupRespXmlVal respXml str1 defaultValue = do
   xml <- O.getResponseXml respXml :: (BackendFlow _ _ (Array {string :: Array _}))
@@ -1783,7 +1965,15 @@ lookupRespXmlVal respXml str1 defaultValue = do
   pure $ case upVal of
     Just val  -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then defaultValue else fromMaybe defaultValue (val.string !! 1)
     Nothing -> defaultValue
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: tempLookup
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 tempLookup :: forall st r e rt. Newtype st (TState e) => String -> String -> String -> BackendFlow st rt String
 tempLookup xml str1 defaultValue = do
   x <- O.getResponseXml xml
@@ -1793,7 +1983,15 @@ tempLookup xml str1 defaultValue = do
       obj <- pure $ getRecordValues val
       pure $ fromMaybe defaultValue (obj !! 1)
     Nothing -> pure defaultValue
+-}
 
+
+-- ----------------------------------------------------------------------------
+-- function: hierarchyObjectLookup
+-- TODO port
+-- ----------------------------------------------------------------------------
+
+{-PS
 hierarchyObjectLookup :: forall st r e rt. Newtype st (TState e) => String -> String -> String -> BackendFlow st rt String
 hierarchyObjectLookup xml key1 key2 = do
   xmlVal <- O.getResponseXml xml
@@ -1803,6 +2001,59 @@ hierarchyObjectLookup xml key1 key2 = do
       let vA = (v."org.codehaus.groovy.grails.web.json.JSONObject".myHashMap.entry) -- ::  Array { string :: Array String | t594}
       lookupRespXml' vA key2 ""
     Nothing -> pure ""
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update/port
+-- ----------------------------------------------------------------------------
+
+{-PS
+
+-}
+
+
+
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+ 
+{-
+
+
+
+
+
+
+
 
 
 
@@ -1823,18 +2074,11 @@ hierarchyObjectLookup xml key1 key2 = do
 -- OLD CODE
 --
 
-
 -- getOrderReferenceFromDB :: Text -> Text -> Flow OrderReference -- OrderReference
 -- getOrderReferenceFromDB orderId merchantId = do
 --   _    <- logInfo "Get order reference from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
 --   -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
 --   pure defaultOrderReference
-
-
-
-
-
-
 
 -- from src/Validation/Offers/Validation.purs
 -- sanitizeAmount :: Number -> Number
@@ -1852,11 +2096,6 @@ mapMandate Mandate {..} =
             }
 
 
-
-
-
-
-
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 getOrderStatusRequest :: Text -> OrderStatusRequest
 getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
@@ -1867,33 +2106,6 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                   , orderId     = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
-
-
-
-
-
-
-
-
-
-myerr400 n = err400 { errBody = "Err # " <> n }
-
-
-
-
-
-
-
-
-
-
-------------------------------------------------------------------------------------------
-
-
-
-------------------------------------------------------------------------------------------
--- Gateway
-------------------------------------------------------------------------------------------
 
 addGatewayResponse :: TxnDetail -> Bool -> OrderStatusResponse -> Flow OrderStatusResponse
 addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
@@ -2000,86 +2212,3 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   --   pure $ just $ jsonPgr
   --   else pure nothing
   pure Nothing
-
-
-getGatewayReferenceId :: TxnDetail -> OrderReference -> Flow Text
-getGatewayReferenceId txn ordRef = do
-
-  let ordRefId = fromMaybe 0 (getField @"id" ordRef)
-  ordMeta <- withDB eulerDB $ do
-        let predicate OrderMetadataV2 {orderReferenceId} =
-              orderReferenceId ==. B.val_ ordRefId
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
-
-
-  case ordMeta of
-    Just ordM ->
-      case (blankToNothing (getField @"metadata" ordM)) of
-        Just md -> do
-          let md' = (decode $ BSL.fromStrict $ T.encodeUtf8 md) :: Maybe (Map Text Text)
-          case md' of
-            Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
-            Just metadata -> do
-              gRefId <- pure $ Map.lookup ((fromMaybe "" $ getField @"gateway" txn) <> ":gateway_reference_id") metadata
-              jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
-              case (gRefId <|> jusId) of
-                Just v -> pure v
-                Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
-        Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
-    Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
-
--- checkGatewayRefIdForVodafone :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> TxnDetail -> BackendFlow st _ Foreign
--- checkGatewayRefIdForVodafone ordRef txn = do
---   meybeFeature <- DB.findOne ecDB (where_ := WHERE ["name" /\ String ("USE_UDF2_FOR_GATEWAY_REFERENCE_ID"), "merchant_id" /\ String (ordRef .^. _merchantId)] :: WHERE Feature)
---   case meybeFeature of
---     Just feature -> if ((unNull (txn ^._gateway) "") == "HSBC_UPI") && (feature ^. _enabled) && (isPresent (ordRef ^. _udf2)) then pure $ toForeign (unNull (ordRef ^. _udf2) "") else pure $ nullValue unit
---     Nothing -> pure $ nullValue unit
-
------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-------------------------------------------------------------------------------------------
--- Card
-------------------------------------------------------------------------------------------
-addCardInfo :: TxnDetail -> TxnCardInfo -> Bool -> Maybe Text -> OrderStatusResponse -> OrderStatusResponse
-addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
-  if isBlankMaybe (getField @"cardIsin" txnCardInfo) then
-    let payment_method' = if isJust cardBrandMaybe then cardBrandMaybe else Just "UNKNOWN"
-        cardDetails = Just $ getCardDetails txnCardInfo txnDetail shouldSendCardIsin
-    in ordStatus
-        { payment_method = payment_method'
-        , payment_method_type = (Just "CARD")
-        , card = cardDetails
-        }
-  else ordStatus
-
-
-getCardDetails :: TxnCardInfo -> TxnDetail -> Bool -> Card
-getCardDetails card txn shouldSendCardIsin = Card
-  { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
-  , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
-  , saved_to_locker = isSavedToLocker card txn
-  , expiry_month = whenNothing  (getField @"cardExpMonth" card) (Just "")
-  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
-  , card_issuer = whenNothing  (getField @"cardIssuerBankName" card) (Just "")
-  , last_four_digits = whenNothing  (getField @"cardLastFourDigits" card) (Just "")
-  , using_saved_card = getField @"expressCheckout" txn
-  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
-  , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
-  , card_type = whenNothing  (getField @"cardType" card) (Just "")
-  , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
-  }
-  where
-    isSavedToLocker card' txn' = Just $
-      isTrueMaybe (getField @"addToLocker" txn') && (isBlankMaybe $ getField @"cardReferenceId" card')
-
---------------------------------------------------------------------------------------

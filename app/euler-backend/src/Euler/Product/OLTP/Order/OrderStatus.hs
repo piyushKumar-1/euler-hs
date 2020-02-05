@@ -18,8 +18,12 @@ import EulerHS.Types
 import EulerHS.Language
 import Euler.Lens
 
-import Servant.Server
+import Data.Aeson
 import Data.Generics.Product.Fields
+import Servant.Server
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Map.Strict as Map
 
 import Euler.API.Order
 import Euler.API.RouteParameters
@@ -27,6 +31,7 @@ import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
 import Euler.Common.Utils
 import Euler.Common.Types.Gateway
+import Euler.Storage.Types.OrderMetadataV2
 import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
@@ -35,7 +40,6 @@ import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerc
 
 
 import Euler.Storage.Types.Customer
-import Euler.Storage.Types.TxnDetail
 import Euler.Storage.Types.Feature
 import Euler.Storage.Types.Mandate
 import Euler.Storage.Types.MerchantAccount
@@ -43,9 +47,10 @@ import Euler.Storage.Types.MerchantIframePreferences
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.OrderReference
 import Euler.Storage.Types.PaymentGatewayResponse
-import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.ResellerAccount
+import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.TxnCardInfo
+import Euler.Storage.Types.TxnDetail
 
 import Euler.Storage.Types.EulerDB as EDB
 
@@ -719,8 +724,8 @@ myerr400 n = err400 { errBody = "Err # " <> n }
 
 getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
 getLastTxn orderRef = do
-  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500) -- unNullOrErr500 $ order ^. _orderId
-  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500) --unNullOrErr500 $ order ^. _merchantId
+  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
+  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
 
   txnDetails <- withDB eulerDB $ do
     let predicate TxnDetail {orderId, merchantId} =
@@ -786,7 +791,9 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
 
 
 
-
+------------------------------------------------------------------------------------------
+-- Gateway
+------------------------------------------------------------------------------------------
 
 addGatewayResponse :: TxnDetail -> Bool -> OrderStatusResponse -> Flow OrderStatusResponse
 addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
@@ -895,6 +902,50 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   pure Nothing
 
 
+getGatewayReferenceId :: TxnDetail -> OrderReference -> Flow Text
+getGatewayReferenceId txn ordRef = do
+
+  let ordRefId = fromMaybe 0 (getField @"id" ordRef)
+  ordMeta <- withDB eulerDB $ do
+        let predicate OrderMetadataV2 {orderReferenceId} =
+              orderReferenceId ==. B.val_ ordRefId
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
+
+
+  case ordMeta of
+    Just ordM ->
+      case (blankToNothing (getField @"metadata" ordM)) of
+        Just md -> do
+          let md' = (decode $ BSL.fromStrict $ T.encodeUtf8 md) :: Maybe (Map Text Text)
+          case md' of
+            Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+            Just metadata -> do
+              gRefId <- pure $ Map.lookup ((fromMaybe "" $ getField @"gateway" txn) <> ":gateway_reference_id") metadata
+              jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
+              case (gRefId <|> jusId) of
+                Just v -> pure v
+                Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+        Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+    Nothing -> (undefined :: Flow Text)  -- TODO: checkGatewayRefIdForVodafone ordRef txn
+
+-- checkGatewayRefIdForVodafone :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> TxnDetail -> BackendFlow st _ Foreign
+-- checkGatewayRefIdForVodafone ordRef txn = do
+--   meybeFeature <- DB.findOne ecDB (where_ := WHERE ["name" /\ String ("USE_UDF2_FOR_GATEWAY_REFERENCE_ID"), "merchant_id" /\ String (ordRef .^. _merchantId)] :: WHERE Feature)
+--   case meybeFeature of
+--     Just feature -> if ((unNull (txn ^._gateway) "") == "HSBC_UPI") && (feature ^. _enabled) && (isPresent (ordRef ^. _udf2)) then pure $ toForeign (unNull (ordRef ^. _udf2) "") else pure $ nullValue unit
+--     Nothing -> pure $ nullValue unit
+
+-----------------------------------------------------------------------------------------
+
+
+
+
+
+
 
 ------------------------------------------------------------------------------------------
 -- Card
@@ -928,8 +979,8 @@ getCardDetails card txn shouldSendCardIsin = Card
   , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
   }
   where
-    isSavedToLocker cardObj txnObj = Just $
-      isTrueMaybe (getField @"addToLocker" txn) && (isBlankMaybe $ getField @"cardReferenceId" card)
+    isSavedToLocker card' txn' = Just $
+      isTrueMaybe (getField @"addToLocker" txn') && (isBlankMaybe $ getField @"cardReferenceId" card')
 
 --------------------------------------------------------------------------------------
 
@@ -1278,22 +1329,6 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
        }
 
 
-
-
-getGatewayReferenceId :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => TxnDetail -> OrderReference -> BackendFlow st _ Foreign
-getGatewayReferenceId txn ordRef = do
-  ordMeta <- DB.findOne ecDB (where_ := WHERE ["order_reference_id" /\ Int (unNull (ordRef ^. _id) 0)] :: WHERE OrderMetadataV2)
-  case ordMeta of
-    Just ordM ->
-      case (unNullEmptyStringAsNothing (ordM ^. _metadata)) of
-        Just md -> do
-          gRefId <- pure $ lookupJson ((unNull (txn ^._gateway) "") <> ":gateway_reference_id") (jsonParse md)
-          jusId  <- pure $ lookupJson "JUSPAY:gateway_reference_id" (jsonParse md)
-          case (gRefId <|> jusId) of
-            Just v -> pure $ toForeign v
-            Nothing -> checkGatewayRefIdForVodafone ordRef txn
-        Nothing -> checkGatewayRefIdForVodafone ordRef txn
-    Nothing -> checkGatewayRefIdForVodafone ordRef txn
 
 checkGatewayRefIdForVodafone :: forall st r. Newtype st { orderId :: Maybe String, merchantId :: Maybe String, isDBMeshEnabled :: Maybe Boolean, isMemCacheEnabled :: Boolean | r } => OrderReference -> TxnDetail -> BackendFlow st _ Foreign
 checkGatewayRefIdForVodafone ordRef txn = do

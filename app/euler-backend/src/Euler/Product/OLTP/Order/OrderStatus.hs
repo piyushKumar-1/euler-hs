@@ -1596,42 +1596,40 @@ addRiskCheckInfoToResponse txn orderStatus = do
 
 addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
 addRiskCheckInfoToResponse txn orderStatus = do
-  --txnRiskCheck <- DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String (unNull (txn ^. _id) "")] :: WHERE TxnRiskCheck)
-  -- ? txn without _id -- whether it's an error or not?
-  let txnId = getField @"id" txn
-  when (isNothing txnId) return orderStatus
+  let txnId = fromMaybe T.empty $ getField @"id" txn
 
-  mTxnRiskCheck <- withDB eulerDB $ do
-    let preficate TxnRiskCheck {txnDetailId} =
-          txnDetailId ==. B.val_ fromJust txnId
+  txnRiskCheck <- withDB eulerDB $ do
+    let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
     findRow
-      $ B.select $ B.limit_ 1 $ B.filter_ predicate $ B.all_ (txn_risk_check eulerDBSchema)
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_risk_check eulerDBSchema)
 
-  case mTxnRiskCheck of
+  case txnRiskCheck of
     Just trc -> do
-        --riskMngAcc  <- DB.findOne ecDB (where_ := WHERE ["id" /\ Int (trc ^. _riskManagementAccountId)] :: WHERE RiskManagementAccount)
-        let accId = getField @"riskManagementAccountId" trc -- mandatory
+      let riskMAId = getField @"riskManagementAccountId" trc
 
-        mRiskMngAcc <- withDB eulerDB $ do
-          let predicate RiskManagementAccount {id} = id ==. B.val_ accId
-          findRow
-            $ B.select $ B.limit_ 1 $ B.filter_ predicate $ B.all_ (risk_management_account eulerDBSchema)
+      riskMngAcc <- withDB eulerDB $ do
+        let predicate RiskManagementAccount {id} = id ==. B.val_ riskMAId
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (EDB.risk_management_account eulerDBSchema)
 
-        let mProvider = maybe Nothing (getField @"provider" mRiskMngAcc) mRiskMngAcc
-
-        let risk = Risk' {  provider = mProvider -- NullOrUndefined $ maybe Nothing (Just <<< _.provider <<< unwrap) riskMngAcc
-                          , status = getField @"status" trc
-                          , message = getField @"message" trc
-                          , flagged = getField @"flagged" -- getEmptyBooleanVal (trc ^. _flagged)
-                          , recommended_action = fromMaybe mempty (getField @"recommendedAction" trc ) -- just (unNull (trc ^. _recommendedAction) "")
-                          , ebs_risk_level = Nothing
-                          , ebs_payment_status = Nothing
-                          , ebs_risk_percentage = Nothing
-                          , ebs_bin_country = Nothing
-                         }
-
-        case (fromMaybe mempty mProvider) of
-          "ebs" -> do
+      let risk = Risk'
+            { provider = getField @"provider" <$> riskMngAcc
+            , status = getField @"status" trc
+            , message = getField @"message" trc
+            , flagged = whenNothing (getField @"flagged" trc) (Just False)
+            , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
+            , ebs_risk_level = Nothing
+            , ebs_payment_status = Nothing
+            , ebs_risk_percentage = Nothing
+            , ebs_bin_country = Nothing
+            }
+      if (fromMaybe T.empty (getField @"provider" risk)) == "ebs" then do
             -- TODO not sure is this reliable enough? how port it?
             -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
             -- outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
@@ -1644,13 +1642,12 @@ addRiskCheckInfoToResponse txn orderStatus = do
             --   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
             -- }
             -- r  <- addRiskObjDefaultValueAsNull r'
-            -- pure $ orderStatus # _risk .~ (just r)
-            return orderStatus
-          otherwise -> do
+            pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
+            else do
             r <- addRiskObjDefaultValueAsNull risk
-            return $ setField @"risk" (Just r) orderStatus -- pure $ orderStatus # _risk .~ (just r)
-    Nothing -> return orderStatus
-    where getString a = if (isNotString a) then "" else a
+            pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
+    Nothing -> pure orderStatus
+  where getString a = "" -- TODO: if (isNotString a) then "" else a
 
 
 -- Iliya codes it above. Vlad's version is below
@@ -1749,23 +1746,22 @@ addRiskObjDefaultValueAsNull risk' = do
         { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
         , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
         , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
-        , flagged = getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
+        , flagged = undefined :: Maybe Text -- TODO: getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
         , recommended_action = getField @"recommended_action" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
         , ebs_risk_level = Nothing -- NullOrUndefined Nothing
         , ebs_payment_status = Nothing -- NullOrUndefined Nothing
-        , ebs_risk_percentage =Nothing -- NullOrUndefined Nothing
+        , ebs_risk_percentage = Nothing -- NullOrUndefined Nothing
         , ebs_bin_country = Nothing -- NullOrUndefined Nothing
         }
 
-  case (fromMaybe mempty (getField @"provide" risk')) of
-    "ebs" -> do
-      return $ risk
+  case (fromMaybe mempty (getField @"provider" risk')) of
+    "ebs" -> pure (risk
         { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
         , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
-        , ebs_risk_percentage = getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
+        , ebs_risk_percentage = undefined :: Maybe Text -- TODO: getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
         , ebs_bin_country = getField @"ebs_bin_country" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
-        }
-    otherwise -> return risk
+        } :: Risk)
+    _ -> return risk
 
 
 -- ----------------------------------------------------------------------------
@@ -1812,9 +1808,9 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
       cardBrandMaybe <- (undefined :: Flow (Maybe Text)) -- TODO: getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
       orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
       let orderStatus' =
-            addCardInfo txn card enableSendingCardIsin cardBrandMaybe (undefined :: OrderStatusResponse)
-              -- TODO: $ addAuthType card
-              -- TODO: $ addEmi txn orderStatus
+            addCardInfo txn card enableSendingCardIsin cardBrandMaybe
+              $ addAuthType card
+              $ addEmi txn orderStatus
       (undefined :: Flow OrderStatusResponse) -- TODO: addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
     Nothing -> pure ordStatus
 
@@ -1883,7 +1879,7 @@ mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
 
 -- ----------------------------------------------------------------------------
 -- function: addAuthType
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1891,10 +1887,14 @@ addAuthType :: TxnCardInfo -> OrderStatusResponse -> OrderStatusResponse
 addAuthType card ordStatus = wrap $ (unwrap ordStatus) { auth_type = just $ unNull (card ^. _authType) "" }
 -}
 
+addAuthType :: TxnCardInfo -> OrderStatusResponse -> OrderStatusResponse
+addAuthType card ordStatus =
+  ordStatus{auth_type = whenNothing (getField @"authType" card) (Just "")}
+
 
 -- ----------------------------------------------------------------------------
 -- function: addEmi
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1905,6 +1905,11 @@ addEmi txn ordStatus =
   else ordStatus
 -}
 
+addEmi :: TxnDetail -> OrderStatusResponse -> OrderStatusResponse
+addEmi txn ordStatus =
+  if isTrueMaybe (getField @"isEmi" txn)
+  then ordStatus{emi_tenure = getField @"emiTenure" txn, emi_bank = getField @"emiBank" txn}
+  else ordStatus
 
 -- ----------------------------------------------------------------------------
 -- function: addCardInfo

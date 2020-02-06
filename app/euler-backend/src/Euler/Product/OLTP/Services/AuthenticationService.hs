@@ -225,7 +225,7 @@ ipAddressFilters mAcc mForward =  do
 getWhitelistedIps :: DBM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
   mId <- getMerchantId mAcc
-  ipAddresses <- rGet ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  ipAddresses <- L.rGet ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do

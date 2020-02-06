@@ -22,6 +22,7 @@ import Data.Aeson
 import Data.Generics.Product.Fields
 import Servant.Server
 import qualified Data.Text.Encoding as T
+import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as Map
 
@@ -1338,12 +1339,16 @@ addPromotionDetails orderRef orderStatus = do
 addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
 addPromotionDetails orderRef orderStatus = do
   -- Order contains two id -like fields (better names?)
-  let orderId  = getField @"id" orderRef
-      ordId = fromMaybe "" (getField @"orderId" orderRef)
+  let orderId = fromMaybe "" $ getField @"id" orderRef
+      -- OrderReference's orderId was changed to Text type, Promotions's orderReferenceId is still Int type at PS.
+      -- readMaybe used to equal them in predicate. It is just workaround while Promotions not solved
+      orderId' = fromMaybe 0 $ readMaybe $ T.unpack orderId
+      ordId = fromMaybe "" $ getField @"orderId" orderRef
   promotions <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
-      let predicate Promotions {orderReferenceId} = orderReferenceId ==. B.val_ orderId -- TODO Text -> Int or change Promotions
+      let predicate Promotions{orderReferenceId} =
+            orderReferenceId ==. B.just_ (B.val_ orderId')
       findRows
         $ B.select
         $ B.filter_ predicate

@@ -2215,6 +2215,34 @@ hierarchyObjectLookup xml key1 key2 = do
     Nothing -> pure ""
 -}
 
+hierarchyObjectLookup :: Text -> Text -> Text -> Flow Text
+hierarchyObjectLookup xml key1 key2 = undefined
+
+-- ----------------------------------------------------------------------------
+-- function: hierarchyObjectLookup
+-- TODO port
+-- from src/Types/Storage/EC/PaymentGatewayResponse.purs
+-- ----------------------------------------------------------------------------
+
+{-PS
+getResponseXml :: forall a b. String -> BackendFlow _ _ (Array b)
+getResponseXml xmlVal = do
+	json <- xml2Json xmlVal
+	json' <- xml2Json xmlVal
+	pure $ case lookupJson "linked-hash-map" json of
+						Just linkedHash -> entryLookup linkedHash
+						Nothing -> case lookupJson "org.codehaus.groovy.grails.web.json.JSONObject" json' of
+													Just orgCode -> case lookupJson "myHashMap" orgCode of
+																						Just hashMap -> entryLookup hashMap
+																						Nothing -> jsonValues emptyObj
+													Nothing -> case lookupJson "map" json of
+																				Just linkedHash -> entryLookup linkedHash
+																				Nothing -> jsonValues emptyObj
+
+  where entryLookup entry = case (lookupJson "entry" entry) of
+								Just entry -> if (isArray entry) then (jsonValues entry) else (jsonValues emptyObj)
+								Nothing -> jsonValues emptyObj
+-}                
 
 -- ----------------------------------------------------------------------------
 -- function: addGatewayResponse

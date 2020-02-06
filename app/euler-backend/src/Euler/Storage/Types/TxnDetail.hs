@@ -17,7 +17,7 @@ import qualified Database.Beam as B
 import qualified Euler.Common.Types.TxnDetail as TDC
 
 data TxnDetailT f = TxnDetail
-  { id                       :: B.C f (Maybe Int) -- originaly String but Int in DB
+  { id                       :: B.C f (Maybe Text)
   , version                  :: B.C f Int
   , errorMessage             :: B.C f (Maybe Text)
   , orderId                  :: B.C f Text
@@ -26,7 +26,7 @@ data TxnDetailT f = TxnDetail
   , txdType                  :: B.C f Text  --- type wird is reserved
   , dateCreated              :: B.C f (Maybe LocalTime)
   , lastModified             :: B.C f (Maybe LocalTime)
-  , successResponseId        :: B.C f (Maybe Int) -- originaly String but Int in DB
+  , successResponseId        :: B.C f (Maybe Text)
   , txnMode                  :: B.C f (Maybe Text)
   , addToLocker              :: B.C f (Maybe Bool)
   , merchantId               :: B.C f (Maybe Text)
@@ -56,7 +56,7 @@ data TxnDetailT f = TxnDetail
 
 instance B.Table TxnDetailT where
   data PrimaryKey TxnDetailT f =
-    TxnDetailId (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
+    TxnDetailId (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
   primaryKey = TxnDetailId . id
 
 type TxnDetail = TxnDetailT Identity

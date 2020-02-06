@@ -67,9 +67,9 @@ import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
 -- to port '-- TODO port' - 40
--- to update '-- TODO update' - 17
+-- to update '-- TODO update' - 18
 -- completed '-- done' - 13
--- Sum all functions = 70
+-- Sum all functions = 71
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -1054,7 +1054,7 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
 
 -- ----------------------------------------------------------------------------
 -- function: formatAmount
--- TODO unused 
+-- TODO unused
 -- ported version uses sanitizeAmount/sanitizeNullAmount instead
 -- ----------------------------------------------------------------------------
 
@@ -1318,6 +1318,7 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 -- ----------------------------------------------------------------------------
 -- function: addPromotionDetails
 -- TODO update
+-- It workarounded while Promotions's orderReferenceId is not changed to Text
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1596,17 +1597,17 @@ addRiskCheckInfoToResponse txn orderStatus = do
 addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
 addRiskCheckInfoToResponse txn orderStatus = do
   --txnRiskCheck <- DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String (unNull (txn ^. _id) "")] :: WHERE TxnRiskCheck)
-  -- ? txn without _id -- whether it's an error or not?  
+  -- ? txn without _id -- whether it's an error or not?
   let txnId = getField @"id" txn
   when (isNothing txnId) return orderStatus
-  
+
   mTxnRiskCheck <- withDB eulerDB $ do
-    let preficate TxnRiskCheck {txnDetailId} = 
+    let preficate TxnRiskCheck {txnDetailId} =
           txnDetailId ==. B.val_ fromJust txnId
-    findRow  
+    findRow
       $ B.select $ B.limit_ 1 $ B.filter_ predicate $ B.all_ (txn_risk_check eulerDBSchema)
 
-  case mTxnRiskCheck of    
+  case mTxnRiskCheck of
     Just trc -> do
         --riskMngAcc  <- DB.findOne ecDB (where_ := WHERE ["id" /\ Int (trc ^. _riskManagementAccountId)] :: WHERE RiskManagementAccount)
         let accId = getField @"riskManagementAccountId" trc -- mandatory
@@ -1619,7 +1620,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
         let mProvider = maybe Nothing (getField @"provider" mRiskMngAcc) mRiskMngAcc
 
         let risk = Risk' {  provider = mProvider -- NullOrUndefined $ maybe Nothing (Just <<< _.provider <<< unwrap) riskMngAcc
-                          , status = getField @"status" trc 
+                          , status = getField @"status" trc
                           , message = getField @"message" trc
                           , flagged = getField @"flagged" -- getEmptyBooleanVal (trc ^. _flagged)
                           , recommended_action = fromMaybe mempty (getField @"recommendedAction" trc ) -- just (unNull (trc ^. _recommendedAction) "")
@@ -1647,9 +1648,71 @@ addRiskCheckInfoToResponse txn orderStatus = do
             return orderStatus
           otherwise -> do
             r <- addRiskObjDefaultValueAsNull risk
-            return $ setField @"risk" (Just r) orderStatus -- pure $ orderStatus # _risk .~ (just r)            
+            return $ setField @"risk" (Just r) orderStatus -- pure $ orderStatus # _risk .~ (just r)
     Nothing -> return orderStatus
     where getString a = if (isNotString a) then "" else a
+
+
+-- Iliya codes it above. Vlad's version is below
+
+-- addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
+-- addRiskCheckInfoToResponse txn orderStatus = do
+--   let txnId = fromMaybe T.empty $ getField @"id" txn
+
+--   txnRiskCheck <- withDB eulerDB $ do
+--     let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
+--     findRow
+--       $ B.select
+--       $ B.limit_ 1
+--       $ B.filter_ predicate
+--       $ B.all_ (EDB.txn_risk_check eulerDBSchema)
+
+--   case txnRiskCheck of
+--     Just trc -> do
+--       let riskMAId = getField @"riskManagementAccountId" trc
+
+--       riskMngAcc <- withDB eulerDB $ do
+--         let predicate RiskManagementAccount {id} = id ==. B.val_ riskMAId
+--         findRow
+--           $ B.select
+--           $ B.limit_ 1
+--           $ B.filter_ predicate
+--           $ B.all_ (EDB.risk_management_account eulerDBSchema)
+
+--       let risk = Risk'
+--             { provider = provider <$> riskMngAcc
+--             , status = getField @"status" trc
+--             , message = getField @"message" trc
+--             , flagged = whenNothing (getField @"flagged" trc) (Just False)
+--             , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
+--             , ebs_risk_level = Nothing
+--             , ebs_payment_status = Nothing
+--             , ebs_risk_percentage = Nothing
+--             , ebs_bin_country = Nothing
+--             }
+--       if (fromMaybe T.empty (getField @"provider" risk)) == "ebs" then do
+--             completeResponseJson <- xml2Json (getField @"completeResponse" trc)
+--             outputObjectResponseJson <- xml2Json (getField @"completeResponse" trc)
+--             responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
+--             outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
+--             let r' = risk
+--                   { ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
+--                   ebs_payment_status = (trc ^. _riskStatus),
+--                   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
+--                   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
+--                   }
+--             r  <- addRiskObjDefaultValueAsNull r'
+--             pure $ orderStatus # _risk .~ (just r)
+--           else do
+--             r <- addRiskObjDefaultValueAsNull risk
+--             pure $ orderStatus # _risk .~ (just r)
+--     Nothing -> pure orderStatus
+--   where getString a = if (isNotString a) then "" else a
+
+
+
+
+
 
 
 -- ----------------------------------------------------------------------------
@@ -1682,7 +1745,7 @@ addRiskObjDefaultValueAsNull risk' = do
 
 addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
 addRiskObjDefaultValueAsNull risk' = do
-  let risk = Risk 
+  let risk = Risk
         { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
         , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
         , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
@@ -1696,7 +1759,7 @@ addRiskObjDefaultValueAsNull risk' = do
 
   case (fromMaybe mempty (getField @"provide" risk')) of
     "ebs" -> do
-      return $ risk 
+      return $ risk
         { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
         , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
         , ebs_risk_percentage = getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
@@ -1707,7 +1770,7 @@ addRiskObjDefaultValueAsNull risk' = do
 
 -- ----------------------------------------------------------------------------
 -- function: addPaymentMethodInfo
--- TODO port
+-- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1731,6 +1794,29 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
     Nothing -> pure ordStatus
 -}
 
+addPaymentMethodInfo :: MerchantAccount -> TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
+addPaymentMethodInfo mAccnt txn ordStatus = do
+  let txnId = fromMaybe T.empty $ getField @"id" txn
+
+  txnCard <- withDB eulerDB $ do
+    let predicate TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_card_info eulerDBSchema)
+
+  let enableSendingCardIsin = fromMaybe False (getField @"enableSendingCardIsin" mAccnt)
+  case txnCard of
+    Just card -> do
+      cardBrandMaybe <- (undefined :: Flow (Maybe Text)) -- TODO: getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+      orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
+      let orderStatus' =
+            addCardInfo txn card enableSendingCardIsin cardBrandMaybe (undefined :: OrderStatusResponse)
+              -- TODO: $ addAuthType card
+              -- TODO: $ addEmi txn orderStatus
+      (undefined :: Flow OrderStatusResponse) -- TODO: addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
+    Nothing -> pure ordStatus
 
 -- ----------------------------------------------------------------------------
 -- function: addSecondFactorResponseAndTxnFlowInfo
@@ -2964,3 +3050,22 @@ mapTxnDetail txn = TxnDetail'
       then getField @"sourceObjectId" txn
       else Nothing
         }
+
+
+-- -----------------------------------------------------------------------------
+-- Function: getCardBrandFromIsin
+-- TODO port
+-- added from Utils.Card
+-- -----------------------------------------------------------------------------
+
+{-
+getCardBrandFromIsin ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe String)
+getCardBrandFromIsin cardIsin = do
+  cardBrand <- pure $ getCardBrand cardIsin
+  case cardBrand of
+    "" -> do
+      cardInfo <- DB.findOne ecDB (where_ := WHERE ["card_isin" /\ String cardIsin] :: WHERE CardInfo)
+      cardSwitchProvider <- pure $ maybe "" ( _.cardSwitchProvider <<< unwrap) cardInfo
+      if (cardSwitchProvider == "") then (pure Nothing) else pure $ Just cardSwitchProvider
+    _ -> pure $ Just cardBrand
+-}

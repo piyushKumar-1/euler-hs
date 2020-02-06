@@ -500,6 +500,33 @@ data Card = Card
   ,  card_brand       :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- from src/Externals/EC/Common.purs
+data PaymentInfo = PaymentInfo
+  {  payment_method_type :: Maybe Text
+  ,  payment_method :: Maybe Text
+  ,  card :: Maybe Card
+  ,  auth_type :: Maybe Text
+  ,  authentication :: Maybe Authentication
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- from src/Externals/EC/Common.purs
+data Authentication = Authentication
+  { second_factore_response :: Maybe SecondFactorResponse }
+
+-- from src/Externals/EC/Common.purs
+data SecondFactorResponse = SecondFactorResponse
+  { cavv :: Maybe Text
+  , eci :: Maybe Text
+  , xid :: Maybe Text
+  , status :: Maybe Text
+  , currency :: Maybe Text
+  , response_id :: Maybe Text
+  , mpi_error_code :: Maybe Text
+  , date_created :: Maybe Text
+  }
+
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Chargeback' = Chargeback'
   {  id                  :: Maybe Text

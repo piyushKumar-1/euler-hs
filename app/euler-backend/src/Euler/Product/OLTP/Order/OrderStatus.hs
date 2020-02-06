@@ -2794,7 +2794,7 @@ getTxnStatusResponse txnDetail@(TxnDetail txn) merchantAccount sf = do
 
 -- ----------------------------------------------------------------------------
 -- function: getPaymentInfo
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2808,6 +2808,14 @@ getPaymentInfo ordStatusResponse = PaymentInfo {
 }
 -}
 
+getPaymentInfo :: OrderStatusResponse -> PaymentInfo
+getPaymentInfo ordStatusResponse = PaymentInfo {
+    payment_method_type = getField @"payment_method_type" ordStatusResponse -- Maybe in OrderStatusResponse
+  , payment_method      = getField @"payment_method" ordStatusResponse -- Maybe in OrderStatusResponse
+  , card                = getField @"card" ordStatusResponse -- Maybe in OrderStatusResponse
+  , auth_type           = Nothing
+  , authentication      = Nothing
+}
 
 -- ----------------------------------------------------------------------------
 -- function: getTokenExpiryData

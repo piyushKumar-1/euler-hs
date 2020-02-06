@@ -514,6 +514,7 @@ data PaymentInfo = PaymentInfo
 -- from src/Externals/EC/Common.purs
 data Authentication = Authentication
   { second_factore_response :: Maybe SecondFactorResponse }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- from src/Externals/EC/Common.purs
 data SecondFactorResponse = SecondFactorResponse
@@ -526,6 +527,7 @@ data SecondFactorResponse = SecondFactorResponse
   , mpi_error_code :: Maybe Text
   , date_created :: Maybe Text
   }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Chargeback' = Chargeback'
@@ -739,3 +741,21 @@ data TxnFlowInfo = TxnFlowInfo
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+data ViesFlow
+  = VIES_ENROLLMENT
+  | VIES_REPEAT
+  | INVALID
+  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
+
+data ViesGatewayAuthReqParams = ViesGatewayAuthReqParams
+  { viesReferenceId :: Maybe Text
+  , viesInitError :: Maybe Text
+  , errorCode :: Maybe Text
+  , errorMessage :: Maybe Text
+  , flowStatus :: Maybe Text
+  , flow :: Maybe ViesFlow
+  , crid :: Maybe Text
+  , authFlow :: Maybe Text
+  -- , errorDump :: Maybe Foreign
+  }
+  deriving (Show, Read, Eq, Generic, ToJSON, FromJSON)

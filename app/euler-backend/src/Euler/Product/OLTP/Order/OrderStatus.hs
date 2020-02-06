@@ -27,6 +27,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as Map
 
 import Euler.API.Order
+import Euler.API.Types
 import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
@@ -40,20 +41,21 @@ import Euler.Product.Domain.Order (Order)
 import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
 
-import           Euler.Storage.Types.Customer
-import           Euler.Storage.Types.Feature
-import           Euler.Storage.Types.Mandate
-import           Euler.Storage.Types.MerchantAccount
-import           Euler.Storage.Types.MerchantIframePreferences
-import           Euler.Storage.Types.MerchantKey
-import           Euler.Storage.Types.OrderReference
-import           Euler.Storage.Types.PaymentGatewayResponse
-import           Euler.Storage.Types.Promotions
-import           Euler.Storage.Types.ResellerAccount
-import           Euler.Storage.Types.RiskManagementAccount
-import           Euler.Storage.Types.TxnCardInfo
-import           Euler.Storage.Types.TxnDetail
-import           Euler.Storage.Types.TxnRiskCheck
+import Euler.Storage.Types.Customer
+import Euler.Storage.Types.Feature
+import Euler.Storage.Types.Mandate
+import Euler.Storage.Types.MerchantAccount
+import Euler.Storage.Types.MerchantIframePreferences
+import Euler.Storage.Types.MerchantKey
+import Euler.Storage.Types.OrderReference
+import Euler.Storage.Types.PaymentGatewayResponse
+import Euler.Storage.Types.Promotions
+import Euler.Storage.Types.ResellerAccount
+import Euler.Storage.Types.RiskManagementAccount
+import Euler.Storage.Types.SecondFactor
+import Euler.Storage.Types.TxnCardInfo
+import Euler.Storage.Types.TxnDetail
+import Euler.Storage.Types.TxnRiskCheck
 
 import Euler.Storage.Types.EulerDB as EDB
 
@@ -66,10 +68,10 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 40
--- to update '-- TODO update' - 18
--- completed '-- done' - 13
--- Sum all functions = 71
+-- to port '-- TODO port' - 37
+-- to update '-- TODO update' - 19
+-- completed '-- done' - 17
+-- Sum all functions = 73
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -1816,7 +1818,7 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: addSecondFactorResponseAndTxnFlowInfo
--- TODO port
+-- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1844,10 +1846,31 @@ addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
     else pure orderStatus --NON VIES Txn
 -}
 
+addSecondFactorResponseAndTxnFlowInfo :: TxnDetail -> TxnCardInfo -> OrderStatusResponse -> Flow OrderStatusResponse
+addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
+  if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
+    maybeSf <- undefined :: Flow (Maybe SecondFactor) -- TODO: findMaybeSecondFactorByTxnDetailId $ whenNothing (getField @"id" txn) (throwException err500) -- (txn .^. _id)
+    case maybeSf of
+      Just sf -> do
+        (authReqParams :: ViesGatewayAuthReqParams) <- undefined :: Flow ViesGatewayAuthReqParams
+        -- TODO:
+        --   parseAndDecodeJson (fromMaybe "{}" $ getField @"gatewayAuthReqParams" sf) "INTERNAL_SERVER_ERROR" "INTERNAL_SERVER_ERROR"
+        -- let orderStatus' = orderStatus{ txn_flow_info = just $ mkTxnFlowInfo authReqParams }
+        -- maybeSfr <- findMaybeSFRBySfId (sf .^. _id)
+        -- case maybeSfr of
+        --   Just sfr -> do
+        --     let newSf = mkMerchantSecondFactorResponse sfr
+        --     pure $ orderStatus' # _second_factor_response .~ (just newSf)
+        --   _ -> do
+        --     pure $ orderStatus' -- SFR not available.
+        pure orderStatus
+      Nothing ->  pure orderStatus -- NO Sf present
+    else pure orderStatus --NON VIES Txn
+
 
 -- ----------------------------------------------------------------------------
 -- function: mkTxnFlowInfo
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1860,10 +1883,18 @@ mkTxnFlowInfo params =  TxnFlowInfo
   }
 -}
 
+mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
+mkTxnFlowInfo params = TxnFlowInfo
+  {  flow_type = maybe T.empty show $ getField @"flow" params
+  ,  status = fromMaybe T.empty $ getField @"flowStatus" params
+  ,  error_code = fromMaybe T.empty $ getField @"errorCode" params
+  ,  error_message = fromMaybe T.empty $ getField @"errorMessage" params
+  }
+
 
 -- ----------------------------------------------------------------------------
 -- function: mkMerchantSecondFactorResponse
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1875,6 +1906,14 @@ mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
   ,  pares_status : sfr ^. _status
   }
 -}
+
+mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
+mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
+  { cavv = fromMaybe T.empty $ getField @"cavv" sfr
+  , eci = fromMaybe T.empty $ getField @"eci" sfr
+  , xid = fromMaybe T.empty $ getField @"xid" sfr
+  , pares_status = fromMaybe T.empty $ getField @"status" sfr
+  }
 
 
 -- ----------------------------------------------------------------------------
@@ -2247,7 +2286,7 @@ getResponseXml xmlVal = do
   where entryLookup entry = case (lookupJson "entry" entry) of
 								Just entry -> if (isArray entry) then (jsonValues entry) else (jsonValues emptyObj)
 								Nothing -> jsonValues emptyObj
--}                
+-}
 
 -- ----------------------------------------------------------------------------
 -- function: addGatewayResponse
@@ -3110,3 +3149,28 @@ getCardBrandFromIsin cardIsin = do
       if (cardSwitchProvider == "") then (pure Nothing) else pure $ Just cardSwitchProvider
     _ -> pure $ Just cardBrand
 -}
+
+-- -----------------------------------------------------------------------------
+-- Function: findMaybeSecondFactorByTxnDetailId
+-- TODO port
+-- added from EC.SecondFactor
+-- -----------------------------------------------------------------------------
+
+{-
+findMaybeSecondFactorByTxnDetailId ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe SecondFactor)
+findMaybeSecondFactorByTxnDetailId txnDetail_id =
+  DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String txnDetail_id] :: WHERE SecondFactor)
+-}
+
+-- -----------------------------------------------------------------------------
+-- Function: findMaybeSFRBySfId
+-- TODO port
+-- added from EC.SecondFactorResponse
+-- -----------------------------------------------------------------------------
+
+{-
+findMaybeSFRBySfId ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe SecondFactorResponse)
+findMaybeSFRBySfId second_factor_id =
+  DB.findOne ecDB (where_ := WHERE ["second_factor_id" /\ String second_factor_id] :: WHERE SecondFactorResponse)
+-}
+

@@ -35,8 +35,8 @@ transSOrderToDOrder so = DO.Order
   -- , refundedEntirely  :: Maybe Bool
   -- -- , preferredGateway  :: Maybe Text  EHS: ?
   -- , productId         :: Maybe Text
-  -- , billingAddressId  :: Maybe Int
-  -- , shippingAddressId :: Maybe Int
+  <*> withField @"billingAddressId" so pure
+  <*> withField @"shippingAddressId" so pure
   -- , mandateFeature    :: MandateFeature
   -- , autoRefund        :: Bool
   -- , lastSynced        :: LocalTime

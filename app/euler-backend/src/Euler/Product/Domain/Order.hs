@@ -37,8 +37,8 @@ data Order = Order
   -- , refundedEntirely  :: Maybe Bool
   -- -- , preferredGateway  :: Maybe Text  EHS: ?
   -- , productId         :: Maybe Text
-  -- , billingAddressId  :: Maybe Int
-  -- , shippingAddressId :: Maybe Int
+  , billingAddressId  :: Maybe Int
+  , shippingAddressId :: Maybe Int
   -- , mandateFeature    :: MandateFeature
   -- , autoRefund        :: Bool
   -- , lastSynced        :: LocalTime

@@ -41,22 +41,23 @@ import Euler.Product.Domain.Order (Order)
 import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
 
-import Euler.Storage.Types.Customer
-import Euler.Storage.Types.Feature
-import Euler.Storage.Types.Mandate
-import Euler.Storage.Types.MerchantAccount
-import Euler.Storage.Types.MerchantIframePreferences
-import Euler.Storage.Types.MerchantKey
-import Euler.Storage.Types.OrderReference
-import Euler.Storage.Types.PaymentGatewayResponse
-import Euler.Storage.Types.Promotions
-import Euler.Storage.Types.ResellerAccount
-import Euler.Storage.Types.RiskManagementAccount
-import Euler.Storage.Types.SecondFactor
-import Euler.Storage.Types.SecondFactorResponse
-import Euler.Storage.Types.TxnCardInfo
-import Euler.Storage.Types.TxnDetail
-import Euler.Storage.Types.TxnRiskCheck
+import           Euler.Storage.Types.Chargeback
+import           Euler.Storage.Types.Customer
+import           Euler.Storage.Types.Feature
+import           Euler.Storage.Types.Mandate
+import           Euler.Storage.Types.MerchantAccount
+import           Euler.Storage.Types.MerchantIframePreferences
+import           Euler.Storage.Types.MerchantKey
+import           Euler.Storage.Types.OrderReference
+import           Euler.Storage.Types.PaymentGatewayResponse
+import           Euler.Storage.Types.Promotions
+import           Euler.Storage.Types.ResellerAccount
+import           Euler.Storage.Types.RiskManagementAccount
+import           Euler.Storage.Types.SecondFactor
+import           Euler.Storage.Types.SecondFactorResponse
+import           Euler.Storage.Types.TxnCardInfo
+import           Euler.Storage.Types.TxnDetail
+import           Euler.Storage.Types.TxnRiskCheck
 
 import Euler.Storage.Types.EulerDB as EDB
 
@@ -2157,6 +2158,62 @@ addChargeBacks (TxnDetail txnDetail) orderStatus = do
     _ -> pure $ orderStatus # _chargebacks .~ (just $ mapChargeback txn <$> chargeBacks)
 -}
 
+addChargeBacks :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
+addChargeBacks txnDetail orderStatus = do
+  let detailId = getField @"id" txnDetail
+  when
+
+  let txn = mapTxnDetail txnDetail
+
+  --chargeBacks <- DB.findAll ecDB (where_ := WHERE ["txn_detail_id" /\ String (nullOrUndefinedToAny (txnDetail.id) "")] :: WHERE Chargeback)
+  chargeBacks <- withDB eulerDB $ do
+    let predicate Chargeback {txnDetailId}
+          = txnDetailId ==. B.just_ (B.val_ detailId)
+    findRows
+      $ B.select
+      $ B.filter_ predicate
+      $ B.all_ (chargeback eulerDBSchema)
+
+  case (length chargeBacks) of
+    0 -> pure orderStatus
+    _ -> pure $ setField @"chargebacks" orderStatus (Just $ mapChargeback txn <$> chargeBacks)
+
+-- ----------------------------------------------------------------------------
+-- function: lookupPgRespXml
+-- TODO port
+-- from src/Types/Storage/EC/Chargeback.purs
+-- ----------------------------------------------------------------------------
+
+{-PS
+mapChargeback :: TxnDetail' -> Chargeback -> Chargeback'
+mapChargeback txn chargeback =
+   let chargebackObj = unwrap chargeback
+   in Chargeback'
+          {  id : just chargebackObj.id
+          ,  amount : just chargebackObj.amount
+          ,  object_reference_id : just chargebackObj.objectReferenceId
+          ,  txn : just txn
+          ,  date_resolved : chargebackObj.dateResolved
+          ,  date_created : just chargebackObj.dateCreated
+          ,  last_updated : just chargebackObj.lastUpdated
+          ,  object : just "chargeback"
+          ,  dispute_status : just chargebackObj.disputeStatus
+          }
+-}
+
+mapChargeback :: TxnDetail' -> Chargeback -> Chargeback'
+mapChargeback txn chargeback =
+  Chargeback'
+  {  id = Just $ getField @"id" chargeback
+  ,  amount = Just $ getField @"amount" chargeback
+  ,  object_reference_id = Just $ getField @"objectReferenceId" chargeback
+  ,  txn = Just txn
+  ,  date_resolved = Just $ getField @"dateResolved" chargeback
+  ,  date_created = Just $ getField @"dateCreated" chargeback
+  ,  last_updated = Just $ getField @"lastUpdated" chargeback
+  ,  object = Just "chargeback"
+  ,  dispute_status = Just $ getField @"disputeStatus" chargeback
+  }
 
 -- ----------------------------------------------------------------------------
 -- function: lookupPgRespXml

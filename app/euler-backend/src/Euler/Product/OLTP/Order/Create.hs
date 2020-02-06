@@ -64,9 +64,7 @@ import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
 loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
 loadOrder orderId' merchantId' = do
-    conn <- getConn eulerDB       -- EHS: withDB
-    res <- runDB conn $ do
-
+    res <- withDB eulerDB $ do
       let predicate OrderReference {orderId, merchantId} =
             (orderId    ==. B.just_ (B.val_ orderId')) &&.
             (merchantId ==. B.just_ (B.val_ merchantId'))
@@ -104,11 +102,10 @@ orderCreate routeParams order' mAccnt = do
 
   existingOrder <- loadOrder (order' ^. _order_id) merchantId'
 
-  resp <- case existingOrder of
-        -- EHS: rework exceptions
-      Just orderRef -> throwException err400 {errBody = "Order already created."}
-      Nothing       -> doOrderCreate routeParams order' mAccnt
-  pure resp
+  case existingOrder of
+      -- EHS: rework exceptions
+    Just orderRef -> throwException err400 {errBody = "Order already created."}
+    Nothing       -> doOrderCreate routeParams order' mAccnt
 
 mkUdf :: OrderCreateRequest -> UDF
 mkUdf orderCreateReq@OrderCreateRequest {..} =
@@ -131,29 +128,23 @@ mkUdf orderCreateReq@OrderCreateRequest {..} =
               , udf10 = udf10
               }
 
--- CREATE
-
 doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse -- OrderAPIResponse
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
-
+  -- EHS: rework
   mandateOrder <- isMandateOrder routeParams order' merchantId
+  order        <- createOrder' routeParams order' mAccnt mandateOrder
+  mbReseller   <- loadReseller (mAccnt ^. _resellerId)
+  -- EHS: config should be requested on the start of the logic and passed purely.
+  cfg          <- runIO Config.getECRConfig
 
-  orderRef     <- createOrder' routeParams order' mAccnt mandateOrder
+  let orderResponse = mkOrderResponse cfg order mbReseller
 
-  -- EHS: orderIdPrimary should exist to the moment.
-  -- orderIdPrimary <- getOrderId orderRef
-
-  let orderStatus = getField @"status" orderRef
-      maybeResellerId = resellerId --  mAccnt
-
-  maybeResellerEndpoint <- maybe (pure Nothing) handleReseller maybeResellerId
-  orderResponse <- makeOrderResponse orderRef maybeResellerEndpoint
- -- _ <- logAnomaly orderRef
+  -- EHS: rework, skipping for now
   let version = RP.lookupRP @RP.Version routeParams
   if version >= Just "2018-07-01" &&
      (options_get_client_auth_token orderCreateReq == Just True)
     then do
-      orderTokenData  <- addOrderToken orderIdPrimary orderCreateReq merchantId
+      orderTokenData  <- addOrderToken (order ^. _id) orderCreateReq merchantId
       pure $ updateResponse orderRef orderResponse orderTokenData
     else pure orderResponse
 
@@ -264,8 +255,7 @@ isTrueString val =
 -- EHS: rework this function.
 loadMerchantPrefs :: MerchantId -> Flow MerchantIframePreferences
 loadMerchantPrefs merchantId' = do
-  conn <- getConn eulerDB   -- EHS: withDB
-  res <- runDB conn $ do
+  res <- withDB eulerDB $ do
     let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
     findRow
       $ B.select
@@ -282,7 +272,7 @@ loadMerchantPrefs merchantId' = do
       logError "SQLDB Interraction." $ toText $ P.show err
       throwException err500 {errBody = "7"}   -- EHS: rework exceptions
 
-createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow OrderReference
+createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow D.Order
 createOrder' routeParams order' mAccnt isMandate = do
 
   let merchantId = mAccnt ^. _merchantId
@@ -310,12 +300,11 @@ createOrder' routeParams order' mAccnt isMandate = do
 
   order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer
 
-  -------------------------------
-  -- EHS: rework this.
+  -- EHS: rework this. Skipping for now.
   let orderId = order ^. _orderId
-  _ <- setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) orderRef Config.orderTtl
+  _ <- setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
   _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId)
-  pure orderRef
+  pure order
 
 fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> AddressHolderTemplate -> Ts.AddressHolderTemplate
 fillBillingAddressHolder Nothing addressHolder = addressHolder
@@ -578,7 +567,7 @@ saveOrder
   -- Move it into a combinator based on the `insertRowsReturningList`.
   -- (Better to have id not null)
   orderPId <- case refs of
-    [orderRef] -> getOrderId orderRef
+    [orderRef] -> getOrderPId orderRef
     x          -> throwException err500 {errBody = EHP.show x}   -- EHS: rework exception codes
 
   -- EHS: Investigate this TODO.
@@ -594,6 +583,7 @@ saveOrder
     $ B.insertExpressions [ B.val_ defaultMetaData]
 
   -- EHS: fill the Order data type, skipping for now.
+  -- N.B., orderUUID can't be Nothing
   pure $ D.Order {..}
 
 
@@ -722,8 +712,9 @@ validateOrderParams OrderCreateRequest {..} = if amount < 1
   else pure ()
 
 -- EHS: bad function.
-getOrderId :: OrderReference -> Flow Int
-getOrderId OrderReference {id} = case id of
+-- EHS: previously getOrderId
+getOrderPId :: OrderReference -> Flow Int
+getOrderPId OrderReference {id} = case id of
     Just x -> pure x
     _ -> throwException err500 {errBody = "NO ORDER FOUND"} -- defaultThrowECException "NO_ORDER_FOUND" "NO ORDER FOUND"
 
@@ -777,44 +768,45 @@ mkMandatedata merchantId OrderCreateRequest{..} orderId maxAmount = do
   , metadata = Nothing
   }
 
-handleReseller ::  Text -> Flow (Maybe Text)
-handleReseller resellerId' = do
- -- resellerAccount :: ResellerAccount <- do
-    conn <- getConn eulerDB
-    res <- runDB conn $ do
-      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (reseller_account eulerDBSchema)
-    case res of
-      Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
-      Left err -> do
-        logError "Find ResellerAccount" $ toText $ P.show err
-        throwException err500 {errBody = "14"}
-  -- pure defaultResellerAccount -- findOneWithErr ecDB (where_ := WHERE ["resellerId" /\ String resellerId]) internalError
- -- pure $ resellerApiEndpoint resellerAccount
+-- EHS: previously handleReseller
+-- EHS: return domain type for Reseller instead of DB type
+loadReseller :: Maybe Text -> Flow (Maybe ResellerAccount)
+loadReseller Nothing = pure Nothing
+loadReseller (Just resellerId') = do
+  eRes <- withDB eulerDB $ do
+    -- EHS: DB types should be qualified or explicitly named.
+    let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (reseller_account eulerDBSchema)
 
+  case eRes of
+    Right mbRAcc -> pure mbRAcc
+    Left err -> do
+      -- EHS: rework error messages
+      logError "Find ResellerAccount" $ toText $ P.show err
+      -- EHS: rework exceptions
+      throwException err500 {errBody = "14"}
 
-makeOrderResponse :: OrderReference -> Maybe Text -> Flow OrderCreateResponse -- OrderAPIResponse
-makeOrderResponse orderRef@OrderReference{..} maybeResellerEndpoint = do
-  cfg <- runIO Config.getECRConfig
-  let url = maybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id maybeResellerEndpoint
-  pure $ (defaultOrderCreateResponse :: OrderCreateResponse) --OrderCreateResp $ (unwrap defaultOrderAPIResponse)  {
-    { status = CREATED
-    , status_id = orderStatusToInt CREATED
-    , id = orderUuid'
-    , order_id = fromMaybe "" orderId -- nullOrUndefinedToStr orderRef.orderId
-    , payment_links= Paymentlinks
-        { web    = Just (url <> "/merchant/pay/") <> Just orderUuid'
-        , mobile = Just (url <> "/merchant/pay/") <> Just orderUuid' <> Just "?mobile=true"
-        , iframe = Just (url <> "/merchant/ipay/") <> Just orderUuid'
+-- EHS: API type should not be used in the logic.
+-- EHS: previously makeOrderResponse
+mkOrderResponse :: Config.Config -> D.Order -> Maybe ResellerAccount -> API.OrderCreateResponse
+mkOrderResponse cfg order@(D.Order {..}) mbResellerAcc = API.defaultOrderCreateResponse
+    { API.status        = CREATED
+    , API.status_id     = orderStatusToInt CREATED
+    , API.id            = orderUuid
+    , API.order_id      = orderId
+    , API.payment_links = Paymentlinks
+        -- EHS: magic constants
+        { web    = Just url'
+        , mobile = Just $ url' <> "?mobile=true"
+        , iframe = Just url'
         }
     }
   where
-   -- Config {..} = defaultConfig -- Config.getECRConfig -- from (src/Config/Config.purs) looks like constant, but depend on ENV
-   -- protocol = (unwrap config).protocol
-   -- host = (unwrap config).host
-   -- url = maybe ( cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id maybeResellerEndpoint
-    orderUuid' = fromMaybe "" orderUuid -- nullOrUndefinedToStr orderRef.orderUuid
+  -- EHS: magic constants
+    mbResellerEndpoint = mbResellerAcc >>= (^. _resellerApiEndpoint)
+    url = maybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id mbResellerEndpoint
+    url' = url <> "/merchant/pay/" <> orderUuid

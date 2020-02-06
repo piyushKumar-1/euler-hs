@@ -513,11 +513,12 @@ data PaymentInfo = PaymentInfo
 
 -- from src/Externals/EC/Common.purs
 data Authentication = Authentication
-  { second_factore_response :: Maybe SecondFactorResponse }
+  { second_factore_response :: Maybe SecondFactorResponse' }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- from src/Externals/EC/Common.purs
-data SecondFactorResponse = SecondFactorResponse
+-- Prime added to differ from storage type
+data SecondFactorResponse' = SecondFactorResponse'
   { cavv :: Maybe Text
   , eci :: Maybe Text
   , xid :: Maybe Text

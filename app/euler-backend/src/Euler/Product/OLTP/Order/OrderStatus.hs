@@ -53,6 +53,7 @@ import Euler.Storage.Types.Promotions
 import Euler.Storage.Types.ResellerAccount
 import Euler.Storage.Types.RiskManagementAccount
 import Euler.Storage.Types.SecondFactor
+import Euler.Storage.Types.SecondFactorResponse
 import Euler.Storage.Types.TxnCardInfo
 import Euler.Storage.Types.TxnDetail
 import Euler.Storage.Types.TxnRiskCheck
@@ -68,9 +69,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 37
+-- to port '-- TODO port' - 36
 -- to update '-- TODO update' - 19
--- completed '-- done' - 17
+-- completed '-- done' - 18
 -- Sum all functions = 73
 
 -- 40x error with error message
@@ -1910,9 +1911,9 @@ mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
 mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
 mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
   { cavv = fromMaybe T.empty $ getField @"cavv" sfr
-  , eci = fromMaybe T.empty $ getField @"eci" sfr
-  , xid = fromMaybe T.empty $ getField @"xid" sfr
-  , pares_status = fromMaybe T.empty $ getField @"status" sfr
+  , eci = getField @"eci" sfr
+  , xid = getField @"xid" sfr
+  , pares_status = getField @"status" sfr
   }
 
 
@@ -3164,7 +3165,7 @@ findMaybeSecondFactorByTxnDetailId txnDetail_id =
 
 -- -----------------------------------------------------------------------------
 -- Function: findMaybeSFRBySfId
--- TODO port
+-- done
 -- added from EC.SecondFactorResponse
 -- -----------------------------------------------------------------------------
 
@@ -3174,3 +3175,12 @@ findMaybeSFRBySfId second_factor_id =
   DB.findOne ecDB (where_ := WHERE ["second_factor_id" /\ String second_factor_id] :: WHERE SecondFactorResponse)
 -}
 
+findMaybeSFRBySfId :: Text -> Flow (Maybe SecondFactorResponse)
+findMaybeSFRBySfId second_factor_id = withDB eulerDB $ do
+  let predicate SecondFactorResponse{secondFactorId} =
+        secondFactorId ==. B.just_ (B.val_ second_factor_id)
+  findRow
+    $ B.select
+    $ B.limit_ 1
+    $ B.filter_ predicate
+    $ B.all_ (EDB.second_factor_response eulerDBSchema)

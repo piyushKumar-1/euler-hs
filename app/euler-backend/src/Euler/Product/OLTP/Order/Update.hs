@@ -29,13 +29,15 @@ import Euler.Storage.Types.OrderAddress
 --
 -- import qualified Prelude              as P (show, notElem)
 -- import qualified Data.Aeson           as A
+import qualified Data.Set             as Set
 -- import qualified Data.Text            as Text
 -- import qualified Text.Read            as TR
 --
 -- -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
 import qualified Euler.API.Order            as API
---
+
+import Euler.Common.Errors.PredefinedErrors
 -- import Euler.Common.Types.DefaultDate
 -- import Euler.Common.Types.Gateway
 -- import Euler.Common.Types.Order
@@ -65,9 +67,13 @@ import qualified Euler.Product.Domain.Templates as Ts
 -- We can update only amount, address and UDF fields.
 -- All this fields in new OrderUpdateRequest type are optional.
 
--- EHS: we did not check amount, first/last names like in orderCreate its ok?
+-- EHS: we did not check amount like in orderCreate it's ok?
 
 -- ### EHS: functions like in orderCreate - move to separate module ###
+
+-- loadCustomer
+-- fillBillingAddressHolder
+
 loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
 loadOrder orderId' merchantId' = withDB eulerDB $ do
   let predicate OrderReference {orderId, merchantId} =
@@ -94,23 +100,28 @@ cleanUp :: Maybe Text -> Maybe Text
 cleanUp mStr =  cleanUpSpecialChars <$>  mStr
 
 cleanUpSpecialChars :: Text -> Text
-cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: String))
+cleanUpSpecialChars = Text.filter (`Set.notMember` specialChars)
 
-createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
-createAddress addr addrHolder =
-  case toDBAddress addr addrHolder of
-    Nothing -> pure Nothing
-    Just dbAddr -> do
-      mAddr <- withDB eulerDB
-          $ insertRowsReturningList
-          $ B.insert (order_address eulerDBSchema)
-          $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
-      pure $ (^. _id) =<< (safeHead mAddr)
+specialChars :: Set Char
+specialChars = Set.fromList "~!#%^=+\\|:;,\"'()-.&/"
+-- createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+-- createAddress addr addrHolder =
+--   case toDBAddress addr addrHolder of
+--     Nothing -> pure Nothing
+--     Just dbAddr -> do
+--       mAddr <- withDB eulerDB
+--           $ insertRowsReturningList
+--           $ B.insert (order_address eulerDBSchema)
+--           $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
+--       pure $ (^. _id) =<< (safeHead mAddr)
 
-
-updateAddress :: Maybe AddressId -> Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
-updateAddress curAddrId addrT addrHolderT =
-  case (currAddrId, toDBAddress addrT addrHolderT) of
+-- in update we :
+--   should check incoming address, if it is empty then return Nothing
+--   if it contain new info then we add customer info and update current address in DB
+--   but if in current orderRef addresId is empty we create new
+updateAddress :: Maybe Ts.CustomerTemplate -> Maybe AddressId -> Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+updateAddress mCT currAddrId addrT addrHolderT =
+  case (currAddrId, toDBAddress' mCT addrT addrHolderT) of
     (_, Nothing) -> pure Nothing
     (Just addrId, Just dbAddr) -> do
       withDB eulerDB
@@ -126,50 +137,80 @@ updateAddress curAddrId addrT addrHolderT =
       pure $ (^. _id) =<< (safeHead mAddr)
 
 
-toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe OrderAddress
-toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
-  | nothingSet = Nothing
+-- toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe OrderAddress
+-- toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
+--   | nothingSet = Nothing
+--   | otherwise = Just $ OrderAddress
+--         { id             = Nothing  -- in DB it's not Null, Auto increment
+--         , version        = 1        -- defaultVersion
+--       -- from src/Config/Constants.purs
+--       --  defaultVersion :: Int
+--       --  defaultVersion = 1
+--         ..
+--         }
+--   where
+--     nothingSet = isNothing
+--       $   firstName
+--       <|> lastName
+--       <|> line1
+--       <|> line2
+--       <|> line3
+--       <|> city
+--       <|> state
+--       <|> country
+--       <|> postalCode
+--       <|> phone
+--       <|> countryCodeIso
+
+toDBAddress' :: Maybe Ts.CustomerTemplate -> Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe OrderAddress
+toDBAddress' mCT aT@Ts.AddressTemplate {..} ahT
+  | addressEmpty aT ahT = Nothing
   | otherwise = Just $ OrderAddress
         { id             = Nothing  -- in DB it's not Null, Auto increment
         , version        = 1        -- defaultVersion
       -- from src/Config/Constants.purs
       --  defaultVersion :: Int
       --  defaultVersion = 1
-        ..
+        , ..
         }
   where
-    nothingSet = isNothing
-      $   firstName
-      <|> lastName
-      <|> line1
-      <|> line2
-      <|> line3
-      <|> city
-      <|> state
-      <|> country
-      <|> postalCode
-      <|> phone
-      <|> countryCodeIso
+    Ts.AddressHolderTemplate {..} = fillBillingAddressHolder mCT aht
+
+-- better name?
+addressEmpty :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Bool
+addressEmpty (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..}) =
+  isNothing
+    $   firstName
+    <|> lastName
+    <|> line1
+    <|> line2
+    <|> line3
+    <|> city
+    <|> state
+    <|> country
+    <|> postalCode
+    <|> phone
+    <|> countryCodeIso
 -- ### ###
 
 
 
-orderUpdate :: RP.RouteParameters -> Text -> Ts.OrderUpdateTemplate -> MerchantAccount -> Flow OrderStatusResponse
-orderUpdate  routeParams orderId orderUpdateT@OrderUpdateTemplate {..} mAccnt = do
+orderUpdate :: RP.RouteParameters -> Ts.OrderUpdateTemplate -> MerchantAccount -> Flow OrderStatusResponse
+orderUpdate  routeParams orderUpdateT mAccnt = do
   let merchantId' = getField @"merchantId" mAccnt
   let orderId' = lookupRP @OrderId routeParams
-  (orderIfExists :: Maybe OrderReference) <- loadOrder orderId' merchantId'
-  resp <- case (orderIfExists) of
+  (mOrder :: Maybe OrderReference) <- loadOrder orderId' merchantId'
+  resp <- case (mOrder) of
             Just orderRef -> do
               doOrderUpdate orderUpdateT orderRef mAccnt
              -- from orderStatus not ready -- getOrderStatusWithoutAuth (getOrderStatusRequest orderId) routeParams mAccnt True (Just updatedOrderCreateReq) (Just orderRef)
-            Nothing -> throwException err400 {errBody = "Order does not exists."}
-  logInfo "createOrUpdateOrder response: " $ show resp
+            Nothing -> throwException $ orderDoesNotExist orderId'
+  logInfo "order update response: " $ show resp
   pure resp
 
 
--- EHS: Should we update udf fields if they are not present (all Nothing)?
-doOrderUpdate :: Ts.OrderUpdateTemplate -> OrderReference -> -> MerchantAccount -> Flow OrderReference -- OrderStatusResponse --Order
+-- EHS: Change OrderReference to Domain Order
+doOrderUpdate :: Ts.OrderUpdateTemplate -> OrderReference -> -> MerchantAccount -> Flow () --OrderReference -- OrderStatusResponse --Order
 doOrderUpdate orderUpdateT order@OrderReference {..}  mAccnt = do
   case status of
     C.SUCCESS -> do
@@ -178,17 +219,65 @@ doOrderUpdate orderUpdateT order@OrderReference {..}  mAccnt = do
     _ ->  do
       let mNewAmount <- getField @"amount" orderUpdateT
       let newUDF = cleanUpUDF $ udf orderUpdateT
-      shippingAddressId' <- updateAddress shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)
-      billingAddressId' <- updateAddress billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
-      currentDate' <-  getCurrentDateUTC
-      updateOrderRefAndInValidateCache (smash udf $ order
-        { amount = newAmount <|> (Just amount)
-        , billingAddressId = billingAddressId'
-        , shippingAddressId = shippingAddressId'
+      mbCustomer <- loadCustomer customerId (mAccnt ^. _id)
+      billingAddressId' <- updateAddress mbCustomer billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
+      shippingAddressId' <- updateAddress Nothing shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)
+      newOrderRef <- updateDBOrder order newUDF mNewAmount billingAddressId' shippingAddressId'
+      invalidateOrderStatusCache (order ^. _orderId) (order ^. _merchantId)
+     -- pure newOrderRef
+
+      --currentDate' <-  getCurrentDateUTC
+      --updateOrderRefAndInValidateCache (smash newUdf $ order
+      --  { amount = fromMoney <$> (newAmount <|> (Just amount))
+      --  , billingAddressId = billingAddressId'
+      --  , shippingAddressId = shippingAddressId'
+      --  , lastModified = currentDate'
+      --  })
+
+updateDBOrder :: OrderReference -> UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow () --OrderReference
+updateDBOrder currOrdRef@OrderReference{..} newUdf mAmount mbBillingAddrId mbShippingAddrId = do
+  currentDate' <- getCurrentDateUTC
+  withDB eulerDB
+    $ updateRows
+    $ B.save (order_reference eulerDBSchema) newOrder
+  pure ()
+  where
+    newOrder = smash newUdf $ currOrdRef
+        { amount = fromMoney <$> (mAmount <|> (Just amount))
+        , billingAddressId = mbBillingAddrId
+        , shippingAddressId = mbShippingAddrId
         , lastModified = currentDate'
-        })
+        , ..
+        }
 
-
+-- another variont of update
+updateDBOrder2 :: Int -> UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow () -- OrderReference
+updateDBOrder2 orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do
+  currentDate' <- getCurrentDateUTC
+  withDB eulerDB
+    $ updateRows
+    $ B.update (order_reference eulerDBSchema)
+      (  (\or -> amount or <-. B.maybe_
+               (B.current_ (amount or))
+               (\a -> B.val_ $ Just $ fromMoney a)
+               mAmount
+         )
+      <> (\or -> billingAddressId or <-. B.val_ mbBillingAddrId)
+      <> (\or -> shippingAddressId or <-. B.val_ mbShippingAddrId)
+      <> (\or -> udf1 or <-. B.val_ (C.udf1 newUdf))
+      <> (\or -> udf2 or <-. B.val_ (C.udf2 newUdf))
+      <> (\or -> udf3 or <-. B.val_ (C.udf3 newUdf))
+      <> (\or -> udf4 or <-. B.val_ (C.udf4 newUdf))
+      <> (\or -> udf5 or <-. B.val_ (C.udf5 newUdf))
+      <> (\or -> udf6 or <-. B.val_ (C.udf6 newUdf))
+      <> (\or -> udf7 or <-. B.val_ (C.udf7 newUdf))
+      <> (\or -> udf8 or <-. B.val_ (C.udf8 newUdf))
+      <> (\or -> udf9 or <-. B.val_ (C.udf9 newUdf))
+      <> (\or -> udf10 or <-. B.val_ (C.udf10 newUdf)
+      <> (\or -> lastModified or) <-. B.val_ currentDate')
+      )
+      (\or -> id or ==. val_ (Just orderRefId))
+  pure ()
 
 
 -- from src/Types/Storage/EC/OrderReference.purs

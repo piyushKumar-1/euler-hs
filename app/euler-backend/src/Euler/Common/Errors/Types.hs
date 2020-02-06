@@ -18,9 +18,9 @@ instance Exception ErrorResponse
 
 
 data ErrorPayload = ErrorPayload
-  { error        :: Bool
-  , error_message :: String
-  , userMessage  :: String
+  { error         :: Bool
+  , error_message :: Text
+  , userMessage   :: Text
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
@@ -35,37 +35,37 @@ instance Exception ECErrorResponse
 
 
 data ECErrorPayload = ECErrorPayload
-  { status       :: String
-  , error_code    :: Maybe String
-  , error_message :: Maybe String
+  { status        :: Text
+  , error_code    :: Maybe Text
+  , error_message :: Maybe Text
   , status_id     :: Maybe Int
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 
 data ECOrderStatusErrorPayload = ECOrderStatusErrorPayload
-  { status       :: String
-  , error_code    :: Maybe String
-  , error_message :: Maybe String
+  { status        :: Text
+  , error_code    :: Maybe Text
+  , error_message :: Maybe Text
   , status_id     :: Maybe Int
-  , order_id      :: Maybe String
+  , order_id      :: Maybe Text
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 
 data ECTxnStatusErrorPayload = ECTxnStatusErrorPayload
-  { status       :: String
-  , error_code    :: Maybe String
-  , error_message :: Maybe String
+  { status        :: Text
+  , error_code    :: Maybe Text
+  , error_message :: Maybe Text
   , status_id     :: Maybe Int
-  , txn_uuid      :: Maybe String
+  , txn_uuid      :: Maybe Text
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 
 data TxnValidationErrorResp = TxnValidationErrorResp
-  { error_code    :: String
-  , error_message :: String
+  { error_code    :: Text
+  , error_message :: Text
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 

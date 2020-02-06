@@ -22,7 +22,7 @@ data Order = Order
   , orderId           :: OrderId
   , orderUuid         :: Text
   , orderType         :: OrderType
-  , orderStatus       :: OrderStatus
+  , orderStatus       :: OrderStatus -- field name = "status" in db orderReference
   , customerId        :: Maybe Text
   , customerEmail     :: Maybe Text
   , customerPhone     :: Maybe Text

@@ -13,6 +13,7 @@ module Euler.Storage.Types.OrderReference
 
 import EulerHS.Prelude hiding (id)
 import Data.Time
+import Euler.Common.Types.Currency
 import Euler.Common.Types.DefaultDate (defaultDate)
 import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature, OrderType)
 import qualified Database.Beam as B
@@ -22,7 +23,7 @@ data OrderReferenceT f = OrderReference
   { id                :: B.C f (Maybe Int)
   , version           :: B.C f Int
   , amount            :: B.C f (Maybe Double)
-  , currency          :: B.C f (Maybe Text)
+  , currency          :: B.C f (Maybe Currency)
   , dateCreated       :: B.C f LocalTime
   , lastModified      :: B.C f LocalTime
   , merchantId        :: B.C f (Maybe Text)
@@ -36,7 +37,6 @@ data OrderReferenceT f = OrderReference
   , popupLoadedTime   :: B.C f (Maybe LocalTime)
   , description       :: B.C f (Maybe Text)
   , udf1              :: B.C f (Maybe Text)
-  , udf10             :: B.C f (Maybe Text)
   , udf2              :: B.C f (Maybe Text)
   , udf3              :: B.C f (Maybe Text)
   , udf4              :: B.C f (Maybe Text)
@@ -45,6 +45,7 @@ data OrderReferenceT f = OrderReference
   , udf7              :: B.C f (Maybe Text)
   , udf8              :: B.C f (Maybe Text)
   , udf9              :: B.C f (Maybe Text)
+  , udf10             :: B.C f (Maybe Text)
   , returnUrl         :: B.C f (Maybe Text)
   , amountRefunded    :: B.C f (Maybe Double)
   , refundedEntirely  :: B.C f (Maybe Bool)

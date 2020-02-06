@@ -58,7 +58,7 @@ otpError = ErrorResponse
       }
   }
 
-dbError :: String -> ErrorResponse
+dbError :: Text -> ErrorResponse
 dbError x = ErrorResponse
   { code = 400
   , response = ErrorPayload
@@ -68,7 +68,7 @@ dbError x = ErrorResponse
       }
   }
 
-dbsendError :: String -> ErrorResponse
+dbsendError :: Text -> ErrorResponse
 dbsendError x = ErrorResponse
   { code = 400
   , response = ErrorPayload
@@ -78,7 +78,7 @@ dbsendError x = ErrorResponse
       }
   }
 
-dbUpdateError :: String -> ErrorResponse
+dbUpdateError :: Text -> ErrorResponse
 dbUpdateError x = ErrorResponse
   { code = 400
   , response = ErrorPayload
@@ -88,7 +88,7 @@ dbUpdateError x = ErrorResponse
       }
   }
 
-urlError :: String -> ErrorResponse
+urlError :: Text -> ErrorResponse
 urlError x = ErrorResponse
   { code = 400
   , response = ErrorPayload
@@ -98,7 +98,7 @@ urlError x = ErrorResponse
       }
   }
 
-eulerAccessDenied :: String -> ErrorResponse
+eulerAccessDenied :: Text -> ErrorResponse
 eulerAccessDenied message = ErrorResponse
   { code = 403
   , response = ErrorPayload
@@ -235,7 +235,7 @@ badRequest = ECErrorResponse
       }
   }
 
-genericBadRequest :: String -> ECErrorResponse
+genericBadRequest :: Text -> ECErrorResponse
 genericBadRequest errMsg = ECErrorResponse
   { code = 400
   , response = A.encodePretty $ ECErrorPayload
@@ -268,7 +268,7 @@ merchantAccountNull = ECErrorResponse
       }
   }
 
-pmNotFound :: String -> ECErrorResponse
+pmNotFound :: Text -> ECErrorResponse
 pmNotFound txnId = ECErrorResponse
   { code = 400
   , response = A.encodePretty $ ECErrorPayload
@@ -279,7 +279,18 @@ pmNotFound txnId = ECErrorResponse
       }
   }
 
-orderNotFound :: String -> ECErrorResponse
+orderDoesNotExist :: Text -> ECErrorResponse
+orderDoesNotExist orderId = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status        = "invalid_request_error"
+      , error_code    = Nothing
+      , error_message = Just ("Order with id = \"" <> orderId <> "\" does not exist.")
+      , status_id     = Nothing
+      }
+  }
+
+orderNotFound :: Text -> ECErrorResponse
 orderNotFound orderId = ECErrorResponse
   { code = 200
   , response = A.encodePretty $ ECOrderStatusErrorPayload
@@ -291,7 +302,7 @@ orderNotFound orderId = ECErrorResponse
       }
   }
 
-txnNotFound :: String -> ECErrorResponse
+txnNotFound :: Text -> ECErrorResponse
 txnNotFound tid = ECErrorResponse
   { code = 200
   , response = A.encodePretty $ ECTxnStatusErrorPayload
@@ -347,7 +358,7 @@ secondFactorNotFound = ECErrorResponse
       }
   }
 
-gatewayNotSupported :: String -> ECErrorResponse
+gatewayNotSupported :: Text -> ECErrorResponse
 gatewayNotSupported gwStr = ECErrorResponse
   { code = 500
   , response = A.encodePretty $ ECErrorPayload
@@ -380,7 +391,7 @@ sessionTimeout = ECErrorResponse
       }
   }
 
-networkNotSupported :: String -> ECErrorResponse
+networkNotSupported :: Text -> ECErrorResponse
 networkNotSupported err = ECErrorResponse
   { code = 500
   , response = A.encodePretty $ ECErrorPayload
@@ -391,7 +402,7 @@ networkNotSupported err = ECErrorResponse
       }
   }
 
-paymentTypeNotSupported :: String -> ECErrorResponse
+paymentTypeNotSupported :: Text -> ECErrorResponse
 paymentTypeNotSupported pm = ECErrorResponse
   { code = 500
   , response = A.encodePretty $ ECErrorPayload
@@ -402,7 +413,7 @@ paymentTypeNotSupported pm = ECErrorResponse
       }
   }
 
-authTypeNotSupported :: String -> ECErrorResponse
+authTypeNotSupported :: Text -> ECErrorResponse
 authTypeNotSupported auth_type = ECErrorResponse
   { code = 500
   , response = A.encodePretty $ ECErrorPayload
@@ -413,7 +424,7 @@ authTypeNotSupported auth_type = ECErrorResponse
       }
   }
 
-generic500 :: String -> ECErrorResponse
+generic500 :: Text -> ECErrorResponse
 generic500 errMsg = ECErrorResponse
   { code = 500
   , response = A.encodePretty $ ECErrorPayload
@@ -424,7 +435,7 @@ generic500 errMsg = ECErrorResponse
       }
   }
 
-txnOfferNotFound :: String -> ECErrorResponse
+txnOfferNotFound :: Text -> ECErrorResponse
 txnOfferNotFound txnId = ECErrorResponse
   { code = 400
   , response = A.encodePretty $ ECErrorPayload

@@ -1,16 +1,15 @@
-{-# OPTIONS -fno-warn-orphans #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Euler.Storage.Validators.MerchantAccount where
 
 import EulerHS.Prelude
-import EulerHS.Extra.Validation as V
+import EulerHS.Extra.Validation
 
 import qualified Euler.Storage.Types.MerchantAccount  as SM
 import qualified Euler.Product.Domain.MerchantAccount as DM
 
-instance Transform SM.MerchantAccount DM.MerchantAccount where
-  transform sm = DM.MerchantAccount
+transSMaccToDomMacc :: SM.MerchantAccount -> V DM.MerchantAccount
+transSMaccToDomMacc sm = DM.MerchantAccount
     <$> withField @"id" sm (fromJust >=> notNegative)
     <*> withField @"merchantId" sm (fromJust >=> textNotEmpty)
 

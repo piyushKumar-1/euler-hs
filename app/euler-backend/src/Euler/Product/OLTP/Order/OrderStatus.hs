@@ -2433,10 +2433,11 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
             ,  offer_failure_reason = getField @"offer_failure_reason" pgr' -- : pgr'.offer_failure_reason
             ,  gateway_response = gatewayResponse -- TODO Text/ByteString?
           }
-
-          -- ordStatus' = ordStatus # _payment_gateway_response' .~ (NullOrUndefined Nothing)
-          --pure $ ordStatus' # _payment_gateway_response .~ (just pgr)
-          return orderStatus
+          
+          return $ orderStatus 
+            { payment_gateway_response' = Nothing
+            , payment_gateway_response = Just r
+            }
 
         Nothing -> return orderStatus
     Nothing -> return orderStatus

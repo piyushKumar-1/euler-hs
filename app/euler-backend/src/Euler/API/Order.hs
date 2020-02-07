@@ -339,6 +339,7 @@ defaultPaymentlinks = Paymentlinks
   , mobile = Nothing
   }
 
+-- EHS: why fields are maybe??
 data OrderTokenResp = OrderTokenResp
   { client_auth_token        :: Maybe Text
   , client_auth_token_expiry :: Maybe Text

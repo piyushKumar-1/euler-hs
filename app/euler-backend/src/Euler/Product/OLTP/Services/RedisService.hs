@@ -20,26 +20,6 @@ import qualified Data.Text.Encoding   as TE
 
 import qualified Euler.Config.ServiceConfiguration as SC
 import qualified Euler.Constant.Constants  as Constants (redis_token_expiry_default, token_max_usage_default, ecRedis)
---  import DB.Types (getCurrentDateInMillis, getCurrentDateStringWithOffset)
---  import Data.Foreign (Foreign, toForeign)
---  import Data.Foreign.Class (class Decode, class Encode, decode, encode)
---  import Data.Foreign.Generic (encodeJSON)
---  import Data.Generic.Rep (class Generic)
---  import Data.Int (toNumber)
---  import Data.StrMap (lookup)
---  import EC.ServiceConfiguration (TokenExpiryData(..), TokenCacheData(..), MerchantWiseTokenExpiryData(..))
---  import EC.ServiceConfiguration (findByName) as ServiceConfiguration
---  import Presto.Backend.Flow (BackendFlow, delCache, setCacheWithExpiry)
---  import Presto.Backend.Flow (log) as Presto
---  import Types.Alias (just, nothing)
---  import Types.App (defaultThrowECException)
---  import Utils.PrestoBackend (getUUID32)
---  import Utils.Utils (parseAndDecodeJson)
---  import Presto.Core.Utils.Encoding (defaultDecode, defaultEncode)
-
--- moved to the Euler.Config.ServiceConfiguration
---data ResourceType = ResourceInt Int | ResourceStr Text
---  deriving (Generic, Eq, Show, ToJSON, FromJSON)
 
 data TokenizedResource = TokenizedResource
   { token  :: Text
@@ -47,7 +27,8 @@ data TokenizedResource = TokenizedResource
   }
   deriving (Generic, Eq, Show, ToJSON, FromJSON)
 
-tokenizeResource :: ResourceType -> Text -> Text -> Flow TokenizedResource -- {token :: String, expiry :: String}
+-- EHS: rework
+tokenizeResource :: ResourceType -> Text -> Text -> Flow TokenizedResource
 tokenizeResource resourceId resourceType merchantId = do
   token'      <- ("tkn_" <>) <$> getUUID32
   TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
@@ -106,4 +87,3 @@ invalidateOrderStatusCache orderId merchantId = do
         , "ostatus_unauth_" <> merchantId <> "_" <> orderId
         ]
   logInfo "invalidateOrderStatusCacheEnd" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
-

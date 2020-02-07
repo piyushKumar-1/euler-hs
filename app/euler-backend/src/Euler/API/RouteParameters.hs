@@ -90,6 +90,7 @@ newtype Authorization = Authorization Text
 instance ToHttpApiData Authorization where toUrlPiece = coerce
 instance FromHttpApiData Authorization where parseUrlPiece = Right . coerce
 
+-- EHS: name clash
 newtype OrderId = OrderId Text
   deriving (Eq, Show, Data, Typeable, RouteParameter)
 

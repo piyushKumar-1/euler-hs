@@ -13,10 +13,3 @@ data PaymentMethodType
   | CARD
   | UPI
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-
-newtype OrderId = OrderId Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-newtype MerchantId = MerchantId Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

@@ -5,34 +5,27 @@ module Euler.Product.OLTP.Order.Create where
 
 import EulerHS.Prelude hiding (id, show, get)
 import qualified EulerHS.Prelude as EHP
-import EulerHS.Language
-import WebService.Language
-
-import           Data.Generics.Product.Fields
-import           Data.Generics.Product.Subtype
-import           Data.List (lookup, span)
-import           Servant.Server
-
--- EHS: Storage interaction should be extracted from here into separate modules.
--- EHS: Storage namespace should have a single top level module.
-import Euler.Storage.Types.Customer
-import Euler.Storage.Types.Mandate
-import qualified Euler.Storage.Types.MerchantAccount as DBMA
-import qualified Euler.Storage.Types.OrderAddress as Address (id)
-import Euler.Storage.Types.MerchantIframePreferences
-import Euler.Storage.Types.OrderAddress
-import Euler.Storage.Types.OrderMetadataV2
-import Euler.Storage.Types.OrderReference
-import qualified Euler.Storage.Types.OrderReference as DB
-import Euler.Storage.Types.ResellerAccount
-
-import Euler.KVDB.Redis (rGet, setCacheWithExpiry)
-import Euler.Storage.Types.EulerDB
 
 import qualified Prelude              as P (show, notElem)
 import qualified Data.Aeson           as A
 import qualified Data.Text            as Text
 import qualified Text.Read            as TR
+import           Data.Generics.Product.Fields
+import           Data.Generics.Product.Subtype
+import           Data.List (lookup, span)
+import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
+import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
+
+-- EHS: Storage interaction should be extracted from here into separate modules.
+-- EHS: Storage namespace should have a single top level module.
+import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Types.EulerDB (eulerDBSchema)
+import           Euler.Storage.DBConfig
+
+import           Euler.KVDB.Redis (rGet, setCacheWithExpiry)
+import           EulerHS.Language
+import           WebService.Language
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
@@ -40,27 +33,20 @@ import qualified Euler.API.Order            as API
 
 -- EHS: rework imports. Use top level modules.
 -- EHS: do not duplicate imports. Each import should not be specified several times.
-import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Gateway
-import Euler.Common.Types.Order
-import Euler.Common.Types.OrderMetadata
+import           Euler.Common.Types.DefaultDate
+import           Euler.Common.Types.Gateway
+import           Euler.Common.Types.Order
+import           Euler.Common.Types.OrderMetadata
 import qualified Euler.Common.Types.Mandate as M
-import qualified Euler.Common.Types.Order   as C
 import qualified Euler.Common.Metric        as Metric
 import qualified Euler.Product.Domain.Order as D
-import Euler.Product.Domain.MerchantAccount
-import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusRequest, getOrderStatusWithoutAuth)
-import Euler.Product.OLTP.Services.RedisService
-import qualified Euler.Config.Config        as Config
+import           Euler.Product.Domain.MerchantAccount
+import           Euler.Product.OLTP.Services.RedisService
+import qualified Euler.Product.Domain.Templates    as Ts
+import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
+import           Euler.Lens
 
-import qualified Euler.Product.Domain.Templates as Ts
-
-import Euler.Lens
-import Euler.Storage.DBConfig
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
 loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
 loadOrder orderId' merchantId' = do
@@ -92,23 +78,19 @@ loadOrder orderId' merchantId' = do
 -- EHS: this function is about validation.
 orderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 orderCreate routeParams order' mAccnt = do
-
-  -- EHS: HTTP error codes should exist only on the server level, not in business logic.
   -- EHS: loading merchant is a effectful pre-validation procedure.
   --      Should be done on the validation layer.
-  -- EHS: (Maybe MerchantId) should not be Maybe.
-  merchantId'   <- maybe (throwException err500 {errBody = "1"}) pure (mAccnt ^. _merchantId)
-
-  existingOrder <- loadOrder (order' ^. _order_id) merchantId'
+  existingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
 
   case existingOrder of
       -- EHS: rework exceptions
+      -- EHS: HTTP error codes should exist only on the server level, not in business logic.
     Just orderRef -> throwException err400 {errBody = "Order already created."}
     Nothing       -> doOrderCreate routeParams order' mAccnt
 
-doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse -- OrderAPIResponse
+doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
-  mandateOrder <- isMandateOrder routeParams order' merchantId
+  mandateOrder <- isMandateOrder routeParams order' (mAccnt ^. _merchantId)
   order        <- createOrder' routeParams order' mAccnt mandateOrder
   mbReseller   <- loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.
@@ -116,61 +98,55 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 
   let orderResponse = mkOrderResponse cfg order mbReseller
 
-  -- EHS: rework, skipping for now
+  -- EHS: magic constants
   let version = RP.lookupRP @RP.Version routeParams
   if version >= Just "2018-07-01" &&
-     (options_get_client_auth_token orderCreateReq == Just True)
+     (order' ^. _options_get_client_auth_token == Just True)
     then do
-      orderTokenData  <- addOrderToken (order ^. _id) orderCreateReq merchantId
-      pure $ updateResponse orderRef orderResponse orderTokenData
+      orderTokenData <- acquireOrderToken (order ^. _id) orderCreateReq merchantId
+      pure $ updateResponse order' orderResponse orderTokenData
     else pure orderResponse
 
-updateResponse :: OrderReference -> OrderCreateResponse -> Maybe OrderTokenResp -> OrderCreateResponse
-updateResponse OrderReference{..} apiResp orderTokenResp = do
-  (apiResp :: OrderCreateResponse)
-    { status = NEW
-    , status_id = orderStatusToInt NEW
-    , juspay = orderTokenResp
-    , udf1 =  udf1 <|> Just ""
-    , udf2 =  udf2 <|> Just ""
-    , udf3 =  udf3 <|> Just ""
-    , udf4 =  udf4 <|> Just ""
-    , udf5 =  udf5 <|> Just ""
-    , udf6 =  udf6 <|> Just ""
-    , udf7 =  udf7 <|> Just ""
-    , udf8 =  udf8 <|> Just ""
-    , udf9 =  udf9 <|> Just ""
-    , udf10 =  udf10 <|> Just ""
-    , return_url =  returnUrl <|> Just ""
-    , refunded = refundedEntirely <|> Just False
-    , product_id =  productId <|> Just ""
-    , merchant_id =  merchantId <|> Just ""
-    , date_created = Just $ dateCreated
-    , customer_phone =  customerPhone <|> Just ""
-    , customer_id =  customerId <|> Just ""
-    , customer_email =  customerEmail <|> Just ""
-    , currency =  currency <|> Just ""
-    , amount_refunded = amountRefunded <|> Just 0.0
-    , amount = amount <|> Just 0.0
+updateResponse :: Ts.OrderCreateTemplate-> API.OrderCreateResponse -> OrderTokenResp -> API.OrderCreateResponse
+updateResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
+    { API.status          = NEW
+    , API.status_id       = orderStatusToInt NEW      -- EHS: this logic should be tested.
+    , API.juspay          = Just orderTokenResp
+    , API.udf1            = udf1 <|> Just ""
+    , API.udf2            = udf2 <|> Just ""
+    , API.udf3            = udf3 <|> Just ""
+    , API.udf4            = udf4 <|> Just ""
+    , API.udf5            = udf5 <|> Just ""
+    , API.udf6            = udf6 <|> Just ""
+    , API.udf7            = udf7 <|> Just ""
+    , API.udf8            = udf8 <|> Just ""
+    , API.udf9            = udf9 <|> Just ""
+    , API.udf10           = udf10 <|> Just ""
+    , API.return_url      = returnUrl <|> Just ""
+    , API.refunded        = refundedEntirely <|> Just False
+    , API.product_id      = productId <|> Just ""
+    , API.merchant_id     = merchantId <|> Just ""
+    , API.date_created    = Just $ dateCreated
+    , API.customer_phone  = customerPhone <|> Just ""
+    , API.customer_id     = customerId <|> Just ""
+    , API.customer_email  = customerEmail <|> Just ""
+    , API.currency        = currency <|> Just ""
+    , API.amount_refunded = amountRefunded <|> Just 0.0
+    , API.amount          = amount <|> Just 0.0
     }
 
-addOrderToken :: Int -> OrderCreateRequest -> Text -> Flow  (Maybe OrderTokenResp)
-addOrderToken orderId OrderCreateRequest{..} merchantId = do
-  case options_get_client_auth_token of
-    Just True -> do
-      TokenizedResource{token, expiry} <- tokenizeResource (SC.ResourceInt orderId) "ORDER" merchantId
+-- EHS: previously addOrderToken
+acquireOrderToken :: OrderPId -> MerchantId -> Flow OrderTokenResp
+acquireOrderToken orderPId merchantId = do
+  TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
 
-      runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
+  -- EHS: check this
+  runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
 
-      pure $ Just $ OrderTokenResp
-                      { client_auth_token = Just $ token
-                      , client_auth_token_expiry = Just $ expiry
-                      }
-    Just _ -> pure $ Just $ OrderTokenResp {
-                                  client_auth_token = Nothing
-                                , client_auth_token_expiry = Nothing
-                                }
-    Nothing -> pure Nothing
+  pure $ OrderTokenResp
+    { client_auth_token        = Just token
+    , client_auth_token_expiry = Just expiry
+    }
 
 isMandateOrder :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantId -> Flow Bool
 isMandateOrder routeParams (Ts.OrderCreateTemplate {optionsCreateMandate}) merchantId = do
@@ -281,7 +257,7 @@ createOrder' routeParams order' mAccnt isMandate = do
   -- EHS: rework this. Skipping for now.
   let orderId = order ^. _orderId
   _ <- setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
-  _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId)
+  _ <- when isMandate (setMandateInCache orderCreateReq (order ^. _id) orderId merchantId)
   pure order
 
 fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> AddressHolderTemplate -> Ts.AddressHolderTemplate
@@ -645,9 +621,9 @@ loadReseller (Just resellerId') = do
 -- EHS: API type should not be used in the logic.
 -- EHS: previously makeOrderResponse
 mkOrderResponse :: Config.Config -> D.Order -> Maybe ResellerAccount -> API.OrderCreateResponse
-mkOrderResponse cfg order@(D.Order {..}) mbResellerAcc = API.defaultOrderCreateResponse
+mkOrderResponse cfg (D.Order {..}) mbResellerAcc = API.defaultOrderCreateResponse
     { API.status        = CREATED
-    , API.status_id     = orderStatusToInt CREATED
+    , API.status_id     = orderStatusToInt CREATED        -- EHS: this logic should be tested.
     , API.id            = orderUuid
     , API.order_id      = orderId
     , API.payment_links = Paymentlinks

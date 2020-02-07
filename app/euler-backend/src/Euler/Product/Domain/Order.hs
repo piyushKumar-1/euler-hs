@@ -11,10 +11,12 @@ import Euler.Common.Types.GatewayMetadata (GatewayMetadata)
 --import Euler.Common.Types.Promotion
 --import Euler.Common.Types.Address
 
--- Previously: OrderReference
 
+type OrderPId = Int
+
+-- Previously: OrderReference
 data Order = Order
-  { id                :: Int
+  { id                :: OrderPId
   , version           :: Int
   , amount            :: Money
   , currency          :: Currency

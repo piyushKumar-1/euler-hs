@@ -30,7 +30,7 @@ import Euler.API.Order
 import Euler.API.Types
 import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Mandate
+import Euler.Common.Types.Mandate as Man
 import Euler.Common.Utils
 import Euler.Common.Types.Gateway
 import Euler.Common.Types.TxnDetail
@@ -74,8 +74,8 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 31
--- to update '-- TODO update' - 19
+-- to port '-- TODO port' - 30
+-- to update '-- TODO update' - 20
 -- completed '-- done' - 23
 -- total number of functions = 73
 
@@ -2067,7 +2067,7 @@ getPayerVpa txn txnCardInfo = do
 
 -- ----------------------------------------------------------------------------
 -- function: updatePaymentMethodAndType
--- TODO port
+-- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2134,6 +2134,68 @@ updatePaymentMethodAndType txn card ordStatus = do
                                                 _ -> pure ordStatus
 -}
 
+updatePaymentMethodAndType :: TxnDetail -> TxnCardInfo -> OrderStatusResponse -> Flow OrderStatusResponse
+updatePaymentMethodAndType txn card ordStatus = do
+  case (getField @"cardType" card) of
+    Just "NB" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "NB"
+        } :: OrderStatusResponse)
+    Just "WALLET" -> do
+      payerVpa <- undefined :: Flow (Maybe Text) -- TODO: getPayerVpa txn card
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "WALLET"
+        , payer_vpa = payerVpa
+        } :: OrderStatusResponse)
+
+    Just "UPI" -> do
+      let ord  = setField @"payment_method" (Just "UPI") ordStatus
+          ordS = setField @"payment_method_type" (Just "UPI") ord
+          paymentSource = if (fromMaybe "null" $ getField @"paymentSource" card) == "null"
+            then Just "" -- just $ nullValue unit
+            else whenNothing (getField @"paymentSource" card) (Just "null")
+          sourceObj = fromMaybe "" $ getField @"sourceObject" txn
+      if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect" then pure (setField @"payer_vpa" paymentSource ordS)
+        else undefined :: Flow OrderStatusResponse -- TODO: addPayerVpaToResponse txn ordS paymentSource
+
+    Just "PAYLATER" ->
+      pure (ordStatus
+        { payment_method = Just "JUSPAY"
+        , payment_method_type =Just "PAYLATER"
+        } :: OrderStatusResponse)
+    Just "CARD" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "CARD"
+        } :: OrderStatusResponse)
+    Just "REWARD" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "REWARD"
+        } :: OrderStatusResponse)
+    Just "ATM_CARD" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "CARD"
+        } :: OrderStatusResponse)
+    Just _ -> checkPaymentMethodType card ordStatus
+    Nothing -> checkPaymentMethodType card ordStatus
+
+  where
+    checkPaymentMethodType card' ordStatus' = case (getField @"paymentMethodType" card') of
+      Just Man.CASH -> pure (ordStatus'
+        { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
+        , payment_method_type = Just "CASH"
+        } :: OrderStatusResponse)
+      Just CONSUMER_FINANCE ->
+          pure (ordStatus'
+            { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
+            , payment_method_type = Just "CONSUMER_FINANCE"
+            } :: OrderStatusResponse)
+      _ -> pure ordStatus'
+
 
 -- ----------------------------------------------------------------------------
 -- function: addRefundDetails
@@ -2165,7 +2227,7 @@ addRefundDetails txn ordStatus = do
           $ B.select
           $ B.filter_ predicate
           $ B.all_ (EDB.refund eulerDBSchema)
-      
+
       case refunds of
         [] -> pure ordStatus
         _  -> pure $ setField @"refunds" ( Just $ mapRefund <$> refunds) ordStatus
@@ -2213,7 +2275,7 @@ mapRefund refund = Refund'
   ,  unique_request_id = Just $ fromMaybe mempty (getField @"uniqueRequestId" refund)
   ,  ref = Just $ fromMaybe mempty (getField @"epgTxnId" refund)
   ,  created = show $ getField @"dateCreated" refund -- TODO date format
-  ,  status = getField @"status" refund --"" ORIG TODO // transform this 
+  ,  status = getField @"status" refund --"" ORIG TODO // transform this
   ,  error_message = Just $ fromMaybe mempty (getField @"errorMessage" refund)
   ,  sent_to_gateway = getStatus refund
   ,  arn = getField @"refundArn" refund

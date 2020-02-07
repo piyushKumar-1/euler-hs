@@ -71,10 +71,15 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 35
+-- to port '-- TODO port' - 31
 -- to update '-- TODO update' - 19
--- completed '-- done' - 18
--- Sum all functions = 72
+-- completed '-- done' - 23
+-- total number of functions = 73
+
+-- "xml cases"
+-- - TxnRiskCheck.completeResponse
+-- - PaymentGatewayResponse.responseXml
+--
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -1555,7 +1560,7 @@ checkGatewayRefIdForVodafone ordRef txn = do
 
 -- ----------------------------------------------------------------------------
 -- function: addRiskCheckInfoToResponse
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1719,6 +1724,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: addRiskObjDefaultValueAsNull
+-- done
 -- TODO check foreign fields seem to be the same in out design
 -- ----------------------------------------------------------------------------
 
@@ -2146,7 +2152,7 @@ addRefundDetails (TxnDetail txn) ordStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: addChargeBacks
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS

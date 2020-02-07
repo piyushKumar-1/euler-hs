@@ -2160,23 +2160,22 @@ addChargeBacks (TxnDetail txnDetail) orderStatus = do
 
 addChargeBacks :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
 addChargeBacks txnDetail orderStatus = do
-  let detailId = getField @"id" txnDetail
 
-  case (detailId) of
+  case (getField @"id" txnDetail) of
     Nothing -> pure orderStatus
-    otherwise -> do
+    Just detailId  -> do
       --chargeBacks <- DB.findAll ecDB (where_ := WHERE ["txn_detail_id" /\ String (nullOrUndefinedToAny (txnDetail.id) "")] :: WHERE Chargeback)
       chargeBacks <- withDB eulerDB $ do
         let predicate Chargeback {txnDetailId}
-              = txnDetailId ==. B.just_ (B.val_ $ fromJust detailId)
+              = txnDetailId ==. B.just_ (B.val_ detailId)
         findRows
           $ B.select
           $ B.filter_ predicate
           $ B.all_ (chargeback eulerDBSchema)
 
-      case (length chargeBacks) of
-        0 -> pure orderStatus
-        _ -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus 
+      case chargeBacks of
+        [] -> pure orderStatus
+        _  -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus 
             where 
               txn = mapTxnDetail txnDetail
 

@@ -11,6 +11,7 @@ import EulerHS.Prelude hiding (id)
 import qualified Database.Beam as B
 
 import qualified Euler.Storage.Types.AuthenticationAccount     as SAuthenticationAccount
+import qualified Euler.Storage.Types.CardInfo                  as SCardInfo
 import qualified Euler.Storage.Types.Chargeback                as SChargeback
 import qualified Euler.Storage.Types.Customer                  as SCustomer
 import qualified Euler.Storage.Types.Feature                   as SFeature
@@ -39,6 +40,7 @@ import qualified Euler.Storage.Types.SqliteTest as SSQLite
 
 data EulerDb f = EulerDb
   { authentication_account :: f (B.TableEntity SAuthenticationAccount.AuthenticationAccountT)
+  , card_info :: f (B.TableEntity SCardInfo.CardInfoT)
   , chargeback :: f (B.TableEntity SChargeback.ChargebackT)
   , customer :: f (B.TableEntity SCustomer.CustomerT)
   , feature :: f (B.TableEntity SFeature.FeatureT)
@@ -70,6 +72,7 @@ eulerDb :: B.DatabaseSettings be EulerDb
 eulerDb = B.defaultDbSettings `B.withDbModification`
   B.dbModification
     { authentication_account = SAuthenticationAccount.authenticationAccountEMod
+    , card_info = SCardInfo.cardInfoEMod
     , chargeback = SChargeback.chargebackEMod
     , customer = SCustomer.customerEMod
     , feature = SFeature.featureEMod

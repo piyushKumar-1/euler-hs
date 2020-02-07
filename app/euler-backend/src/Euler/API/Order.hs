@@ -541,6 +541,7 @@ data Chargeback' = Chargeback'
   ,  dispute_status      :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Refund' = Refund'
   {  id                    :: Maybe Text -- Foreign

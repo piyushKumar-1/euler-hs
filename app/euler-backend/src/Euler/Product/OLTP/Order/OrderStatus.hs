@@ -36,6 +36,8 @@ import Euler.Common.Types.Gateway
 import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
+import Euler.Common.Types.Refund
+
 import Euler.Product.Domain.Order (Order)
 import Euler.Product.OLTP.Card.Card
 import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
@@ -52,6 +54,7 @@ import Euler.Storage.Types.OrderMetadataV2
 import Euler.Storage.Types.OrderReference
 import Euler.Storage.Types.PaymentGatewayResponse
 import Euler.Storage.Types.Promotions
+import Euler.Storage.Types.Refund
 import Euler.Storage.Types.ResellerAccount
 import Euler.Storage.Types.RiskManagementAccount
 import Euler.Storage.Types.SecondFactor
@@ -2134,7 +2137,7 @@ updatePaymentMethodAndType txn card ordStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: addRefundDetails
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2149,6 +2152,92 @@ addRefundDetails (TxnDetail txn) ordStatus = do
     _ -> pure $ ordStatus # _refunds .~ (just $ mapRefund <$> refunds)
 -}
 
+
+addRefundDetails :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
+addRefundDetails txn ordStatus = do
+  --refunds <- DB.findAll ecDB ( order := [["dateCreated" , "ASC"]]
+  --   <> where_ := WHERE ["txn_detail_id" /\ String  (nullOrUndefinedToAny (txn.id) "")] :: WHERE Refund)
+  case (getField @"id" txn) of
+    Just txnId -> do
+      refunds <- withDB eulerDB $ do
+        let predicate Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+        findRows
+          $ B.select
+          $ B.filter_ predicate
+          $ B.all_ (EDB.refund eulerDBSchema)
+      
+      case refunds of
+        [] -> pure ordStatus
+        _  -> pure $ setField @"refunds" ( Just $ mapRefund <$> refunds) ordStatus
+
+-- ----------------------------------------------------------------------------
+-- function: mapRefund
+-- done
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+-- ----------------------------------------------------------------------------
+
+{-PS
+mapRefund :: Refund -> Refund'
+mapRefund refund =
+  let refundObj = unwrap refund
+  in Refund'
+       {  id : just (if (isPresent refundObj.referenceId) then toForeign (unNull refundObj.referenceId "") else nullValue unit)
+       ,  amount : refundObj.amount
+       ,  unique_request_id : just $ unNull refundObj.uniqueRequestId ""
+       ,  ref : just (if (isPresent refundObj.epgTxnId) then toForeign (unNull refundObj.epgTxnId "") else nullValue unit)
+       ,  created : (show refundObj.dateCreated)
+       ,  status : refundObj.status --"" TODO // transform this
+       ,  error_message : just $ unNull refundObj.errorMessage ""
+       ,  sent_to_gateway : getStatus refundObj
+       ,  arn : refundObj.refundArn
+       ,  initiated_by : refundObj.initiatedBy
+       ,  internal_reference_id : getRefId refundObj
+       ,  refund_source : just $ (if (isPresent refundObj.refundSource) then toForeign (unNull refundObj.refundSource "") else nullValue unit)
+       ,  refund_type : refundObj.refundType
+       }
+
+   where getStatus refundObj = just $
+           ((refundObj.status) == (Refund.SUCCESS))
+           || refundObj.processed
+           || (isTrue refundObj.sentToGateway)
+         getRefId refundObj =
+           if refundObj.gateway == "HDFC" && (isTrue refundObj.sentToGateway)
+           then refundObj.internalReferenceId
+           else NullOrUndefined Nothing
+-}
+
+mapRefund :: Refund -> Refund'
+mapRefund refund = Refund'
+  {  id = Just $ fromMaybe mempty (getField @"referenceId" refund)
+  ,  amount = getField @"amount" refund
+  ,  unique_request_id = Just $ fromMaybe mempty (getField @"uniqueRequestId" refund)
+  ,  ref = Just $ fromMaybe mempty (getField @"epgTxnId" refund)
+  ,  created = show $ getField @"dateCreated" refund -- TODO date format
+  ,  status = getField @"status" refund --"" ORIG TODO // transform this 
+  ,  error_message = Just $ fromMaybe mempty (getField @"errorMessage" refund)
+  ,  sent_to_gateway = getStatus refund
+  ,  arn = getField @"refundArn" refund
+  ,  initiated_by = getField @"initiatedBy" refund
+  ,  internal_reference_id = getRefId refund
+  ,  refund_source = Just $ fromMaybe mempty (getField @"refundSource" refund)
+  ,  refund_type = Just $ fromMaybe mempty (getField @"refundType" refund)
+  }
+
+  where
+    getStatus refundObj = Just $ (status == SUCCESS || processed || sentToGateway)
+      where
+        status = getField @"status" refund
+        processed = getField @"processed" refund
+        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
+
+
+    getRefId refundObj
+      | (gateway == "HDFC" && sentToGateway) = internalReferenceId
+      | otherwise = Nothing
+      where
+        gateway = getField @"gateway" refund
+        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
+        internalReferenceId = getField @"internalReferenceId" refund
 
 -- ----------------------------------------------------------------------------
 -- function: addChargeBacks

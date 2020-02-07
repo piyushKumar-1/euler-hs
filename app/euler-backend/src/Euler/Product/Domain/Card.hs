@@ -81,16 +81,3 @@ data CardType
   | REWARD
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
 
-
--- From EC.CardInfo
-data CardInfo = CardInfo
-  { cardIsin :: Text -- 'id' in graphh
-  , cardIssuerBankName :: Maybe Text
-  , cardSwitchProvider :: Text
-  , cardType :: Maybe Text
-  , cardSubType :: Maybe Text
-  , cardIssuerCountry :: Maybe Text
-  , hit :: Maybe Int
-  -- , hdfcIvrEnabled :: Maybe Bool -- just in euler-ps
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

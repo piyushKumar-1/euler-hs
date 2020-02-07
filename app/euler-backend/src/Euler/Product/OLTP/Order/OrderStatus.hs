@@ -33,31 +33,32 @@ import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate
 import Euler.Common.Utils
 import Euler.Common.Types.Gateway
-import Euler.Storage.Types.OrderMetadataV2
 import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
 import Euler.Product.Domain.Order (Order)
+import Euler.Product.OLTP.Card.Card
 import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
 
-import           Euler.Storage.Types.Chargeback
-import           Euler.Storage.Types.Customer
-import           Euler.Storage.Types.Feature
-import           Euler.Storage.Types.Mandate
-import           Euler.Storage.Types.MerchantAccount
-import           Euler.Storage.Types.MerchantIframePreferences
-import           Euler.Storage.Types.MerchantKey
-import           Euler.Storage.Types.OrderReference
-import           Euler.Storage.Types.PaymentGatewayResponse
-import           Euler.Storage.Types.Promotions
-import           Euler.Storage.Types.ResellerAccount
-import           Euler.Storage.Types.RiskManagementAccount
-import           Euler.Storage.Types.SecondFactor
-import           Euler.Storage.Types.SecondFactorResponse
-import           Euler.Storage.Types.TxnCardInfo
-import           Euler.Storage.Types.TxnDetail
-import           Euler.Storage.Types.TxnRiskCheck
+import Euler.Storage.Types.Chargeback
+import Euler.Storage.Types.Customer
+import Euler.Storage.Types.Feature
+import Euler.Storage.Types.Mandate
+import Euler.Storage.Types.MerchantAccount
+import Euler.Storage.Types.MerchantIframePreferences
+import Euler.Storage.Types.MerchantKey
+import Euler.Storage.Types.OrderMetadataV2
+import Euler.Storage.Types.OrderReference
+import Euler.Storage.Types.PaymentGatewayResponse
+import Euler.Storage.Types.Promotions
+import Euler.Storage.Types.ResellerAccount
+import Euler.Storage.Types.RiskManagementAccount
+import Euler.Storage.Types.SecondFactor
+import Euler.Storage.Types.SecondFactorResponse
+import Euler.Storage.Types.TxnCardInfo
+import Euler.Storage.Types.TxnDetail
+import Euler.Storage.Types.TxnRiskCheck
 
 import Euler.Storage.Types.EulerDB as EDB
 
@@ -70,10 +71,10 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 36
+-- to port '-- TODO port' - 35
 -- to update '-- TODO update' - 19
 -- completed '-- done' - 18
--- Sum all functions = 73
+-- Sum all functions = 72
 
 -- 40x error with error message
 myerr    n = err403 { errBody = "Err # " <> n }
@@ -1809,13 +1810,13 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
   let enableSendingCardIsin = fromMaybe False (getField @"enableSendingCardIsin" mAccnt)
   case txnCard of
     Just card -> do
-      cardBrandMaybe <- (undefined :: Flow (Maybe Text)) -- TODO: getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+      cardBrandMaybe <- getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
       orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
       let orderStatus' =
             addCardInfo txn card enableSendingCardIsin cardBrandMaybe
               $ addAuthType card
               $ addEmi txn orderStatus
-      (undefined :: Flow OrderStatusResponse) -- TODO: addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
+      addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
     Nothing -> pure ordStatus
 
 -- ----------------------------------------------------------------------------
@@ -2175,8 +2176,8 @@ addChargeBacks txnDetail orderStatus = do
 
       case chargeBacks of
         [] -> pure orderStatus
-        _  -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus 
-            where 
+        _  -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus
+            where
               txn = mapTxnDetail txnDetail
 
 -- ----------------------------------------------------------------------------
@@ -2433,8 +2434,8 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
             ,  offer_failure_reason = getField @"offer_failure_reason" pgr' -- : pgr'.offer_failure_reason
             ,  gateway_response = gatewayResponse -- TODO Text/ByteString?
           }
-          
-          return $ orderStatus 
+
+          return $ orderStatus
             { payment_gateway_response' = Nothing
             , payment_gateway_response = Just r
             }
@@ -3193,24 +3194,6 @@ mapTxnDetail txn = TxnDetail'
 
 
 -- -----------------------------------------------------------------------------
--- Function: getCardBrandFromIsin
--- TODO port
--- added from Utils.Card
--- -----------------------------------------------------------------------------
-
-{-
-getCardBrandFromIsin ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe String)
-getCardBrandFromIsin cardIsin = do
-  cardBrand <- pure $ getCardBrand cardIsin
-  case cardBrand of
-    "" -> do
-      cardInfo <- DB.findOne ecDB (where_ := WHERE ["card_isin" /\ String cardIsin] :: WHERE CardInfo)
-      cardSwitchProvider <- pure $ maybe "" ( _.cardSwitchProvider <<< unwrap) cardInfo
-      if (cardSwitchProvider == "") then (pure Nothing) else pure $ Just cardSwitchProvider
-    _ -> pure $ Just cardBrand
--}
-
--- -----------------------------------------------------------------------------
 -- Function: findMaybeSecondFactorByTxnDetailId
 -- TODO port
 -- added from EC.SecondFactor
@@ -3243,3 +3226,5 @@ findMaybeSFRBySfId second_factor_id = withDB eulerDB $ do
     $ B.limit_ 1
     $ B.filter_ predicate
     $ B.all_ (EDB.second_factor_response eulerDBSchema)
+
+

@@ -2160,15 +2160,12 @@ addChargeBacks (TxnDetail txnDetail) orderStatus = do
 
 addChargeBacks :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
 addChargeBacks txnDetail orderStatus = do
-  let detailId = getField @"id" txnDetail
-  when
-
-  let txn = mapTxnDetail txnDetail
+  detailId :: Maybe Text <- whenNothing (getField @"id" txnDetail) (throwException err500)  
 
   --chargeBacks <- DB.findAll ecDB (where_ := WHERE ["txn_detail_id" /\ String (nullOrUndefinedToAny (txnDetail.id) "")] :: WHERE Chargeback)
   chargeBacks <- withDB eulerDB $ do
     let predicate Chargeback {txnDetailId}
-          = txnDetailId ==. B.just_ (B.val_ detailId)
+          = txnDetailId ==. B.just_ (B.val_ $ fromJust detailId)
     findRows
       $ B.select
       $ B.filter_ predicate
@@ -2176,7 +2173,9 @@ addChargeBacks txnDetail orderStatus = do
 
   case (length chargeBacks) of
     0 -> pure orderStatus
-    _ -> pure $ setField @"chargebacks" orderStatus (Just $ mapChargeback txn <$> chargeBacks)
+    _ -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus 
+         where 
+           txn = mapTxnDetail txnDetail
 
 -- ----------------------------------------------------------------------------
 -- function: mapChargeback
@@ -2208,7 +2207,7 @@ mapChargeback txn chargeback =
   ,  amount = Just $ getField @"amount" chargeback
   ,  object_reference_id = Just $ getField @"objectReferenceId" chargeback
   ,  txn = Just txn
-  ,  date_resolved = Just $ getField @"dateResolved" chargeback
+  ,  date_resolved = getField @"dateResolved" chargeback
   ,  date_created = Just $ getField @"dateCreated" chargeback
   ,  last_updated = Just $ getField @"lastUpdated" chargeback
   ,  object = Just "chargeback"

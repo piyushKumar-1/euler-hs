@@ -3,8 +3,6 @@
 
 module Euler.API.Order where
 
-import           Data.Aeson
-import           Data.Time
 import           EulerHS.Prelude
 import           Web.FormUrlEncoded
 

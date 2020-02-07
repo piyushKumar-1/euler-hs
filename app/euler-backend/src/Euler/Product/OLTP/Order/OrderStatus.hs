@@ -2179,8 +2179,8 @@ addChargeBacks txnDetail orderStatus = do
     _ -> pure $ setField @"chargebacks" orderStatus (Just $ mapChargeback txn <$> chargeBacks)
 
 -- ----------------------------------------------------------------------------
--- function: lookupPgRespXml
--- TODO port
+-- function: mapChargeback
+-- done
 -- from src/Types/Storage/EC/Chargeback.purs
 -- ----------------------------------------------------------------------------
 

@@ -237,7 +237,7 @@ createOrder' routeParams order' mAccnt isMandate = do
 
   mbCustomer                <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
   let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
-
+  let customerContacts = mkCustContacts mbCustomer order'
   mbBillingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrHolder
   -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
   mbShippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
@@ -251,7 +251,7 @@ createOrder' routeParams order' mAccnt isMandate = do
       (Nothing, True) -> throwException $ err500 {errBody = "Customer not found"}
       (mbCId, _)      -> pure mbCId
 
-  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer
+  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer customerContacts
   _     <- saveOrderMetadata routeParams order
 
   -- EHS: rework this. Skipping for now.
@@ -260,11 +260,19 @@ createOrder' routeParams order' mAccnt isMandate = do
   _ <- when isMandate (setMandateInCache orderCreateReq (order ^. _id) orderId merchantId)
   pure order
 
-fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> AddressHolderTemplate -> Ts.AddressHolderTemplate
+fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> Ts.AddressHolderTemplate -> Ts.AddressHolderTemplate
 fillBillingAddressHolder Nothing addressHolder = addressHolder
-fillBillingAddressHolder (Just (TS.CustomerTemplate _ mbFirstName mbLastName)) (Ts.AddressHolderTemplate {..})
+fillBillingAddressHolder (Just (TS.CustomerTemplate _ mbFirstName mbLastName _ _)) (Ts.AddressHolderTemplate {..})
   = Ts.AddressHolderTemplate (firstName <|> mbFirstName) (lastName <|> mbLastName)
 
+-- previously addCustomerInfo
+mkCustContacts :: Maybe Ts.CustomerTemplate -> Ts.OrderCreateTemplate -> Ts.CustomerContacts
+mkCustContacts Nothing orderCreateTemplate{..} = Ts.CustomerContacts customerEmail customerPhone
+mkCustContacts (Just Ts.CustomerTemplate {emailAddress, mobileNumber}) orderCreateTemplate =
+  Ts.CustomerContacts
+    { customerEmail = customerEmail <|> emailAddress
+    , customerPhone = customerPhone <|> Just mobileNumber
+    }
 
 loadCustomer :: Maybe CustomerId -> MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
 loadCustomer Nothing _ = pure Nothing
@@ -343,6 +351,7 @@ saveOrder
   -> Maybe Int
   -> Maybe Int
   -> Maybe CustomerId
+  -> Ts.CustomerContacts
   -> Flow D.Order
 saveOrder
   (order'@Ts.OrderCreateTemplate {..})
@@ -350,6 +359,7 @@ saveOrder
   currency'
   mbBillingAddrId
   mbShippingAddrId
+  customerContacts{..}
   mbCustomerId = do
 
   -- Returns UUID with deleted '-'.
@@ -371,8 +381,8 @@ saveOrder
           , DB.shippingAddressId  = mbShippingAddrId
           , DB.currency           = currency'
           , DB.customerId         = mbCustomerId
-          , DB.customerEmail      = customerEmail
-          , DB.customerPhone      = customerPhone
+          , DB.customerEmail      = customerEmailAddress
+          , DB.customerPhone      = customerMobileNumber
           , DB.returnUrl          = returnUrl
           , DB.description        = description
           , DB.orderUuid          = Just orderUuid
@@ -388,7 +398,8 @@ saveOrder
   -- EHS: rework it, skipping for now.
   -- It's not clear what this function does.
   -- Doesn't seem to be a right place for it.
-  addCustomerInfo req account (mapUDFParams req orderRef)
+  -- now mkCustContacts
+ -- addCustomerInfo req account (mapUDFParams req orderRef)
 
   refs <- withDB eulerDB
       $ insertRowsReturningList
@@ -489,6 +500,12 @@ mapUDFParams req params =  smash newUDF params
   -- EHS: Why are udf fields 1-5 cleaned and the rest not?
 
 -- EHS: very bad function.
+-- this function set in orderReference
+--   customerPhone <- Customer mobileNumber
+--   customerEmail <- Customer emailAddress
+-- if customer_id present in OrderCreateRequest
+-- and some of customer_phone or customer_email are not
+-- now fillCustPhoneMail
 addCustomerInfo :: OrderCreateRequest -> MerchantAccount -> OrderReference -> Flow OrderReference
 addCustomerInfo orderCreateReq account orderRef =
   if hasPartialCustomerInfo
@@ -533,7 +550,7 @@ addCustomerInfo orderCreateReq account orderRef =
               && ((isNothing customer_phone)
                 || (isNothing customer_email ))
 
-
+-- EHS: usless, we check this in validation.
 validateOrderParams :: OrderCreateRequest -> Flow ()
 validateOrderParams OrderCreateRequest {..} = if amount < 1
   then throwException $ err400 {errBody = "Invalid amount"}
@@ -541,6 +558,8 @@ validateOrderParams OrderCreateRequest {..} = if amount < 1
 
 -- EHS: bad function.
 -- EHS: previously getOrderId
+-- EHS: use validated Order domain type instead of DB OrderReference.
+--      In this case this function is useless
 getPId :: OrderReference -> Flow Int
 getPId OrderReference {id} = case id of
     Just x -> pure x

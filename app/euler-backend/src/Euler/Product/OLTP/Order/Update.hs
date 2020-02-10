@@ -53,7 +53,7 @@ import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 -- ### EHS: functions like in orderCreate - move to separate module ###
 
 -- loadCustomer
--- fillBillingAddressHolder
+-- fillBillingAddressHolder -- fillAddressHolder ?
 
 loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
 loadOrder orderId' merchantId' = withDB eulerDB $ do
@@ -115,6 +115,7 @@ updateAddress mCT currAddrId addrT addrHolderT =
       mAddr <- withDB eulerDB
           $ insertRowsReturningList
           $ B.insert (order_address eulerDBSchema)
+          -- EHS : if in db OrderAddres id changed from Int to Text (so it is not auto-incremented) we should generate uuid or what?
           $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
       pure $ (^. _id) =<< (safeHead mAddr)
 
@@ -156,7 +157,7 @@ toDBAddress' mCT aT@Ts.AddressTemplate {..} ahT
         , ..
         }
   where
-    Ts.AddressHolderTemplate {..} = fillBillingAddressHolder mCT aht
+    Ts.AddressHolderTemplate {..} = fillBillingAddressHolder mCT ahT
 
 -- better name?
 addressEmpty :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Bool
@@ -207,16 +208,16 @@ orderUpdate  routeParams orderUpdateT mAccnt = do
                   -- pure ordStatusResp
                 Failure e -> do
                   logError "Incorrect order in DB"
-                    $  "orderId: " <> orderId'
-                    <> "merchantId: " merchantId'
-                    <> "error: " <> show err
+                    $  "orderId: "    <> orderId'
+                    <> "merchantId: " <> merchantId'
+                    <> "error: "      <> show e
                   throwException internalError
             Nothing -> throwException $ orderDoesNotExist orderId'
   logInfo "order update response: " $ show resp
   pure resp
 
 
-doOrderUpdate :: Ts.OrderUpdateTemplate -> Order -> -> MerchantAccount -> Flow ()
+doOrderUpdate :: Ts.OrderUpdateTemplate -> Order -> MerchantAccount -> Flow ()
 doOrderUpdate orderUpdateT order@Order {..}  mAccnt = do
   case status of
     C.SUCCESS -> do
@@ -233,7 +234,7 @@ doOrderUpdate orderUpdateT order@Order {..}  mAccnt = do
 
 
 -- Domain Order should contain fields like storage OrderReference
-updateDBOrder :: Order -> UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow () --OrderReference
+updateDBOrder :: Order -> C.UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow () --OrderReference
 updateDBOrder currOrd@Order{..} newUdf mAmount mbBillingAddrId mbShippingAddrId = do
   currentDate' <- getCurrentDateUTC
   withDB eulerDB
@@ -250,7 +251,7 @@ updateDBOrder currOrd@Order{..} newUdf mAmount mbBillingAddrId mbShippingAddrId 
         }
 
 -- another variant of update
-updateDBOrder2 :: Int -> UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow ()
+updateDBOrder2 :: Int -> C.UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow ()
 updateDBOrder2 orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do
   currentDate' <- getCurrentDateUTC
   withDB eulerDB

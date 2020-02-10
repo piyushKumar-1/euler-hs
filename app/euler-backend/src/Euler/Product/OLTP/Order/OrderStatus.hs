@@ -28,6 +28,7 @@ import qualified Data.Map.Strict as Map
 
 import Euler.API.Order
 import Euler.API.Types
+import Euler.API.Transaction
 import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Mandate as Mandate
@@ -74,9 +75,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 25
+-- to port '-- TODO port' - 23
 -- to update '-- TODO update' - 22
--- completed '-- done' - 26
+-- completed '-- done' - 28
 -- total number of functions = 73
 
 -- "xml cases"
@@ -2914,7 +2915,7 @@ casematch txn pgr dfpgresp gw xmls = match gw
 -}
 
 -- ----------------------------------------------------------------------------
--- function:
+-- function: getPaymentGatewayResponse
 -- TODO port
 -- ----------------------------------------------------------------------------
 
@@ -3237,6 +3238,32 @@ getTxnStatusResponse txnDetail@(TxnDetail txn) merchantAccount sf = do
       , payment : nothing
     }
 -}
+
+-- Original getTxnStatusResponse has `SecondFactor` that not used, Correct is argument 'OrderStatusResponse'
+getTxnStatusResponse :: TxnDetail -> MerchantAccount -> OrderStatusResponse -> Flow TxnStatusResponse
+getTxnStatusResponse txnDetail merchantAccount ordStatus = do
+  ordStatusResponse <- addPaymentMethodInfo merchantAccount txnDetail ordStatus
+                        >>= addRefundDetails txnDetail
+                        >>= addGatewayResponse txnDetail False
+
+  txnSRId <- whenNothing (getField @"txnUuid" txnDetail) (throwException err500)
+  txnSRgateway <- whenNothing (getField @"gateway" txnDetail) (throwException err500)
+  txnSRCreated <- whenNothing (getField @"dateCreated" txnDetail) (throwException err500)
+
+  pure TxnStatusResponse
+    { id = txnSRId
+    , order_id = getField @"orderId" txnDetail
+    , txn_id = getField @"txnId" txnDetail
+    , status = getField @"status" txnDetail
+    , gateway = txnSRgateway
+    , created = txnSRCreated
+    , resp_code = fromMaybe T.empty $ getField @"bankErrorCode" txnDetail
+    , resp_message = fromMaybe T.empty $ getField @"bankErrorMessage" txnDetail
+    , payment_info = getPaymentInfo ordStatusResponse
+    , payment_gateway_response = getField @"payment_gateway_response" ordStatusResponse
+    , refunds = getField @"refunds" ordStatusResponse
+    , payment = Nothing
+    }
 
 -- ----------------------------------------------------------------------------
 -- function: getPaymentInfo

@@ -2,7 +2,7 @@
 
 module Euler.API.Transaction where
 
-import           EulerHS.Prelude
+import EulerHS.Prelude
 
 import           Euler.Common.Types.Transaction (AuthType, PaymentMethodType)
 
@@ -149,17 +149,20 @@ data TransactionResponse = TransactionResponse
 --   , transactionId :: Text
 --   }
 --
--- newtype AuthResp = AuthResp
---   { method :: Text
---   , url :: Text
---   , params :: Maybe Foreign
---   }
---
--- newtype PaymentResp = PaymentResp
---   { authentication :: AuthResp
---   , sdk_params :: Foreign
---   , qr_code    :: Foreign
---   }
+data AuthResp = AuthResp
+  { method :: Text
+  , url    :: Text
+  , params :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data PaymentResp = PaymentResp
+  { authentication :: AuthResp
+  , sdk_params     :: Text
+  , qr_code        :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 --
 -- data TransactionCreateResp = TransactionCreateJsonResp JsonResp
 --                            | TransactionCreateRedirectResp RedirectResp
@@ -420,19 +423,22 @@ data TransactionResponse = TransactionResponse
 --   , auto_capture  :: Maybe Boolean
 -- }
 --
--- newtype TxnStatusResponse = TxnStatusResponse {
---     id :: Text
---   , order_id :: Text
---   , txn_id :: Text
---   , status :: TxnStatus
---   , gateway :: Text
---   , created :: Date
---   , resp_code :: Text
---   , resp_message :: Text
---   , payment_info :: PaymentInfo
---   , payment_gateway_response :: Maybe MerchantPaymentGatewayResponse
---   , refunds :: Maybe (Array Refund')
--- }
+data TxnStatusResponse = TxnStatusResponse
+  { id                       :: Text
+  , order_id                 :: Text
+  , txn_id                   :: Text
+  , status                   :: TxnStatus
+  , gateway                  :: Text
+  , created                  :: LocalTime
+  , resp_code                :: Text
+  , resp_message             :: Text
+  , payment_info             :: PaymentInfo
+  , payment_gateway_response :: Maybe MerchantPaymentGatewayResponse
+  , refunds                  :: Maybe [Refund']
+  , payment                  :: Maybe PaymentResp
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 --
 -- data Action = OnBoarding { content :: Text, data :: Text }
 --             | DirectDebit { idToken :: Maybe Text, txn_status_response :: PGRedirectResponseWithSignature }

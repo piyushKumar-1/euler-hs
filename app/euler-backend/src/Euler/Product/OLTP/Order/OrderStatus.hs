@@ -74,9 +74,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 27
+-- to port '-- TODO port' - 26
 -- to update '-- TODO update' - 22
--- completed '-- done' - 24
+-- completed '-- done' - 25
 -- total number of functions = 73
 
 -- "xml cases"
@@ -1478,6 +1478,76 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
            then getField @"gatewayPayload" txn
            else Nothing
 
+-- ----------------------------------------------------------------------------
+-- function: mapTxnDetail
+-- added from Types.Communication.OLTP.OrderStatus
+-- done
+-- ----------------------------------------------------------------------------
+
+{-
+mapTxnDetail :: TxnDetail -> TxnDetail'
+mapTxnDetail (TxnDetail txn) =
+    TxnDetail' {
+          txn_id : txn.txnId,
+          order_id : txn.orderId,
+          txn_uuid : txn.txnUuid,
+          gateway_id : just (maybe 0 gatewayIdFromGateway $ stringToGateway (unNull txn.gateway "")),
+          status : show txn.status,
+          gateway : txn.gateway,
+          express_checkout : txn.expressCheckout,
+          redirect : txn.redirect,
+          net_amount : just (if (isPresent txn.netAmount) then toForeign (unNull txn.netAmount 0.0) else nullValue unit),
+          surcharge_amount : just (if (isPresent txn.surchargeAmount) then toForeign (unNull txn.surchargeAmount 0.0) else nullValue unit),
+          tax_amount : just (if (isPresent txn.taxAmount) then toForeign (unNull txn.taxAmount 0.0) else nullValue unit),
+          txn_amount : just (if (isPresent txn.txnAmount) then toForeign (unNull txn.txnAmount 0.0) else nullValue unit),
+          currency : txn.currency,
+          error_message : just (unNull txn.bankErrorMessage ""),
+          error_code : just (if (isPresent txn.bankErrorCode) then toForeign (unNull txn.bankErrorCode "") else nullValue unit),
+          created : txn.dateCreated,
+          txn_object_type : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.txnObjectType else nothing,
+          source_object : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.sourceObject else nothing,
+          source_object_id : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.sourceObjectId else nothing
+        }
+-}
+
+mapTxnDetail :: TxnDetail -> TxnDetail'
+mapTxnDetail txn = TxnDetail'
+  { txn_id = getField @"txnId" txn
+  , order_id = getField @"orderId" txn
+  , txn_uuid = getField @"txnUuid" txn
+  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ stringToGateway $ fromMaybe mempty $ getField @"gateway" txn
+  , status = show $ getField @"status" txn
+  , gateway = getField @"gateway" txn
+  , express_checkout = getField @"expressCheckout" txn
+  , redirect = getField @"redirect" txn
+  , net_amount = Just $ if isJust (getField @"netAmount" txn)
+      then show $ fromMaybe 0 (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
+      else mempty
+  , surcharge_amount = Just $ if isJust (getField @"surchargeAmount" txn)
+      then show $ fromMaybe 0 (getField @"surchargeAmount" txn)
+      else mempty
+  , tax_amount = Just $ if isJust (getField @"taxAmount" txn)
+      then show $ fromMaybe 0 (getField @"taxAmount" txn)
+      else mempty
+  , txn_amount = Just $ if isJust (getField @"txnAmount" txn)
+      then show $ fromMaybe 0 (getField @"txnAmount" txn)
+      else mempty
+  , currency = getField @"currency" txn
+  , error_message = Just $ fromMaybe mempty $ getField @"bankErrorMessage" txn
+  , error_code = Just $ if isJust (getField @"bankErrorCode" txn)
+      then fromMaybe mempty (getField @"bankErrorCode" txn)
+      else mempty
+  , created = getField @"dateCreated" txn
+  , txn_object_type = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"txnObjectType" txn
+      else Nothing
+  , source_object = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"sourceObject" txn
+      else Nothing
+  , source_object_id = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"sourceObjectId" txn
+      else Nothing
+        }
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayReferenceId
@@ -1861,7 +1931,8 @@ addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
 addSecondFactorResponseAndTxnFlowInfo :: TxnDetail -> TxnCardInfo -> OrderStatusResponse -> Flow OrderStatusResponse
 addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
   if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
-    maybeSf <- undefined :: Flow (Maybe SecondFactor) -- TODO: findMaybeSecondFactorByTxnDetailId $ whenNothing (getField @"id" txn) (throwException err500) -- (txn .^. _id)
+    txnDetId <- whenNothing (getField @"id" txn) (throwException err500)
+    maybeSf <- findMaybeSecondFactorByTxnDetailId txnDetId
     case maybeSf of
       Just sf -> do
         (authReqParams :: ViesGatewayAuthReqParams) <- undefined :: Flow ViesGatewayAuthReqParams
@@ -1878,6 +1949,50 @@ addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
         pure orderStatus
       Nothing ->  pure orderStatus -- NO Sf present
     else pure orderStatus --NON VIES Txn
+
+-- -----------------------------------------------------------------------------
+-- Function: findMaybeSFRBySfId
+-- done
+-- added from EC.SecondFactorResponse
+-- -----------------------------------------------------------------------------
+
+{-
+findMaybeSFRBySfId ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe SecondFactorResponse)
+findMaybeSFRBySfId second_factor_id =
+  DB.findOne ecDB (where_ := WHERE ["second_factor_id" /\ String second_factor_id] :: WHERE SecondFactorResponse)
+-}
+
+findMaybeSFRBySfId :: Text -> Flow (Maybe SecondFactorResponse)
+findMaybeSFRBySfId second_factor_id = withDB eulerDB $ do
+  let predicate SecondFactorResponse{secondFactorId} =
+        secondFactorId ==. B.just_ (B.val_ second_factor_id)
+  findRow
+    $ B.select
+    $ B.limit_ 1
+    $ B.filter_ predicate
+    $ B.all_ (EDB.second_factor_response eulerDBSchema)
+
+-- -----------------------------------------------------------------------------
+-- Function: findMaybeSecondFactorByTxnDetailId
+-- done
+-- added from EC.SecondFactor
+-- -----------------------------------------------------------------------------
+
+{-
+findMaybeSecondFactorByTxnDetailId ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe SecondFactor)
+findMaybeSecondFactorByTxnDetailId txnDetail_id =
+  DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String txnDetail_id] :: WHERE SecondFactor)
+-}
+
+findMaybeSecondFactorByTxnDetailId :: Text -> Flow (Maybe SecondFactor)
+findMaybeSecondFactorByTxnDetailId txnDetail_id = withDB eulerDB $ do
+  let predicate SecondFactor{txnDetailId} =
+        txnDetailId ==. B.just_ (B.val_ txnDetail_id)
+  findRow
+    $ B.select
+    $ B.limit_ 1
+    $ B.filter_ predicate
+    $ B.all_ (EDB.second_factor eulerDBSchema)
 
 
 -- ----------------------------------------------------------------------------
@@ -3329,123 +3444,3 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                   , orderId     = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
-
-
-
-
-
-
-
-
-
--- ---------------------------------------------------------------------
--- Functions added from other modules
-------------------------------------------------------------------------
-
--- ----------------------------------------------------------------------------
--- function: mapTxnDetail
--- added from Types.Communication.OLTP.OrderStatus
--- done
--- ----------------------------------------------------------------------------
-
-{-
-mapTxnDetail :: TxnDetail -> TxnDetail'
-mapTxnDetail (TxnDetail txn) =
-    TxnDetail' {
-          txn_id : txn.txnId,
-          order_id : txn.orderId,
-          txn_uuid : txn.txnUuid,
-          gateway_id : just (maybe 0 gatewayIdFromGateway $ stringToGateway (unNull txn.gateway "")),
-          status : show txn.status,
-          gateway : txn.gateway,
-          express_checkout : txn.expressCheckout,
-          redirect : txn.redirect,
-          net_amount : just (if (isPresent txn.netAmount) then toForeign (unNull txn.netAmount 0.0) else nullValue unit),
-          surcharge_amount : just (if (isPresent txn.surchargeAmount) then toForeign (unNull txn.surchargeAmount 0.0) else nullValue unit),
-          tax_amount : just (if (isPresent txn.taxAmount) then toForeign (unNull txn.taxAmount 0.0) else nullValue unit),
-          txn_amount : just (if (isPresent txn.txnAmount) then toForeign (unNull txn.txnAmount 0.0) else nullValue unit),
-          currency : txn.currency,
-          error_message : just (unNull txn.bankErrorMessage ""),
-          error_code : just (if (isPresent txn.bankErrorCode) then toForeign (unNull txn.bankErrorCode "") else nullValue unit),
-          created : txn.dateCreated,
-          txn_object_type : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.txnObjectType else nothing,
-          source_object : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.sourceObject else nothing,
-          source_object_id : if (unNull txn.txnObjectType "") /= "ORDER_PAYMENT" then txn.sourceObjectId else nothing
-        }
--}
-
-mapTxnDetail :: TxnDetail -> TxnDetail'
-mapTxnDetail txn = TxnDetail'
-  { txn_id = getField @"txnId" txn
-  , order_id = getField @"orderId" txn
-  , txn_uuid = getField @"txnUuid" txn
-  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ stringToGateway $ fromMaybe mempty $ getField @"gateway" txn
-  , status = show $ getField @"status" txn
-  , gateway = getField @"gateway" txn
-  , express_checkout = getField @"expressCheckout" txn
-  , redirect = getField @"redirect" txn
-  , net_amount = Just $ if isJust (getField @"netAmount" txn)
-      then show $ fromMaybe 0 (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
-      else mempty
-  , surcharge_amount = Just $ if isJust (getField @"surchargeAmount" txn)
-      then show $ fromMaybe 0 (getField @"surchargeAmount" txn)
-      else mempty
-  , tax_amount = Just $ if isJust (getField @"taxAmount" txn)
-      then show $ fromMaybe 0 (getField @"taxAmount" txn)
-      else mempty
-  , txn_amount = Just $ if isJust (getField @"txnAmount" txn)
-      then show $ fromMaybe 0 (getField @"txnAmount" txn)
-      else mempty
-  , currency = getField @"currency" txn
-  , error_message = Just $ fromMaybe mempty $ getField @"bankErrorMessage" txn
-  , error_code = Just $ if isJust (getField @"bankErrorCode" txn)
-      then fromMaybe mempty (getField @"bankErrorCode" txn)
-      else mempty
-  , created = getField @"dateCreated" txn
-  , txn_object_type = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
-      then getField @"txnObjectType" txn
-      else Nothing
-  , source_object = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
-      then getField @"sourceObject" txn
-      else Nothing
-  , source_object_id = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
-      then getField @"sourceObjectId" txn
-      else Nothing
-        }
-
-
--- -----------------------------------------------------------------------------
--- Function: findMaybeSecondFactorByTxnDetailId
--- TODO port
--- added from EC.SecondFactor
--- -----------------------------------------------------------------------------
-
-{-
-findMaybeSecondFactorByTxnDetailId ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe SecondFactor)
-findMaybeSecondFactorByTxnDetailId txnDetail_id =
-  DB.findOne ecDB (where_ := WHERE ["txn_detail_id" /\ String txnDetail_id] :: WHERE SecondFactor)
--}
-
--- -----------------------------------------------------------------------------
--- Function: findMaybeSFRBySfId
--- done
--- added from EC.SecondFactorResponse
--- -----------------------------------------------------------------------------
-
-{-
-findMaybeSFRBySfId ::forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe SecondFactorResponse)
-findMaybeSFRBySfId second_factor_id =
-  DB.findOne ecDB (where_ := WHERE ["second_factor_id" /\ String second_factor_id] :: WHERE SecondFactorResponse)
--}
-
-findMaybeSFRBySfId :: Text -> Flow (Maybe SecondFactorResponse)
-findMaybeSFRBySfId second_factor_id = withDB eulerDB $ do
-  let predicate SecondFactorResponse{secondFactorId} =
-        secondFactorId ==. B.just_ (B.val_ second_factor_id)
-  findRow
-    $ B.select
-    $ B.limit_ 1
-    $ B.filter_ predicate
-    $ B.all_ (EDB.second_factor_response eulerDBSchema)
-
-

@@ -38,3 +38,5 @@ euler-backend.cabal
 *.diff
 *.patch
 tags
+
+.vscode

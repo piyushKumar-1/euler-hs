@@ -158,6 +158,48 @@ mandateNotFound = ErrorResponse
       }
   }
 
+invalidMandateParams :: ECErrorResponse
+invalidMandateParams = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "invalid_request_error"
+      , status_id = Just (-1)
+      , error_message = Just $ "invalid mandate params"
+      , error_code = Just "INVALID_REQUEST"
+      }
+  }
+
+invalidMandateMaxAmount :: Text -> ECErrorResponse
+invalidMandateMaxAmount maxAm = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "invalid_request_error"
+      , status_id = Just (-1)
+      , error_message = Just $ "invalidMandateMaxAmount " <> maxAm
+      , error_code = Just "INVALID_MANDATE_MAX_AMOUNT"
+      }
+  }
+
+invalidMandateFields ::  ECErrorResponse
+invalidMandateFields = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "invalid_request_error"
+      , status_id = Just (-1)
+      , error_message = Just $ "Pass mandate_max_amount also to create a mandate order"
+      , error_code = Just "INVALID_REQUEST"
+
+invalidCustomerId :: ECErrorResponse
+invalidCustomerId = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "invalid_request_error"
+      , status_id = Just (-1)
+      , error_message = Just $ "pass customer_id"
+      , error_code = Just "INVALID_CUSTOMER_ID"
+      }
+  }
+
 txnValidationErrorResp' :: TxnValidationErrorResp -> ECErrorResponse
 txnValidationErrorResp' TxnValidationErrorResp {..} = ECErrorResponse
   { code = 400
@@ -297,6 +339,18 @@ orderNotFound orderId = ECErrorResponse
       { status = "NOT_FOUND"
       , status_id = Just 40
       , error_message = Nothing
+      , error_code = Nothing
+      , order_id = Just orderId
+      }
+  }
+
+orderAlreadyCreated :: Text -> ECErrorResponse
+orderAlreadyCreated orderId = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECOrderStatusErrorPayload
+      { status = "order_already_created"
+      , status_id = Nothing
+      , error_message = Just ("Order with id = \"" <> orderId <> "\" already created.")
       , error_code = Nothing
       , order_id = Just orderId
       }

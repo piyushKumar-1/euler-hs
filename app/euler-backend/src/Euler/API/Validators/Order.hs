@@ -4,9 +4,11 @@ module Euler.API.Validators.Order where
 
 import EulerHS.Prelude
 import EulerHS.Extra.Validation as V
+import qualified Data.Map  as Map
 import qualified Data.Text as T
 
 import           Euler.Common.Types.Currency (Currency(..))
+import           Euler.Common.Types.Gateway (gatewayRMap)
 import           Euler.Common.Types.Order     (MandateFeature(..), UDF(..))
 import           Euler.Common.Types.Money (mkMoney)
 
@@ -76,14 +78,54 @@ apiOrderUpdToUDF req = UDF
 transApiOrdCreateToOrdCreateT :: API.OrderCreateRequest -> V Ts.OrderCreateTemplate
 transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
-    <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
     <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
-    <*> withField @"customer_id" sm (insideJust customerIdValidators)
+    <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
     <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
-    -- <*> -- EHS: fill order_type with getOrderType & mandate feature
---    <*> withField @"billing_address_country_code_iso" sm (extractMaybeWithDefault "IND")
---    <*> withField @"shipping_address_country_code_iso" sm (extractMaybeWithDefault "IND")
+    <*> Ts.getOrderType <$> (withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)) -- order_type
+    <*> withField @"gateway_id" sm (insideJust >=> decode >=> gatewayIdValidator)
+    <*> withField @"customer_id" sm (insideJust >=> customerIdValidators)
+    <*> withField @"customer_email" sm pure
+    <*> withField @"customer_phone" sm pure
+    <*> apiOrderCreateToBillingAddrHolderT sm -- billingAddrHolder
+    <*> apiOrderCreateToBillingAddrT sm -- billingAddr
+    <*> apiOrderCreateToShippingAddrHolderT sm -- shippingAddrHolder
+    <*> apiOrderCreateToShippingAddrT sm -- shippingAddr
+    <*> withField @"description" sm pure -- description
+    <*> withField @"product_id" sm pure -- productId
 
+apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
+apiOrderUpdToBillingAddrHolderT req = Ts.AddressHolderTemplate
+  <$> withField @"billing_address_first_name" req pure
+  <*> withField @"billing_address_last_name" req pure
+
+apiOrderCreateToBillingAddrT :: API.OrderCreateRequest -> V Ts.AddressTemplate
+apiOrderUpdToBillingAddrT req = Ts.AddressTemplate
+  <$> withField @"billing_address_line1" req pure
+  <*> withField @"billing_address_line2" req pure
+  <*> withField @"billing_address_line3" req pure
+  <*> withField @"billing_address_city" req pure
+  <*> withField @"billing_address_state" req pure
+  <*> withField @"billing_address_country" req pure
+  <*> withField @"billing_address_postal_code" req pure
+  <*> withField @"billing_address_phone" req pure
+  <*> withField @"billing_address_country_code_iso" req pure
+
+apiOrderCreateToShippingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
+apiOrderUpdToShippingAddrHolderT req = Ts.AddressHolderTemplate
+  <$> withField @"shipping_address_first_name" req pure
+  <*> withField @"shipping_address_last_name" req pure
+
+apiOrderCreateToShippingAddrT :: API.OrderCreateRequest -> V Ts.AddressTemplate
+apiOrderUpdToShippingAddrT req = Ts.AddressTemplate
+  <$> withField @"shipping_address_line1" req pure
+  <*> withField @"shipping_address_line2" req pure
+  <*> withField @"shipping_address_line3" req pure
+  <*> withField @"shipping_address_city" req pure
+  <*> withField @"shipping_address_state" req pure
+  <*> withField @"shipping_address_country" req pure
+  <*> withField @"shipping_address_postal_code" req pure
+  <*> withField @"shipping_address_phone" req pure
+  <*> withField @"shipping_address_country_code_iso" req pure
 -- EHS: add converter for desctiption:
 -- when (isJust description) then use description
 -- when (isNothing description) then (Just "").
@@ -93,6 +135,11 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
 -- EHS: fill customerEmail & phone
 
 -- EHS: DRY for validators. A lot of them is repeated many times.
+gatewayIdValidator :: Validator Int
+gatewayIdValidator = mkValidator
+  $ "Should be in " <> show gatewayRMap
+  $ (`Map.member` (gatewayRMap))
+
 amountValidators :: Validator Double
 amountValidators =
   parValidate

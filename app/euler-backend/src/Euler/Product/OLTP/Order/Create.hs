@@ -19,6 +19,7 @@ import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
+import qualified Euler.Storage.Validators.Order as SV
 import qualified Euler.Storage.Types as DB
 import           Euler.Storage.Types.EulerDB (eulerDBSchema)
 import           Euler.Storage.DBConfig
@@ -59,20 +60,18 @@ loadOrder orderId' merchantId' = do
         $ B.limit_ 1
         $ B.filter_ predicate
         $ B.all_ (order_reference eulerDBSchema)
-
     case res of
-      Right mordRef -> pure mordRef
-      Left err -> do
-        logError "Find OrderReference" $ toText $ P.show err
-
-        -- EHS: why throwing error?
-        --      Is this a critical situation?
-        --      Rework the return type. Should return Either / Maybe instead of throwing.
-        -- A: this error from db interraction (lost connection, etc) so should be 505 internal error
-        -- EHS: what flow should be on not found?
-        -- A: return type is Maybe, so return Nothing and consumer chose what to do
-        -- EHS: rework errors.
-        throwException err500 {errBody = "2"}
+      Nothing -> pure Nothing
+      Just ordRef -> do
+        case SV.transSOrderToDOrder ordRef of
+          Success dOrder -> pure $ Just dOrder
+          Failure e -> do
+            logError "Incorrect order in DB"
+              $  "orderId: "    <> orderId'
+              <> "merchantId: " <> merchantId'
+              <> "error: "      <> show e
+            throwException internalError
+        -- EHS: reworked with "withDB and validation"
 
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
 -- EHS: this function is about validation.
@@ -83,9 +82,7 @@ orderCreate routeParams order' mAccnt = do
   existingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
 
   case existingOrder of
-      -- EHS: rework exceptions
-      -- EHS: HTTP error codes should exist only on the server level, not in business logic.
-    Just orderRef -> throwException err400 {errBody = "Order already created."}
+    Just orderRef -> throwException $ orderAlreadyCreated (order' ^. _order_id)
     Nothing       -> doOrderCreate routeParams order' mAccnt
 
 doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
@@ -148,39 +145,20 @@ acquireOrderToken orderPId merchantId = do
     , client_auth_token_expiry = Just expiry
     }
 
-isMandateOrder :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantId -> Flow Bool
-isMandateOrder routeParams (Ts.OrderCreateTemplate {optionsCreateMandate}) merchantId = do
-  case optionsCreateMandate of
-    DISABLED -> pure False
-    _        -> do
-      validMandate <- isMandateValid order' merchantId
+isMandateOrder :: Ts.OrderCreateTemplate -> MerchantId -> Flow Bool
+isMandateOrder (Ts.OrderCreateTemplate {optionsCreateMandate, mandate_max_amount}) merchantId = do
+  case (optionsCreateMandate, mandate_max_amount) of
+    (DISABLED, _) -> pure False
+    (_ , Nothing) -> throwException invalidMandateFields
+    (_, Just maxAmount) -> do
+      mayMaxAmLimit <- rGet $ merchantId <> "_mandate_max_amount_limit"
+      let maxAmLim = fromStringToNumber $
+        maybe Config.mandateMaxAmountAllowed id mayMaxAmLimit
+      let maxAmountNum = fromStringToNumber maxAmount
+      if (maxAmountNum <= 0.0 || maxAmountNum > maxAmLim)
+        then throwException $  invalidMandateMaxAmount (show maxAmLim) -- throwCustomException 400 "INVALID_MANDATE_MAX_AMOUNT" (invalidMandateMaxAmount <> show maxAm)
+        else pure True
 
-      -- EHS: rework exceptions.
-      -- throwCustomException 400 "INVALID_REQUEST" "invalid mandate params"
-      -- EHS: isMandateValid never returns False? Then throwing is not needed
-      unless validMandate $ throwException $ err400 {errBody = "invalid mandate params"}
-
-      pure True
-
-
--- EHS: this function is really bad. Rework
-isMandateValid :: OrderCreateRequest -> Text -> Flow Bool
-isMandateValid oReq@OrderCreateRequest {..} merchantId = if isTrueString $ customer_id -- orderCreateReq
-  then do
-    let maybeMaxAmount = mandate_max_amount -- unNullOrUndefined <<< _.mandate_max_amount <<< unwrap $ orderCreateReq
-    case maybeMaxAmount of
-      Nothing -> throwException $ err400 {errBody = "Pass mandate_max_amount also to create a mandate order"} -- throwCustomException 400 "INVALID_REQUEST" "Pass mandate_max_amount also to create a mandate order"
-      Just maxAmount -> do
-        mayMaxAmLimit <- rGet $ merchantId <> "_mandate_max_amount_limit" -- pure Nothing -- fetchFromRedisWithMaybe ecRedis (merchantId <> "_mandate_max_amount_limit")
-        maxAmLim <- fromStringToNumber $ case mayMaxAmLimit of
-          Just val -> val
-          Nothing -> Config.mandateMaxAmountAllowed -- why Text/String not Double?
-        maxAmountNum  <- fromStringToNumber maxAmount
-        if (maxAmountNum <= 0.0 || maxAmountNum > maxAmLim)
-          then throwException $  err400 {errBody = "invalid Mandate Max Amount"} -- throwCustomException 400 "INVALID_MANDATE_MAX_AMOUNT" (invalidMandateMaxAmount <> show maxAm)
-          else pure True
-  else
-    throwException $  err400 {errBody = "pass customer_id"} -- throwCustomException 400 "INVALID_CUSTOMER_ID" "pass customer_id"
 
 -- from src/Utils/Utils.purs
 fromStringToNumber :: Text -> Flow Double

@@ -56,15 +56,27 @@ import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 -- fillBillingAddressHolder -- fillAddressHolder ?
 
 loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
-loadOrder orderId' merchantId' = withDB eulerDB $ do
-  let predicate OrderReference {orderId, merchantId} =
+loadOrder orderId' merchantId' = do
+    res <- withDB eulerDB $ do
+      let predicate OrderReference {orderId, merchantId} =
             (orderId    ==. B.just_ (B.val_ orderId')) &&.
             (merchantId ==. B.just_ (B.val_ merchantId'))
-  findRow
-    $ B.select
-    $ B.limit_ 1
-    $ B.filter_ predicate
-    $ B.all_ (order_reference eulerDBSchema)
+      findRow
+        $ B.select
+        $ B.limit_ 1
+        $ B.filter_ predicate
+        $ B.all_ (order_reference eulerDBSchema)
+    case res of
+      Nothing -> pure Nothing
+      Just ordRef -> do
+        case SV.transSOrderToDOrder ordRef of
+          Success dOrder -> pure $ Just dOrder
+          Failure e -> do
+            logError "Incorrect order in DB"
+              $  "orderId: "    <> orderId'
+              <> "merchantId: " <> merchantId'
+              <> "error: "      <> show e
+            throwException internalError
 
 
 cleanUpUDF :: C.UDF -> C.UDF
@@ -182,12 +194,10 @@ orderUpdate :: RP.RouteParameters -> Ts.OrderUpdateTemplate -> MerchantAccount -
 orderUpdate  routeParams orderUpdateT mAccnt = do
   let merchantId' = getField @"merchantId" mAccnt
   let orderId' = lookupRP @OrderId routeParams
-  (mOrder :: Maybe OrderReference) <- loadOrder orderId' merchantId'
+  (mOrder :: Maybe Order) <- loadOrder orderId' merchantId'
   resp <- case mOrder of
-            Just orderRef -> do
-              case SV.transSOrderToDOrder orderRef of
-                Success ord -> do
-                  doOrderUpdate orderUpdateT ord mAccnt
+            Just order' -> do
+              doOrderUpdate orderUpdateT order' mAccnt
                 -- ordStatusResp <- from orderStatus not ready -- getOrderStatusWithoutAuth (getOrderStatusRequest orderId) routeParams mAccnt True (Just updatedOrderCreateReq) (Just orderRef)
                 -- better to use:
                 -- ordStatusResp <- getOrdStatusResp ::
@@ -206,12 +216,6 @@ orderUpdate  routeParams orderUpdateT mAccnt = do
                   --  -> OrderStatusResponse
                   --  -> Flow ()
                   -- pure ordStatusResp
-                Failure e -> do
-                  logError "Incorrect order in DB"
-                    $  "orderId: "    <> orderId'
-                    <> "merchantId: " <> merchantId'
-                    <> "error: "      <> show e
-                  throwException internalError
             Nothing -> throwException $ orderDoesNotExist orderId'
   logInfo "order update response: " $ show resp
   pure resp

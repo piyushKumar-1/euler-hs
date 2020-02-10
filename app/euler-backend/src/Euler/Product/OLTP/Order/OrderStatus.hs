@@ -14,71 +14,77 @@ import           EulerHS.Prelude hiding (id)
 import qualified EulerHS.Prelude as P (id)
 import qualified Prelude as P (show)
 
-import EulerHS.Types
-import EulerHS.Language
-import Euler.Lens
+import           Euler.Lens
+import           EulerHS.Language
+import           EulerHS.Types
+import           WebService.Language
 
-import Data.Aeson
-import Data.Generics.Product.Fields
-import Servant.Server
-import qualified Data.Text.Encoding as T
-import qualified Data.Text as T
+import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
+import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import           Data.Time
+import           Data.Time.Clock
+import           Servant.Server
 
-import Euler.API.Order
-import Euler.API.Types
-import Euler.API.Transaction
-import Euler.API.RouteParameters
-import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Mandate as Mandate
-import Euler.Common.Utils
-import Euler.Common.Types.Gateway
-import Euler.Common.Types.TxnDetail
-import Euler.Common.Types.Merchant
-import Euler.Common.Types.Promotion
-import Euler.Common.Types.Refund as Refund
-
-import Euler.Product.Domain.Order (Order)
-import Euler.Product.OLTP.Card.Card
-import Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
-
-
-import Euler.Storage.Types.Chargeback
-import Euler.Storage.Types.Customer
-import Euler.Storage.Types.Feature
-import Euler.Storage.Types.Mandate
-import Euler.Storage.Types.MerchantAccount
-import Euler.Storage.Types.MerchantIframePreferences
-import Euler.Storage.Types.MerchantKey
-import Euler.Storage.Types.OrderMetadataV2
-import Euler.Storage.Types.OrderReference
-import Euler.Storage.Types.PaymentGatewayResponse
-import Euler.Storage.Types.Promotions
-import Euler.Storage.Types.Refund
-import Euler.Storage.Types.ResellerAccount
-import Euler.Storage.Types.RiskManagementAccount
-import Euler.Storage.Types.SecondFactor
-import Euler.Storage.Types.SecondFactorResponse
-import Euler.Storage.Types.TxnCardInfo
-import Euler.Storage.Types.TxnDetail
-import Euler.Storage.Types.TxnRiskCheck
-
-import Euler.Storage.Types.EulerDB as EDB
-
+import           Euler.API.Order
+import           Euler.API.RouteParameters
+import           Euler.API.Transaction
+import           Euler.API.Types
+import qualified Euler.Common.Metric as Metric
+import           Euler.Common.Types.DefaultDate
+import           Euler.Common.Types.Gateway
+import           Euler.Common.Types.Mandate as Mandate
+import           Euler.Common.Types.Merchant
+import           Euler.Common.Types.Order (OrderTokenExpiryData (..), defaultOrderTokenExpiryData)
 import qualified Euler.Common.Types.Order as C
-import qualified Euler.Common.Metric      as Metric
+import           Euler.Common.Types.Promotion
+import           Euler.Common.Types.Refund as Refund
+import           Euler.Common.Types.TxnDetail
+import           Euler.Common.Utils
+import           Euler.Config.Config as Config
 
-import Euler.Storage.DBConfig
+import           Euler.Product.Domain.Order (Order)
+import           Euler.Product.OLTP.Card.Card
+import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
+
+
+import           Euler.Storage.Types.Chargeback
+import           Euler.Storage.Types.Customer
+import           Euler.Storage.Types.Feature
+import           Euler.Storage.Types.Mandate
+import           Euler.Storage.Types.MerchantAccount
+import           Euler.Storage.Types.MerchantIframePreferences
+import           Euler.Storage.Types.MerchantKey
+import           Euler.Storage.Types.OrderMetadataV2
+import           Euler.Storage.Types.OrderReference
+import           Euler.Storage.Types.PaymentGatewayResponse
+import           Euler.Storage.Types.Promotions
+import           Euler.Storage.Types.Refund
+import           Euler.Storage.Types.ResellerAccount
+import           Euler.Storage.Types.RiskManagementAccount
+import           Euler.Storage.Types.SecondFactor
+import           Euler.Storage.Types.SecondFactorResponse
+import           Euler.Storage.Types.ServiceConfiguration
+import           Euler.Storage.Types.TxnCardInfo
+import           Euler.Storage.Types.TxnDetail
+import           Euler.Storage.Types.TxnRiskCheck
+
+import           Euler.Storage.Types.EulerDB as EDB
+
+
+import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (<-.), (/=.))
+import           Euler.Storage.DBConfig
 
 -- porting statistics:
--- to port '-- TODO port' - 22
--- to update '-- TODO update' - 22
--- completed '-- done' - 29
--- total number of functions = 73
+-- to port '-- TODO port' - 21
+-- to update '-- TODO update' - 23
+-- completed '-- done' - 30
+-- total number of functions = 74
 
 -- "xml cases"
 -- - TxnRiskCheck.completeResponse
@@ -222,7 +228,7 @@ getOrderStatusWithoutAuth
 getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
   merchId <- case (getField @"merchantId" merchantAccount) of
                 Nothing -> throwException $ myerr "3"
-                Just v -> pure v
+                Just v  -> pure v
   cachedResp <- getCachedOrdStatus isAuthenticated orderId merchId  --TODO check for txn based refund
   resp <- case cachedResp of
             Nothing -> do
@@ -392,7 +398,7 @@ authenticateWithAPIKey apiKeyStr = do
            -- (where_ := WHERE ["id" /\ Int (fromMaybe 0 (unNullOrUndefined merchantKey.merchantAccountId))]) ecAccessDenied
           merchantAccount <- case merchantAcc of
             Right (Just ma) -> pure $ setField @"apiKey" (Just key) ma-- merchantAcc # _apiKey .~ (just $ apiKeyStr)
-            _ -> throwException err403
+            _               -> throwException err403
           _ <- pure True -- ipAddressFilters merchantAccount headers   --- checking IP whitelist in case of authenticated call
           pure $ (merchantAccount, True)
         Right Nothing -> throwException err403
@@ -527,7 +533,7 @@ rejectIfUnauthenticatedCallDisabled :: MerchantAccount -> Flow ()
 rejectIfUnauthenticatedCallDisabled mAccnt =
   case  (enableUnauthenticatedOrderStatusApi mAccnt) of
     Just True -> pure ()
-    _ -> throwException $ myerr "1" -- ecForbidden
+    _         -> throwException $ myerr "1" -- ecForbidden
      -- * alot of errors predefined in Servant.Server
      -- * https://hackage.haskell.org/package/servant-server-0.16.2/docs/Servant-Server.html#v:err404
      -- * body message (and another parameters) can be redefined
@@ -650,7 +656,7 @@ getCachedOrdStatus isAuthenticated orderId merchantId = do -- req mAccnt routePa
           False -> do
             _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is not enabled"
             pure Nothing
-      keyPrefix True = "euler_ostatus_"
+      keyPrefix True  = "euler_ostatus_"
       keyPrefix False = "euler_ostatus_unauth_"
 
 
@@ -745,8 +751,8 @@ getCachedResp key = do
       -- *  case (runExcept (decode (camelCaseToSnakeCase resp))) of
       -- *    Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
       -- *    Left err -> pure Nothing -- log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
-    Right Nothing -> pure Nothing -- log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
-    Left err -> pure Nothing -- log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
+    Right Nothing  -> pure Nothing -- log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
+    Left err       -> pure Nothing -- log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
 
 -- ----------------------------------------------------------------------------
 -- function: getOrdStatusResp
@@ -1027,7 +1033,7 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
   let nullVal = Nothing -- nullValue unit -- create foreign (JS) null value ???
   customerId    <- case (customerId ord) of
                     Just customerId -> pure customerId
-                    Nothing -> pure "" -- nullVal -- What is this? (Foreign null) ???
+                    Nothing         -> pure "" -- nullVal -- What is this? (Foreign null) ???
   customerEmail <- case (customerEmail ord) of
                       Just customerEmail -> if isAuthenticated then pure customerEmail else pure "" -- nullVal
                       Nothing -> pure "" -- nullVal
@@ -1274,7 +1280,7 @@ getChargedTxn orderRef = do
 
   case txnDetails of
     [] -> pure Nothing
-    _ -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+    _  -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
 
 
 -- ----------------------------------------------------------------------------
@@ -1296,18 +1302,7 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     host = maybe (protocol <> "://" <> (unwrap config).host) id maybeResellerEndpoint
 -}
 
-data Config = Config
-  { protocol :: Text
-  , host :: Text
-  , internalECHost :: Text
-  }
-  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
-defaultConfig = Config
-    { protocol = "https"
-    , host = "defaulthost"
-    , internalECHost = "defaultInternalECHost"
-    }
 
 createPaymentLinks :: Text -> Maybe Text -> Paymentlinks
 createPaymentLinks orderUuid maybeResellerEndpoint =
@@ -1597,7 +1592,7 @@ getGatewayReferenceId txn ordRef = do
               gRefId <- pure $ Map.lookup ((fromMaybe "" $ getField @"gateway" txn) <> ":gateway_reference_id") metadata
               jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
               case (gRefId <|> jusId) of
-                Just v -> pure v
+                Just v  -> pure v
                 Nothing -> checkGatewayRefIdForVodafone ordRef txn
         Nothing -> checkGatewayRefIdForVodafone ordRef txn
     Nothing -> checkGatewayRefIdForVodafone ordRef txn
@@ -3283,7 +3278,7 @@ getPaymentInfo ordStatusResponse = PaymentInfo {
 
 -- ----------------------------------------------------------------------------
 -- function: getTokenExpiryData
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3304,6 +3299,62 @@ getTokenExpiryData = do
                                                             , tokenMaxUsage = decodedVal.tokenMaxUsage}
     Nothing -> pure $ defaultTokenData
 -}
+
+getTokenExpiryData :: Flow OrderTokenExpiryData
+getTokenExpiryData = do
+  orderToken <- T.append "tkn_" <$> getUUID32
+  currentDateWithOffset <- getCurrentDateStringWithOffset orderTokenExpiryND
+  let defaultTokenData = OrderTokenExpiryData
+        { expiryInSeconds = orderTokenExpiryI
+        , tokenMaxUsage = orderTokenMaxUsage
+        , orderToken = Just orderToken
+        , currentDateWithExpiry = Just currentDateWithOffset
+        }
+
+  mServiceConfiguration <- withDB eulerDB $ do
+      let predicate ServiceConfiguration {name} =
+            name ==. B.val_ "ORDER_TOKEN_EXPIRY_DATA"
+      findRow
+        $ B.select
+        $ B.limit_ 1
+        $ B.filter_ predicate
+        $ B.all_ (EDB.service_configuration eulerDBSchema)
+
+  case mServiceConfiguration of
+    (Just serviceConfiguration) -> do
+      let value = getField @"value" serviceConfiguration
+          mDecodedVal = (decode $ BSL.fromStrict $ T.encodeUtf8 value) :: Maybe OrderTokenExpiryData
+      case mDecodedVal of
+        Nothing -> pure defaultOrderTokenExpiryData
+        Just decodedVal -> pure defaultOrderTokenExpiryData
+          { expiryInSeconds = getField @"expiryInSeconds" decodedVal
+          , tokenMaxUsage = getField @"tokenMaxUsage" decodedVal
+          }
+    Nothing -> pure defaultOrderTokenExpiryData
+
+
+-- ----------------------------------------------------------------------------
+-- function: getCurrentDateStringWithOffset
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+-- doAffRR' (from Presto backend) is runIO with description
+-- ticket 172
+
+-- getCurrentDateStringWithOffset :: forall a. Int -> BackendFlow _ _ String
+-- getCurrentDateStringWithOffset sec = doAffRR' "_currentDateStringWithSecOffset" (liftEff $ _currentDateStringWithSecOffset sec)
+
+-- exports._currentDateStringWithSecOffset = function(seconds) {
+--   return function(){
+--     return moment.utc().add(seconds,'seconds').format('YYYY-MM-DD[T]HH:mm:ss[Z]');
+--   }
+-- };
+
+getCurrentDateStringWithOffset :: NominalDiffTime -> Flow Text
+getCurrentDateStringWithOffset sec = runIO $ do -- TODO: make runIO with description
+  current <- getCurrentTime
+  pure $ show $ addUTCTime sec current -- TODO: use 'secondsToNominalDiffTime sec' with sec as Int type after time library bumped up to 1.9.1 version
+
 
 -- ----------------------------------------------------------------------------
 -- function: getAxisUpiTxnIdFromPgr

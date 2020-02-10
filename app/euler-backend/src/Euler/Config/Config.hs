@@ -1,9 +1,10 @@
 {-# LANGUAGE DeriveAnyClass #-}
 module Euler.Config.Config where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 
+import           Data.Time
 import           System.Environment (lookupEnv)
 
 import qualified Data.Text as Text (pack)
@@ -16,12 +17,18 @@ mandateTtl :: Int -- seconds
 mandateTtl = 60 * 60 * 24 -- 24 Hours
 
 data Config = Config
-  { protocol :: Text
-  , host :: Text
+  { protocol       :: Text
+  , host           :: Text
   , internalECHost :: Text
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
+defaultConfig :: Config
+defaultConfig = Config
+    { protocol = "https"
+    , host = "defaulthost"
+    , internalECHost = "defaultInternalECHost"
+    }
 
 data Env = DEV | UAT | PROD | INTEG
 
@@ -30,10 +37,10 @@ getEnv = do
   me <- lookupEnv "APP_ENV"
   case me of
     Just "development" -> pure DEV
-    Just "uat" -> pure UAT
-    Just "production" -> pure PROD
-    Just "integ" -> pure INTEG
-    _ -> pure DEV
+    Just "uat"         -> pure UAT
+    Just "production"  -> pure PROD
+    Just "integ"       -> pure INTEG
+    _                  -> pure DEV
 
 getInternalECHost :: IO Text
 getInternalECHost = do
@@ -70,3 +77,13 @@ getECRConfig = do
 --orderTtl = convertDuration $ Hours 24.0
 orderTtl :: Int -- seconds (because EulerHS setCacheWithExpiry(setex) take ttl in seconds)
 orderTtl = 24 * 60 * 60
+
+-- Two versions needed to use in 'getCurrentDateStringWithOffset' while time library is below 1.9.1
+orderTokenExpiryND :: NominalDiffTime
+orderTokenExpiryND = 900 -- 15 Min
+
+orderTokenExpiryI :: Int
+orderTokenExpiryI = 900 -- 15 Min
+
+orderTokenMaxUsage :: Int
+orderTokenMaxUsage = 20

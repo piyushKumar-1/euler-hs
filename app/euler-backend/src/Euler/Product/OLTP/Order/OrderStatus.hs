@@ -30,13 +30,13 @@ import Euler.API.Order
 import Euler.API.Types
 import Euler.API.RouteParameters
 import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Mandate as Man
+import Euler.Common.Types.Mandate as Mandate
 import Euler.Common.Utils
 import Euler.Common.Types.Gateway
 import Euler.Common.Types.TxnDetail
 import Euler.Common.Types.Merchant
 import Euler.Common.Types.Promotion
-import Euler.Common.Types.Refund
+import Euler.Common.Types.Refund as Refund
 
 import Euler.Product.Domain.Order (Order)
 import Euler.Product.OLTP.Card.Card
@@ -74,9 +74,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 26
+-- to port '-- TODO port' - 25
 -- to update '-- TODO update' - 22
--- completed '-- done' - 25
+-- completed '-- done' - 26
 -- total number of functions = 73
 
 -- "xml cases"
@@ -2325,7 +2325,7 @@ updatePaymentMethodAndType txn card ordStatus = do
 
   where
     checkPaymentMethodType card' ordStatus' = case (getField @"paymentMethodType" card') of
-      Just Man.CASH -> pure (ordStatus'
+      Just Mandate.CASH -> pure (ordStatus'
         { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
         , payment_method_type = Just "CASH"
         } :: OrderStatusResponse)
@@ -3016,7 +3016,7 @@ versionSpecificTransforms headers orderStatus = do
 
 -- ----------------------------------------------------------------------------
 -- function: getRefundStatus
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3033,6 +3033,22 @@ getRefundStatus apiVersion refund = do
       else pure $ refunds
     else pure $ refunds # _status .~ SUCCESS
 -}
+
+getRefundStatus :: Text -> Refund' -> Flow Refund'
+getRefundStatus apiVersion refund = do
+  let status = getField @"status" refund
+  let refunds1 = if (apiVersion < "2018-09-20" && apiVersion /= "") || (apiVersion == "")
+        then setField @"initiated_by" Nothing refund
+        else refund
+  let refunds2 = if (apiVersion < "2019-03-12" && apiVersion /= "") || (apiVersion == "")
+        then refunds1{refund_type = Nothing, refund_source = Nothing}
+        else refunds1
+  if apiVersion >= "2015-01-09" && apiVersion /= ""
+    then do
+      if apiVersion < "2017-03-16" && apiVersion /= "" && status == MANUAL_REVIEW
+        then pure (setField @"status" Refund.PENDING refunds2)
+        else pure refunds2
+    else pure $ setField @"status" Refund.SUCCESS refunds2
 
 -- ----------------------------------------------------------------------------
 -- function: proxyOrderStatus & co

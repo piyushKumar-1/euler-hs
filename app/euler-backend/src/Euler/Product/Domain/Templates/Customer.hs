@@ -11,8 +11,6 @@ data CustomerTemplate = CustomerTemplate
   { customerId   :: CustomerId
   , firstName    :: Maybe Text
   , lastName     :: Maybe Text
-  , emailAddress :: Maybe Text
-  , mobileNumber :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)
 

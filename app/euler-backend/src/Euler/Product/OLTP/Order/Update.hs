@@ -223,7 +223,7 @@ doOrderUpdate orderUpdateT order@Order {..}  mAccnt = do
     C.SUCCESS -> do
       logError "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
     _ ->  do
-      let mNewAmount <- getField @"amount" orderUpdateT
+      let mNewAmount = getField @"amount" orderUpdateT
       let newUDF = cleanUpUDF $ udf orderUpdateT
       mbCustomer <- loadCustomer customerId (mAccnt ^. _id)
       billingAddressId' <- updateAddress mbCustomer billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)

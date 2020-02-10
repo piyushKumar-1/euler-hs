@@ -238,9 +238,9 @@ createOrder' routeParams order' mAccnt isMandate = do
   mbCustomer                <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
   let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
   let customerContacts = mkCustContacts mbCustomer order'
-  mbBillingAddrId           <- updateAddress (order' ^. _billingAddr) billingAddrHolder
+  mbBillingAddrId           <- createAddress (order' ^. _billingAddr) billingAddrHolder
   -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
-  mbShippingAddrId          <- updateAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
+  mbShippingAddrId          <- createAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
 
   -- EHS: why findMaybeByMerchantAccountAndCustId does nothing?
   -- maybeCustomer  <- maybe (pure Nothing) (\x -> findMaybeByMerchantAccountAndCustId x (mAccnt ^. _id)) customer_id
@@ -268,10 +268,11 @@ fillBillingAddressHolder (Just (TS.CustomerTemplate _ mbFirstName mbLastName _ _
 -- previously addCustomerInfo
 mkCustContacts :: Maybe Ts.CustomerTemplate -> Ts.OrderCreateTemplate -> Ts.CustomerContacts
 mkCustContacts Nothing orderCreateTemplate{..} = Ts.CustomerContacts customerEmail customerPhone
-mkCustContacts (Just Ts.CustomerTemplate {emailAddress, mobileNumber}) orderCreateTemplate =
+mkCustContacts (Just Ts.CustomerTemplate {emailAddress, mobileNumber})
+                Ts.OrderCreateTemplate {customerEmail, customerPhone} =
   Ts.CustomerContacts
-    { customerEmail = customerEmail <|> emailAddress
-    , customerPhone = customerPhone <|> Just mobileNumber
+    { customerEmailAddress = customerEmail <|> emailAddress
+    , customerMobileNumber = customerPhone <|> Just mobileNumber
     }
 
 loadCustomer :: Maybe CustomerId -> MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
@@ -301,8 +302,9 @@ loadCustomer (Just customerId) mAccntId = do
       Just (Customer {..}) -> Just $ Ts.CustomerTemplate customerId firstName lastName
       Nothing              -> Nothing
 
-updateAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
-updateAddress addr addrHolder =
+
+createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+createAddress addr addrHolder =
   case toDBAddress addr addrHolder of
     Nothing -> pure Nothing
     Just dbAddr -> do
@@ -373,6 +375,7 @@ saveOrder
    -- EHS: not used? Check euler-ps
   -- autoRefund     <- pure $ maybe (Just False) Just auto_refund
 
+-- add UDF fields
   let orderRefVal = DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = account ^. _merchantId
@@ -499,71 +502,6 @@ mapUDFParams req params =  smash newUDF params
     newUDF = newUDF' reqUDF
   -- EHS: Why are udf fields 1-5 cleaned and the rest not?
 
--- EHS: very bad function.
--- this function set in orderReference
---   customerPhone <- Customer mobileNumber
---   customerEmail <- Customer emailAddress
--- if customer_id present in OrderCreateRequest
--- and some of customer_phone or customer_email are not
--- now fillCustPhoneMail
-addCustomerInfo :: OrderCreateRequest -> MerchantAccount -> OrderReference -> Flow OrderReference
-addCustomerInfo orderCreateReq account orderRef =
-  if hasPartialCustomerInfo
-  then do -- customer_id :: Maybe Text
-    customerId <- maybe (throwException err500 {errBody = "11"}) pure (getField @"customer_id" orderCreateReq)
-    accountId  <- maybe (throwException err500 {errBody = "12"}) pure (getField @"id" account)
-    -- one more condiotion in DB query is missing!
-    optCustomer <- do
-      conn <- getConn eulerDB
-      res <- runDB conn $ do
-        let predicate Customer {objectReferenceId, merchantAccountId, id} =
-              merchantAccountId ==. (B.val_ accountId) &&.
-              (objectReferenceId ==. B.just_ (B.val_  customerId) ||. id ==. B.just_ (B.val_ customerId) )
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (customer eulerDBSchema)
-      case res of
-        Right mCust -> pure mCust
-        Left err -> do
-          logError "SQLDB Interraction." $ toText $ P.show err
-          throwException err500 {errBody = "13"}
-
-    -- pure Nothing -- findOne ecDB (where_ :=
-    --    And ["merchant_account_id" ==? Int accountId
-    --  , Or  [ "object_reference_id" ==? String customerId, "id" ==? String customerId ]])
-    case optCustomer of
-      (Just (Customer {..})) ->
-       -- let orderVal = (unwrap orderRef)
-           pure $ (orderRef :: OrderReference) --OrderReference orderVal
-            { customerPhone =
-                 (customerPhone orderRef) <|> (Just mobileNumber)
-            , customerEmail =
-                 (customerEmail orderRef) <|> emailAddress
-            }
-      _ -> pure orderRef
-  else pure orderRef
-  where hasPartialCustomerInfo =
-          let OrderCreateRequest{..} = orderCreateReq
-          in (isJust customer_id )
-              && ((isNothing customer_phone)
-                || (isNothing customer_email ))
-
--- EHS: usless, we check this in validation.
-validateOrderParams :: OrderCreateRequest -> Flow ()
-validateOrderParams OrderCreateRequest {..} = if amount < 1
-  then throwException $ err400 {errBody = "Invalid amount"}
-  else pure ()
-
--- EHS: bad function.
--- EHS: previously getOrderId
--- EHS: use validated Order domain type instead of DB OrderReference.
---      In this case this function is useless
-getPId :: OrderReference -> Flow Int
-getPId OrderReference {id} = case id of
-    Just x -> pure x
-    _ -> throwException err500 {errBody = "NO ORDER FOUND"}
 
 
 setMandateInCache :: OrderCreateRequest -> Int -> Text -> Text -> Flow ()

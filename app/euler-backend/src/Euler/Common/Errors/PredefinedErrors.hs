@@ -379,6 +379,17 @@ customerNotFound = ECErrorResponse
       }
   }
 
+customerNotFound :: ECErrorResponse
+customerNotFound = ECErrorResponse
+  { code = 200
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "ERROR"
+      , status_id = Nothing
+      , error_message = Just "Customer not found"
+      , error_code = Just "INVALID_REQUEST"
+      }
+  }
+
 unAuthorizedAccess :: ECErrorResponse
 unAuthorizedAccess = ECErrorResponse
   { code = 400

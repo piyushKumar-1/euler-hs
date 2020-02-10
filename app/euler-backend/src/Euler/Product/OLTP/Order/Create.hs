@@ -195,13 +195,10 @@ loadMerchantPrefs merchantId' = do
       $ B.all_ (merchant_iframe_preferences eulerDBSchema)
 
   case res of
-    Right (Just mIPrefs) -> pure mIPrefs
-    Right Nothing -> do
+    Just mIPrefs -> pure mIPrefs
+    Nothing -> do
       logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
-      throwException err500 {errBody = "6"}   -- EHS: rework exceptions
-    Left err -> do
-      logError "SQLDB Interraction." $ toText $ P.show err
-      throwException err500 {errBody = "7"}   -- EHS: rework exceptions
+      throwException internalError
 
 createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow D.Order
 createOrder' routeParams order' mAccnt isMandate = do
@@ -225,8 +222,8 @@ createOrder' routeParams order' mAccnt isMandate = do
   -- EHS: Situation: we're updated addresses in the DB when realized the request is invalid.
   -- EHS: This is essentially a security problem.
   -- EHS: This rule should be enforced earlier, before any updates.
-  mbCustomerId <- case (customer ^. _id, orderType == MANDATE_REGISTER) of
-      (Nothing, True) -> throwException $ err500 {errBody = "Customer not found"}
+  mbCustomerId <- case (mbCustomer >>= (^. _customerId), orderType == MANDATE_REGISTER) of
+      (Nothing, True) -> throwException customerNotFound
       (mbCId, _)      -> pure mbCId
 
   order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer customerContacts
@@ -268,9 +265,7 @@ loadCustomer (Just customerId) mAccntId = do
                                                              -- (how merchant identifies customer in their DB eg. by email or mobile number )
                                                              -- and "id" - our id. So merchant can use both
               )
-
-            -- EHS: B.as_ @(Maybe Int) ? Why Maybe?
-            &&. (B.maybe_ (B.val_ False) (merchantAccountId ==.) (B.as_ @(Maybe Int) $ B.val_ mAccntId))
+              &&. (merchantAccountId ==. (B.val_ mAccntId))
       findRow
         $ B.select
         $ B.filter_ predicate
@@ -342,8 +337,7 @@ saveOrder
   customerContacts{..}
   mbCustomerId = do
 
-  -- Returns UUID with deleted '-'.
-  -- EHS: what are other requirements to UUID? What about curly braces?
+  -- EHS: what are other requirements to UUID? UUID functions can be found in src/Utils/PrestoBackend.purs
   -- EHS: magic constant
   orderUuid      <- ("ordeu_" <> ) <$> getUUID32
 

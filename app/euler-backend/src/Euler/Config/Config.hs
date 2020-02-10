@@ -642,3 +642,12 @@ awsRegion = fromRight AWS.Mumbai $ AWS.fromText $ Text.pack getAwsRegion
 
 kmsKeyId :: Text
 kmsKeyId = Text.pack getKmsKeyId
+-- Two versions needed to use in 'getCurrentDateStringWithOffset' while time library is below 1.9.1
+orderTokenExpiryND :: NominalDiffTime
+orderTokenExpiryND = 900 -- 15 Min
+
+orderTokenExpiryI :: Int
+orderTokenExpiryI = 900 -- 15 Min
+
+orderTokenMaxUsage :: Int
+orderTokenMaxUsage = 20

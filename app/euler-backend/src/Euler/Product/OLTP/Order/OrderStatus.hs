@@ -74,9 +74,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 30
--- to update '-- TODO update' - 20
--- completed '-- done' - 23
+-- to port '-- TODO port' - 27
+-- to update '-- TODO update' - 22
+-- completed '-- done' - 24
 -- total number of functions = 73
 
 -- "xml cases"
@@ -2045,7 +2045,7 @@ getCardDetails card txn shouldSendCardIsin = Card
 
 -- ----------------------------------------------------------------------------
 -- function: getPayerVpa
--- TODO port
+-- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2064,6 +2064,31 @@ getPayerVpa txn txnCardInfo = do
     else pure nothing
 -}
 
+getPayerVpa :: TxnDetail -> TxnCardInfo -> Flow (Maybe Text)
+getPayerVpa txn txnCardInfo = do
+  if (fromMaybe T.empty (getField @"paymentMethod" txnCardInfo) == "GOOGLEPAY") then do
+      respId <- whenNothing (getField @"successResponseId" txn)  (throwException err500)
+
+      mPaymentGatewayResp <- withDB eulerDB $ do
+        let predicate PaymentGatewayResponse {id} =
+              id ==. B.just_ (B.val_ $ show respId)
+        findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
+
+      case mPaymentGatewayResp of
+        Just paymentGateway -> do
+          pure Nothing
+          -- TODO:
+          -- pgResponse  <- O.getResponseXml (fromMaybe T.empty $ getField @"responseXml" paymentGateway)
+          -- payervpa <- lookupRespXml' pgResponse "payerVpa" ""
+          -- case payervpa of
+          --   "" -> pure Nothing
+          --   _ -> pure $ Just payervpa
+        Nothing -> pure Nothing
+    else pure Nothing
 
 -- ----------------------------------------------------------------------------
 -- function: updatePaymentMethodAndType
@@ -2143,7 +2168,7 @@ updatePaymentMethodAndType txn card ordStatus = do
         , payment_method_type = Just "NB"
         } :: OrderStatusResponse)
     Just "WALLET" -> do
-      payerVpa <- undefined :: Flow (Maybe Text) -- TODO: getPayerVpa txn card
+      payerVpa <- getPayerVpa txn card
       pure (ordStatus
         { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
         , payment_method_type = Just "WALLET"
@@ -2158,7 +2183,7 @@ updatePaymentMethodAndType txn card ordStatus = do
             else whenNothing (getField @"paymentSource" card) (Just "null")
           sourceObj = fromMaybe "" $ getField @"sourceObject" txn
       if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect" then pure (setField @"payer_vpa" paymentSource ordS)
-        else undefined :: Flow OrderStatusResponse -- TODO: addPayerVpaToResponse txn ordS paymentSource
+        else addPayerVpaToResponse txn ordS paymentSource
 
     Just "PAYLATER" ->
       pure (ordStatus
@@ -3199,7 +3224,7 @@ xmlToJsonPgrAccumulater strmap xml = do
 
 -- ----------------------------------------------------------------------------
 -- function:
--- TODO port
+-- TODO update
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3238,6 +3263,45 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
 
 -}
 
+addPayerVpaToResponse :: TxnDetail -> OrderStatusResponse -> Maybe Text -> Flow OrderStatusResponse
+addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
+  let ordStatus = setField @"payer_app_name" paymentSource ordStatusResp
+  respId <- whenNothing (getField @"successResponseId" txnDetail)  (throwException err500)
+
+  mPaymentGatewayResp <- withDB eulerDB $ do
+    let predicate PaymentGatewayResponse {id} =
+          id ==. B.just_ (B.val_ $ show respId)
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
+
+  case mPaymentGatewayResp of
+    Just paymentGateway -> do
+      pure ordStatus
+      -- TODO:
+      -- pgResponse  <- O.getResponseXml $ fromMaybe T.empty $ getField @"responseXml" paymentGateway
+      -- payervpa <- case (fromMaybe T.empty $ getField @"gateway" txnDetail) of
+      --               "AXIS_UPI"    -> lookupRespXml' pgResponse "payerVpa" =<< lookupRespXml' pgResponse "customerVpa" ""
+      --               "HDFC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "INDUS_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "KOTAK_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "SBI_UPI"     -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "ICICI_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "HSBC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "VIJAYA_UPI"  -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "YESBANK_UPI" -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "PAYTM_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "PAYU"        -> lookupRespXml' pgResponse "field3" ""
+      --               "RAZORPAY"    -> lookupRespXml' pgResponse "vpa" ""
+      --               "PAYTM_V2"    -> lookupRespXml' pgResponse "VPA" ""
+      --               "GOCASHFREE"  -> lookupRespXml' pgResponse "payersVPA" ""
+      --               _             -> pure ""
+      -- case payervpa of
+      --   "" -> pure ordStatus
+      --   _ -> pure $ setField @"payer_vpa" (Just payervpa) ordStatus
+    Nothing -> pure ordStatus
 
 -- OLD STUFF
 

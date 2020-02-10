@@ -75,9 +75,9 @@ import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 -- porting statistics:
--- to port '-- TODO port' - 23
+-- to port '-- TODO port' - 22
 -- to update '-- TODO update' - 22
--- completed '-- done' - 28
+-- completed '-- done' - 29
 -- total number of functions = 73
 
 -- "xml cases"
@@ -864,13 +864,13 @@ getTxnFromTxnUuid order maybeTxnUuid = do
 
 -- TODO OS rewrite to Text -> TxnDetail and lift?
 getTxnFromTxnUuid :: OrderReference -> Maybe Text -> Flow (Maybe TxnDetail)
-getTxnFromTxnUuid order maybeTxnUuid = do
+getTxnFromTxnUuid order maybeTxnUuid =
   case maybeTxnUuid of
     Just txnUuid' -> do
       orderId' <- whenNothing (getField @"orderId" order) (throwException err500) -- unNullOrErr500 $ order ^. _orderId
       merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)--unNullOrErr500 $ order ^. _merchantId
 
-      txnDetail <- withDB eulerDB $ do
+      withDB eulerDB $ do
         let predicate TxnDetail {orderId, merchantId, txnUuid} =
               orderId ==. B.val_ orderId'
               &&. merchantId ==. B.just_ (B.val_ merchantId')
@@ -884,7 +884,6 @@ getTxnFromTxnUuid order maybeTxnUuid = do
       --   [ "order_id" /\ String orderId
       --   , "merchant_id" /\ String merchantId
       --   , "txn_uuid" /\ String txnUuid ] :: WHERE TxnDetail
-      return txnDetail
     Nothing -> pure Nothing
 
 
@@ -1022,7 +1021,7 @@ fillOrderDetails :: Bool
   -> OrderStatusResponse
   -> Flow OrderStatusResponse
 fillOrderDetails isAuthenticated paymentLinks ord status = do
-  let --resp = status
+  -- let --resp = status
       -- ordObj = ord
   id <- whenNothing (orderUuid ord) (throwException $ myerr "4")-- unNullOrErr500 ordObj.orderUuid
   let nullVal = Nothing -- nullValue unit -- create foreign (JS) null value ???
@@ -1111,7 +1110,7 @@ addMandateDetails ordRef orderStatus =
           conn <- getConn eulerDB
           let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
                 &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
-          res <- runDB conn $ do
+          res <- runDB conn $
             findRow
               $ B.select
               $ B.limit_ 1
@@ -1238,8 +1237,9 @@ getReturnUrl orderRef somebool = do
           let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
      -- not used         mirrorGatewayResponse   = maybe Nothing (unNullOrUndefined <<< _.mirrorGatewayResponse <<< unwrap) merchantIframePreferences
               orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" orderRef )
-          finalReturnUrl <- if (orderRefReturnUrl == "") then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc ) else pure orderRefReturnUrl
-          pure $ finalReturnUrl
+          if (orderRefReturnUrl == "")
+            then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc )
+            else pure orderRefReturnUrl
     Nothing -> pure $ ""
 
 -- ----------------------------------------------------------------------------
@@ -1732,68 +1732,6 @@ addRiskCheckInfoToResponse txn orderStatus = do
             pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
     Nothing -> pure orderStatus
   where getString a = "" -- TODO: if (isNotString a) then "" else a
-
-
--- Iliya codes it above. Vlad's version is below
-
--- addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
--- addRiskCheckInfoToResponse txn orderStatus = do
---   let txnId = fromMaybe T.empty $ getField @"id" txn
-
---   txnRiskCheck <- withDB eulerDB $ do
---     let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
---     findRow
---       $ B.select
---       $ B.limit_ 1
---       $ B.filter_ predicate
---       $ B.all_ (EDB.txn_risk_check eulerDBSchema)
-
---   case txnRiskCheck of
---     Just trc -> do
---       let riskMAId = getField @"riskManagementAccountId" trc
-
---       riskMngAcc <- withDB eulerDB $ do
---         let predicate RiskManagementAccount {id} = id ==. B.val_ riskMAId
---         findRow
---           $ B.select
---           $ B.limit_ 1
---           $ B.filter_ predicate
---           $ B.all_ (EDB.risk_management_account eulerDBSchema)
-
---       let risk = Risk'
---             { provider = provider <$> riskMngAcc
---             , status = getField @"status" trc
---             , message = getField @"message" trc
---             , flagged = whenNothing (getField @"flagged" trc) (Just False)
---             , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
---             , ebs_risk_level = Nothing
---             , ebs_payment_status = Nothing
---             , ebs_risk_percentage = Nothing
---             , ebs_bin_country = Nothing
---             }
---       if (fromMaybe T.empty (getField @"provider" risk)) == "ebs" then do
---             completeResponseJson <- xml2Json (getField @"completeResponse" trc)
---             outputObjectResponseJson <- xml2Json (getField @"completeResponse" trc)
---             responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
---             outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
---             let r' = risk
---                   { ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
---                   ebs_payment_status = (trc ^. _riskStatus),
---                   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
---                   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
---                   }
---             r  <- addRiskObjDefaultValueAsNull r'
---             pure $ orderStatus # _risk .~ (just r)
---           else do
---             r <- addRiskObjDefaultValueAsNull risk
---             pure $ orderStatus # _risk .~ (just r)
---     Nothing -> pure orderStatus
---   where getString a = if (isNotString a) then "" else a
-
-
-
-
-
 
 
 -- ----------------------------------------------------------------------------
@@ -2963,7 +2901,7 @@ getPaymentGatewayResponse txn pgr orderStatusResp =
 
 -- ----------------------------------------------------------------------------
 -- function: versionSpecificTransforms
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3014,6 +2952,59 @@ versionSpecificTransforms headers orderStatus = do
     else pure $ ordResp
 -}
 
+versionSpecificTransforms :: RouteParameters -> OrderStatusResponse -> Flow OrderStatusResponse
+versionSpecificTransforms headers orderStatus = do
+  let pgResponse = getField @"payment_gateway_response" orderStatus
+      refunds = fromMaybe [] $ getField @"refunds" orderStatus
+      gatewayId = fromMaybe 0 $ getField @"gateway_id" orderStatus
+      version = Map.lookup "version" $ unRP headers
+      apiVersion = fromMaybe "" version
+      refunds' = if (apiVersion < "2015-08-18" && apiVersion /= "") || apiVersion == ""
+        then filter (\refund -> getField @"status" refund /= Refund.FAILURE) refunds
+        else refunds
+  refundStatuses <- traverse (getRefundStatus apiVersion) refunds'
+
+  let pgResps = case pgResponse of
+        Just pgResp ->
+            let pgResponse' = if apiVersion < "2017-05-25" || apiVersion == ""
+                  then (pgResp
+                    { offer = Nothing -- :: Maybe Text)
+                    , offer_availed = Nothing -- :: Maybe Text)
+                    , offer_type = Nothing -- :: Maybe Text)
+                    , offer_failure_reason = Nothing -- :: Maybe Text)
+                    , discount_amount = Nothing -- :: Maybe Text)
+                    } :: MerchantPaymentGatewayResponse)
+                  else pgResp
+
+            in Just $ if gatewayId == gatewayIdFromGateway PAYU && ((apiVersion < "2017-10-26" && apiVersion /= "") || apiVersion == "")
+              then
+                  let pgResp = setField @"auth_id_code" (getField @"rrn" pgResponse') pgResponse'
+                  in setField @"rrn" (getField @"epg_txn_id" pgResp) pgResp
+              else pgResponse'
+        Nothing -> Nothing
+
+      orderStatus' = if length refundStatuses > 0
+        then setField @"refunds" (Just refundStatuses) orderStatus
+        else orderStatus
+
+      ordStatus = setField @"payment_gateway_response" pgResps orderStatus'
+
+      ordStatusResp = if isJust (getField @"chargebacks" ordStatus) && ((apiVersion < "2017-07-26" && apiVersion /= "") || apiVersion == "")
+        then setField @"chargebacks" Nothing ordStatus
+        else if apiVersion == ""
+          then setField @"chargebacks" Nothing ordStatus
+          else ordStatus
+
+      ordResp = if isJust (getField @"txn_detail" ordStatusResp) && ((apiVersion < "2018-07-16" && apiVersion /= "") || apiVersion == "")
+        then setField @"txn_detail" Nothing ordStatusResp
+        else if (apiVersion == "")
+          then setField @"txn_detail" Nothing ordStatusResp
+          else ordStatusResp
+  if isJust (getField @"gateway_reference_id" ordResp) && ((apiVersion < "2018-10-25" && apiVersion /= "") || apiVersion == "")
+    then pure $ setField @"gateway_reference_id" Nothing ordResp
+    else if (apiVersion == "")
+      then pure $ setField @"gateway_reference_id" Nothing ordResp
+      else pure ordResp
 
 -- ----------------------------------------------------------------------------
 -- function: getRefundStatus
@@ -3214,7 +3205,7 @@ proxyOrderCreate method = do
 
 -- ----------------------------------------------------------------------------
 -- function: getTxnStatusResponse
--- TODO port
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS

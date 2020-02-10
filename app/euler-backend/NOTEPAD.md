@@ -3,6 +3,12 @@ Type correspondence
 - NullOrUndefined -> Maybe
 unNullOrUndefined :: forall a. NullOrUndefined a -> Maybe a
 
+unNull :: NullOrUndefined a -> a -> a
+unNull is like fromMaybe
+
+isNotNull :: forall a. NullOrUndefined a -> Boolean
+isNotNull is like isJust
+
 Storage types
 - Number -> Double
 - String -> Text

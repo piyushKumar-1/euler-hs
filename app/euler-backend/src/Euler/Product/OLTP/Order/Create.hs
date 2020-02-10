@@ -227,7 +227,7 @@ createOrder' routeParams order' mAccnt isMandate = do
       (mbCId, _)      -> pure mbCId
 
   order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer customerContacts
-  _     <- saveOrderMetadata routeParams order
+  _     <- saveOrderMetadata routeParams (order .^ _id) (order' .^ _metadata)
 
   -- EHS: rework this. Skipping for now.
   let orderId = order ^. _orderId
@@ -351,7 +351,7 @@ saveOrder
   let orderRefVal = DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = account ^. _merchantId
-          , DB.amount             = Just $ testRoundOff2 amount -- EHS: We need a test on this rounding logic.
+          , DB.amount             = Just $ fromMoney amount
           , DB.billingAddressId   = mbBillingAddrId
           , DB.shippingAddressId  = mbShippingAddrId
           , DB.currency           = currency'
@@ -376,34 +376,24 @@ saveOrder
   -- now mkCustContacts
  -- addCustomerInfo req account (mapUDFParams req orderRef)
 
-  refs <- withDB eulerDB
+  refs <- safeHead <$> withDB eulerDB
       $ insertRowsReturningList
       $ B.insert (order_reference eulerDBSchema)
       $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
-
-  -- EHS: this extraction should be done much easier.
-  -- Move it into a combinator based on the `insertRowsReturningList`.
-  -- (Better to have id not null)
-  -- EHS: rework exception codes
-  orderPId <- case refs of
-    [(^. _id) -> Just pId] -> pure pId
-    [(^. _id) -> Nothing]  -> throwException err500 {errBody = "NO ORDER FOUND"}
-    x                      -> throwException err500 {errBody = EHP.show x}
 
   -- EHS: fill the Order data type, skipping for now.
   -- N.B., orderUUID can't be Nothing
   pure $ D.Order {..}
 
 -- EHS: return domain type instead of DB type.
-saveOrderMetadata :: RP.RouteParameters -> D.Order -> Flow OrderMetadataV2
-saveOrderMetadata routeParams order = do
+saveOrderMetadata :: RP.RouteParameters -> OrderPId -> Maybe Text -> Flow OrderMetadataV2
+saveOrderMetadata routeParams orderPId metadata' = do
   -- EHS: Investigate this TODO.
   -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
   -- EHS: why not use order's timestamp?
   orderMetadataTimestamp <- getCurrentTimeUTC
 
-  -- EHS: investigate this comment
-  -- there we need sourceIP and userAgent from ReaderT config
+
   sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
   userAgent'     = RP.lookupRP @RP.UserAgent routeParams
   -- EHS: DB type should be denoted exclicitly
@@ -413,11 +403,10 @@ saveOrderMetadata routeParams order = do
         , browserVersion = Nothing
         , device = Nothing
         , ipAddress = sourceAddress'
-        -- , metadata = metaData req
-        , metadata = getOrderMetadata order   -- EHS: implement this function
+        , metadata = metadata'
         , mobile = Just False
         , operatingSystem = Nothing
-        , orderReferenceId = order ^. _id
+        , orderReferenceId = Just orderPId
         , referer = Nothing
         , userAgent = userAgent'
         , dateCreated = orderMetadataTimestamp
@@ -426,9 +415,9 @@ saveOrderMetadata routeParams order = do
 
   -- EHS: why we're rejecting the result? What if error?
   rows <- withDB eulerDB
-    $ insertRowsReturningList
+    $ insertRowsReturningList --EHS: why not insertRows ?
     $ B.insert (order_metadata_v2 eulerDBSchema)
-    $ B.insertExpressions [ B.val_ orderMetadataDB ]    -- EHS: not used? (_id .~ B.default_ )
+    $ B.insertExpressions [ (B.val_ orderMetadataDB) & _id .~ B.default_]
 
   -- EHS: this extraction should be done much easier.
   -- Move it into a combinator based on the `insertRowsReturningList`.
@@ -437,12 +426,9 @@ saveOrderMetadata routeParams order = do
   pId <- case rows of
     [(^. _id) -> Just pId] -> pure pId
     x                      -> throwException err500 {errBody = EHP.show x}
-
+-- EHS: we really need result?
   pure $ orderMetadataDB & (_id .~ pId)
 
-
--- EHS: should be tested.
-testRoundOff2 x = (\(a,b) -> read @Double $ a <> b) $ bimap EHP.id (take 3) $ span (/='.') $ P.show x
 
 cleanUp :: Maybe Text -> Maybe Text
 cleanUp mStr =  cleanUpSpecialChars <$>  mStr

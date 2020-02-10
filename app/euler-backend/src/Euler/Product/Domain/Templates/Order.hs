@@ -49,7 +49,7 @@ data OrderCreateTemplate = OrderCreateTemplate
   , shippingAddr                   :: AddressTemplate
   -- EHS: shipping address country_code_iso Default: "IND"
   -- EHS: seems we always write the same first & last names for billing & shipping addresses.
-
+  , metaData                       :: Maybe Text
   , description                    :: Maybe Text
   , productId                      :: Maybe Text
   }

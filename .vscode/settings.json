@@ -1,4 +1,3 @@
 {
-  "languageServerHaskell.enableHIE": false,
-  "editor.lineHeight": 14
+  "languageServerHaskell.enableHIE": true,
 }

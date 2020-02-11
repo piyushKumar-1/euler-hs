@@ -2304,6 +2304,7 @@ addRefundDetails txn ordStatus = do
       case refunds of
         [] -> pure ordStatus
         _  -> pure $ setField @"refunds" ( Just $ mapRefund <$> refunds) ordStatus
+    _ -> pure ordStatus
 
 -- ----------------------------------------------------------------------------
 -- function: mapRefund
@@ -3198,6 +3199,7 @@ proxyOrderCreate method = do
 
 
 -- ----------------------------------------------------------------------------
+-- Separate API! Should be in a separate file!
 -- function: getTxnStatusResponse
 -- done
 -- ----------------------------------------------------------------------------

@@ -544,7 +544,7 @@ data Chargeback' = Chargeback'
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Refund' = Refund'
-  {  id                    :: Maybe Text -- Foreign
+  {  id                    :: Text -- Foreign, former Maybe Text
   ,  amount                :: Double
   ,  unique_request_id     :: Maybe Text
   ,  ref                   :: Maybe Text -- Foreign

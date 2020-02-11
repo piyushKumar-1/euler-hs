@@ -11,6 +11,8 @@ import qualified Data.HashMap.Strict          as HM
 import qualified Data.Map.Strict              as Map
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
+import           Data.Generics.Product.Fields
+import           Data.Time
 
 import           Euler.Common.Types.Currency  (Currency)
 import           Euler.Common.Types.External.Order     (OrderStatus (..))
@@ -567,29 +569,30 @@ data Refund' = Refund'
 mapRefund :: Refund -> Refund'
 mapRefund refund = Refund'
   {  id = blanked $ getField @"referenceId" refund
-  ,  amount = unMoney $ getField @"amount" refund
+  ,  amount = fromMoney $ getField @"amount" refund
   ,  unique_request_id = blanked $ getField @"uniqueRequestId" refund
   ,  ref = blanked $ getField @"epgTxnId" refund
   ,  created = show $ getField @"dateCreated" refund -- TODO date format
   ,  status = getField @"status" refund --"" ORIG TODO // transform this
   ,  error_message = blanked $ getField @"errorMessage" refund
-  ,  sent_to_gateway = getStatus refund
+  ,  sent_to_gateway = getStatus
   ,  arn = blanked $ getField @"refundArn" refund
   ,  initiated_by = blanked $ getField @"initiatedBy" refund
-  ,  internal_reference_id = getRefId refund
+  ,  internal_reference_id = getRefId
   ,  refund_source = blanked $ getField @"refundSource" refund
   ,  refund_type = blanked $ getField @"refundType" refund
   }
 
   where
     blanked = fromMaybe mempty
-    getStatus refundObj = (status == SUCCESS || processed || sentToGateway)
+    -- FIXME qualifiers
+    getStatus = (status == Euler.Common.Types.Refund.SUCCESS || processed || sentToGateway)
       where
         status = getField @"status" refund
         processed = getField @"processed" refund
         sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
 
-    getRefId refundObj
+    getRefId
       | (gateway == "HDFC" && sentToGateway) = internalReferenceId
       | otherwise = mempty
       where

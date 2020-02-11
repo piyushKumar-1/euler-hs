@@ -14,6 +14,7 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 import           EulerHS.Types
 
+import qualified Data.Text as T
 import           Data.Time
 import qualified Database.Beam as B
 
@@ -21,6 +22,8 @@ import qualified Euler.Common.Types.Refund as C
 
 import           Euler.Product.Domain.Money
 import qualified Euler.Product.Domain.Refund as D
+
+import qualified Euler.Storage.Types.EulerDB as EDB
 
 data RefundT f = Refund
   { id                  :: B.C f (Maybe Text)
@@ -104,13 +107,19 @@ findRefunds txnId = do
     $ B.filter_ predicate
     -- TODO: $ B.orderBy_ (B.asc_ . ???dateCreated???)
     $ B.all_ (EDB.refund eulerDBSchema)
-  pure $ transform <$> rs
+  case (mapM transformRefund rs) of
+    Success rs' -> pure rs'
+    Failure e -> do
+            logError "Incorrect refund(s) in DB"
+              $  "txnDetailId: " <> txnId              
+              <> "error: "       <> show e
+            throwException internalError  
 
 textNotEmpty :: Validator Text
 textNotEmpty = mkValidator "Can't be empty." (not . T.null)
 
-transform :: Refund -> V D.Refund
-transform r = D.Refund
+transformRefund :: Refund -> V D.Refund
+transformRefund r = D.Refund
   <$> withField @"id" r (extractJust >=> textNotEmpty)
   <*> (mkMoney <$> withField @"amount" r (extractJust >=> amountValidators))
   <*> withField @"authorizationId" r pure

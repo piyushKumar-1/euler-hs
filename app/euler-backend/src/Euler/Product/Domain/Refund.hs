@@ -2,18 +2,19 @@
 
 module Euler.Product.Domain.Refund where
 
-import EulerHS.Prelude
 
-import Data.Time
-
+import           EulerHS.Prelude
+import           Data.Time
 import qualified Euler.Common.Types.Refund as RC
+import           Euler.Product.Domain.Money
 
-import Euler.Product.Domain.Money
-
-newtype RefundId = Text
+newtype RefundId = RefundId
+  { id :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data Refund = Refund
-  { id                  :: Text
+  { id                  :: RefundId
   , amount              :: Money
   , authorizationId     :: Maybe Text
   , dateCreated         :: LocalTime
@@ -36,7 +37,3 @@ data Refund = Refund
   , lastModified        :: Maybe LocalTime
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- Id type
--- type Id = Text
-

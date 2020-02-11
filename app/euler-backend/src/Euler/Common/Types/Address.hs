@@ -2,7 +2,7 @@
 --
 module Euler.Common.Types.Address where
 
--- import EulerHS.Prelude hiding (id, state)
+import EulerHS.Prelude
 
 type AddressId = Int
 

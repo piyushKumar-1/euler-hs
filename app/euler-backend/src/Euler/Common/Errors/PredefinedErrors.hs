@@ -188,6 +188,8 @@ invalidMandateFields = ECErrorResponse
       , status_id = Just (-1)
       , error_message = Just $ "Pass mandate_max_amount also to create a mandate order"
       , error_code = Just "INVALID_REQUEST"
+      }
+  }
 
 invalidCustomerId :: ECErrorResponse
 invalidCustomerId = ECErrorResponse
@@ -379,16 +381,16 @@ customerNotFound = ECErrorResponse
       }
   }
 
-customerNotFound :: ECErrorResponse
-customerNotFound = ECErrorResponse
-  { code = 200
-  , response = A.encodePretty $ ECErrorPayload
-      { status = "ERROR"
-      , status_id = Nothing
-      , error_message = Just "Customer not found"
-      , error_code = Just "INVALID_REQUEST"
-      }
-  }
+-- customerNotFound :: ECErrorResponse
+-- customerNotFound = ECErrorResponse
+--   { code = 200
+--   , response = A.encodePretty $ ECErrorPayload
+--       { status = "ERROR"
+--       , status_id = Nothing
+--       , error_message = Just "Customer not found"
+--       , error_code = Just "INVALID_REQUEST"
+--       }
+--   }
 
 unAuthorizedAccess :: ECErrorResponse
 unAuthorizedAccess = ECErrorResponse

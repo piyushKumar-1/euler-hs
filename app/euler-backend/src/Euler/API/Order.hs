@@ -18,10 +18,11 @@ import qualified Prelude                      as P
 
 import           Euler.Common.Types.Currency (Currency)
 import           Euler.Common.Types.Customer (CustomerId)
+import           Euler.Common.Types.Money (Money)
 import           Euler.Common.Types.Order     (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Promotion
 
-import           Euler.Product.Domain.Money (Money)
+
 
 
 -- Previously: OrderCreateReq

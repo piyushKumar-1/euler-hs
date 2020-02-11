@@ -21,9 +21,9 @@ apiOrderUpdToOrderUpdT :: API.OrderUpdateRequest -> V Ts.OrderUpdateTemplate
 apiOrderUpdToOrderUpdT req = Ts.OrderUpdateTemplate
   <$> ( (fmap . fmap) mkMoney $ withField @"amount" req (insideJust amountValidators))
   <*> apiOrderUpdToUDF req
-  <*> apiOrderToBillingAddrHolderT req
+  <*> apiOrderUpdToBillingAddrHolderT req
   <*> apiOrderUpdToBillingAddrT req
-  <*> apiOrderToShippingAddrHolderT req
+  <*> apiOrderUpdToShippingAddrHolderT req
   <*> apiOrderUpdToShippingAddrT req
 
 apiOrderUpdToBillingAddrHolderT :: API.OrderUpdateRequest -> V Ts.AddressHolderTemplate
@@ -81,8 +81,8 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
     <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
     <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
-    <*> Ts.getOrderType <$> (withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)) -- order_type
-    <*> withField @"gateway_id" sm (insideJust >=> decode >=> gatewayIdValidator)
+    <*> (Ts.getOrderType <$> (withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED))) -- order_type
+    <*> withField @"gateway_id" sm pure -- need validator?
     <*> withField @"customer_id" sm (insideJust >=> customerIdValidators)
     <*> withField @"customer_email" sm pure
     <*> withField @"customer_phone" sm pure
@@ -90,17 +90,17 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> apiOrderCreateToBillingAddrT sm -- billingAddr
     <*> apiOrderCreateToShippingAddrHolderT sm -- shippingAddrHolder
     <*> apiOrderCreateToShippingAddrT sm -- shippingAddr
-    <*> withField @"metadata" sm pure
+    <*> withField @"metaData" sm pure
     <*> withField @"description" sm pure -- description
     <*> withField @"product_id" sm pure -- productId
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
-apiOrderUpdToBillingAddrHolderT req = Ts.AddressHolderTemplate
+apiOrderCreateToBillingAddrHolderT req = Ts.AddressHolderTemplate
   <$> withField @"billing_address_first_name" req pure
   <*> withField @"billing_address_last_name" req pure
 
 apiOrderCreateToBillingAddrT :: API.OrderCreateRequest -> V Ts.AddressTemplate
-apiOrderUpdToBillingAddrT req = Ts.AddressTemplate
+apiOrderCreateToBillingAddrT req = Ts.AddressTemplate
   <$> withField @"billing_address_line1" req pure
   <*> withField @"billing_address_line2" req pure
   <*> withField @"billing_address_line3" req pure
@@ -112,12 +112,12 @@ apiOrderUpdToBillingAddrT req = Ts.AddressTemplate
   <*> withField @"billing_address_country_code_iso" req pure
 
 apiOrderCreateToShippingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
-apiOrderUpdToShippingAddrHolderT req = Ts.AddressHolderTemplate
+apiOrderCreateToShippingAddrHolderT req = Ts.AddressHolderTemplate
   <$> withField @"shipping_address_first_name" req pure
   <*> withField @"shipping_address_last_name" req pure
 
 apiOrderCreateToShippingAddrT :: API.OrderCreateRequest -> V Ts.AddressTemplate
-apiOrderUpdToShippingAddrT req = Ts.AddressTemplate
+apiOrderCreateToShippingAddrT req = Ts.AddressTemplate
   <$> withField @"shipping_address_line1" req pure
   <*> withField @"shipping_address_line2" req pure
   <*> withField @"shipping_address_line3" req pure
@@ -138,8 +138,8 @@ apiOrderUpdToShippingAddrT req = Ts.AddressTemplate
 -- EHS: DRY for validators. A lot of them is repeated many times.
 gatewayIdValidator :: Validator Int
 gatewayIdValidator = mkValidator
-  $ "Should be in " <> show gatewayRMap
-  $ (`Map.member` (gatewayRMap))
+   ("Should be in " <> show gatewayRMap)
+   (`Map.member` (gatewayRMap))
 
 amountValidators :: Validator Double
 amountValidators =

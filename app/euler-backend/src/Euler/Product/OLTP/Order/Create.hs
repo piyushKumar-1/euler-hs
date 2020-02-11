@@ -217,11 +217,11 @@ createOrder' routeParams order' mAccnt isMandate = do
   -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
   mbShippingAddrId          <- createAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
 
-  -- EHS: why findMaybeByMerchantAccountAndCustId does nothing?
-  -- maybeCustomer  <- maybe (pure Nothing) (\x -> findMaybeByMerchantAccountAndCustId x (mAccnt ^. _id)) customer_id
   -- EHS: Situation: we're updated addresses in the DB when realized the request is invalid.
+  -- EHS: !We create addresses in the database and do not update them.
   -- EHS: This is essentially a security problem.
   -- EHS: This rule should be enforced earlier, before any updates.
+  -- EHS: looks like we not need mbCustomerId, just check condition and throw exception if it fail
   mbCustomerId <- case (mbCustomer >>= (^. _customerId), orderType == MANDATE_REGISTER) of
       (Nothing, True) -> throwException customerNotFound
       (mbCId, _)      -> pure mbCId
@@ -515,8 +515,7 @@ mkMandatedata merchantId OrderCreateRequest{..} orderId maxAmount = do
 -- EHS: return domain type for Reseller instead of DB type
 loadReseller :: Maybe Text -> Flow (Maybe ResellerAccount)
 loadReseller Nothing = pure Nothing
-loadReseller (Just resellerId') = do
-  eRes <- withDB eulerDB $ do
+loadReseller (Just resellerId') = withDB eulerDB $ do
     -- EHS: DB types should be qualified or explicitly named.
     let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
     findRow
@@ -524,14 +523,6 @@ loadReseller (Just resellerId') = do
       $ B.limit_ 1
       $ B.filter_ predicate
       $ B.all_ (reseller_account eulerDBSchema)
-
-  case eRes of
-    Right mbRAcc -> pure mbRAcc
-    Left err -> do
-      -- EHS: rework error messages
-      logError "Find ResellerAccount" $ toText $ P.show err
-      -- EHS: rework exceptions
-      throwException err500 {errBody = "14"}
 
 -- EHS: API type should not be used in the logic.
 -- EHS: previously makeOrderResponse

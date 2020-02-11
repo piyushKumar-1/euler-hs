@@ -25,7 +25,6 @@ import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import           Data.Time
 import           Data.Time.Clock
 import           Servant.Server
 
@@ -82,9 +81,9 @@ import           Euler.Storage.DBConfig
 
 -- porting statistics:
 -- to port '-- TODO port' - 21
--- to update '-- TODO update' - 23
+-- to update '-- TODO update' - 22
 -- completed '-- done' - 30
--- total number of functions = 74
+-- total number of functions = 73
 
 -- "xml cases"
 -- - TxnRiskCheck.completeResponse
@@ -3303,9 +3302,9 @@ getTokenExpiryData = do
 getTokenExpiryData :: Flow OrderTokenExpiryData
 getTokenExpiryData = do
   orderToken <- T.append "tkn_" <$> getUUID32
-  currentDateWithOffset <- getCurrentDateStringWithOffset orderTokenExpiryND
+  currentDateWithOffset <- getCurrentDateStringWithSecOffset orderTokenExpiry
   let defaultTokenData = OrderTokenExpiryData
-        { expiryInSeconds = orderTokenExpiryI
+        { expiryInSeconds = orderTokenExpiry
         , tokenMaxUsage = orderTokenMaxUsage
         , orderToken = Just orderToken
         , currentDateWithExpiry = Just currentDateWithOffset
@@ -3331,29 +3330,6 @@ getTokenExpiryData = do
           , tokenMaxUsage = getField @"tokenMaxUsage" decodedVal
           }
     Nothing -> pure defaultOrderTokenExpiryData
-
-
--- ----------------------------------------------------------------------------
--- function: getCurrentDateStringWithOffset
--- TODO update
--- ----------------------------------------------------------------------------
-
--- doAffRR' (from Presto backend) is runIO with description
--- ticket 172
-
--- getCurrentDateStringWithOffset :: forall a. Int -> BackendFlow _ _ String
--- getCurrentDateStringWithOffset sec = doAffRR' "_currentDateStringWithSecOffset" (liftEff $ _currentDateStringWithSecOffset sec)
-
--- exports._currentDateStringWithSecOffset = function(seconds) {
---   return function(){
---     return moment.utc().add(seconds,'seconds').format('YYYY-MM-DD[T]HH:mm:ss[Z]');
---   }
--- };
-
-getCurrentDateStringWithOffset :: NominalDiffTime -> Flow Text
-getCurrentDateStringWithOffset sec = runIO $ do -- TODO: make runIO with description
-  current <- getCurrentTime
-  pure $ show $ addUTCTime sec current -- TODO: use 'secondsToNominalDiffTime sec' with sec as Int type after time library bumped up to 1.9.1 version
 
 
 -- ----------------------------------------------------------------------------

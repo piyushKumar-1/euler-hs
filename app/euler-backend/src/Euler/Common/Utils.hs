@@ -1,6 +1,5 @@
 module Euler.Common.Utils where
 
-
 import           EulerHS.Prelude
 
 import qualified Data.Text as Text
@@ -23,3 +22,7 @@ blankToNothing Nothing = Nothing
 blankToNothing (Just val) = case Text.strip val of
   "" -> Nothing
   _ -> Just val
+
+maybeList :: [a] -> Maybe [a]
+maybeList [] = Nothing
+maybeList as = Just as

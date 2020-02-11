@@ -10,6 +10,7 @@ import qualified Euler.Common.Types.Refund as RC
 
 import Euler.Product.Domain.Money
 
+newtype RefundId = Text
 
 data Refund = Refund
   { id                  :: Text
@@ -35,4 +36,7 @@ data Refund = Refund
   , lastModified        :: Maybe LocalTime
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- Id type
+-- type Id = Text
 

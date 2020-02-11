@@ -10,6 +10,7 @@
 module Euler.Product.OLTP.Order.OrderStatus where
 
 
+
 import           EulerHS.Prelude hiding (id)
 import qualified EulerHS.Prelude as P (id)
 import qualified Prelude as P (show)
@@ -28,10 +29,11 @@ import qualified Data.Text.Encoding as T
 import           Data.Time.Clock
 import           Servant.Server
 
-import           Euler.API.Order
+import           Euler.API.Order as AO
 import           Euler.API.RouteParameters
 import           Euler.API.Transaction
 import           Euler.API.Types
+
 import qualified Euler.Common.Metric as Metric
 import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Gateway
@@ -46,9 +48,9 @@ import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
 import           Euler.Product.Domain.Order (Order)
+
 import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
-
 
 import           Euler.Storage.Types.Chargeback
 import           Euler.Storage.Types.Customer
@@ -937,6 +939,7 @@ getLastTxn orderRef = do
         Nothing -> pure (txns !! 0)
 -}
 
+-- TODO add sorting by dateCreated!
 getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
 getLastTxn orderRef = do
   orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
@@ -2305,6 +2308,19 @@ addRefundDetails txn ordStatus = do
         [] -> pure ordStatus
         _  -> pure $ setField @"refunds" ( Just $ mapRefund <$> refunds) ordStatus
     _ -> pure ordStatus
+
+-- ----------------------------------------------------------------------------
+-- Refactored
+
+-- addRefundDetails2 txnId ordStatus = do 
+--   rs <- refundDetails txnId
+--   setField @"refunds" (maybeList rs) ordStatus
+
+refundDetails :: TxnId -> Flow [Refund']
+refundDetails txnId = do
+  l <- findRefunds txnId
+  pure $ map AO.mapRefund l
+
 
 -- ----------------------------------------------------------------------------
 -- function: mapRefund

@@ -10,10 +10,17 @@ module Euler.Storage.Types.Refund
 
 import           EulerHS.Prelude hiding (id)
 
+import           EulerHS.Extra.Validation
+import           EulerHS.Language
+import           EulerHS.Types
+
 import           Data.Time
 import qualified Database.Beam as B
-import qualified Euler.Common.Types.Refund as RC
 
+import qualified Euler.Common.Types.Refund as C
+
+import           Euler.Product.Domain.Money
+import qualified Euler.Product.Domain.Refund as D
 
 data RefundT f = Refund
   { id                  :: B.C f (Maybe Text)
@@ -26,7 +33,7 @@ data RefundT f = Refund
   , rootReferenceNumber :: B.C f (Maybe Text)
   , txnDetailId         :: B.C f (Maybe Text)
   , referenceId         :: B.C f (Maybe Text)
-  , status              :: B.C f RC.RefundStatus
+  , status              :: B.C f C.RefundStatus
   , uniqueRequestId     :: B.C f (Maybe Text)
   , errorMessage        :: B.C f (Maybe Text)
   , sentToGateway       :: B.C f (Maybe Bool)
@@ -81,3 +88,70 @@ refundEMod = B.modifyTableFields
     , lastModified = B.fieldNamed "last_modified"
     }
 
+type RefundId = Text
+
+loadRefund :: RefundId -> Flow (Maybe D.Refund)
+loadRefund = undefined
+
+type TxnDetailId = Text
+
+findRefunds :: TxnDetailId -> Flow [D.Refund]
+findRefunds txnId = do
+  rs <- withDB eulerDB $ do
+  let predicate Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+  findRows
+    $ B.select
+    $ B.filter_ predicate
+    -- TODO: $ B.orderBy_ (B.asc_ . ???dateCreated???)
+    $ B.all_ (EDB.refund eulerDBSchema)
+  pure $ transform <$> rs
+
+textNotEmpty :: Validator Text
+textNotEmpty = mkValidator "Can't be empty." (not . T.null)
+
+transform :: Refund -> V D.Refund
+transform r = D.Refund
+  <$> withField @"id" r (extractJust >=> textNotEmpty)
+  <*> (mkMoney <$> withField @"amount" r (extractJust >=> amountValidators))
+  <*> withField @"authorizationId" r pure
+  <*> withField @"dateCreated" r (extractJust >=> pure)
+  <*> withField @"epgTxnId" r pure
+  <*> withField @"gateway" r textNotEmpty
+  <*> withField @"processed" r pure
+  <*> withField @"rootReferenceNumber" r pure  
+  <*> withField @"txnDetailId" r pure
+  <*> withField @"referenceId" r pure
+  <*> withField @"status" r pure
+  <*> withField @"uniqueRequestId" r pure
+  <*> withField @"errorMessage" r pure
+  <*> withField @"sentToGateway" r pure
+  <*> withField @"responseCode" r pure
+  <*> withField @"internalReferenceId" r pure
+  <*> withField @"refundArn" r pure
+  <*> withField @"initiatedBy" r pure
+  <*> withField @"refundType" r pure
+  <*> withField @"refundSource" r pure
+  <*> withField @"lastModified" r pure
+
+
+-- EHS: move validators to separate module
+notNegative :: Validator Int
+notNegative = mkValidator "Should not be negative." (>= 0)
+
+amountValidators :: Validator Double
+amountValidators =
+  parValidate
+    [ max2DecimalDigits
+    , gteOne
+    ]
+
+--Will accept double values with upto two decimal places.
+max2DecimalDigits :: Validator Double
+max2DecimalDigits = mkValidator
+  "Will accept double values with upto two decimal places."
+  ((<=3) . length . dropWhile (/='.') . show)
+
+gteOne :: Validator Double
+gteOne = mkValidator
+  "Should be greater than or equal 1"
+  (>=1)

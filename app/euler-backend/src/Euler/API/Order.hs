@@ -20,6 +20,9 @@ import           Euler.Common.Types.Refund as Refund
 
 
 
+import           Euler.Product.Domain.Money
+import           Euler.Product.Domain.Refund
+
 
 -- Previously: OrderCreateReq
 data OrderCreateRequest = OrderCreateRequest
@@ -544,24 +547,58 @@ data Chargeback' = Chargeback'
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Refund' = Refund'
-  {  id                    :: Text -- Foreign, former Maybe Text
+  {  id                    :: Text -- Foreign
   ,  amount                :: Double
-  ,  unique_request_id     :: Maybe Text
-  ,  ref                   :: Maybe Text -- Foreign
+  ,  unique_request_id     :: Text
+  ,  ref                   :: Text -- Foreign
   ,  created               :: Text
-  ,  status                :: Refund.RefundStatus
-  ,  error_message         :: Maybe Text
-  ,  sent_to_gateway       :: Maybe Bool
-  ,  arn                   :: Maybe Text
-  ,  initiated_by          :: Maybe Text
-  ,  internal_reference_id :: Maybe Text
-  ,  refund_source         :: Maybe Text -- Foreign
-  ,  refund_type           :: Maybe Text
+  ,  status                :: RefundStatus -- Refund.RefundStatus
+  ,  error_message         :: Text
+  ,  sent_to_gateway       :: Bool
+  ,  arn                   :: Text
+  ,  initiated_by          :: Text
+  ,  internal_reference_id :: Text
+  ,  refund_source         :: Text -- Foreign
+  ,  refund_type           :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- from src/Types/Storage/EC/Refund.purs
--- data RefundStatus = FAILURE | MANUAL_REVIEW | PENDING | SUCCESS | TXN_FAILURE
---   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+mapRefund :: Refund -> Refund'
+mapRefund refund = Refund'
+  {  id = blanked $ getField @"referenceId" refund
+  ,  amount = unMoney $ getField @"amount" refund
+  ,  unique_request_id = blanked $ getField @"uniqueRequestId" refund
+  ,  ref = blanked $ getField @"epgTxnId" refund
+  ,  created = show $ getField @"dateCreated" refund -- TODO date format
+  ,  status = getField @"status" refund --"" ORIG TODO // transform this
+  ,  error_message = blanked $ getField @"errorMessage" refund
+  ,  sent_to_gateway = getStatus refund
+  ,  arn = blanked $ getField @"refundArn" refund
+  ,  initiated_by = blanked $ getField @"initiatedBy" refund
+  ,  internal_reference_id = getRefId refund
+  ,  refund_source = blanked $ getField @"refundSource" refund
+  ,  refund_type = blanked $ getField @"refundType" refund
+  }
+
+  where
+    blanked = fromMaybe mempty
+    getStatus refundObj = (status == SUCCESS || processed || sentToGateway)
+      where
+        status = getField @"status" refund
+        processed = getField @"processed" refund
+        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
+
+    getRefId refundObj
+      | (gateway == "HDFC" && sentToGateway) = internalReferenceId
+      | otherwise = mempty
+      where
+        gateway = getField @"gateway" refund
+        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
+        internalReferenceId = blanked $ getField @"internalReferenceId" refund
+
+
+
 -- from src/Types/Storage/EC/Mandate/Types.purs
 data Mandate' = Mandate'
   { mandate_token  :: Text

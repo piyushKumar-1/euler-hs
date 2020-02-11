@@ -36,7 +36,8 @@ instance FromBackendRow Sqlite OrderType where
 instance FromBackendRow MySQL OrderType where
   fromBackendRow = read . T.unpack <$> fromBackendRow
 
-
+-- EHS: too generic names for domain data type (NEW, SUCCESS etc.)
+-- Should be reworked.
 data OrderStatus
   = NEW
   | SUCCESS
@@ -124,33 +125,16 @@ defaultOrderTokenExpiryData = OrderTokenExpiryData
   }
 
 -- EHS: use Money.
-type MandateMaxAmount :: Double
+-- EHS: use newtypes.
+type MandateMaxAmount = Double
 
--- EHS: DISABLED, REQUIRED, OPTIONAL are too generic names.
--- Need a specific name.
-data MandateFeature
-  = DISABLED
-  | REQUIRED MandateMaxAmount
-  | OPTIONAL MandateMaxAmount
+-- EHS: domain types.
+-- For API & DB types use Types/Mandate/MandateFeature.
+data OrderMandate
+  = MandateDisabled
+  | MandateRequired MandateMaxAmount
+  | MandateOptional MandateMaxAmount
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
-
-instance ToHttpApiData MandateFeature where
-  toQueryParam = T.pack . P.show
-
-instance FromHttpApiData MandateFeature where
-  parseQueryParam p = bimap T.pack id $ TR.readEither $ T.unpack p
-
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be MandateFeature where
-  sqlValueSyntax = autoSqlValueSyntax
-
-instance FromBackendRow Postgres MandateFeature where
-  fromBackendRow = read . T.unpack <$> fromBackendRow
-
-instance FromBackendRow Sqlite MandateFeature where
-  fromBackendRow = read . T.unpack <$> fromBackendRow
-
-instance FromBackendRow MySQL MandateFeature where
-  fromBackendRow = read . T.unpack <$> fromBackendRow
 
 
 data UDF = UDF

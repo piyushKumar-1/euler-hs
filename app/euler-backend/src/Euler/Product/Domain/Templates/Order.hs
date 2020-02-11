@@ -7,7 +7,7 @@ import           EulerHS.Prelude
 
 import           Euler.Common.Types.Currency (Currency)
 import           Euler.Common.Types.Customer (CustomerId)
-import           Euler.Common.Types.Order     (MandateFeature (..), OrderStatus (..), OrderType (..), UDF)
+import           Euler.Common.Types.Order     (OrderMandate (..), OrderStatus (..), OrderType (..), UDF)
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Gateway (GatewayId)
 import           Euler.Common.Types.Money (Money)
@@ -30,7 +30,7 @@ data OrderCreateTemplate = OrderCreateTemplate
   { orderId                        :: Text
   , currency                       :: Maybe Currency          -- Default value: MerchantIframePreferences defaultCurrency or INR
   , amount                         :: Money
-  , optionsCreateMandate           :: MandateFeature          -- Default: DISABLED
+  , mandate                        :: OrderMandate            -- Default: MandateDisabled
 
   , orderType                      :: OrderType               -- depends on mandate feature
   , gatewayId                      :: Maybe GatewayId
@@ -56,6 +56,6 @@ data OrderCreateTemplate = OrderCreateTemplate
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)
 
-getOrderType :: MandateFeature -> OrderType
-getOrderType (REQUIRED _) = MANDATE_REGISTER
-getOrderType _            = ORDER_PAYMENT
+getOrderType :: OrderMandate -> OrderType
+getOrderType (MandateRequired _) = MANDATE_REGISTER
+getOrderType _                   = ORDER_PAYMENT

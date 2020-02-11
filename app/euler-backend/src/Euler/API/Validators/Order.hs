@@ -9,7 +9,8 @@ import qualified Data.Text as T
 
 import           Euler.Common.Types.Currency (Currency(..))
 import           Euler.Common.Types.Gateway (gatewayRMap)
-import           Euler.Common.Types.Order     (MandateFeature(..), UDF(..))
+import           Euler.Common.Types.Mandate     (MandateFeature(..))
+import           Euler.Common.Types.Order     (UDF(..))
 import           Euler.Common.Types.Money (mkMoney)
 
 import qualified Euler.API.Order as API
@@ -79,8 +80,11 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
     <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
     <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
+
+    -- EHS: these types have changed. Rework validator
     <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
     <*> (Ts.getOrderType <$> (withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED))) -- order_type
+
     <*> withField @"gateway_id" sm pure -- need validator?
     <*> withField @"customer_id" sm (insideJust >=> customerIdValidators)
     <*> withField @"customer_email" sm pure

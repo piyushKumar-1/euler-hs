@@ -14,18 +14,18 @@ rGet k = do
   mv <- runKVDB $ get $ BSL.toStrict $ A.encode k
   case mv of
     Right (Just val) -> pure $ A.decode $ BSL.fromStrict val
-    Right (Nothing) -> pure Nothing
+    Right Nothing    -> pure Nothing
     Left err -> do
       logError "Redis Get" $ show err
       pure Nothing
 
 setCacheWithExpiry :: (ToJSON k, ToJSON v, Integral t) => k -> v -> t -> Flow (Either KVDBReply KVDBStatus)
 setCacheWithExpiry k v t = do
-  res <- runKVDB $ do
-    setex (BSL.toStrict $ A.encode k) (toInteger t) (BSL.toStrict $ A.encode v)
+  res <- runKVDB
+    $ setex (BSL.toStrict $ A.encode k) (toInteger t) (BSL.toStrict $ A.encode v)
 
   case res of
-    Right r  -> logInfo "Redis setCacheWithExpiry" $ show r
+    Right r  -> logInfo  "Redis setCacheWithExpiry" $ show r
     Left err -> logError "Redis setCacheWithExpiry" $ show err
-    
+
   pure res

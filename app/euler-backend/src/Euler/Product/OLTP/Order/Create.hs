@@ -37,10 +37,11 @@ import qualified Euler.API.Order            as API
 import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.Order
+import qualified Euler.Common.Types.Order          as O
 import           Euler.Common.Types.OrderMetadata
-import qualified Euler.Common.Types.Mandate as M
-import qualified Euler.Common.Metric        as Metric
-import qualified Euler.Product.Domain.Order as D
+import qualified Euler.Common.Types.Mandate        as M
+import qualified Euler.Common.Metric               as Metric
+import qualified Euler.Product.Domain.Order        as D
 import           Euler.Product.Domain.MerchantAccount
 import           Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Product.Domain.Templates    as Ts
@@ -52,6 +53,10 @@ import           Euler.Lens
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
 orderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 orderCreate routeParams order' mAccnt = do
+
+  -- EHS: effectful validation found.
+  _               <- validateMandate order' (mAccnt ^. _merchantId)
+
   -- EHS: loading merchant is a effectful pre-validation procedure.
   --      Should be done on the validation layer.
   mbExistingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
@@ -62,8 +67,11 @@ orderCreate routeParams order' mAccnt = do
 
 doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
-  mandateOrder <- isMandateOrder order' (mAccnt ^. _merchantId)
-  order        <- createOrder' routeParams order' mAccnt mandateOrder
+  order        <- createOrder' routeParams order' mAccnt
+
+  _            <- updateOrderCache order
+  _            <- updateMandateCache order
+
   mbReseller   <- loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.
   cfg          <- runIO Config.getECRConfig
@@ -78,6 +86,66 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
       orderTokenData <- acquireOrderToken (order ^. _id) orderCreateReq merchantId
       pure $ updateResponse order' orderResponse orderTokenData
     else pure orderResponse
+
+-- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
+--      Why this cache exist? What it does?
+updateOrderCache
+updateOrderCache order = do
+  let orderId = order ^. _orderId
+  -- EHS: magic constant.
+  void $ setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
+
+-- EHS: previously setMandateInCache
+-- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
+--      In the previous code, we're expecting max amount to be set even if mandate is DISABLED.
+--      It's not clear whether this a valid behaviour (seems not).
+-- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
+--      Why this cache exist? What it does?
+updateMandateCache
+  :: D.Order
+  -> MerchantId
+  -> Flow ()
+updateMandateCache order = case order ^. _mandate of
+    MandateDisabled -> pure ()
+    MandateRequired maxAmount -> updateMandateCache' maxAmount
+    MandateOptional maxAmount -> updateMandateCache' maxAmount
+  where
+    updateMandateCache' maxAmount = do
+        let merchantId = order ^. _merchantId
+        let orderId    = order ^. _orderId
+        mandate <- createMandate order maxAmount
+        -- EHS: magic constant
+        void $ setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
+
+    createMandate :: D.Order -> Double -> Flow Mandate
+    createMandate order maxAmount = do
+      mandateId   <- getShortUUID
+      currentDate <- getCurrentTimeUTC
+      token       <- getUUID32
+      pure $ Mandate
+        { id = Nothing
+        , merchantId = order ^. _merchantId
+        , currency = order ^. _currency
+        , endDate = Nothing
+        , startDate = Nothing
+        , maxAmount = Just maxAmount
+        , merchantCustomerId = order ^. _customerId
+        , paymentMethod = Nothing
+        , paymentMethodType = Nothing
+        , paymentMethodId = Nothing
+        , gateway = Nothing
+        , gatewayParams = Nothing
+        , token = token
+        , mandateId = mandateId
+        , status = O.CREATED
+        , authOrderId = Just $ order ^. _id
+        , activatedAt = Nothing
+        , dateCreated = currentDate
+        , lastModified = currentDate
+        , authTxnCardInfo = Nothing
+        , merchantGatewayAccountId = Nothing
+        , metadata = Nothing
+        }
 
 updateResponse :: Ts.OrderCreateTemplate-> API.OrderCreateResponse -> OrderTokenResp -> API.OrderCreateResponse
 updateResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
@@ -120,16 +188,16 @@ acquireOrderToken orderPId merchantId = do
     , client_auth_token_expiry = Just expiry
     }
 
--- EHS: Bad function. It either returns True, or throws.
--- Invalid behaviour. Should return False on failed validation.
-isMandateOrder :: Ts.OrderCreateTemplate -> MerchantId -> Flow Bool
-isMandateOrder (Ts.OrderCreateTemplate {optionsCreateMandate}) merchantId = do
-  case optionsCreateMandate of
-    DISABLED           -> pure False
-    REQUIRED maxAmount -> validateMandate maxAmount
-    OPTIONAL maxAmount -> validateMandate maxAmount
+-- EHS: previously isMandateOrder
+-- EHS: bad function. Throws exception on invalid data.
+validateMandate :: Ts.OrderCreateTemplate -> MerchantId -> Flow ()
+validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
+  case mandate of
+    MandateDisabled           -> pure ()
+    MandateRequired maxAmount -> validateMaxAmount maxAmount
+    MandateOptional maxAmount -> validateMaxAmount maxAmount
   where
-    validateMandate maxAmount = do
+    validateMaxAmount maxAmount = do
 
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
@@ -143,7 +211,6 @@ isMandateOrder (Ts.OrderCreateTemplate {optionsCreateMandate}) merchantId = do
         $ throwException
         $ invalidMandateMaxAmount maxAmLimit
 
-      pure True
 
 -- EHS: bad function. Get rid of it.
 -- from src/Utils/Utils.purs
@@ -190,9 +257,8 @@ createOrder'
   :: RP.RouteParameters
   -> Ts.OrderCreateTemplate
   -> MerchantAccount
-  -> Bool
   -> Flow D.Order
-createOrder' routeParams order' mAccnt isMandate = do
+createOrder' routeParams order' mAccnt = do
 
   merchantPrefs <- loadMerchantPrefs merchantId
 
@@ -216,10 +282,6 @@ createOrder' routeParams order' mAccnt isMandate = do
   order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer mbCustomer
   _     <- saveOrderMetadata routeParams (order .^ _id) (order' .^ _metadata)
 
-  -- EHS: rework this. Skipping for now.
-  let orderId = order ^. _orderId
-  _ <- setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
-  _ <- when isMandate (setMandateInCache orderCreateReq (order ^. _id) orderId merchantId)
   pure order
 
 fillCustomerContacts
@@ -372,7 +434,7 @@ saveOrder
   -- EHS: TODO: add UDF fields
   let orderRefVal' = DB.defaultOrderReference
           { DB.orderId            = Just orderId
-          , DB.merchantId         = account ^. _merchantId
+          , DB.merchantId         = mAccnt ^. _merchantId
           , DB.amount             = Just $ fromMoney amount
           , DB.billingAddressId   = mbBillingAddrId
           , DB.shippingAddressId  = mbShippingAddrId
@@ -389,7 +451,7 @@ saveOrder
           , DB.dateCreated        = orderTimestamp
           , DB.lastModified       = orderTimestamp
           , DB.orderType          = Just orderType
-          , DB.mandateFeature     = optionsCreateMandate
+          , DB.mandateFeature     = M.toDBMandate mandate
           }
   let orderRefVal = fillUDFParams order' orderRefVal'
 
@@ -409,7 +471,6 @@ saveOrderMetadata routeParams orderPId metadata' = do
   -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
   -- EHS: why not use order's timestamp?
   orderMetadataTimestamp <- getCurrentTimeUTC
-
 
   sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
   userAgent'     = RP.lookupRP @RP.UserAgent routeParams
@@ -479,54 +540,6 @@ fillUDFParams order' orderRef = smash newUDF orderRef
 
 
 
-setMandateInCache :: OrderCreateRequest -> Int -> Text -> Text -> Flow ()
-setMandateInCache req@OrderCreateRequest{..} orderIdPrimary orderId merchantId = do
-  maxAmount  <- extractMandatory mandate_max_amount
-  maxAmountNum  <- fromStringToNumber maxAmount
-  defaultMandateData <- mkMandatedata merchantId req orderIdPrimary maxAmountNum
-  _ <- setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId)
-      defaultMandateData Config.mandateTtl
-  pure ()
-
--- from src/Utils/Utils.purs
-extractMandatory :: Maybe a -> Flow a
---extractMandatory obj = extractMandatory' $ unNullOrUndefined obj
-extractMandatory = maybe (throwException $ err500 {errBody = "Mandatory object not found"}) pure
-
--- extractMandatory' :: forall rt localState b. Maybe b -> BackendFlow localState rt b
--- extractMandatory' obj = case (obj) of
---                         Just val -> pure val
---                         Nothing -> defaultThrowECException "OBJECT_NOT_FOUND" "OBJECT NOT FOUND"
-
-mkMandatedata :: Text -> OrderCreateRequest -> Int -> Double -> Flow Mandate
-mkMandatedata merchantId OrderCreateRequest{..} orderId maxAmount = do
-  mandateId <- getShortUUID
-  currentDate <- getCurrentTimeUTC
-  token <- getUUID32
-  pure $ Mandate {
-    id = Nothing
-  , merchantId = merchantId
-  , currency = currency
-  , endDate = Nothing
-  , startDate = Nothing
-  , maxAmount = Just maxAmount
-  , merchantCustomerId = customer_id
-  , paymentMethod = Nothing
-  , paymentMethodType = Nothing
-  , paymentMethodId = Nothing
-  , gateway = Nothing
-  , gatewayParams = Nothing
-  , token = token
-  , mandateId = mandateId
-  , status = M.CREATED
-  , authOrderId = Just orderId
-  , activatedAt = Nothing
-  , dateCreated = currentDate
-  , lastModified = currentDate
-  , authTxnCardInfo = Nothing
-  , merchantGatewayAccountId = Nothing
-  , metadata = Nothing
-  }
 
 -- EHS: previously handleReseller
 -- EHS: return domain type for Reseller instead of DB type

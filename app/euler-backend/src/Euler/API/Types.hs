@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Euler.API.Types 
+module Euler.API.Types
   where
 
 import EulerHS.Prelude
@@ -16,7 +16,8 @@ data PaymentMethodType
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
 
 
-
+-- EHS: should not be here
+-- EHS: duplicated type
 data TxnType
   = UPI_COLLECT
   | UPI_PAY

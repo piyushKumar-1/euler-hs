@@ -123,10 +123,15 @@ defaultOrderTokenExpiryData = OrderTokenExpiryData
   , currentDateWithExpiry = Nothing -- :: Maybe Text
   }
 
+-- EHS: use Money.
+type MandateMaxAmount :: Double
+
+-- EHS: DISABLED, REQUIRED, OPTIONAL are too generic names.
+-- Need a specific name.
 data MandateFeature
   = DISABLED
-  | REQUIRED
-  | OPTIONAL
+  | REQUIRED MandateMaxAmount
+  | OPTIONAL MandateMaxAmount
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 instance ToHttpApiData MandateFeature where

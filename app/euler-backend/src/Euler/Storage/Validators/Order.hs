@@ -9,7 +9,7 @@ import qualified Euler.Storage.Types.OrderReference  as S
 import qualified Euler.Product.Domain.Order as D
 
 
-
+-- EHS: better naming
 transSOrderToDOrder :: S.OrderReference -> V D.Order
 transSOrderToDOrder so = DO.Order
   <$> withField @"id" so (fromJust >=> notNegative)

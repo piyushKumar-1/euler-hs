@@ -74,7 +74,6 @@ apiOrderUpdToUDF req = UDF
   <*> withField @"udf10" req pure
 
 
--- EHS: OrderCreateTemplate has changed, update the validator
 transApiOrdCreateToOrdCreateT :: API.OrderCreateRequest -> V Ts.OrderCreateTemplate
 transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
@@ -93,6 +92,9 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> withField @"metaData" sm pure
     <*> withField @"description" sm pure -- description
     <*> withField @"product_id" sm pure -- productId
+
+    -- EHS: add mandateMaxAmount validator.
+    -- Error on invalid madate fields is in `invalidMandateFields`.
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
 apiOrderCreateToBillingAddrHolderT req = Ts.AddressHolderTemplate

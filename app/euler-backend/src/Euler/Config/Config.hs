@@ -8,6 +8,7 @@ import           System.Environment (lookupEnv)
 
 import qualified Data.Text as Text (pack)
 
+-- EHS: should be Money.
 mandateMaxAmountAllowed :: Text
 mandateMaxAmountAllowed = "100001.00"
 

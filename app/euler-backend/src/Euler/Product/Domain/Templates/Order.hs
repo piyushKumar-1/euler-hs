@@ -28,9 +28,10 @@ data OrderUpdateTemplate = OrderUpdateTemplate
 
 data OrderCreateTemplate = OrderCreateTemplate
   { orderId                        :: Text
-  , currency                       :: Maybe Currency -- Default value: MerchantIframePreferences defaultCurrency or INR
+  , currency                       :: Maybe Currency          -- Default value: MerchantIframePreferences defaultCurrency or INR
   , amount                         :: Money
   , optionsCreateMandate           :: MandateFeature          -- Default: DISABLED
+
   , orderType                      :: OrderType               -- depends on mandate feature
   , gatewayId                      :: Maybe GatewayId
 
@@ -56,5 +57,5 @@ data OrderCreateTemplate = OrderCreateTemplate
   deriving (Show, Eq, Ord, Generic, ToJSON)
 
 getOrderType :: MandateFeature -> OrderType
-getOrderType REQUIRED = MANDATE_REGISTER
-getOrderType _        = ORDER_PAYMENT
+getOrderType (REQUIRED _) = MANDATE_REGISTER
+getOrderType _            = ORDER_PAYMENT

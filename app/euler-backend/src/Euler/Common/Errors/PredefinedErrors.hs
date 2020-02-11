@@ -169,13 +169,13 @@ invalidMandateParams = ECErrorResponse
       }
   }
 
-invalidMandateMaxAmount :: Text -> ECErrorResponse
+invalidMandateMaxAmount :: Double -> ECErrorResponse
 invalidMandateMaxAmount maxAm = ECErrorResponse
   { code = 400
   , response = A.encodePretty $ ECErrorPayload
       { status = "invalid_request_error"
       , status_id = Just (-1)
-      , error_message = Just $ "invalidMandateMaxAmount " <> maxAm
+      , error_message = Just $ "invalidMandateMaxAmount " <> show maxAm
       , error_code = Just "INVALID_MANDATE_MAX_AMOUNT"
       }
   }

@@ -49,45 +49,20 @@ import qualified Euler.Config.ServiceConfiguration as SC
 import           Euler.Lens
 
 
-loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
-loadOrder orderId' merchantId' = do
-    res <- withDB eulerDB $ do
-      let predicate OrderReference {orderId, merchantId} =
-            (orderId    ==. B.just_ (B.val_ orderId')) &&.
-            (merchantId ==. B.just_ (B.val_ merchantId'))
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (order_reference eulerDBSchema)
-    case res of
-      Nothing -> pure Nothing
-      Just ordRef -> do
-        case SV.transSOrderToDOrder ordRef of
-          Success dOrder -> pure $ Just dOrder
-          Failure e -> do
-            logError "Incorrect order in DB"
-              $  "orderId: "    <> orderId'
-              <> "merchantId: " <> merchantId'
-              <> "error: "      <> show e
-            throwException internalError
-        -- EHS: reworked with "withDB and validation"
-
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
--- EHS: this function is about validation.
 orderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 orderCreate routeParams order' mAccnt = do
   -- EHS: loading merchant is a effectful pre-validation procedure.
   --      Should be done on the validation layer.
-  existingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
+  mbExistingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
 
-  case existingOrder of
+  case mbExistingOrder of
     Just orderRef -> throwException $ orderAlreadyCreated (order' ^. _order_id)
     Nothing       -> doOrderCreate routeParams order' mAccnt
 
 doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
-  mandateOrder <- isMandateOrder routeParams order' (mAccnt ^. _merchantId)
+  mandateOrder <- isMandateOrder order' (mAccnt ^. _merchantId)
   order        <- createOrder' routeParams order' mAccnt mandateOrder
   mbReseller   <- loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.
@@ -145,21 +120,32 @@ acquireOrderToken orderPId merchantId = do
     , client_auth_token_expiry = Just expiry
     }
 
+-- EHS: Bad function. It either returns True, or throws.
+-- Invalid behaviour. Should return False on failed validation.
 isMandateOrder :: Ts.OrderCreateTemplate -> MerchantId -> Flow Bool
-isMandateOrder (Ts.OrderCreateTemplate {optionsCreateMandate, mandate_max_amount}) merchantId = do
-  case (optionsCreateMandate, mandate_max_amount) of
-    (DISABLED, _) -> pure False
-    (_ , Nothing) -> throwException invalidMandateFields
-    (_, Just maxAmount) -> do
-      mayMaxAmLimit <- rGet $ merchantId <> "_mandate_max_amount_limit"
-      let maxAmLim = fromStringToNumber $
-        maybe Config.mandateMaxAmountAllowed id mayMaxAmLimit
-      let maxAmountNum = fromStringToNumber maxAmount
-      if (maxAmountNum <= 0.0 || maxAmountNum > maxAmLim)
-        then throwException $  invalidMandateMaxAmount (show maxAmLim) -- throwCustomException 400 "INVALID_MANDATE_MAX_AMOUNT" (invalidMandateMaxAmount <> show maxAm)
-        else pure True
+isMandateOrder (Ts.OrderCreateTemplate {optionsCreateMandate}) merchantId = do
+  case optionsCreateMandate of
+    DISABLED           -> pure False
+    REQUIRED maxAmount -> validateMandate maxAmount
+    OPTIONAL maxAmount -> validateMandate maxAmount
+  where
+    validateMandate maxAmount = do
 
+      -- EHS: magic constant
+      -- EHS: getting values unsafely. What if we don't have these values??
+      --      What flow should be then?
+      mbMaxAmLimitStr <- rGet $ merchantId <> "_mandate_max_amount_limit"
 
+      -- EHS: awful conversion. Rework.
+      maxAmLimit <- fromStringToNumber $ maybe Config.mandateMaxAmountAllowed id mbMaxAmLimitStr
+
+      when (maxAmount <= 0.0 || maxAmount > maxAmLimit)
+        $ throwException
+        $ invalidMandateMaxAmount maxAmLimit
+
+      pure True
+
+-- EHS: bad function. Get rid of it.
 -- from src/Utils/Utils.purs
 fromStringToNumber :: Text -> Flow Double
 fromStringToNumber str = do
@@ -198,35 +184,36 @@ loadMerchantPrefs merchantId' = do
     Just mIPrefs -> pure mIPrefs
     Nothing -> do
       logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
-      throwException internalError
+      throwException internalError    -- EHS: error should be specified.
 
-createOrder' :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Bool -> Flow D.Order
+createOrder'
+  :: RP.RouteParameters
+  -> Ts.OrderCreateTemplate
+  -> MerchantAccount
+  -> Bool
+  -> Flow D.Order
 createOrder' routeParams order' mAccnt isMandate = do
 
-  let merchantId = mAccnt ^. _merchantId
-  -- EHS: rework this function.
   merchantPrefs <- loadMerchantPrefs merchantId
+
+  let merchantId = mAccnt ^. _merchantId
   let currency' = (order' ^. _currency)
         <|> defaultCurrency merchantPrefs
         <|> Just INR
 
-  mbCustomer                <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
+  mbLoadedCustomer <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
+  let mbCustomer = fillCustomerContacts order' mbLoadedCustomer
+  case (mbCustomer >>= (^. _customerId), (order' ^. _orderType) == MANDATE_REGISTER) of
+      -- EHS: misleading error message. Should explicitly state that customerId has to be set on MANDATE_REGISTER
+      (Nothing, True) -> throwException customerNotFound
+      (mbCId, _)      -> pure ()
+
   let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
-  let customerContacts = mkCustContacts mbCustomer order'
   mbBillingAddrId           <- createAddress (order' ^. _billingAddr) billingAddrHolder
   -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
   mbShippingAddrId          <- createAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
 
-  -- EHS: Situation: we're updated addresses in the DB when realized the request is invalid.
-  -- EHS: !We create addresses in the database and do not update them.
-  -- EHS: This is essentially a security problem.
-  -- EHS: This rule should be enforced earlier, before any updates.
-  -- EHS: looks like we not need mbCustomerId, just check condition and throw exception if it fail
-  mbCustomerId <- case (mbCustomer >>= (^. _customerId), orderType == MANDATE_REGISTER) of
-      (Nothing, True) -> throwException customerNotFound
-      (mbCId, _)      -> pure mbCId
-
-  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer customerContacts
+  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer mbCustomer
   _     <- saveOrderMetadata routeParams (order .^ _id) (order' .^ _metadata)
 
   -- EHS: rework this. Skipping for now.
@@ -235,20 +222,23 @@ createOrder' routeParams order' mAccnt isMandate = do
   _ <- when isMandate (setMandateInCache orderCreateReq (order ^. _id) orderId merchantId)
   pure order
 
+fillCustomerContacts
+  :: Maybe Ts.CustomerTemplate
+  -> Ts.OrderCreateTemplate
+  -> Maybe Ts.CustomerTemplate
+fillCustomerContacts Nothing _ = Nothing
+fillCustomerContacts (Just customer) (Ts.OrderCreateTemplate {..}) =
+  Just $ customer
+    { Ts.email        = customerEmail <|> (customer ^. _email)
+    , Ts.mobileNumber = fromMaybe (customer ^. _mobileNumber) customerPhone
+    }
+
 fillBillingAddressHolder :: Maybe Ts.CustomerTemplate -> Ts.AddressHolderTemplate -> Ts.AddressHolderTemplate
 fillBillingAddressHolder Nothing addressHolder = addressHolder
-fillBillingAddressHolder (Just (TS.CustomerTemplate _ mbFirstName mbLastName _ _)) (Ts.AddressHolderTemplate {..})
-  = Ts.AddressHolderTemplate (firstName <|> mbFirstName) (lastName <|> mbLastName)
-
--- previously addCustomerInfo
-mkCustContacts :: Maybe Ts.CustomerTemplate -> Ts.OrderCreateTemplate -> Ts.CustomerContacts
-mkCustContacts Nothing orderCreateTemplate{..} = Ts.CustomerContacts customerEmail customerPhone
-mkCustContacts (Just Ts.CustomerTemplate {emailAddress, mobileNumber})
-                Ts.OrderCreateTemplate {customerEmail, customerPhone} =
-  Ts.CustomerContacts
-    { customerEmailAddress = customerEmail <|> emailAddress
-    , customerMobileNumber = customerPhone <|> Just mobileNumber
-    }
+fillBillingAddressHolder (Just customer) (Ts.AddressHolderTemplate {..})
+  = Ts.AddressHolderTemplate
+      (firstName <|> (customer ^. _firstName))
+      (lastName <|> (customer ^. _lastName))
 
 loadCustomer :: Maybe CustomerId -> MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
 loadCustomer Nothing _ = pure Nothing
@@ -266,13 +256,27 @@ loadCustomer (Just customerId) mAccntId = do
                                                              -- and "id" - our id. So merchant can use both
               )
               &&. (merchantAccountId ==. (B.val_ mAccntId))
+
+        let predicate Customer {objectReferenceId, merchantAccountId, id} =
+
+              -- (   id ==. B.just_ (B.val_ customerId)
+              -- ||. objectReferenceId ==. B.just_ (B.val_  customerId)
+              -- )
+              -- &&. (merchantAccountId ==. (B.val_ accountId))
+
       findRow
         $ B.select
         $ B.filter_ predicate
         $ B.all_ (customer eulerDBSchema)
 
     pure $ case mbCustomer of
-      Just (Customer {..}) -> Just $ Ts.CustomerTemplate customerId firstName lastName
+      Just (Customer {..}) -> Just $ Ts.CustomerTemplate
+        customerId
+        firstName
+        lastName
+        emailAddress
+        mobileCountryCode
+        mobileNumber
       Nothing              -> Nothing
 
 
@@ -313,51 +317,69 @@ toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
       <|> phone
       <|> countryCodeIso
 
+
+loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
+loadOrder orderId' merchantId' = do
+    res <- withDB eulerDB $ do
+      let predicate OrderReference {orderId, merchantId} =
+            (orderId    ==. B.just_ (B.val_ orderId')) &&.
+            (merchantId ==. B.just_ (B.val_ merchantId'))
+      findRow
+        $ B.select
+        $ B.limit_ 1
+        $ B.filter_ predicate
+        $ B.all_ (order_reference eulerDBSchema)
+    case res of
+      Nothing -> pure Nothing
+      Just ordRef -> do
+        case SV.transSOrderToDOrder ordRef of
+          Success dOrder -> pure $ Just dOrder
+          Failure e -> do
+            logError "Incorrect order in DB"
+              $  "orderId: "    <> orderId'
+              <> "merchantId: " <> merchantId'
+              <> "error: "      <> show e
+            throwException internalError
+
 -- EHS: objectReferenceId is customerId ?
--- A: in customer DB table "objectReferenceId" - id from merchant
+-- A: in the Customer DB table "objectReferenceId" - id from merchant
 -- (how merchant identifies customer in their DB eg. by email or mobile number )
 -- and "id" - our id. So merchant can use both
 
--- EHS: previously mkOrder. Didn't do any writings into DB. Now does.
 saveOrder
   :: Ts.OrderCreateTemplate
   -> MerchantAccount
   -> Maybe Currency
   -> Maybe Int
   -> Maybe Int
-  -> Maybe CustomerId
-  -> Ts.CustomerContacts
+  -> Maybe Ts.CustomerTemplate
   -> Flow D.Order
 saveOrder
   (order'@Ts.OrderCreateTemplate {..})
   mAccnt
-  currency'
+  mbCurrency
   mbBillingAddrId
   mbShippingAddrId
-  customerContacts{..}
-  mbCustomerId = do
+  mbCustomer = do
 
   -- EHS: what are other requirements to UUID? UUID functions can be found in src/Utils/PrestoBackend.purs
   -- EHS: magic constant
-  orderUuid      <- ("ordeu_" <> ) <$> getUUID32
+  orderUuid         <- ("ordeu_" <> ) <$> getUUID32
 
   -- EHS: is this time ok?
   orderTimestamp    <- getCurrentTimeUTC
 
-   -- EHS: not used? Check euler-ps
-  -- autoRefund     <- pure $ maybe (Just False) Just auto_refund
-
--- add UDF fields
-  let orderRefVal = DB.defaultOrderReference
+  -- EHS: TODO: add UDF fields
+  let orderRefVal' = DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = account ^. _merchantId
           , DB.amount             = Just $ fromMoney amount
           , DB.billingAddressId   = mbBillingAddrId
           , DB.shippingAddressId  = mbShippingAddrId
-          , DB.currency           = currency'
-          , DB.customerId         = mbCustomerId
-          , DB.customerEmail      = customerEmailAddress
-          , DB.customerPhone      = customerMobileNumber
+          , DB.currency           = mbCurrency
+          , DB.customerId         = mbCustomer >>= (^. _customerId)
+          , DB.customerEmail      = mbCustomer >>= (^. _email)
+          , DB.customerPhone      = mbCustomer >>= (\c -> Just $ c ^. _mobileNumber)
           , DB.returnUrl          = returnUrl
           , DB.description        = description
           , DB.orderUuid          = Just orderUuid
@@ -369,12 +391,7 @@ saveOrder
           , DB.orderType          = Just orderType
           , DB.mandateFeature     = optionsCreateMandate
           }
-
-  -- EHS: rework it, skipping for now.
-  -- It's not clear what this function does.
-  -- Doesn't seem to be a right place for it.
-  -- now mkCustContacts
- -- addCustomerInfo req account (mapUDFParams req orderRef)
+  let orderRefVal = fillUDFParams order' orderRefVal'
 
   refs <- safeHead <$> withDB eulerDB
       $ insertRowsReturningList
@@ -440,11 +457,11 @@ cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: Stri
 --   return val.replace(/[\\\\~!#%^=+\\|:;,\"'()-.&/]/g,"");
 -- }
 
--- mapUDFParams ::   { from }  -> {  to   }-> {    res     }
-mapUDFParams :: OrderCreateRequest -> OrderReference -> OrderReference
-mapUDFParams req params =  smash newUDF params
+-- EHS: previously mapUDFParams
+fillUDFParams :: Ts.OrderCreateTemplate -> DB.OrderReference -> DB.OrderReference
+fillUDFParams order' orderRef = smash newUDF orderRef
   where
-    (reqUDF :: UDF) = upcast req
+    (reqUDF :: UDF) = upcast order'
     newUDF' UDF {..} = UDF
       { udf1 = cleanUp $ udf1
       , udf2 = cleanUp $ udf2

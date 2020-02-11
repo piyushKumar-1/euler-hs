@@ -10,6 +10,7 @@ import EulerHS.Prelude
 import Data.Time
 
 
+
 data Customer = Customer
   { customerId                :: Text
   , customerVersion           :: Int

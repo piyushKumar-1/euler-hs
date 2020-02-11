@@ -85,6 +85,7 @@ import           Euler.Storage.DBConfig
 -- to port '-- TODO port' - 21
 -- to update '-- TODO update' - 22
 -- completed '-- done' - 30
+-- refactored '-- refactored' - 2
 -- total number of functions = 73
 
 -- "xml cases"
@@ -2276,6 +2277,7 @@ updatePaymentMethodAndType txn card ordStatus = do
 -- ----------------------------------------------------------------------------
 -- function: addRefundDetails
 -- done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2312,7 +2314,7 @@ addRefundDetails txn ordStatus = do
 -- ----------------------------------------------------------------------------
 -- Refactored
 
--- addRefundDetails2 txnId ordStatus = do 
+-- addRefundDetails2 txnId ordStatus = do
 --   rs <- refundDetails txnId
 --   setField @"refunds" (maybeList rs) ordStatus
 
@@ -2325,6 +2327,7 @@ refundDetails txnId = do
 -- ----------------------------------------------------------------------------
 -- function: mapRefund
 -- done
+-- refactored
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 -- ----------------------------------------------------------------------------
 

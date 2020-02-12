@@ -55,7 +55,3 @@ data OrderCreateTemplate = OrderCreateTemplate
   , productId                      :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)
-
-getOrderType :: OrderMandate -> OrderType
-getOrderType (MandateRequired _) = MANDATE_REGISTER
-getOrderType _                   = ORDER_PAYMENT

@@ -137,6 +137,11 @@ data OrderMandate
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 
+getOrderType :: OrderMandate -> OrderType
+getOrderType (MandateRequired _) = MANDATE_REGISTER
+getOrderType _                   = ORDER_PAYMENT
+
+
 data UDF = UDF
   { udf1   :: Maybe Text
   , udf2   :: Maybe Text

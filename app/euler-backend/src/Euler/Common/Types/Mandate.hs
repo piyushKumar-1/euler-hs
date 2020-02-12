@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass  #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Euler.Common.Types.Mandate where
 

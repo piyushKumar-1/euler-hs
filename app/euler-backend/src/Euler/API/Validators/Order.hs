@@ -6,12 +6,15 @@ import EulerHS.Prelude
 import EulerHS.Extra.Validation as V
 import qualified Data.Map  as Map
 import qualified Data.Text as T
+import GHC.Records (getField)
 
-import           Euler.Common.Types.Currency (Currency(..))
-import           Euler.Common.Types.Gateway (gatewayRMap)
-import           Euler.Common.Types.Mandate     (MandateFeature(..))
+-- EHS: it's better to use top level modules and qualified access.
+import           Euler.Common.Types.Currency  (Currency(..))
+import           Euler.Common.Types.Gateway   (gatewayRMap)
+import           Euler.Common.Types.Mandate   (MandateFeature(..))
 import           Euler.Common.Types.Order     (UDF(..))
-import           Euler.Common.Types.Money (mkMoney)
+import qualified Euler.Common.Types.Order     as O
+import           Euler.Common.Types.Money     (mkMoney)
 
 import qualified Euler.API.Order as API
 import qualified Euler.Product.Domain.Templates.Address as Ts
@@ -74,16 +77,14 @@ apiOrderUpdToUDF req = UDF
   <*> withField @"udf9" req pure
   <*> withField @"udf10" req pure
 
-
 transApiOrdCreateToOrdCreateT :: API.OrderCreateRequest -> V Ts.OrderCreateTemplate
 transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <$> withField @"order_id" sm textNotEmpty
     <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
-    <*> (mkMoney    <$> withField @"amount"    sm amountValidators)
+    <*> (mkMoney <$> withField @"amount"    sm amountValidators)
 
-    -- EHS: these types have changed. Rework validator
-    <*> withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
-    <*> (Ts.getOrderType <$> (withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED))) -- order_type
+    <*> runParser parseMandate "options_create_mandate mandate_max_amount"
+    <*> (O.getOrderType <$> runParser parseMandate "options_create_mandate mandate_max_amount")
 
     <*> withField @"gateway_id" sm pure -- need validator?
     <*> withField @"customer_id" sm (insideJust >=> customerIdValidators)
@@ -97,9 +98,32 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> withField @"description" sm pure -- description
     <*> withField @"product_id" sm pure -- productId
 
-    -- EHS: add mandateMaxAmount validator.
-    -- Error on invalid madate fields is in `invalidMandateFields`.
-    -- EHS: add validator for `acquireOrderToken`.
+  where
+    parseMandate = do
+          mandate      <- extractMaybeWithDefault DISABLED $ getField @"options_create_mandate" sm
+          maxAmountStr <- extractMaybeWithDefault "0.0"    $ getField @"mandate_max_amount"     sm
+          maxAmount    <- V.decode maxAmountStr
+          V.guarded "mandate_max_amount should not be negative." $ maxAmount >= 0
+
+          pure $ case mandate of
+            DISABLED -> O.MandateDisabled
+            REQUIRED -> O.MandateRequired maxAmount
+            OPTIONAL -> O.MandateOptional maxAmount
+
+    -- parseMandate = do
+    --   mandate      <- withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
+    --   maxAmountStr <- withField @"mandate_max_amount" sm (extractMaybeWithDefault "0.0")
+    --   maxAmount    <- V.decode maxAmountStr
+    --   V.guarded "mandate_max_amount should be non-negative." $ maxAmount >= 0
+    --
+    --   pure $ case mandate of
+    --     DISABLED -> pure O.MandateDisabled
+    --     REQUIRED -> pure $ O.MandateRequired maxAmount
+    --     OPTIONAL -> pure $ O.MandateOptional maxAmount
+    -- -- EHS: add mandateMaxAmount validator.
+    -- -- Error on invalid madate fields is in `invalidMandateFields`.
+    -- -- EHS: add validator for `acquireOrderToken`.
+
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
 apiOrderCreateToBillingAddrHolderT req = Ts.AddressHolderTemplate

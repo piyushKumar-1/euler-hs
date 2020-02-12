@@ -12,8 +12,10 @@ module EulerHS.Extra.Validation
   , Errors
   , module X
   , withField
+  , runParser
   , extractJust
   , extractMaybeWithDefault
+  , guarded
   , decode
   , insideJust
   , parValidate
@@ -53,6 +55,10 @@ mkValidator err pred v = ReaderT (\ctx -> if not $ pred v
   then Left [ctx <> " " <> err]
   else pure v)
 
+guarded :: Text -> Bool -> ReaderT Ctx (Either Errors) ()
+guarded err pred | pred      = ReaderT (\_   -> pure ())
+                 | otherwise = ReaderT (\ctx -> Left [ctx <> " " <> err])
+
 -- | Trying to decode Text to target type
 decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
@@ -77,6 +83,14 @@ withField
    . (Generic r, HasField' f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
+
+-- | Run parser
+runParser
+  :: forall a
+   . ReaderT Ctx (Either Errors) a
+  -> Text
+  -> Validation Errors a
+runParser p msg = fromEither $ runReaderT p msg
 
 -- | Return text representation of constructors of a given type
 showConstructors :: forall t . Data t => Text

@@ -75,6 +75,8 @@ import           Euler.Storage.Types.TxnRiskCheck
 
 import           Euler.Storage.Types.EulerDB as EDB
 
+import           Euler.Storage.Repository.Refund as RR
+
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
@@ -2292,24 +2294,28 @@ addRefundDetails (TxnDetail txn) ordStatus = do
     _ -> pure $ ordStatus # _refunds .~ (just $ mapRefund <$> refunds)
 -}
 
+-- Use refactored refundDetails
 
 addRefundDetails :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
-addRefundDetails txn ordStatus = do
-  --refunds <- DB.findAll ecDB ( order := [["dateCreated" , "ASC"]]
-  --   <> where_ := WHERE ["txn_detail_id" /\ String  (nullOrUndefinedToAny (txn.id) "")] :: WHERE Refund)
-  case (getField @"id" txn) of
-    Just txnId -> do
-      refunds <- withDB eulerDB $ do
-        let predicate Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
-        findRows
-          $ B.select
-          $ B.filter_ predicate
-          $ B.all_ (EDB.refund eulerDBSchema)
+addRefundDetails txn ordStatus = undefined :: Flow OrderStatusResponse
 
-      case refunds of
-        [] -> pure ordStatus
-        _  -> pure $ setField @"refunds" ( Just $ mapRefund <$> refunds) ordStatus
-    _ -> pure ordStatus
+-- TODO: Use refactored refundDetails
+
+--   --refunds <- DB.findAll ecDB ( order := [["dateCreated" , "ASC"]]
+--   --   <> where_ := WHERE ["txn_detail_id" /\ String  (nullOrUndefinedToAny (txn.id) "")] :: WHERE Refund)
+--   case (getField @"id" txn) of
+--     Just txnId -> do
+--       refunds <- withDB eulerDB $ do
+--         let predicate Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+--         findRows
+--           $ B.select
+--           $ B.filter_ predicate
+--           $ B.all_ (EDB.refund eulerDBSchema)
+
+--       case refunds of
+--         [] -> pure ordStatus
+--         _  -> pure $ setField @"refunds" ( Just $ Euler.Product.OLTP.Order.OrderStatus.mapRefund <$> refunds) ordStatus
+--     _ -> pure ordStatus
 
 -- ----------------------------------------------------------------------------
 -- Refactored
@@ -2318,7 +2324,7 @@ addRefundDetails txn ordStatus = do
 --   rs <- refundDetails txnId
 --   setField @"refunds" (maybeList rs) ordStatus
 
-refundDetails :: TxnId -> Flow [Refund']
+refundDetails :: TxnDetailId -> Flow [Refund']
 refundDetails txnId = do
   l <- findRefunds txnId
   pure $ map AO.mapRefund l
@@ -2361,38 +2367,40 @@ mapRefund refund =
            else NullOrUndefined Nothing
 -}
 
-mapRefund :: Refund -> Refund'
-mapRefund refund = Refund'
-  {  id = Just $ fromMaybe mempty (getField @"referenceId" refund)
-  ,  amount = getField @"amount" refund
-  ,  unique_request_id = Just $ fromMaybe mempty (getField @"uniqueRequestId" refund)
-  ,  ref = Just $ fromMaybe mempty (getField @"epgTxnId" refund)
-  ,  created = show $ getField @"dateCreated" refund -- TODO date format
-  ,  status = getField @"status" refund --"" ORIG TODO // transform this
-  ,  error_message = Just $ fromMaybe mempty (getField @"errorMessage" refund)
-  ,  sent_to_gateway = getStatus refund
-  ,  arn = getField @"refundArn" refund
-  ,  initiated_by = getField @"initiatedBy" refund
-  ,  internal_reference_id = getRefId refund
-  ,  refund_source = Just $ fromMaybe mempty (getField @"refundSource" refund)
-  ,  refund_type = Just $ fromMaybe mempty (getField @"refundType" refund)
-  }
+-- See refactored mapRefund at Euler.API.Order
 
-  where
-    getStatus refundObj = Just $ (status == SUCCESS || processed || sentToGateway)
-      where
-        status = getField @"status" refund
-        processed = getField @"processed" refund
-        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
+-- mapRefund :: Refund -> Refund'
+-- mapRefund refund = Refund'
+--   {  id = Just $ fromMaybe mempty (getField @"referenceId" refund)
+--   ,  amount = getField @"amount" refund
+--   ,  unique_request_id = Just $ fromMaybe mempty (getField @"uniqueRequestId" refund)
+--   ,  ref = Just $ fromMaybe mempty (getField @"epgTxnId" refund)
+--   ,  created = show $ getField @"dateCreated" refund -- TODO date format
+--   ,  status = getField @"status" refund --"" ORIG TODO // transform this
+--   ,  error_message = Just $ fromMaybe mempty (getField @"errorMessage" refund)
+--   ,  sent_to_gateway = getStatus refund
+--   ,  arn = getField @"refundArn" refund
+--   ,  initiated_by = getField @"initiatedBy" refund
+--   ,  internal_reference_id = getRefId refund
+--   ,  refund_source = Just $ fromMaybe mempty (getField @"refundSource" refund)
+--   ,  refund_type = Just $ fromMaybe mempty (getField @"refundType" refund)
+--   }
+
+--   where
+--     getStatus refundObj = Just $ (status == SUCCESS || processed || sentToGateway)
+--       where
+--         status = getField @"status" refund
+--         processed = getField @"processed" refund
+--         sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
 
 
-    getRefId refundObj
-      | (gateway == "HDFC" && sentToGateway) = internalReferenceId
-      | otherwise = Nothing
-      where
-        gateway = getField @"gateway" refund
-        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
-        internalReferenceId = getField @"internalReferenceId" refund
+--     getRefId refundObj
+--       | (gateway == "HDFC" && sentToGateway) = internalReferenceId
+--       | otherwise = Nothing
+--       where
+--         gateway = getField @"gateway" refund
+--         sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
+--         internalReferenceId = getField @"internalReferenceId" refund
 
 -- ----------------------------------------------------------------------------
 -- function: addChargeBacks
@@ -3041,20 +3049,20 @@ getRefundStatus apiVersion refund = do
 -}
 
 getRefundStatus :: Text -> Refund' -> Flow Refund'
-getRefundStatus apiVersion refund = do
-  let status = getField @"status" refund
-  let refunds1 = if (apiVersion < "2018-09-20" && apiVersion /= "") || (apiVersion == "")
-        then setField @"initiated_by" Nothing refund
-        else refund
-  let refunds2 = if (apiVersion < "2019-03-12" && apiVersion /= "") || (apiVersion == "")
-        then refunds1{refund_type = Nothing, refund_source = Nothing}
-        else refunds1
-  if apiVersion >= "2015-01-09" && apiVersion /= ""
-    then do
-      if apiVersion < "2017-03-16" && apiVersion /= "" && status == MANUAL_REVIEW
-        then pure (setField @"status" Refund.PENDING refunds2)
-        else pure refunds2
-    else pure $ setField @"status" Refund.SUCCESS refunds2
+getRefundStatus apiVersion refund = do undefined :: Flow Refund' -- TODO: refactor it, coz Refund' fields not Maybe
+  -- let status = getField @"status" refund
+  -- let refunds1 = if (apiVersion < "2018-09-20" && apiVersion /= "") || (apiVersion == "")
+  --       then setField @"initiated_by" Nothing refund
+  --       else refund
+  -- let refunds2 = if (apiVersion < "2019-03-12" && apiVersion /= "") || (apiVersion == "")
+  --       then refunds1{refund_type = Nothing, refund_source = Nothing}
+  --       else refunds1
+  -- if apiVersion >= "2015-01-09" && apiVersion /= ""
+  --   then do
+  --     if apiVersion < "2017-03-16" && apiVersion /= "" && status == MANUAL_REVIEW
+  --       then pure (setField @"status" Refund.PENDING refunds2)
+  --       else pure refunds2
+  --   else pure $ setField @"status" Refund.SUCCESS refunds2
 
 -- ----------------------------------------------------------------------------
 -- function: proxyOrderStatus & co

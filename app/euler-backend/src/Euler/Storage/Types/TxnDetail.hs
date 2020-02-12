@@ -6,7 +6,7 @@
 module Euler.Storage.Types.TxnDetail
   ( TxnDetailT(..)
   , TxnDetail
-  , TxnDetailId
+  , Id
   , txnDetailEMod
   , defaultTxnDetail
   ) where
@@ -56,11 +56,11 @@ data TxnDetailT f = TxnDetail
 
 instance B.Table TxnDetailT where
   data PrimaryKey TxnDetailT f =
-    TxnDetailId (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
-  primaryKey = TxnDetailId . id
+    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+  primaryKey = Id . id
 
 type TxnDetail = TxnDetailT Identity
-type TxnDetailId = B.PrimaryKey TxnDetailT Identity
+type Id = B.PrimaryKey TxnDetailT Identity
 
 deriving instance Show TxnDetail
 deriving instance Eq TxnDetail

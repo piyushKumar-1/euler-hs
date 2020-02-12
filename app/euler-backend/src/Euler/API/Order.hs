@@ -14,6 +14,9 @@ import qualified Data.Text.Encoding           as T
 import           Data.Generics.Product.Fields
 import           Data.Time
 
+import Euler.Product.Domain.Repository.Refund
+
+import           Euler.Common.Types.Order (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Currency  (Currency)
 import           Euler.Common.Types.External.Order     (OrderStatus (..))
 import           Euler.Common.Types.External.Mandate   (MandateFeature (..))
@@ -23,7 +26,7 @@ import           Euler.Common.Types.Refund as Refund
 
 
 import           Euler.Product.Domain.Money
-import           Euler.Product.Domain.Refund
+import           Euler.Product.Domain.Refund as Domain
 
 
 -- Previously: OrderCreateReq
@@ -566,7 +569,7 @@ data Refund' = Refund'
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
-mapRefund :: Refund -> Refund'
+mapRefund :: Domain.Refund -> Refund'
 mapRefund refund = Refund'
   {  id = blanked $ getField @"referenceId" refund
   ,  amount = fromMoney $ getField @"amount" refund
@@ -575,34 +578,15 @@ mapRefund refund = Refund'
   ,  created = show $ getField @"dateCreated" refund -- TODO date format
   ,  status = getField @"status" refund --"" ORIG TODO // transform this
   ,  error_message = blanked $ getField @"errorMessage" refund
-  ,  sent_to_gateway = getStatus
+  ,  sent_to_gateway = getStatus refund
   ,  arn = blanked $ getField @"refundArn" refund
   ,  initiated_by = blanked $ getField @"initiatedBy" refund
-  ,  internal_reference_id = getRefId
+  ,  internal_reference_id = getRefId refund
   ,  refund_source = blanked $ getField @"refundSource" refund
   ,  refund_type = blanked $ getField @"refundType" refund
   }
-
   where
-    blanked = fromMaybe mempty
-    
-    -- FIXME actually, the next 2 bindings is BL, not just API "conversion"
-    
-    -- FIXME qualifiers
-    getStatus = (status == Euler.Common.Types.Refund.SUCCESS || processed || sentToGateway)
-      where
-        status = getField @"status" refund
-        processed = getField @"processed" refund
-        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
-
-    getRefId
-      | (gateway == "HDFC" && sentToGateway) = internalReferenceId
-      | otherwise = mempty
-      where
-        gateway = getField @"gateway" refund
-        sentToGateway = fromMaybe False (getField @"sentToGateway" refund)
-        internalReferenceId = blanked $ getField @"internalReferenceId" refund
-
+    blanked = fromMaybe T.empty
 
 
 -- from src/Types/Storage/EC/Mandate/Types.purs

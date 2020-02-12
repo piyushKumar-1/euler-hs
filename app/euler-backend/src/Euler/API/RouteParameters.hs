@@ -61,18 +61,18 @@ lookupRP :: forall a. Typeable a => RouteParameters -> Maybe Text
 lookupRP RouteParameters {..} = Map.lookup (show $ typeRep @a) unRP
 
 class TMClass t  where
- insertRP' :: RouteParameters -> t
+  insertRP' :: RouteParameters -> t
 
 instance TMClass RouteParameters where
   insertRP' = id
 
 instance ((Coercible a Text), TMClass r, Typeable a, RouteParameter a) => TMClass (a -> r) where
- insertRP' trmap = \a -> insertRP' (insertRP a trmap)
+  insertRP' trmap a = insertRP' (insertRP a trmap)
 
 instance {-# OVERLAPPING #-} ((Coercible a Text), TMClass r, Typeable a, RouteParameter a) => TMClass (Maybe a -> r) where
- insertRP' trmap = \a -> insertRP' (case a of
-  Just a' -> insertRP a' trmap
-  Nothing -> trmap)
+  insertRP' trmap a = insertRP' (case a of
+    Just a' -> insertRP a' trmap
+    Nothing -> trmap)
 
 collectRPs :: (TMClass r) => r
 collectRPs = insertRP' emptyRPs

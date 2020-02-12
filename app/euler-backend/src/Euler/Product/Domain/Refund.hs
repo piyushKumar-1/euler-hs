@@ -9,7 +9,7 @@ import qualified Euler.Common.Types.Refund as RC
 import           Euler.Product.Domain.Money
 
 newtype RefundId = RefundId
-  { id :: Text
+  { refundId :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

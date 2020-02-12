@@ -78,6 +78,7 @@ import           Euler.Storage.Types.EulerDB as EDB
 import           Euler.Storage.Repository.Refund as RR
 import           Euler.Storage.Repository.Chargeback as RC
 
+import Euler.Version.Handlers.OrderStatusResponse
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
@@ -2995,59 +2996,62 @@ versionSpecificTransforms headers orderStatus = do
     else pure $ ordResp
 -}
 
-versionSpecificTransforms :: RouteParameters -> OrderStatusResponse -> Flow OrderStatusResponse
-versionSpecificTransforms headers orderStatus = do
-  let pgResponse = getField @"payment_gateway_response" orderStatus
-      refunds = fromMaybe [] $ getField @"refunds" orderStatus
-      gatewayId = fromMaybe 0 $ getField @"gateway_id" orderStatus
-      version = Map.lookup "version" $ unRP headers
-      apiVersion = fromMaybe "" version
-      refunds' = if (apiVersion < "2015-08-18" && apiVersion /= "") || apiVersion == ""
-        then filter (\refund -> getField @"status" refund /= Refund.FAILURE) refunds
-        else refunds
-  refundStatuses <- traverse (getRefundStatus apiVersion) refunds'
-
-  let pgResps = case pgResponse of
-        Just pgResp ->
-            let pgResponse' = if apiVersion < "2017-05-25" || apiVersion == ""
-                  then (pgResp
-                    { offer = Nothing -- :: Maybe Text)
-                    , offer_availed = Nothing -- :: Maybe Text)
-                    , offer_type = Nothing -- :: Maybe Text)
-                    , offer_failure_reason = Nothing -- :: Maybe Text)
-                    , discount_amount = Nothing -- :: Maybe Text)
-                    } :: MerchantPaymentGatewayResponse)
-                  else pgResp
-
-            in Just $ if gatewayId == gatewayIdFromGateway PAYU && ((apiVersion < "2017-10-26" && apiVersion /= "") || apiVersion == "")
-              then
-                  let pgResp = setField @"auth_id_code" (getField @"rrn" pgResponse') pgResponse'
-                  in setField @"rrn" (getField @"epg_txn_id" pgResp) pgResp
-              else pgResponse'
-        Nothing -> Nothing
-
-      orderStatus' = if length refundStatuses > 0
-        then setField @"refunds" (Just refundStatuses) orderStatus
-        else orderStatus
-
-      ordStatus = setField @"payment_gateway_response" pgResps orderStatus'
-
-      ordStatusResp = if isJust (getField @"chargebacks" ordStatus) && ((apiVersion < "2017-07-26" && apiVersion /= "") || apiVersion == "")
-        then setField @"chargebacks" Nothing ordStatus
-        else if apiVersion == ""
-          then setField @"chargebacks" Nothing ordStatus
-          else ordStatus
-
-      ordResp = if isJust (getField @"txn_detail" ordStatusResp) && ((apiVersion < "2018-07-16" && apiVersion /= "") || apiVersion == "")
-        then setField @"txn_detail" Nothing ordStatusResp
-        else if (apiVersion == "")
-          then setField @"txn_detail" Nothing ordStatusResp
-          else ordStatusResp
-  if isJust (getField @"gateway_reference_id" ordResp) && ((apiVersion < "2018-10-25" && apiVersion /= "") || apiVersion == "")
-    then pure $ setField @"gateway_reference_id" Nothing ordResp
-    else if (apiVersion == "")
-      then pure $ setField @"gateway_reference_id" Nothing ordResp
-      else pure ordResp
+versionSpecificTransforms :: Text -> OrderStatusResponse -> Flow OrderStatusResponse
+versionSpecificTransforms version orderStatus@OrderStatusResponse{gateway_id} =
+  pure $ transformOrderStatus (mkOrderStatusHandler version gatewayId) orderStatus
+  where
+    gatewayId = fromMaybe 0 gateway_id
+--  let pgResponse = getField @"payment_gateway_response" orderStatus
+--      refunds = fromMaybe [] $ getField @"refunds" orderStatus
+--      gatewayId = fromMaybe 0 $ getField @"gateway_id" orderStatus
+--      version = Map.lookup "version" $ unRP headers
+--      apiVersion = fromMaybe "" version
+--      refunds' = if (apiVersion < "2015-08-18" && apiVersion /= "") || apiVersion == ""
+--        then filter (\refund -> getField @"status" refund /= Refund.FAILURE) refunds
+--        else refunds
+--  refundStatuses <- traverse (getRefundStatus apiVersion) refunds'
+--
+--  let pgResps = case pgResponse of
+--        Just pgResp ->
+--            let pgResponse' = if apiVersion < "2017-05-25" || apiVersion == ""
+--                  then (pgResp
+--                    { offer = Nothing -- :: Maybe Text)
+--                    , offer_availed = Nothing -- :: Maybe Text)
+--                    , offer_type = Nothing -- :: Maybe Text)
+--                    , offer_failure_reason = Nothing -- :: Maybe Text)
+--                    , discount_amount = Nothing -- :: Maybe Text)
+--                    } :: MerchantPaymentGatewayResponse)
+--                  else pgResp
+--
+--            in Just $ if gatewayId == gatewayIdFromGateway PAYU && ((apiVersion < "2017-10-26" && apiVersion /= "") || apiVersion == "")
+--              then
+--                  let pgResp = setField @"auth_id_code" (getField @"rrn" pgResponse') pgResponse'
+--                  in setField @"rrn" (getField @"epg_txn_id" pgResp) pgResp
+--              else pgResponse'
+--        Nothing -> Nothing
+--
+--      orderStatus' = if length refundStatuses > 0
+--        then setField @"refunds" (Just refundStatuses) orderStatus
+--        else orderStatus
+--
+--      ordStatus = setField @"payment_gateway_response" pgResps orderStatus'
+--
+--      ordStatusResp = if isJust (getField @"chargebacks" ordStatus) && ((apiVersion < "2017-07-26" && apiVersion /= "") || apiVersion == "")
+--        then setField @"chargebacks" Nothing ordStatus
+--        else if apiVersion == ""
+--          then setField @"chargebacks" Nothing ordStatus
+--          else ordStatus
+--
+--      ordResp = if isJust (getField @"txn_detail" ordStatusResp) && ((apiVersion < "2018-07-16" && apiVersion /= "") || apiVersion == "")
+--        then setField @"txn_detail" Nothing ordStatusResp
+--        else if (apiVersion == "")
+--          then setField @"txn_detail" Nothing ordStatusResp
+--          else ordStatusResp
+--  if isJust (getField @"gateway_reference_id" ordResp) && ((apiVersion < "2018-10-25" && apiVersion /= "") || apiVersion == "")
+--    then pure $ setField @"gateway_reference_id" Nothing ordResp
+--    else if (apiVersion == "")
+--      then pure $ setField @"gateway_reference_id" Nothing ordResp
+--      else pure ordResp
 
 -- ----------------------------------------------------------------------------
 -- function: getRefundStatus
@@ -3069,8 +3073,8 @@ getRefundStatus apiVersion refund = do
     else pure $ refunds # _status .~ SUCCESS
 -}
 
-getRefundStatus :: Text -> Refund' -> Flow Refund'
-getRefundStatus apiVersion refund = do undefined :: Flow Refund' -- TODO: refactor it, coz Refund' fields not Maybe
+-- getRefundStatus :: Text -> Refund' -> Flow Refund'
+-- getRefundStatus apiVersion refund = do undefined :: Flow Refund' -- TODO: refactor it, coz Refund' fields not Maybe
   -- let status = getField @"status" refund
   -- let refunds1 = if (apiVersion < "2018-09-20" && apiVersion /= "") || (apiVersion == "")
   --       then setField @"initiated_by" Nothing refund

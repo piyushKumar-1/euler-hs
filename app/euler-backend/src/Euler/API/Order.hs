@@ -585,6 +585,9 @@ mapRefund refund = Refund'
 
   where
     blanked = fromMaybe mempty
+    
+    -- FIXME actually, the next 2 bindings is BL, not just API "conversion"
+    
     -- FIXME qualifiers
     getStatus = (status == Euler.Common.Types.Refund.SUCCESS || processed || sentToGateway)
       where

@@ -16,9 +16,10 @@ module EulerHS.Extra.Language
 import           EulerHS.Prelude hiding (id, get)
 
 
-import qualified EulerHS.Core.Types         as T
-import qualified EulerHS.Framework.Language as L
-import qualified EulerHS.Core.KVDB.Language as L
+import qualified EulerHS.Core.Types          as T
+import qualified EulerHS.Framework.Language  as L
+import qualified EulerHS.Core.KVDB.Language  as L
+import qualified EulerHS.Core.SqlDB.Language as L
 
 import qualified Data.Aeson           as A
 import qualified Data.ByteString.Lazy as BSL
@@ -160,13 +161,13 @@ insertRow
      , B.FromBackendRow be (table Identity)
      , T.BeamRuntime be beM
      , T.BeamRunner beM
-     , T.JSONEx table
+     , T.JSONEx (table Identity)
      )
   => T.DBConfig beM
   -> B.SqlInsert be table
   -> L.Flow (Either Text (table Identity))
 insertRow db insertStmt = do
-  results <- withDB db $ L.insertRowsReturningList insertStmt
+  results <- L.withDB db $ L.insertRowsReturningList insertStmt
   pure $ case results of
     []    -> Left "Unexpected empty result."
     (x:_) -> Right x

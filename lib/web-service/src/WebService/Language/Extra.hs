@@ -13,9 +13,8 @@ import Data.Time
 
 import qualified Data.Text             as Text
 import qualified Data.Time.Clock.POSIX as TP
-import           Servant               (ServantErr (..))
 
-import qualified EulerHS.Core.Types    as T
+import qualified EulerHS.Types         as T
 import qualified EulerHS.Language      as L
 import qualified Database.Beam         as B
 import qualified WebService.Types      as WST
@@ -50,14 +49,21 @@ getCurrentDateStringWithSecOffset secs = do
 
 -- | Unsafe function that logs an error and throws a servant error.
 unsafeInsertRow
-  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
-  => ServantErr
+  :: ( B.Beamable table
+     , B.FromBackendRow be (table Identity)
+     , T.BeamRuntime be beM
+     , T.BeamRunner beM
+     , T.JSONEx (table Identity)
+     , Exception exception
+     )
+  => exception
+  -> T.DBConfig beM
   -> B.SqlInsert be table
   -> L.Flow (table Identity)
-unsafeInsertRow servantErr insertStmt = do
-  eRes <- L.insertRow insertStmt
+unsafeInsertRow exception db insertStmt = do
+  eRes <- L.insertRow db insertStmt
   case eRes of
     Left err -> do
-      logError err
-      throwException servantErr
+      L.logError ("unsafeInsertRow" :: Text) err
+      L.throwException exception
     Right x -> pure x

@@ -76,6 +76,7 @@ import           Euler.Storage.Types.TxnRiskCheck
 import           Euler.Storage.Types.EulerDB as EDB
 
 import           Euler.Storage.Repository.Refund as RR
+import           Euler.Storage.Repository.Chargeback as RC
 
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
@@ -87,7 +88,7 @@ import           Euler.Storage.DBConfig
 -- to port '-- TODO port' - 21
 -- to update '-- TODO update' - 22
 -- completed '-- done' - 30
--- refactored '-- refactored' - 2
+-- refactored '-- refactored' - 4
 -- total number of functions = 73
 
 -- "xml cases"
@@ -2367,7 +2368,7 @@ mapRefund refund =
            else NullOrUndefined Nothing
 -}
 
--- See refactored mapRefund at Euler.API.Order
+-- Use refactored mapRefund at Euler.API.Order
 
 -- mapRefund :: Refund -> Refund'
 -- mapRefund refund = Refund'
@@ -2405,6 +2406,7 @@ mapRefund refund =
 -- ----------------------------------------------------------------------------
 -- function: addChargeBacks
 -- done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2417,30 +2419,47 @@ addChargeBacks (TxnDetail txnDetail) orderStatus = do
     _ -> pure $ orderStatus # _chargebacks .~ (just $ mapChargeback txn <$> chargeBacks)
 -}
 
+-- Use refactored
+-- addChargeBacks2 txnId ordStatus = do
+--   rs <- chargebackDetails txnId
+--   setField @"chargebacks" (maybeList rs) ordStatus
+
 addChargeBacks :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
-addChargeBacks txnDetail orderStatus = do
+addChargeBacks txnDetail orderStatus = undefined :: Flow OrderStatusResponse
 
-  case (getField @"id" txnDetail) of
-    Nothing -> pure orderStatus
-    Just detailId  -> do
-      --chargeBacks <- DB.findAll ecDB (where_ := WHERE ["txn_detail_id" /\ String (nullOrUndefinedToAny (txnDetail.id) "")] :: WHERE Chargeback)
-      chargeBacks <- withDB eulerDB $ do
-        let predicate Chargeback {txnDetailId}
-              = txnDetailId ==. B.just_ (B.val_ detailId)
-        findRows
-          $ B.select
-          $ B.filter_ predicate
-          $ B.all_ (chargeback eulerDBSchema)
+  -- case (getField @"id" txnDetail) of
+  --   Nothing -> pure orderStatus
+  --   Just detailId  -> do
+  --     --chargeBacks <- DB.findAll ecDB (where_ := WHERE ["txn_detail_id" /\ String (nullOrUndefinedToAny (txnDetail.id) "")] :: WHERE Chargeback)
+  --     chargeBacks <- withDB eulerDB $ do
+  --       let predicate Chargeback {txnDetailId}
+  --             = txnDetailId ==. B.just_ (B.val_ detailId)
+  --       findRows
+  --         $ B.select
+  --         $ B.filter_ predicate
+  --         $ B.all_ (chargeback eulerDBSchema)
 
-      case chargeBacks of
-        [] -> pure orderStatus
-        _  -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus
-            where
-              txn = mapTxnDetail txnDetail
+  --     case chargeBacks of
+  --       [] -> pure orderStatus
+  --       _  -> pure $ setField @"chargebacks" (Just $ mapChargeback txn <$> chargeBacks) orderStatus
+  --           where
+  --             txn = mapTxnDetail txnDetail
+
+-- Refactored
+
+-- addChargeBacks2 txnId ordStatus = do
+--   rs <- chargebackDetails txnId
+--   setField @"chargebacks" (maybeList rs) ordStatus
+
+chargebackDetails :: TxnDetailId -> TxnDetail' -> Flow [Chargeback']
+chargebackDetails txnId txn = do
+  chargebacks <- findChargebacks txnId
+  pure $ map (AO.mapChargeback txn) chargebacks
 
 -- ----------------------------------------------------------------------------
 -- function: mapChargeback
 -- done
+-- refactored
 -- from src/Types/Storage/EC/Chargeback.purs
 -- ----------------------------------------------------------------------------
 
@@ -2461,19 +2480,21 @@ mapChargeback txn chargeback =
           }
 -}
 
-mapChargeback :: TxnDetail' -> Chargeback -> Chargeback'
-mapChargeback txn chargeback =
-  Chargeback'
-  {  id = Just $ getField @"id" chargeback
-  ,  amount = Just $ getField @"amount" chargeback
-  ,  object_reference_id = Just $ getField @"objectReferenceId" chargeback
-  ,  txn = Just txn
-  ,  date_resolved = getField @"dateResolved" chargeback
-  ,  date_created = Just $ getField @"dateCreated" chargeback
-  ,  last_updated = Just $ getField @"lastUpdated" chargeback
-  ,  object = Just "chargeback"
-  ,  dispute_status = Just $ getField @"disputeStatus" chargeback
-  }
+-- Use refactored mapRefund at Euler.API.Order
+
+-- mapChargeback :: TxnDetail' -> Chargeback -> Chargeback'
+-- mapChargeback txn chargeback =
+--   Chargeback'
+--   {  id = Just $ getField @"id" chargeback
+--   ,  amount = Just $ getField @"amount" chargeback
+--   ,  object_reference_id = Just $ getField @"objectReferenceId" chargeback
+--   ,  txn = Just txn
+--   ,  date_resolved = getField @"dateResolved" chargeback
+--   ,  date_created = Just $ getField @"dateCreated" chargeback
+--   ,  last_updated = Just $ getField @"lastUpdated" chargeback
+--   ,  object = Just "chargeback"
+--   ,  dispute_status = Just $ getField @"disputeStatus" chargeback
+--   }
 
 -- ----------------------------------------------------------------------------
 -- function: lookupPgRespXml

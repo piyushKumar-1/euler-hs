@@ -7,6 +7,7 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
+import           Euler.Common.Types.TxnDetail (TxnDetailId)
 import           Euler.Product.Domain.Money
 import qualified Euler.Product.Domain.Refund as D
 import           Euler.Storage.Types.EulerDB as EDB
@@ -17,8 +18,6 @@ import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
 
-
-type TxnDetailId = Text
 
 findRefunds :: TxnDetailId -> Flow [D.Refund]
 findRefunds txnId = do

@@ -26,7 +26,8 @@ import           Euler.Common.Types.Refund as Refund
 
 
 import           Euler.Product.Domain.Money
-import           Euler.Product.Domain.Refund as Domain
+import           Euler.Product.Domain.Refund as D
+import           Euler.Product.Domain.Chargeback as D
 
 
 -- Previously: OrderCreateReq
@@ -538,17 +539,32 @@ data SecondFactorResponse' = SecondFactorResponse'
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Chargeback' = Chargeback'
-  {  id                  :: Maybe Text
-  ,  amount              :: Maybe Double
-  ,  object_reference_id :: Maybe Text
-  ,  txn                 :: Maybe TxnDetail'
-  ,  date_resolved       :: Maybe LocalTime
-  ,  date_created        :: Maybe LocalTime
-  ,  last_updated        :: Maybe LocalTime
-  ,  object              :: Maybe Text
-  ,  dispute_status      :: Maybe Text
+  {  id                  :: Text
+  ,  amount              :: Double
+  ,  object_reference_id :: Text
+  ,  txn                 :: TxnDetail'
+  ,  date_resolved       :: Maybe LocalTime -- TODO: remove maybe?
+  ,  date_created        :: LocalTime
+  ,  last_updated        :: LocalTime
+  ,  object              :: Text
+  ,  dispute_status      :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mapChargeback :: TxnDetail' -> D.Chargeback -> Chargeback'
+mapChargeback txn chargeback =
+  Chargeback'
+  {  id = chargebackId $ getField @"id" chargeback
+  ,  amount = fromMoney $ getField @"amount" chargeback
+  ,  object_reference_id = getField @"objectReferenceId" chargeback
+  ,  txn = txn
+  ,  date_resolved = getField @"dateResolved" chargeback
+  ,  date_created = getField @"dateCreated" chargeback
+  ,  last_updated = getField @"lastUpdated" chargeback
+  ,  object = "chargeback"
+  ,  dispute_status = getField @"disputeStatus" chargeback
+  }
+
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Refund' = Refund'
@@ -569,7 +585,7 @@ data Refund' = Refund'
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
-mapRefund :: Domain.Refund -> Refund'
+mapRefund :: D.Refund -> Refund'
 mapRefund refund = Refund'
   {  id = blanked $ getField @"referenceId" refund
   ,  amount = fromMoney $ getField @"amount" refund

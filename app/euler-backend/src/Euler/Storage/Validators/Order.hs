@@ -47,7 +47,8 @@ transSOrderToDOrder so = DO.Order
   }
 
 
--- EHS: move validators to separate module
+-- EHS: move validators to separate module.
+-- Don't duplicate validators.
 notNegative :: Validator Int
 notNegative = mkValidator "Should not be negative." (>= 0)
 

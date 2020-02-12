@@ -99,6 +99,7 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
 
     -- EHS: add mandateMaxAmount validator.
     -- Error on invalid madate fields is in `invalidMandateFields`.
+    -- EHS: add validator for `acquireOrderToken`.
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
 apiOrderCreateToBillingAddrHolderT req = Ts.AddressHolderTemplate

@@ -62,6 +62,7 @@ orderCreate routeParams order' mAccnt = do
   mbExistingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
 
   case mbExistingOrder of
+    -- EHS: should we throw exception or return a previous order?
     Just orderRef -> throwException $ orderAlreadyCreated (order' ^. _order_id)
     Nothing       -> doOrderCreate routeParams order' mAccnt
 
@@ -79,12 +80,13 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   let orderResponse = mkOrderResponse cfg order mbReseller
 
   -- EHS: magic constants
+  -- EHS: versioning should be done using a service
   let version = RP.lookupRP @RP.Version routeParams
-  if version >= Just "2018-07-01" &&
-     (order' ^. _options_get_client_auth_token == Just True)
+  if (version >= Just "2018-07-01")
+      && (order' ^. _acquireOrderToken)
     then do
-      orderTokenData <- acquireOrderToken (order ^. _id) orderCreateReq merchantId
-      pure $ updateResponse order' orderResponse orderTokenData
+      orderToken <- acquireOrderToken (order ^. _id) merchantId
+      pure $ mkTokenizedOrderResponse order' orderResponse orderToken
     else pure orderResponse
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
@@ -147,8 +149,12 @@ updateMandateCache order = case order ^. _mandate of
         , metadata = Nothing
         }
 
-updateResponse :: Ts.OrderCreateTemplate-> API.OrderCreateResponse -> OrderTokenResp -> API.OrderCreateResponse
-updateResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
+mkTokenizedOrderResponse
+  :: Ts.OrderCreateTemplate
+  -> API.OrderCreateResponse
+  -> OrderTokenResp
+  -> API.OrderCreateResponse
+mkTokenizedOrderResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
     { API.status          = NEW
     , API.status_id       = orderStatusToInt NEW      -- EHS: this logic should be tested.
     , API.juspay          = Just orderTokenResp
@@ -176,16 +182,18 @@ updateResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
     }
 
 -- EHS: previously addOrderToken
-acquireOrderToken :: OrderPId -> MerchantId -> Flow OrderTokenResp
+-- EHS: API type should not be used.
+acquireOrderToken :: OrderPId -> MerchantId -> Flow API.OrderTokenResp
 acquireOrderToken orderPId merchantId = do
+  -- EHS: magic constant
   TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
 
   -- EHS: check this
   runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
 
-  pure $ OrderTokenResp
-    { client_auth_token        = Just token
-    , client_auth_token_expiry = Just expiry
+  pure $ API.OrderTokenResp
+    { API.client_auth_token        = Just token
+    , API.client_auth_token_expiry = Just expiry
     }
 
 -- EHS: previously isMandateOrder
@@ -269,6 +277,8 @@ createOrder' routeParams order' mAccnt = do
 
   mbLoadedCustomer <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
   let mbCustomer = fillCustomerContacts order' mbLoadedCustomer
+
+  -- EHS: strange validation in the middle of logic.
   case (mbCustomer >>= (^. _customerId), (order' ^. _orderType) == MANDATE_REGISTER) of
       -- EHS: misleading error message. Should explicitly state that customerId has to be set on MANDATE_REGISTER
       (Nothing, True) -> throwException customerNotFound
@@ -307,7 +317,6 @@ loadCustomer Nothing _ = pure Nothing
 loadCustomer (Just customerId) mAccntId = do
 
     -- EHS: after refactoring, we query DB every time when customerId is available.
-    -- EHS: rework query
     -- EHS: DB type Customer should be explicit or qualified
     mbCustomer :: Maybe Customer <- withDB eulerDB $ do
       let predicate Customer {merchantAccountId, id, objectReferenceId}
@@ -379,10 +388,9 @@ toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
       <|> phone
       <|> countryCodeIso
 
-
-loadOrder :: OrderId -> MerchantId -> Flow (Maybe Order)
+loadOrder :: OrderId -> MerchantId -> Flow (D.Order)
 loadOrder orderId' merchantId' = do
-    res <- withDB eulerDB $ do
+    mbOrderRef <- withDB eulerDB $ do
       let predicate OrderReference {orderId, merchantId} =
             (orderId    ==. B.just_ (B.val_ orderId')) &&.
             (merchantId ==. B.just_ (B.val_ merchantId'))
@@ -391,11 +399,11 @@ loadOrder orderId' merchantId' = do
         $ B.limit_ 1
         $ B.filter_ predicate
         $ B.all_ (order_reference eulerDBSchema)
-    case res of
+    case mbOrderRef of
       Nothing -> pure Nothing
       Just ordRef -> do
         case SV.transSOrderToDOrder ordRef of
-          Success dOrder -> pure $ Just dOrder
+          Success order -> pure $ Just order
           Failure e -> do
             logError "Incorrect order in DB"
               $  "orderId: "    <> orderId'
@@ -455,14 +463,18 @@ saveOrder
           }
   let orderRefVal = fillUDFParams order' orderRefVal'
 
-  refs <- safeHead <$> withDB eulerDB
-      $ insertRowsReturningList
+  orderRef <- unsafeInsertRow (err500 {errBody = "Inserting order reference failed."}) eulerDB
       $ B.insert (order_reference eulerDBSchema)
       $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
 
-  -- EHS: fill the Order data type, skipping for now.
-  -- N.B., orderUUID can't be Nothing
-  pure $ D.Order {..}
+  -- EHS: should not happen, ideally.
+  -- EHS: should we skip the validation and just return the orderRefVal updated with the id from insertion?
+  case SV.transSOrderToDOrder orderRef of
+    Success order -> pure order
+    Failure e -> do
+      logError $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
+      throwException internalError
+
 
 -- EHS: return domain type instead of DB type.
 saveOrderMetadata :: RP.RouteParameters -> OrderPId -> Maybe Text -> Flow OrderMetadataV2
@@ -491,20 +503,11 @@ saveOrderMetadata routeParams orderPId metadata' = do
         , lastUpdated = orderMetadataTimestamp
         }
 
-  -- EHS: why we're rejecting the result? What if error?
-  rows <- withDB eulerDB
-    $ insertRowsReturningList --EHS: why not insertRows ?
+  mbOrderMetadata :: Maybe DB.OrderMetadataV2 <- safeHead <$> withDB eulerDB
+    $ insertRowsReturningList
     $ B.insert (order_metadata_v2 eulerDBSchema)
-    $ B.insertExpressions [ (B.val_ orderMetadataDB) & _id .~ B.default_]
+    $ B.insertExpressions [ (B.val_ orderMetadataDB) & _id .~ B.default_ ]
 
-  -- EHS: this extraction should be done much easier.
-  -- Move it into a combinator based on the `insertRowsReturningList`.
-  -- (Better to have id not null)
-  -- EHS: rework exception codes
-  pId <- case rows of
-    [(^. _id) -> Just pId] -> pure pId
-    x                      -> throwException err500 {errBody = EHP.show x}
--- EHS: we really need result?
   pure $ orderMetadataDB & (_id .~ pId)
 
 

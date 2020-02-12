@@ -6,7 +6,7 @@ import EulerHS.Prelude
 import Data.Time
 import Euler.Common.Types.Merchant(MerchantId)
 import Euler.Common.Types.Money
-import Euler.Common.Types.Order (OrderStatus(NEW), UDF, OrderType, OrderId)
+import Euler.Common.Types.Order (OrderStatus(NEW), OrderMandate, UDF, OrderType, OrderId)
 import Euler.Common.Types.Currency (Currency)
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.GatewayMetadata (GatewayMetadata)
@@ -30,26 +30,35 @@ data Order = Order
   , customerId        :: Maybe Text
   , customerEmail     :: Maybe Text
   , customerPhone     :: Maybe Text
-  -- , udf               :: UDF
-  -- -- , browser           :: Maybe Text       EHS: ?
-  -- -- , browserVersion    :: Maybe Text       EHS: ?
-  -- -- , popupLoaded       :: Maybe Bool       EHS: ?
-  -- -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
-  , description       :: Maybe Text
-  -- , returnUrl         :: Maybe Text
-  -- , amountRefunded    :: Maybe Double
-  -- , refundedEntirely  :: Maybe Bool
-  -- -- , preferredGateway  :: Maybe Text  EHS: ?
-  -- , productId         :: Maybe Text
+
   , billingAddressId  :: Maybe Int
   , shippingAddressId :: Maybe Int
-  -- , mandateFeature    :: MandateFeature
+
+  -- , udf               :: UDF
+  -- -- , browser           :: Maybe Text       -- EHS: Not a fields for order, should not be here
+  -- -- , browserVersion    :: Maybe Text       -- EHS: Not a fields for order, should not be here
+  -- -- , popupLoaded       :: Maybe Bool       -- EHS: Not a fields for order, should not be here
+  -- -- , popupLoadedTime   :: Maybe LocalTime  -- EHS: Not a fields for order, should not be here
+  , description       :: Maybe Text
+  -- , returnUrl         :: Maybe Text
+
+  -- , amountRefunded    :: Maybe Double
+  -- , refundedEntirely  :: Maybe Bool
   -- , autoRefund        :: Bool
-  -- , lastSynced        :: LocalTime
+
+  -- , productId         :: Maybe Text
+
+
+  , mandate            :: OrderMandate                 -- ^ Default: MandateDisabled
+  , acquireOrderToken  :: Bool                         -- ^ Depends on version and passed param.
+
+  -- , lastSynced        :: LocalTime          -- EHS: Not a domain fields
   -- , dateCreated       :: LocalTime          -- EHS: Not a domain fields
   -- , lastModified      :: LocalTime          -- EHS: Not a domain fields
   --
-  -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
+  -- , preferredGateway  :: Maybe Text         -- EHS: Not a field for order, should not be here.
+  -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a field for order, should not be here.
+
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

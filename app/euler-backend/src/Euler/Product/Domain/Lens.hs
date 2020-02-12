@@ -9,4 +9,5 @@ import           Control.Lens       (makeFieldsNoPrefix)
 
 import Euler.Product.Domain.Transaction (Transaction)
 
+-- EHS: introduce a proper approach to lenses.
 makeFieldsNoPrefix ''Transaction

@@ -14,8 +14,6 @@ import qualified Data.Text.Encoding           as T
 import           Data.Generics.Product.Fields
 import           Data.Time
 
-import Euler.Product.Domain.Repository.Refund
-
 import           Euler.Common.Types.Order (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Currency  (Currency)
 import           Euler.Common.Types.External.Order     (OrderStatus (..))
@@ -594,10 +592,10 @@ mapRefund refund = Refund'
   ,  created = show $ getField @"dateCreated" refund -- TODO date format
   ,  status = getField @"status" refund --"" ORIG TODO // transform this
   ,  error_message = blanked $ getField @"errorMessage" refund
-  ,  sent_to_gateway = getStatus refund
+  ,  sent_to_gateway = D.getStatus refund
   ,  arn = blanked $ getField @"refundArn" refund
   ,  initiated_by = blanked $ getField @"initiatedBy" refund
-  ,  internal_reference_id = getRefId refund
+  ,  internal_reference_id = D.getRefId refund
   ,  refund_source = blanked $ getField @"refundSource" refund
   ,  refund_type = blanked $ getField @"refundType" refund
   }

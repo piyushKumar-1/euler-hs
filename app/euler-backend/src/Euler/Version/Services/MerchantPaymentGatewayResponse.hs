@@ -1,6 +1,6 @@
-module Euler.Version.Handlers.MerchantPaymentGatewayResponse
-  ( MerchantPGRHandler
-  , mkMerchantPGRHandler
+module Euler.Version.Services.MerchantPaymentGatewayResponse
+  ( MerchantPGRService
+  , mkMerchantPGRService
   , transformMPGR
   )
   where
@@ -17,8 +17,8 @@ import Euler.Common.Types.Gateway
 type Version = Text
 type GatewayId = Int
 
-transformMPGR :: MerchantPGRHandler -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-transformMPGR MerchantPGRHandler{..}
+transformMPGR :: MerchantPGRService -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
+transformMPGR MerchantPGRService{..}
   = setOffer
   . setOfferAvailed
   . setOfferType
@@ -28,7 +28,7 @@ transformMPGR MerchantPGRHandler{..}
 
 
 
-data MerchantPGRHandler = MerchantPGRHandler
+data MerchantPGRService = MerchantPGRService
   { setOffer :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
   , setOfferAvailed :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
   , setOfferType :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
@@ -37,8 +37,8 @@ data MerchantPGRHandler = MerchantPGRHandler
   , setAuthIdCodeAndRRN :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
   }
 
-mkMerchantPGRHandler :: Version -> GatewayId -> MerchantPGRHandler
-mkMerchantPGRHandler version gwId = MerchantPGRHandler
+mkMerchantPGRService :: Version -> GatewayId -> MerchantPGRService
+mkMerchantPGRService version gwId = MerchantPGRService
   { setOffer = setOffer' version
   , setOfferAvailed = setOfferAvailed' version
   , setOfferType = setOfferType' version

@@ -1,6 +1,6 @@
-module Euler.Version.Handlers.OrderStatusResponse
-  ( OrderStatusHandler
-  , mkOrderStatusHandler
+module Euler.Version.Services.OrderStatusResponse
+  ( OrderStatusService
+  , mkOrderStatusService
   , transformOrderStatus
   )
   where
@@ -11,23 +11,23 @@ import qualified EulerHS.Prelude as P
 import           Data.Generics.Product.Fields
 
 import Euler.API.Order (OrderStatusResponse(..))
-import Euler.Version.Handlers.MerchantPaymentGatewayResponse
-import Euler.Version.Handlers.Refund
+import Euler.Version.Services.MerchantPaymentGatewayResponse
+import Euler.Version.Services.Refund
 
 -- move to common types?
 -- change to newtype?
 type Version = Text
 type GatewayId = Int
 
-transformOrderStatus :: OrderStatusHandler -> OrderStatusResponse -> OrderStatusResponse
-transformOrderStatus OrderStatusHandler{..}
+transformOrderStatus :: OrderStatusService -> OrderStatusResponse -> OrderStatusResponse
+transformOrderStatus OrderStatusService{..}
   = setRefunds
   . setPaymentGatewayResponse
   . setChargebacks
   . setTxnDetail
   . setGatewayReferenceId
 
-data OrderStatusHandler = OrderStatusHandler
+data OrderStatusService = OrderStatusService
   { setRefunds :: OrderStatusResponse -> OrderStatusResponse
   , setPaymentGatewayResponse :: OrderStatusResponse -> OrderStatusResponse
   , setChargebacks :: OrderStatusResponse -> OrderStatusResponse
@@ -35,16 +35,16 @@ data OrderStatusHandler = OrderStatusHandler
   , setGatewayReferenceId :: OrderStatusResponse -> OrderStatusResponse
   }
 
-mkOrderStatusHandler :: Version -> GatewayId -> OrderStatusHandler
-mkOrderStatusHandler version gwId = OrderStatusHandler
-  { setRefunds = setRefunds' (mkRefundHandler version)
-  , setPaymentGatewayResponse = setPaymentGatewayResponse' (mkMerchantPGRHandler version gwId)
+mkOrderStatusService :: Version -> GatewayId -> OrderStatusService
+mkOrderStatusService version gwId = OrderStatusService
+  { setRefunds = setRefunds' (mkRefundService version)
+  , setPaymentGatewayResponse = setPaymentGatewayResponse' (mkMerchantPGRService version gwId)
   , setChargebacks = setChargebacks' version
   , setTxnDetail = setTxnDetail' version
   , setGatewayReferenceId = setGatewayReferenceId' version
   }
 
-setRefunds' :: RefundHandler -> OrderStatusResponse -> OrderStatusResponse
+setRefunds' :: RefundService -> OrderStatusResponse -> OrderStatusResponse
 setRefunds' rh orderStatus
   | length newRefundStatuses > 0 = setField @"refunds" (Just newRefundStatuses) orderStatus
   | otherwise = orderStatus
@@ -52,7 +52,7 @@ setRefunds' rh orderStatus
     newRefundStatuses = transformRefunds rh
      $ fromMaybe [] $ getField @"refunds" orderStatus
 
-setPaymentGatewayResponse' :: MerchantPGRHandler -> OrderStatusResponse -> OrderStatusResponse
+setPaymentGatewayResponse' :: MerchantPGRService -> OrderStatusResponse -> OrderStatusResponse
 setPaymentGatewayResponse' mpgrh otderStatus = setField @"payment_gateway_response" mpgr otderStatus
   where
     mpgr = transformMPGR mpgrh <$> getField @"payment_gateway_response" otderStatus

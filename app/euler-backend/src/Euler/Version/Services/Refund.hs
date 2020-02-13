@@ -1,6 +1,6 @@
-module Euler.Version.Handlers.Refund
-  ( RefundHandler
-  , mkRefundHandler
+module Euler.Version.Services.Refund
+  ( RefundService
+  , mkRefundService
   , transformRefunds
   )
   where
@@ -17,17 +17,17 @@ import Euler.Common.Types.Refund as Refund
 -- change to newtype?
 type Version = Text
 
-transformRefund :: RefundHandler -> Refund' -> Refund'
-transformRefund RefundHandler{..}
+transformRefund :: RefundService -> Refund' -> Refund'
+transformRefund RefundService{..}
   = setInitiatedBy
   . setType
   . setSource
   . setStatus
 
-transformRefunds :: RefundHandler -> [Refund'] -> [Refund']
-transformRefunds rh@RefundHandler{..} rfs = transformRefund rh <$> filterRefunds rfs
+transformRefunds :: RefundService -> [Refund'] -> [Refund']
+transformRefunds rh@RefundService{..} rfs = transformRefund rh <$> filterRefunds rfs
 
-data RefundHandler = RefundHandler
+data RefundService = RefundService
   { setInitiatedBy :: Refund' -> Refund'
   , setType        :: Refund' -> Refund'
   , setSource      :: Refund' -> Refund'
@@ -36,8 +36,8 @@ data RefundHandler = RefundHandler
   }
 
 
-mkRefundHandler :: Version -> RefundHandler
-mkRefundHandler version = RefundHandler
+mkRefundService :: Version -> RefundService
+mkRefundService version = RefundService
   { setInitiatedBy = setInitiatedBy' version
   , setType = setType' version
   , setSource = setSource' version

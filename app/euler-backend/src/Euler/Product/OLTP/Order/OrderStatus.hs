@@ -78,7 +78,7 @@ import           Euler.Storage.Types.EulerDB as EDB
 import           Euler.Storage.Repository.Refund as RR
 import           Euler.Storage.Repository.Chargeback as RC
 
-import Euler.Version.Handlers.OrderStatusResponse
+import Euler.Version.Services.OrderStatusResponse
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
@@ -2998,7 +2998,7 @@ versionSpecificTransforms headers orderStatus = do
 
 versionSpecificTransforms :: Text -> OrderStatusResponse -> Flow OrderStatusResponse
 versionSpecificTransforms version orderStatus@OrderStatusResponse{gateway_id} =
-  pure $ transformOrderStatus (mkOrderStatusHandler version gatewayId) orderStatus
+  pure $ transformOrderStatus (mkOrderStatusService version gatewayId) orderStatus
   where
     gatewayId = fromMaybe 0 gateway_id
 --  let pgResponse = getField @"payment_gateway_response" orderStatus

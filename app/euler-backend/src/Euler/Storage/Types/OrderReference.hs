@@ -15,7 +15,8 @@ import EulerHS.Prelude hiding (id)
 import Data.Time
 import Euler.Common.Types.Currency
 import Euler.Common.Types.DefaultDate (defaultDate)
-import Euler.Common.Types.Order (OrderStatus(NEW), MandateFeature, OrderType)
+import Euler.Common.Types.Order (OrderStatus(NEW), OrderType)
+import Euler.Common.Types.Mandate (MandateFeature)
 import qualified Database.Beam as B
 
 

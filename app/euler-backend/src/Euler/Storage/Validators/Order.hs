@@ -5,22 +5,23 @@ module Euler.Storage.Validators.Order where
 import EulerHS.Prelude
 import EulerHS.Extra.Validation
 
+import           Euler.Common.Types.Money     (mkMoney)
 import qualified Euler.Storage.Types.OrderReference  as S
-import qualified Euler.Product.Domain.Order as D
+import qualified Euler.Product.Domain.Order as DO
 
 
 -- EHS: better naming
-transSOrderToDOrder :: S.OrderReference -> V D.Order
+transSOrderToDOrder :: S.OrderReference -> V DO.Order
 transSOrderToDOrder so = DO.Order
-  <$> withField @"id" so (fromJust >=> notNegative)
+  <$> withField @"id" so (extractJust >=> notNegative)
   <*> withField @"version" so pure
-  <*> ( fmap mkMoney $ withField @"amount" req (fromJust >=> amountValidators))
-  <*> withField @"currency" so  fromJust
-  <*> withField @"merchantId" so fromJust
-  <*> withField @"orderId" so fromJust
-  <*> withField @"orderUuid" so fromJust
-  <*> withField @"orderType" so fromJust
-  <*> withField @"status" so  fromJust
+  <*> ( mkMoney <$> withField @"amount" so (extractJust >=> amountValidators))
+  <*> withField @"currency" so  extractJust
+  <*> withField @"merchantId" so extractJust
+  <*> withField @"orderId" so extractJust
+  <*> withField @"orderUuid" so extractJust
+  <*> withField @"orderType" so extractJust
+  <*> withField @"status" so  extractJust
   <*> withField @"customerId" so pure
   <*> withField @"customerEmail" so pure
   <*> withField @"customerPhone" so pure
@@ -44,7 +45,7 @@ transSOrderToDOrder so = DO.Order
   -- , lastModified      :: LocalTime          -- EHS: Not a domain fields
   --
   -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
-  }
+
 
 
 -- EHS: move validators to separate module.

@@ -338,10 +338,12 @@ orderUpdate orderId ordReq = do
   res <- do
     liftIO $ putStrLn ("orderUpdateStart" :: String)
     start <- liftIO getCurrentTime
-    r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdateLegacy.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
-    end <- liftIO getCurrentTime
-    liftIO $ print $ diffUTCTime end start
-    pure r
+
+    error "OrderUpdate not implemented"
+    -- r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdateLegacy.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
+    -- end <- liftIO getCurrentTime
+    -- liftIO $ print $ diffUTCTime end start
+    -- pure r
   pure res
 
 paymentStatus

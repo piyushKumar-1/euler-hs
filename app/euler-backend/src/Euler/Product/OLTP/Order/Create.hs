@@ -81,13 +81,23 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 
   -- EHS: magic constants
   -- EHS: versioning should be done using a service
-  let version = RP.lookupRP @RP.Version routeParams
-  if (version >= Just "2018-07-01")
-      && (order' ^. _acquireOrderToken)
-    then do
-      orderToken <- acquireOrderToken (order ^. _id) merchantId
-      pure $ mkTokenizedOrderResponse order' orderResponse orderToken
+  let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
+  if (order' ^. _acquireOrderToken)
+    then
+      let orderCreateService = mkOrderCreateResponseService version
+      tokenizeOrderCreateResponse orderCreateService
+                                  (order ^. _id)
+                                  merchantId
+                                  order'
+                                  orderResponse
     else pure orderResponse
+
+--  if (version >= Just "2018-07-01")
+--      && (order' ^. _acquireOrderToken)
+--    then do
+--      orderToken <- acquireOrderToken (order ^. _id) merchantId
+--      pure $ mkTokenizedOrderResponse order' orderResponse orderToken
+--    else pure orderResponse
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?

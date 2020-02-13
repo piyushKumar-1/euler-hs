@@ -14,6 +14,8 @@ import qualified Data.Text.Encoding           as T
 import           Data.Generics.Product.Fields
 import           Data.Time
 
+import           Euler.API.RouteParameters
+
 import           Euler.Common.Types.Order (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Currency  (Currency)
 import           Euler.Common.Types.External.Order     (OrderStatus (..))
@@ -23,9 +25,9 @@ import           Euler.Common.Types.Refund as Refund
 
 
 
+import           Euler.Product.Domain.Chargeback as D
 import           Euler.Product.Domain.Money
 import           Euler.Product.Domain.Refund as D
-import           Euler.Product.Domain.Chargeback as D
 
 
 -- Previously: OrderCreateReq
@@ -260,27 +262,28 @@ data OrderStatusQuery = OrderStatusQuery
   , txnId                   :: Text       -- ^
   , sendFullGatewayResponse :: Bool
   }
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 -- we can live without it completely
--- data OrderStatusRequest = OrderStatusRequest
---   { txn_uuid    :: Maybe Text
---   , merchant_id :: Maybe Text
---   , order_id    :: Maybe Text
---   , txnUuid     :: Maybe Text
---   , merchantId  :: Maybe Text
---   , orderId     :: Maybe Text
---   }
---   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+data OrderStatusRequest = OrderStatusRequest
+  { txn_uuid    :: Maybe Text
+  , merchant_id :: Maybe Text
+  , order_id    :: Maybe Text
+  , txnUuid     :: Maybe Text
+  , merchantId  :: Maybe Text
+  , orderId     :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
--- defaultOrderStatusRequest :: OrderStatusRequest
--- defaultOrderStatusRequest  = OrderStatusRequest
---   { txn_uuid     = Nothing -- :: Maybe Text
---   , merchant_id  = Nothing -- :: Maybe Text
---   , order_id     = Nothing -- :: Maybe Text
---   , txnUuid      = Nothing -- :: Maybe Text
---   , merchantId   = Nothing -- :: Maybe Text
---   , orderId      = Nothing -- :: Maybe Text
---   }
+defaultOrderStatusRequest :: OrderStatusRequest
+defaultOrderStatusRequest  = OrderStatusRequest
+  { txn_uuid     = Nothing -- :: Maybe Text
+  , merchant_id  = Nothing -- :: Maybe Text
+  , order_id     = Nothing -- :: Maybe Text
+  , txnUuid      = Nothing -- :: Maybe Text
+  , merchantId   = Nothing -- :: Maybe Text
+  , orderId      = Nothing -- :: Maybe Text
+  }
 
 
 --  Previously OrderAPIResponse
@@ -517,10 +520,10 @@ data Card = Card
 -- from src/Externals/EC/Common.purs
 data PaymentInfo = PaymentInfo
   {  payment_method_type :: Maybe Text
-  ,  payment_method :: Maybe Text
-  ,  card :: Maybe Card
-  ,  auth_type :: Maybe Text
-  ,  authentication :: Maybe Authentication
+  ,  payment_method      :: Maybe Text
+  ,  card                :: Maybe Card
+  ,  auth_type           :: Maybe Text
+  ,  authentication      :: Maybe Authentication
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -532,14 +535,14 @@ data Authentication = Authentication
 -- from src/Externals/EC/Common.purs
 -- Prime added to differ from storage type
 data SecondFactorResponse' = SecondFactorResponse'
-  { cavv :: Maybe Text
-  , eci :: Maybe Text
-  , xid :: Maybe Text
-  , status :: Maybe Text
-  , currency :: Maybe Text
-  , response_id :: Maybe Text
+  { cavv           :: Maybe Text
+  , eci            :: Maybe Text
+  , xid            :: Maybe Text
+  , status         :: Maybe Text
+  , currency       :: Maybe Text
+  , response_id    :: Maybe Text
   , mpi_error_code :: Maybe Text
-  , date_created :: Maybe Text
+  , date_created   :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -716,9 +719,9 @@ data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data MerchantSecondFactorResponse = MerchantSecondFactorResponse
-  {  cavv :: Text -- Foreign with comment (nullable, so keeping it as Foreign to send it as null with key)
-  ,  eci :: Text
-  ,  xid :: Text
+  {  cavv         :: Text -- Foreign with comment (nullable, so keeping it as Foreign to send it as null with key)
+  ,  eci          :: Text
+  ,  xid          :: Text
   ,  pares_status :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

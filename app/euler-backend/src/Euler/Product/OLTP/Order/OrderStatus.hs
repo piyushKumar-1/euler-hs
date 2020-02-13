@@ -191,7 +191,8 @@ processOrderStatusGET orderId apiKey = do
   _  <- unless isAuthenticated $ rejectIfUnauthenticatedCallDisabled merchantAccount
 -- * use unless/when instead of skipIfB/execIfB
 --rejectIfUnauthenticatedCallDisabled merchantAccount `skipIfB` isAuthenticated
-  response <- getOrderStatusWithoutAuth defaultOrderStatusRequest orderId {-routeParams-} merchantAccount isAuthenticated Nothing Nothing
+  let query = undefined :: OrderStatusQuery
+  response <- getOrderStatusWithoutAuth2 defaultOrderStatusRequest query Nothing Nothing
  -- _ <- log "Process Order Status Response" $ response
   pure response
 
@@ -224,22 +225,39 @@ getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeO
 -}
 
 getOrderStatusWithoutAuth
-  :: OrderStatusRequest
+  :: OrderStatusRequest -- remove after fix checkAndAddOrderToken
+  -> OrderStatusQuery
   -> Text {-RouteParameters-}
   -> MerchantAccount
   -> Bool
   -> (Maybe OrderCreateRequest)
   -> (Maybe OrderReference)
   -> Flow OrderStatusResponse -- Foreign
-getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
-  merchId <- case (getField @"merchantId" merchantAccount) of
-                Nothing -> throwException $ myerr "3"
-                Just v  -> pure v
-  cachedResp <- getCachedOrdStatus isAuthenticated orderId merchId  --TODO check for txn based refund
+getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = undefined
+
+getOrderStatusWithoutAuth2
+  :: OrderStatusRequest -- remove after fix checkAndAddOrderToken
+  -> OrderStatusQuery
+  -- -> Text {-RouteParameters-}
+  -- -> MerchantAccount
+  -- -> Bool
+  -> (Maybe OrderCreateRequest)
+  -> (Maybe OrderReference)
+  -> Flow OrderStatusResponse -- Foreign
+getOrderStatusWithoutAuth2 req query@OrderStatusQuery{..} maybeOrderCreateReq maybeOrd = do
+  -- merchId <- case (getField @"merchantId" merchantAccount) of
+  --               Nothing -> throwException $ myerr "3"
+  --               Just v  -> pure v
+
+  let OrderId orderId' = orderId -- remove after fix getCachedOrdStatus
+  cachedResp <- getCachedOrdStatus isAuthenticated orderId' merchantId  --TODO check for txn based refund
   resp <- case cachedResp of
             Nothing -> do
-              resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
-         -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp
+              -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
+              orderReference <- getOrderReference query
+              paymentlink <- getPaymentLink resellerId orderReference
+              resp <- fillOrderStatusResponse query orderReference paymentlink
+         -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
               pure resp
             Just resp -> pure resp
   ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
@@ -248,7 +266,7 @@ getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrder
   ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
                     let order = fromJust maybeOrd
                     let orderCreateReq = fromJust maybeOrderCreateReq
-                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchId order
+                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchantId order
                   else pure ordResp'
  ------------------------------------------------
  -- * encode response to Foreign inside, why?
@@ -774,17 +792,22 @@ getOrdStatusResp :: forall st rt e r.
   -> RouteParameters
   -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
 getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routeParam = do
+
     orderId     <- getOrderId req routeParam
     merchantId  <- unNullOrErr500 (mAccnt ^. _merchantId)
     _           <- Presto.log "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
     order       <- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
+
     let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
     maybeTxn    <- runMaybeT $ MaybeT (getTxnFromTxnUuid order maybeTxnUuid) <|> MaybeT (getLastTxn order)
+
     paymentlink <- getPaymentLink order
     ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
                     >>= addPromotionDetails order
     ordResp     <- addMandateDetails order ordResp'
+
     let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
+
     case maybeTxn of
       Just txn -> do
         addTxnDetailsToResponse txn order ordResp
@@ -798,10 +821,12 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
 
 -- should we divide this method to:
 -- 1) getStatusResp, where we just get it from DB
+
 -- 2) fillStatusResp, where we apply:
 --  * fillOrderDetails
 --  * addPromotionDetails
 --  * addMandateDetails
+
 -- 3) addTxnInfo (this method only for POST orderStatus api method) where we:
 --  * addTxnDetailsToResponse
 --  * addRiskCheckInfoToResponse
@@ -810,16 +835,23 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
 --  * addChargeBacks
 --  * addGatewayResponse
 
-getOrdStatusResp
-  :: OrderStatusRequest
-  -> MerchantAccount
-  -> Bool
-  -> Text -- RouteParameters
-  -> Flow OrderStatusResponse
-getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated routeParam = do
-    orderId'     <- pure routeParam -- getOrderId req routeParam
-    merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
+getOrderReference
+  :: OrderStatusQuery
+  -- :: OrderStatusRequest
+  -- -> MerchantAccount
+  -- -> Bool
+  -- -> Text -- RouteParameters
+  -> Flow OrderReference
+-- getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated routeParam = do
+getOrderReference query = do
+    -- orderId'     <- pure routeParam -- getOrderId req routeParam
+    let OrderId orderId' = getField @"orderId" query
+    -- merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
+    let merchantId' = getField @"merchantId" query
+    let isAuthenticated = getField @"isAuthenticated" query
+    let resellerId = getField @"resellerId" query
  --   _           <- logInfo "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
+
     (order :: OrderReference) <- do
       conn <- getConn eulerDB
       res <- runDB conn $ do
@@ -836,13 +868,29 @@ getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated r
         Left err -> do
           logError "Find OrderReference" $ toText $ P.show err
           throwException err500
-      -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
+
+    pure order
+
+      -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId) ???
+
  --   let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
  --   maybeTxn    <- runMaybeT $ MaybeT (getTxnFromTxnUuid order maybeTxnUuid) <|> MaybeT (getLastTxn order)
-    paymentlink <- getPaymentLink mAccnt order
-    ordResp'    <- fillOrderDetails isAuthenticated paymentlink order defaultOrderStatusResponse
-                    >>= addPromotionDetails order
-    ordResp     <- addMandateDetails order ordResp'
+
+    -- paymentlink <- getPaymentLink resellerId order
+    -- ordResp    <- fillOrderDetails isAuthenticated paymentlink order defaultOrderStatusResponse
+    --                 >>= addPromotionDetails order >>= addMandateDetails order
+    -- ordResp     <- addMandateDetails order ordResp'
+
+
+fillOrderStatusResponseTxn :: OrderStatusQuery -> TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
+  addTxnDetailsToResponse txn order ordResp
+    >>= addRiskCheckInfoToResponse txn
+    >>= addPaymentMethodInfo sendCardIsin txn
+    >>= addRefundDetails txn
+    >>= addChargeBacks txn
+    >>= addGatewayResponse txn sendFullGatewayResponse
+
    -- used in POST method
    --  case maybeTxn of
    --    Just txn -> do
@@ -853,7 +901,15 @@ getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated r
    --      >>= addChargeBacks txn
    --      >>= addGatewayResponse txn
    --    Nothing ->  pure ordResp
-    pure ordResp
+    -- pure ordResp
+
+
+fillOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
+fillOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
+  fillOrderDetails isAuthenticated payLinks ordReference defaultOrderStatusResponse
+    >>= addPromotionDetails ordReference
+    >>= addMandateDetails ordReference
+
 
 -- ----------------------------------------------------------------------------
 -- function: getTxnFromTxnUuid
@@ -1169,16 +1225,17 @@ getPaymentLink orderRef = do
     Nothing -> liftErr internalError --check correct Error
 -}
 
-getPaymentLink :: MerchantAccount
- -> OrderReference
- -> Flow Paymentlinks
-getPaymentLink mAcc orderRef = do
+getPaymentLink
+  :: Maybe Text -- resellerId
+  -> OrderReference
+  -> Flow Paymentlinks
+getPaymentLink resellId orderRef = do
  -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
  -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
   maybeResellerEndpoint <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
-      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" $ mAcc ^. _resellerId)
+      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" resellId)
       findRow
         $ B.select
         $ B.limit_ 1
@@ -1815,8 +1872,8 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
     Nothing -> pure ordStatus
 -}
 
-addPaymentMethodInfo :: MerchantAccount -> TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
-addPaymentMethodInfo mAccnt txn ordStatus = do
+addPaymentMethodInfo :: Bool -> TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
+addPaymentMethodInfo sendCardIsin txn ordStatus = do
   let txnId = fromMaybe T.empty $ getField @"id" txn
 
   txnCard <- withDB eulerDB $ do
@@ -1827,13 +1884,13 @@ addPaymentMethodInfo mAccnt txn ordStatus = do
       $ B.filter_ predicate
       $ B.all_ (EDB.txn_card_info eulerDBSchema)
 
-  let enableSendingCardIsin = fromMaybe False (getField @"enableSendingCardIsin" mAccnt)
+  -- let enableSendingCardIsin = fromMaybe False (getField @"enableSendingCardIsin" mAccnt)
   case txnCard of
     Just card -> do
       cardBrandMaybe <- getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
       orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
       let orderStatus' =
-            addCardInfo txn card enableSendingCardIsin cardBrandMaybe
+            addCardInfo txn card sendCardIsin cardBrandMaybe
               $ addAuthType card
               $ addEmi txn orderStatus
       addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
@@ -3278,10 +3335,10 @@ getTxnStatusResponse txnDetail@(TxnDetail txn) merchantAccount sf = do
     }
 -}
 
--- Original getTxnStatusResponse has `SecondFactor` that not used, Correct is argument 'OrderStatusResponse'
-getTxnStatusResponse :: TxnDetail -> MerchantAccount -> OrderStatusResponse -> Flow TxnStatusResponse
-getTxnStatusResponse txnDetail merchantAccount ordStatus = do
-  ordStatusResponse <- addPaymentMethodInfo merchantAccount txnDetail ordStatus
+-- Original getTxnStatusResponse has `SecondFactor` that not used
+getTxnStatusResponse :: TxnDetail -> Bool -> SecondFactor -> Flow TxnStatusResponse
+getTxnStatusResponse txnDetail sendCardIsin sf = do
+  ordStatusResponse <- addPaymentMethodInfo sendCardIsin txnDetail defaultOrderStatusResponse
                         >>= addRefundDetails txnDetail
                         >>= addGatewayResponse txnDetail False
 

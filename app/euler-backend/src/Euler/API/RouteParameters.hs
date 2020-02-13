@@ -92,7 +92,7 @@ instance FromHttpApiData Authorization where parseUrlPiece = Right . coerce
 
 -- EHS: name clash
 newtype OrderId = OrderId Text
-  deriving (Eq, Show, Data, Typeable, RouteParameter)
+  deriving (Eq, Show, Data, Typeable, RouteParameter, Generic, ToJSON, FromJSON)
 
 instance ToHttpApiData OrderId where toUrlPiece = coerce
 instance FromHttpApiData OrderId where parseUrlPiece = Right . coerce

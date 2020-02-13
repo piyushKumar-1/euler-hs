@@ -275,8 +275,19 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
             $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
       pure $ join eRes
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) = do
-  fmap next $ R.runKVDB _runMode _kvdbConnections act
+interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) =
+    fmap next $ R.runKVDB _runMode _kvdbConnections act
+
+
+interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnection} (L.RunPubSub act next) =
+    case (_pubSubConnection, _runMode) of
+      (Nothing, T.ReplayingMode _) -> go $ error "Connection mock. Shold not ever be evaluated"
+      (Just cn, _                ) -> go cn
+      _                            -> error "RunPubSub method called, while proper Redis connection has not been provided"
+  where
+    go conn = fmap next $ R.runPubSub _runMode _pubSubController conn
+      (L.unpackLanguagePubSub act $ runFlow $ rt { R._runMode = T.RegularMode })
+
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)

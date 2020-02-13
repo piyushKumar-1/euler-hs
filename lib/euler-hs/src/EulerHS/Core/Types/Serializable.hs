@@ -116,11 +116,37 @@ instance (JSONEx a, JSONEx b) => Serializable (Either a b) where
             (decodeWith (A.parseMaybe parseJSON) jsonDecode)
             (decodeWith (A.parseMaybe parseJSON) (A.parseMaybe parseJSON)))
         where
-            decodeWith dl dr = join . fmap (either (fmap Left . dl) (fmap Right . dr)) .
-                A.parseMaybe parseJSON
+            decodeWith dl dr = A.parseMaybe parseJSON >=> either (fmap Left . dl) (fmap Right . dr)
+
 
 
 instance (JSONEx a, JSONEx b) => EitherC (Serializable (Either a b)) d where resolve r _ = r
+
+----------------------------------------------------------------------
+
+instance (JSONEx a, JSONEx b) => Serializable (a, b) where
+    jsonEncode = resolveJSONEx @a
+        (resolveJSONEx @b
+            (encodeWith jsonEncode jsonEncode)
+            (encodeWith jsonEncode toJSON))
+        (resolveJSONEx @b
+            (encodeWith toJSON jsonEncode)
+            (encodeWith toJSON toJSON))
+        where
+            encodeWith el er = toJSON . bimap el er
+
+    jsonDecode = resolveJSONEx @a
+        (resolveJSONEx @b
+            (decodeWith jsonDecode jsonDecode)
+            (decodeWith jsonDecode (A.parseMaybe parseJSON)))
+        (resolveJSONEx @b
+            (decodeWith (A.parseMaybe parseJSON) jsonDecode)
+            (decodeWith (A.parseMaybe parseJSON) (A.parseMaybe parseJSON)))
+        where
+            decodeWith dl dr = A.parseMaybe parseJSON >=> \(va, vb) -> (,) <$> dl va <*> dr vb
+
+
+instance (JSONEx a, JSONEx b) => EitherC (Serializable (a, b)) d where resolve r _ = r
 
 
 ----------------------------------------------------------------------

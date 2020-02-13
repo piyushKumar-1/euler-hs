@@ -2,6 +2,7 @@ module EulerHS.Tests.Framework.Common where
 
 import qualified Data.Map as Map
 import qualified Data.Vector as V
+import           Data.Aeson
 import           Network.Wai.Handler.Warp
 import           Servant.Client
 import           Servant.Server
@@ -13,29 +14,34 @@ import           EulerHS.Prelude
 import           EulerHS.Runtime
 import           EulerHS.TestData.API.Client
 import           EulerHS.Types as T
+import           Control.Concurrent.MVar (modifyMVar_)
+import           Data.Aeson.Encode.Pretty
+import           Database.Redis (checkedConnect, defaultConnectInfo, pubSubForever)
 
 
 runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b
 runFlowWithArt flow = do
-  (recording, recResult) <- runFlowRecording pure flow
-  (errors   , repResult) <- runFlowReplaying pure recording flow
+  (recording, recResult) <- runFlowRecording ($) flow
+  (errors   , repResult) <- runFlowReplaying recording flow
   flattenErrors errors `shouldBe` []
   recResult `shouldBe` repResult
   pure recResult
 
-runFlowRecording :: (FlowRuntime -> IO FlowRuntime) -> Flow a -> IO (ResultRecording, a)
+runFlowRecording :: (forall b . (FlowRuntime -> IO b) -> FlowRuntime -> IO b) -> Flow a -> IO (ResultRecording, a)
 runFlowRecording mod flow = do
-  flowRuntime <- mod =<< initRecorderRT
-  result <- runFlow flowRuntime flow
-  case _runMode flowRuntime of
-    T.RecordingMode T.RecorderRuntime{recording} -> do
-      entries <- awaitRecording recording
-      pure (entries, result)
-    _ -> fail "wrong mode"
+  let next flowRuntime = do
+        result <- runFlow flowRuntime flow
+        case _runMode flowRuntime of
+          T.RecordingMode T.RecorderRuntime{recording} -> do
+            entries <- awaitRecording recording
+            pure (entries, result)
+          _ -> fail "wrong mode"
 
-runFlowReplaying :: (FlowRuntime -> IO FlowRuntime) -> ResultRecording -> Flow a -> IO (ResultReplayError, a)
-runFlowReplaying mod recording flow  = do
-  playerRuntime <- mod =<< initPlayerRT recording
+  initRecorderRT >>= mod next
+
+runFlowReplaying :: ResultRecording -> Flow a -> IO (ResultReplayError, a)
+runFlowReplaying recording flow  = do
+  playerRuntime <- initPlayerRT recording
   result <- runFlow playerRuntime flow
   case _runMode playerRuntime of
     T.ReplayingMode T.PlayerRuntime{rerror} -> do
@@ -97,6 +103,61 @@ initPlayerRT recEntries = do
 
 replayRecording :: ResultRecording -> Flow a -> IO a
 replayRecording rec flow = do
-  (errors, result) <- runFlowReplaying pure rec flow
+  (errors, result) <- runFlowReplaying rec flow
   flattenErrors errors `shouldBe` []
   pure result
+
+-- prints replay in JSON format to console
+runWithRedisConn :: a -> Flow b -> IO b
+runWithRedisConn _ flow = do
+    (recording, recResult) <- runFlowRecording withInitRedis flow
+    print $ encode $ recording
+    -- putStrLn $ encodePretty $ recording
+    pure recResult
+  where
+    withInitRedis :: (FlowRuntime -> IO c) -> FlowRuntime -> IO c
+    withInitRedis next _rt = do
+      realRedisConnection <- checkedConnect defaultConnectInfo
+      let rt = _rt { _pubSubConnection = Just $ realRedisConnection }
+
+      cancelWorker <- runPubSubWorker rt (const $ pure ())
+
+      modifyMVar_ (_kvdbConnections rt) $
+        pure . Map.insert "redis" (NativeKVDB realRedisConnection)
+
+      res <- next rt
+      cancelWorker
+      pure res
+
+
+emptyMVarWithWatchDog :: Int -> IO (MVar a, IO (Maybe a), IO ())
+emptyMVarWithWatchDog t = do
+    guard $ t >= 0
+    targetMVar <- newEmptyMVar
+    finalMVar  <- newEmptyMVar
+    let watch = forkIO $ do
+          let loop n = do
+                mresult <- tryTakeMVar targetMVar
+
+                case mresult of
+                  Just a -> do
+                    putMVar targetMVar a
+                    putMVar finalMVar $ Just a
+
+                  Nothing -> do
+                    if n > 0
+                        then do
+                          threadDelay $ 1 * 10 ^ 5
+                          loop $ n - 1
+
+                        else putMVar finalMVar Nothing
+
+
+          loop $ t * 10
+
+    let reset = void $ tryTakeMVar targetMVar
+
+
+    pure (targetMVar, watch >> takeMVar finalMVar, reset)
+
+

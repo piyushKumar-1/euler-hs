@@ -43,6 +43,12 @@ module EulerHS.Framework.Flow.Language
   , runSysCmd
   , forkFlow
   , throwException
+
+  -- *** PublishSubscribe
+  , publish
+  , subscribe
+  , psubscribe
+  , unpackLanguagePubSub
   ) where
 
 import           EulerHS.Prelude hiding (getOption)
@@ -57,6 +63,7 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Framework.Types as T
+import qualified EulerHS.Core.PubSub.Language as PSL
 
 type Description = Text
 
@@ -162,6 +169,11 @@ data FlowMethod next where
     -> (T.KVDBAnswer a -> next)
     -> FlowMethod next
 
+  RunPubSub
+    :: PubSub a
+    -> (a -> next)
+    -> FlowMethod next
+
 instance Functor FlowMethod where
   fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
 
@@ -196,6 +208,8 @@ instance Functor FlowMethod where
   fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
   fmap f (RunKVDB act next)                   = RunKVDB act (f . next)
+
+  fmap f (RunPubSub act next)                 = RunPubSub act (f . next)
 
 type Flow = F FlowMethod
 
@@ -433,3 +447,32 @@ runKVDB
   :: KVDB a -- ^ KVDB action
   -> Flow (T.KVDBAnswer a)
 runKVDB act = liftFC $ RunKVDB act id
+
+
+newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
+
+type MessageCallback
+    =  ByteString  -- ^ Message payload
+    -> Flow ()
+
+type PMessageCallback
+    =  ByteString  -- ^ Channel name
+    -> ByteString  -- ^ Message payload
+    -> Flow ()
+
+runPubSub
+  :: PubSub a
+  -> Flow a
+runPubSub act = liftFC $ RunPubSub act id
+
+
+publish :: PSL.Channel -> PSL.Payload -> Flow (Either T.KVDBReply Integer)
+publish channel payload = runPubSub $ PubSub $ const $ PSL.publish channel payload
+
+subscribe :: [PSL.Channel] -> MessageCallback -> Flow (Flow ())
+subscribe channels cb = fmap runIO $
+  runPubSub $ PubSub $ \runFlow -> PSL.subscribe channels (runFlow . cb)
+
+psubscribe :: [PSL.ChannelPattern] -> PMessageCallback -> Flow (Flow ())
+psubscribe channels cb = fmap runIO $
+  runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)

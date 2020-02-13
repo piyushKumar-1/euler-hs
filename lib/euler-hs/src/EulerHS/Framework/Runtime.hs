@@ -6,6 +6,7 @@ module EulerHS.Framework.Runtime
   , createFlowRuntime'
   , withFlowRuntime
   , kvDisconnect
+  , runPubSubWorker
   ) where
 
 import           EulerHS.Prelude
@@ -16,10 +17,10 @@ import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
-import qualified Database.Redis as RD (disconnect)
+import qualified Database.Redis as RD
 import qualified System.Mem as SYSM (performGC)
 
-
+import           System.IO.Unsafe (unsafePerformIO)
 import           EulerHS.Framework.Types ()
 
 import qualified EulerHS.Core.Runtime as R
@@ -40,16 +41,32 @@ data FlowRuntime = FlowRuntime
   -- ^ ART mode in which current flow runs
   , _sqldbConnections  :: MVar (Map T.ConnTag T.NativeSqlPool)
   -- ^ Connections for SQL databases
+  , _pubSubController  :: RD.PubSubController
+  -- ^ Subscribe controller
+  , _pubSubConnection  :: Maybe RD.Connection
+  -- ^ Connection being used for Publish
   }
 
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
-  managerVar <- newManager tlsManagerSettings
-  optionsVar <- newMVar mempty
-  kvdbConnections <- newMVar Map.empty
+  managerVar       <- newManager tlsManagerSettings
+  optionsVar       <- newMVar mempty
+  kvdbConnections  <- newMVar Map.empty
   sqldbConnections <- newMVar Map.empty
-  pure $ FlowRuntime coreRt managerVar optionsVar kvdbConnections T.RegularMode sqldbConnections
+  pubSubController <- RD.newPubSubController [] []
+
+  pure $ FlowRuntime
+    { _coreRuntime       = coreRt
+    , _httpClientManager = managerVar
+    , _options           = optionsVar
+    , _kvdbConnections   = kvdbConnections
+    , _runMode           = T.RegularMode
+    , _sqldbConnections  = sqldbConnections
+    , _pubSubController  = pubSubController
+    , _pubSubConnection  = Nothing
+    }
+
 
 
 createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
@@ -94,3 +111,44 @@ createLoggerRuntime' :: Maybe T.LoggerConfig -> IO R.LoggerRuntime
 createLoggerRuntime' mbLoggerCfg = case mbLoggerCfg of
   Nothing        -> R.createVoidLoggerRuntime
   Just loggerCfg -> R.createLoggerRuntime loggerCfg
+
+pubSubWorkerLock :: MVar ()
+pubSubWorkerLock = unsafePerformIO $ newMVar ()
+
+runPubSubWorker :: FlowRuntime -> (Text -> IO ()) -> IO (IO ())
+runPubSubWorker rt log = do
+    let tsecond = 10 ^ (6 :: Int)
+
+    lock <- tryTakeMVar pubSubWorkerLock
+    case lock of
+      Nothing -> error "Unable to run Publish/Subscribe worker: Only one worker allowed"
+      Just _  -> pure ()
+
+    let mconnection = _pubSubConnection rt
+
+    delayRef <- newIORef tsecond
+
+    threadId <- case mconnection of
+      Nothing   -> do
+        putMVar pubSubWorkerLock ()
+        error "Unable to run Publish/Subscribe worker: No connection to Redis provided"
+
+      Just conn -> forkIO $ forever $ do
+        res <- try @_ @SomeException $ RD.pubSubForever conn (_pubSubController rt) $
+          log "Publish/Subscribe worker: Run successfuly"
+
+        case res of
+          Left e -> do
+              delay <- readIORef delayRef
+
+              log $ "Publish/Subscribe worker: Got error: " <> show e
+              log $ "Publish/Subscribe worker: Restart in " <> show (delay `div` tsecond) <> " sec"
+
+              modifyIORef' delayRef (\d -> d + d `div` 2) -- (* 1.5)
+              threadDelay delay
+          Right _ -> pure ()
+
+    pure $ do
+      killThread threadId
+      putMVar pubSubWorkerLock ()
+      log $ "Publish/Subscribe worker: Killed"

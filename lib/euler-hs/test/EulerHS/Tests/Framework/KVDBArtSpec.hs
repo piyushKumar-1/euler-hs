@@ -5,34 +5,12 @@ module EulerHS.Tests.Framework.KVDBArtSpec
 import           EulerHS.Prelude
 
 import           Data.Aeson as A
-import           Data.Aeson.Encode.Pretty
-import qualified Data.Map as Map
-import           Database.Redis (checkedConnect, defaultConnectInfo)
 import           Test.Hspec
 
 import           EulerHS.Language as L
 import           EulerHS.Runtime
 import           EulerHS.Tests.Framework.Common
 import           EulerHS.Types as T
-
-
-
-
--- prints replay in JSON format to console
-runWithRedisConn :: (Show b, Eq b) => a -> Flow b -> IO b
-runWithRedisConn _ flow = do
-  (recording, recResult) <- runFlowRecording initRedis flow
-  print $ encode $ recording
-  -- putStrLn $ encodePretty $ recording
-  pure recResult
-  where
-    initRedis = \rt -> do
-      realRedisConnection <- NativeKVDB <$> checkedConnect defaultConnectInfo
-      connections         <- takeMVar $ _kvdbConnections rt
-      putMVar (_kvdbConnections rt) $
-        Map.insert "redis" realRedisConnection connections
-      pure rt
-
 
 spec :: Spec
 spec = do
@@ -104,7 +82,6 @@ spec = do
       result `shouldBe` Right Nothing
 
 
-
 getKey :: ResultRecording
 getKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
 
@@ -131,5 +108,3 @@ setExGetKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",
 
 setExTtl :: ResultRecording
 setExTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":1,\"jsonValue\":{\"utf8\":\"bbbex\",\"b64\":\"YmJiZXg=\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":[]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{}}"
-
-

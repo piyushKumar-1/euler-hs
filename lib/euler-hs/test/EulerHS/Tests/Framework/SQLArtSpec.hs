@@ -112,7 +112,7 @@ connectOrFail cfg = L.getOrInitSqlConn cfg >>= \case
 
 runWithSQLConn :: (Show b, Eq b) => Flow b -> IO b
 runWithSQLConn flow = do
-  (recording, recResult) <- runFlowRecording pure flow
+  (recording, recResult) <- runFlowRecording ($) flow
   putStrLn $ encodePretty $ recording
   -- writeFile "recorded" $ show $ encode $ recording
   print recResult

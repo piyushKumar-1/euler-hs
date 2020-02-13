@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Euler.Common.Types.Transaction where
 
 import EulerHS.Prelude
+import Data.Data (Data)
 
 import Database.Beam.Backend.SQL
 import Database.Beam.Postgres
@@ -12,6 +14,22 @@ import Database.Beam.MySQL
 
 import qualified Data.Text as T
 
+
+-- EHS: rework these types. They could be wrong (not checked for transaction)
+data PaymentMethodType
+  = WALLET  -- ^ Wallet
+  | UPI     -- ^ UPI (UPI application)
+  | NB      -- ^ Network Banking
+  | CARD    -- ^ Credit / Debit Card
+  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
+
+data TxnType
+  = UPI_COLLECT
+  | UPI_PAY
+  | BHARAT_PAY
+  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
+
+------------------
 
 data AuthType
   = ATMPIN

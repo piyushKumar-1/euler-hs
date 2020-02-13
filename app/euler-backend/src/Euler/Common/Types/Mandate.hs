@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveAnyClass  #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Euler.Common.Types.Mandate where
 
 import EulerHS.Prelude
+import Data.Data (Data)
 
 import Database.Beam.Backend.SQL
 import Database.Beam.Postgres
@@ -26,7 +28,7 @@ data MandateFeature
   = DISABLED
   | REQUIRED
   | OPTIONAL
-  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
+  deriving (Show, Read, Eq, Ord, Generic, Data, Typeable, ToJSON, FromJSON, ToForm, FromForm)
 
 instance ToHttpApiData MandateFeature where
   toQueryParam = T.pack . P.show                -- EHS: why not just `show`??
@@ -50,3 +52,11 @@ toDBMandate :: O.OrderMandate -> MandateFeature
 toDBMandate O.MandateDisabled     = DISABLED
 toDBMandate (O.MandateRequired _) = REQUIRED
 toDBMandate (O.MandateOptional _) = OPTIONAL
+
+-- EHS: Type for API and DB.
+-- Temporary, split into separate types for API and DB
+-- and move into the appropriate namespaces.
+
+-- EHS: incomplete type
+data MandateStatus = CREATED
+  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)

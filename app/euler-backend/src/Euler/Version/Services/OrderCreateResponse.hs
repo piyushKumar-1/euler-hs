@@ -1,4 +1,4 @@
-module Euler.Version.Service.OrderCreateResponse
+module Euler.Version.Services.OrderCreateResponse
   ( OrderCreateResponseService
   , mkOrderCreateResponseService
   , tokenizeOrderCreateResponse

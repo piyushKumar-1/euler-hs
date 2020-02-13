@@ -17,6 +17,7 @@ import qualified Prelude as P (show)
 import qualified Text.Read as TR (readEither)
 
 type OrderId = Text
+type OrderPId = Int
 
 data OrderType
   = MANDATE_REGISTER

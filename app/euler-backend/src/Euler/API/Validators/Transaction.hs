@@ -9,13 +9,14 @@ import Data.Generics.Product.Fields
 import Data.Functor.Alt
 import qualified Data.Text as T
 import qualified Euler.Product.Domain.Transaction as DT
+
+-- EHS: rework imports
 import Euler.Product.Domain.CardPayment
 import Euler.Product.Domain.NBPayment
 import Euler.Product.Domain.WalletPayment
 import Euler.Product.Domain.UPIPayment as UPI
-import Euler.Product.Domain.Types
 import qualified Euler.API.Transaction as AT
-import qualified Euler.API.Types as AT
+import qualified Euler.Common.Types.Transaction as AT
 import Euler.Common.Types.Transaction (AuthType(..))
 
 
@@ -25,8 +26,8 @@ import Euler.Common.Types.Transaction (AuthType(..))
 
 transApiTxToDomTx :: AT.Transaction -> V DT.Transaction
 transApiTxToDomTx apiTxn = DT.Transaction
-      <$> (OrderId    <$> withField @"order_id"    apiTxn textNotEmpty) -- :: OrderId                -- ^
-      <*> (MerchantId <$> withField @"merchant_id" apiTxn textNotEmpty) -- :: MerchantId
+      <$> (withField @"order_id"    apiTxn textNotEmpty) -- :: OrderId                -- ^
+      <*> (withField @"merchant_id" apiTxn textNotEmpty) -- :: MerchantId
       <*> transApiTxToDomTxType apiTxn                                               -- :: TransactionType
       <*> withField @"redirect_after_payment" apiTxn pure                -- :: Bool
       <*> withField @"format" apiTxn textNotEmpty                       -- :: _

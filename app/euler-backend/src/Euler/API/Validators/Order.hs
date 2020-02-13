@@ -10,7 +10,7 @@ import GHC.Records (getField)
 
 -- EHS: it's better to use top level modules and qualified access.
 import           Euler.Common.Types.Currency  (Currency(..))
-import           Euler.Common.Types.Gateway   (gatewayRMap)
+import           Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
 import           Euler.Common.Types.Mandate   (MandateFeature(..))
 import           Euler.Common.Types.Order     (UDF(..))
 import qualified Euler.Common.Types.Order     as O
@@ -86,8 +86,8 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> runParser parseMandate "options_create_mandate mandate_max_amount"
     <*> (O.getOrderType <$> runParser parseMandate "options_create_mandate mandate_max_amount")
 
-    <*> withField @"gateway_id" sm pure -- need validator?
-    <*> withField @"customer_id" sm (insideJust >=> customerIdValidators)
+    <*> withField @"gateway_id" sm (insideJust $ toInt >=> transformGatewayId)
+    <*> withField @"customer_id" sm (insideJust customerIdValidators)
     <*> withField @"customer_email" sm pure
     <*> withField @"customer_phone" sm pure
     <*> apiOrderCreateToBillingAddrHolderT sm -- billingAddrHolder
@@ -110,19 +110,16 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
             REQUIRED -> O.MandateRequired maxAmount
             OPTIONAL -> O.MandateOptional maxAmount
 
-    -- parseMandate = do
-    --   mandate      <- withField @"options_create_mandate" sm (extractMaybeWithDefault DISABLED)
-    --   maxAmountStr <- withField @"mandate_max_amount" sm (extractMaybeWithDefault "0.0")
-    --   maxAmount    <- V.decode maxAmountStr
-    --   V.guarded "mandate_max_amount should be non-negative." $ maxAmount >= 0
-    --
-    --   pure $ case mandate of
-    --     DISABLED -> pure O.MandateDisabled
-    --     REQUIRED -> pure $ O.MandateRequired maxAmount
-    --     OPTIONAL -> pure $ O.MandateOptional maxAmount
-    -- -- EHS: add mandateMaxAmount validator.
     -- -- Error on invalid madate fields is in `invalidMandateFields`.
     -- -- EHS: add validator for `acquireOrderToken`.
+
+toInt :: Transformer Text Int
+toInt = V.decode
+
+transformGatewayId :: Transformer Int GatewayId
+transformGatewayId v = do
+  V.guarded ("Should be in " <> show gatewayRMap) $ v `Map.member` gatewayRMap
+  pure v
 
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
@@ -167,10 +164,6 @@ apiOrderCreateToShippingAddrT req = Ts.AddressTemplate
 -- EHS: fill customerEmail & phone
 
 -- EHS: DRY for validators. A lot of them is repeated many times.
-gatewayIdValidator :: Validator Int
-gatewayIdValidator = mkValidator
-   ("Should be in " <> show gatewayRMap)
-   (`Map.member` (gatewayRMap))
 
 amountValidators :: Validator Double
 amountValidators =

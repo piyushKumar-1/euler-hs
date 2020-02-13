@@ -16,7 +16,8 @@ import Data.Time
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway (Gateway)
 import qualified Database.Beam as B
-import qualified Euler.Common.Types.Mandate as M (PaymentMethodType, MandateStatus(CREATED))
+import qualified Euler.Common.Types.Transaction as T
+import qualified Euler.Common.Types.Mandate as M
 
 -- from src/Types/Storage/EC/Mandate/Types.purs
 data MandateT f = Mandate
@@ -27,7 +28,7 @@ data MandateT f = Mandate
   ,  maxAmount                :: B.C f (Maybe Double)
   ,  merchantCustomerId       :: B.C f (Maybe Text)
   ,  paymentMethod            :: B.C f (Maybe Text)
-  ,  paymentMethodType        :: B.C f (Maybe M.PaymentMethodType)
+  ,  paymentMethodType        :: B.C f (Maybe T.PaymentMethodType)
   ,  status                   :: B.C f M.MandateStatus
   ,  token                    :: B.C f Text
   ,  mandateId                :: B.C f Text

@@ -10,7 +10,11 @@ import qualified Euler.Product.Domain.NBPayment as NB
 import qualified Euler.Product.Domain.WalletPayment as W
 import qualified Euler.Product.Domain.UPIPayment as UPI
 
-import Euler.Product.Domain.Types (PaymentMethodType, OrderId, MerchantId)
+import           Euler.Common.Types.Transaction (PaymentMethodType)
+
+-- EHS: import top module only.
+import Euler.Common.Types.Order (OrderId, OrderPId)
+import Euler.Common.Types.Merchant (MerchantId)
 
 -- TODO: rework PaymentMethod / PaymentMethodType approach
 

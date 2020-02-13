@@ -78,7 +78,7 @@ import           Euler.Storage.Types.EulerDB as EDB
 import           Euler.Storage.Repository.Refund as RR
 import           Euler.Storage.Repository.Chargeback as RC
 
-import Euler.Version.Services.OrderStatusResponse
+import           Euler.Version.Services.OrderStatusResponse
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B

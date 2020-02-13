@@ -250,30 +250,38 @@ and in instance  Decode OrderCreateReq with modifyRequestBody from
 src/Types/Communication/OLTP/Order.js
 -}
 
--- from Types.Communication.OLTP.OrderStatus
--- should be decoded with custom FromJSON instance
--- to avoid duplicate fields
-
--- EHS: why all these fields are here? No such fields in API Reference.
-data OrderStatusRequest = OrderStatusRequest
-  { txn_uuid    :: Maybe Text
-  , merchant_id :: Maybe Text
-  , order_id    :: Maybe Text
-  , txnUuid     :: Maybe Text
-  , merchantId  :: Maybe Text
-  , orderId     :: Maybe Text
+-- Looks like domain type to me?
+data OrderStatusQuery = OrderStatusQuery
+  { orderId                 :: OrderId
+  , merchantId              :: Text       -- ^
+  , resellerId              :: Maybe Text -- ^
+  , isAuthenticated         :: Bool
+  , sendCardIsin            :: Bool
+  , txnId                   :: Text       -- ^
+  , sendFullGatewayResponse :: Bool
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-defaultOrderStatusRequest :: OrderStatusRequest
-defaultOrderStatusRequest  = OrderStatusRequest
-  { txn_uuid     = Nothing -- :: Maybe Text
-  , merchant_id  = Nothing -- :: Maybe Text
-  , order_id     = Nothing -- :: Maybe Text
-  , txnUuid      = Nothing -- :: Maybe Text
-  , merchantId   = Nothing -- :: Maybe Text
-  , orderId      = Nothing -- :: Maybe Text
-  }
+-- we can live without it completely
+-- data OrderStatusRequest = OrderStatusRequest
+--   { txn_uuid    :: Maybe Text
+--   , merchant_id :: Maybe Text
+--   , order_id    :: Maybe Text
+--   , txnUuid     :: Maybe Text
+--   , merchantId  :: Maybe Text
+--   , orderId     :: Maybe Text
+--   }
+--   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- defaultOrderStatusRequest :: OrderStatusRequest
+-- defaultOrderStatusRequest  = OrderStatusRequest
+--   { txn_uuid     = Nothing -- :: Maybe Text
+--   , merchant_id  = Nothing -- :: Maybe Text
+--   , order_id     = Nothing -- :: Maybe Text
+--   , txnUuid      = Nothing -- :: Maybe Text
+--   , merchantId   = Nothing -- :: Maybe Text
+--   , orderId      = Nothing -- :: Maybe Text
+--   }
+
 
 --  Previously OrderAPIResponse
 data OrderCreateResponse = OrderCreateResponse

@@ -81,31 +81,16 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 
   -- EHS: magic constants
   -- EHS: versioning should be done using a service
-  let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
-  if (order' ^. _acquireOrderToken)
-    then
-      let orderCreateService = mkOrderCreateResponseService version
-      tokenizeOrderCreateResponse orderCreateService
-                                  (order ^. _id)
-                                  merchantId
-                                  order'
-                                  orderResponse
+  let version = RP.lookupRP @RP.Version routeParams
+  if (version >= Just "2018-07-01")
+      && (order' ^. _acquireOrderToken)
+    then do
+      orderToken <- acquireOrderToken (order ^. _id) merchantId
+      pure $ mkTokenizedOrderResponse order' orderResponse orderToken
     else pure orderResponse
-
---  if (version >= Just "2018-07-01")
---      && (order' ^. _acquireOrderToken)
---    then do
---      orderToken <- acquireOrderToken (order ^. _id) merchantId
---      pure $ mkTokenizedOrderResponse order' orderResponse orderToken
---    else pure orderResponse
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?
-updateOrderCache
-updateOrderCache order = do
-  let orderId = order ^. _orderId
-  -- EHS: magic constant.
-  void $ setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
 -- EHS: previously setMandateInCache
 -- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
@@ -338,13 +323,6 @@ loadCustomer (Just customerId) mAccntId = do
               )
               &&. (merchantAccountId ==. (B.val_ mAccntId))
 
-        let predicate Customer {objectReferenceId, merchantAccountId, id} =
-
-              -- (   id ==. B.just_ (B.val_ customerId)
-              -- ||. objectReferenceId ==. B.just_ (B.val_  customerId)
-              -- )
-              -- &&. (merchantAccountId ==. (B.val_ accountId))
-
       findRow
         $ B.select
         $ B.filter_ predicate
@@ -382,7 +360,8 @@ toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
       -- from src/Config/Constants.purs
       --  defaultVersion :: Int
       --  defaultVersion = 1
-        ..
+
+        -- EHS: fill address
         }
   where
     nothingSet = isNothing
@@ -494,8 +473,8 @@ saveOrderMetadata routeParams orderPId metadata' = do
   -- EHS: why not use order's timestamp?
   orderMetadataTimestamp <- getCurrentTimeUTC
 
-  sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
-  userAgent'     = RP.lookupRP @RP.UserAgent routeParams
+  let sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
+  let userAgent'     = RP.lookupRP @RP.UserAgent routeParams
   -- EHS: DB type should be denoted exclicitly
   let orderMetadataDB = OrderMetadataV2
         { id = Nothing

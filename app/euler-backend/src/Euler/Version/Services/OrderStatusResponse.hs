@@ -18,7 +18,6 @@ import Euler.Version.Services.Refund
 -- move to common types?
 -- change to newtype?
 type Version = Text
-type GatewayId = Int
 
 transformOrderStatus :: OrderStatusService -> OrderStatusResponse -> OrderStatusResponse
 transformOrderStatus OrderStatusService{..}

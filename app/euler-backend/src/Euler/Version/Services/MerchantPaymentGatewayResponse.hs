@@ -15,7 +15,6 @@ import Euler.Common.Types.Gateway
 -- move to common types?
 -- change to newtype?
 type Version = Text
-type GatewayId = Int
 
 transformMPGR :: MerchantPGRService -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
 transformMPGR MerchantPGRService{..}
@@ -73,12 +72,13 @@ setDiscountAmount' version
   | otherwise = id
 
 setAuthIdCodeAndRRN' :: Version -> GatewayId -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-setAuthIdCodeAndRRN' version gwId mpgr
-  | (version < "2017-10-26"  || version == "")
-    && gwId == gatewayIdFromGateway PAYU =
-      setField @"auth_id_code" newAuthIdCode
-      $ setField @"rrn" newRRN mpgr
-  | otherwise = mpgr
-  where
-    newAuthIdCode = getField @"rrn" mpgr
-    newRRN = getField @"epg_txn_id" mpgr
+setAuthIdCodeAndRRN' = undefined
+-- setAuthIdCodeAndRRN' version gwId mpgr
+--   | (version < "2017-10-26"  || version == "")
+--     && gwId == gatewayIdFromGateway PAYU =
+--       setField @"auth_id_code" newAuthIdCode
+--       $ setField @"rrn" newRRN mpgr
+--   | otherwise = mpgr
+--   where
+--     newAuthIdCode = getField @"rrn" mpgr
+--     newRRN = getField @"epg_txn_id" mpgr

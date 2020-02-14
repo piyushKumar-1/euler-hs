@@ -1,5 +1,5 @@
 module EulerHS.Framework.Types.Options
-  ( 
+  (
     -- * Options
     -- | Determine the relationship between key & value
     OptionEntity
@@ -7,4 +7,4 @@ module EulerHS.Framework.Types.Options
 
 import           EulerHS.Prelude
 
-class (FromJSON k, FromJSON v, ToJSON k, ToJSON v) => OptionEntity k v |  k -> v
+class (Typeable k, FromJSON v, ToJSON v) => OptionEntity k v |  k -> v

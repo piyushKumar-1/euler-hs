@@ -16,7 +16,7 @@ testScenario1 = do
   localUserName <- runSysCmd "whoami"
   localGUID <- runIO $ (undefined :: IO String)
   guid <- generateGUID
-  url <- maybe (mkUrl "localhost") mkUrl <$> getOption UrlKey
+  url <- maybe (mkUrl "localhost") mkUrl <$> getOption @UrlKey
   res <- callServantAPI url getUser
   case res of
     Right u ->  if localGUID /= userGUID u then pure u

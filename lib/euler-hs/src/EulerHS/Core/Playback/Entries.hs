@@ -64,12 +64,12 @@ instance T.JSONEx a => MockedResult CallServantAPIEntry (Either S.ClientError a)
 -- ----------------------------------------------------------------------
 
 data SetOptionEntry = SetOptionEntry
-  { key   :: A.Value
+  { key   :: Text
   , value :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkSetOptionEntry :: T.OptionEntity k v => k -> v -> () -> SetOptionEntry
-mkSetOptionEntry k v _ = SetOptionEntry (toJSON k) (toJSON v)
+mkSetOptionEntry :: ToJSON v => Text -> v -> () -> SetOptionEntry
+mkSetOptionEntry k v _ = SetOptionEntry k (toJSON v)
 
 instance RRItem SetOptionEntry where
   getTag _ = "SetOptionEntry"
@@ -80,12 +80,12 @@ instance MockedResult SetOptionEntry () where
 -- ----------------------------------------------------------------------
 
 data GetOptionEntry = GetOptionEntry
-  { key   :: A.Value
+  { key   :: Text
   , value :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkGetOptionEntry :: T.OptionEntity k v => k -> Maybe v -> GetOptionEntry
-mkGetOptionEntry k mv = GetOptionEntry (toJSON k) (toJSON mv)
+mkGetOptionEntry :: (FromJSON v, ToJSON v) => Text -> Maybe v -> GetOptionEntry
+mkGetOptionEntry k mv = GetOptionEntry k (toJSON mv)
 
 instance RRItem GetOptionEntry where
   getTag _ = "GetOptionEntry"

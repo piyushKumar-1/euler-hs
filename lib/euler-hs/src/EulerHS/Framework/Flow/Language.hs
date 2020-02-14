@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
 
 module EulerHS.Framework.Flow.Language
   (
@@ -46,10 +47,12 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import qualified Data.ByteString.Char8 as BC
 import           Servant.Client (ClientError, BaseUrl)
+import           Type.Reflection
 
 import qualified EulerHS.Core.Types as T
-import          EulerHS.Core.Language (Logger, logMessage', KVDB)
+import           EulerHS.Core.Language (Logger, logMessage', KVDB)
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Framework.Types as T
 
@@ -78,14 +81,14 @@ data FlowMethod next where
     -> FlowMethod next
 
   GetOption
-    :: T.OptionEntity k v
-    => k
+    :: (FromJSON v, ToJSON v)-- T.OptionEntity k v
+    => Text
     -> (Maybe v -> next)
     -> FlowMethod next
 
   SetOption
-    :: T.OptionEntity k v
-    => k
+    :: (FromJSON v, ToJSON v)-- T.OptionEntity k v
+    => Text
     -> v
     -> (() -> next)
     -> FlowMethod next
@@ -288,8 +291,8 @@ runIO ioAct = liftFC $ RunIO ioAct id
 
 
 -- | Get stored option by typed key.
-getOption :: T.OptionEntity k v => k -> Flow (Maybe v)
-getOption k = liftFC $ GetOption k id
+getOption :: forall k v . T.OptionEntity k v => Flow (Maybe v)
+getOption = liftFC $ GetOption (show $ typeRep @k) id
 
 
 -- >  data MerchantIdKey = MerchantIdKey
@@ -300,8 +303,8 @@ getOption k = liftFC $ GetOption k id
 -- >    _ <- setOption MerchantIdKey "abc1234567"
 -- >    mKey <- getOption MerchantKey
 -- >    runIO $ putTextLn mKey
-setOption :: T.OptionEntity k v => k -> v -> Flow ()
-setOption k v = liftFC $ SetOption k v id
+setOption :: forall k v. T.OptionEntity k v =>  v -> Flow ()
+setOption v = liftFC $ SetOption (show $ typeRep @k) v id
 
 -- | Just generate version 4 UUIDs as specified in RFC 4122
 -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.

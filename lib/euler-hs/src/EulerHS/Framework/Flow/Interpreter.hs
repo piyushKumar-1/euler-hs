@@ -81,12 +81,12 @@ interpretFlowMethod R.FlowRuntime {..} (L.RunIO ioAct next) =
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do
     m <- readMVar _options
-    pure $ A.decode . BSL.fromStrict =<< Map.lookup (BSL.toStrict $ A.encode k) m
+    pure $ A.decode . BSL.fromStrict =<< Map.lookup (encodeUtf8 k) m
 
 interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
   fmap next $ P.withRunMode _runMode (P.mkSetOptionEntry k v) $ do
     m <- takeMVar _options
-    let newMap = Map.insert (BSL.toStrict $ A.encode k) (BSL.toStrict $ A.encode v) m
+    let newMap = Map.insert (encodeUtf8 k) (BSL.toStrict $ A.encode v) m
     putMVar _options newMap
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.GenerateGUID next) = do

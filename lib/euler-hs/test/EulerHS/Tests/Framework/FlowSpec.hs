@@ -82,9 +82,12 @@ spec = do
 
       it "Options Set Get" $ \rt -> do
         result <- runFlow rt $ do
-          _ <- setOption TestStringKey "lore ipsum"
-          getOption TestStringKey
-        result `shouldBe` (Just "lore ipsum")
+          _ <- setOption @TestStringKey "lore ipsum"
+          _ <- setOption @TestStringKey2 "lore ipsum2"
+          s1 <- getOption @TestStringKey
+          s2 <- getOption @TestStringKey2
+          pure (s1,s2)
+        result `shouldBe` (Just "lore ipsum", Just "lore ipsum2")
 
       it "RunSysCmd" $ \rt -> do
         result <- runFlow rt $ runSysCmd "echo test"

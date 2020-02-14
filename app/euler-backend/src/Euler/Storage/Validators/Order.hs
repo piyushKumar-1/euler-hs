@@ -6,16 +6,18 @@ import EulerHS.Prelude
 import EulerHS.Extra.Validation
 
 import           Euler.Common.Types.Money     (mkMoney)
+import qualified Euler.Common.Validators as Vs
+import qualified Euler.Common.Types.Mandate as M
+import qualified Euler.Common.Types.Order as O
 import qualified Euler.Storage.Types.OrderReference  as S
 import qualified Euler.Product.Domain.Order as DO
-
 
 -- EHS: better naming
 transSOrderToDOrder :: S.OrderReference -> V DO.Order
 transSOrderToDOrder so = DO.Order
-  <$> withField @"id" so (extractJust >=> notNegative)
+  <$> withField @"id" so (extractJust >=> Vs.notNegative)
   <*> withField @"version" so pure
-  <*> ( mkMoney <$> withField @"amount" so (extractJust >=> amountValidators))
+  <*> ( mkMoney <$> withField @"amount" so (extractJust >=> Vs.amountValidators))
   <*> withField @"currency" so  extractJust
   <*> withField @"merchantId" so extractJust
   <*> withField @"orderId" so extractJust
@@ -30,7 +32,6 @@ transSOrderToDOrder so = DO.Order
   -- -- , browserVersion    :: Maybe Text       EHS: ?
   -- -- , popupLoaded       :: Maybe Bool       EHS: ?
   -- -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
-  <*> withField @"description" so pure
   -- , returnUrl         :: Maybe Text
   -- , amountRefunded    :: Maybe Double
   -- , refundedEntirely  :: Maybe Bool
@@ -38,15 +39,43 @@ transSOrderToDOrder so = DO.Order
   -- , productId         :: Maybe Text
   <*> withField @"billingAddressId" so pure
   <*> withField @"shippingAddressId" so pure
-  -- , mandateFeature    :: MandateFeature
   -- , autoRefund        :: Bool
   -- , lastSynced        :: LocalTime
   -- , dateCreated       :: LocalTime          -- EHS: Not a domain fields
   -- , lastModified      :: LocalTime          -- EHS: Not a domain fields
+  <*> withField @"description" so pure
   --
   -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
 
+  <*> withField @"mandateFeature" so (extractJust >=> mkMandate)
+  <*> pure False
 
+  where
+    mkMandate M.DISABLED = O.MandateDisabled
+    mkMandate M.REQUIRED = O.MandateReqUndefined      -- EHS: bug: we don't know what is max amount
+    mkMandate M.OPTIONAL = O.MandateOptUndefined      -- EHS: bug: we don't know what is max amount
+
+
+transApiOrdCreateToOrdCreateT :: API.OrderCreateRequest -> V Ts.OrderCreateTemplate
+transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
+    <$> withField @"order_id" sm Vs.textNotEmpty
+    <*> withField @"currency" sm pure -- (extractMaybeWithDefault INR)
+    <*> (mkMoney <$> withField @"amount" sm Vs.amountValidators)
+
+    <*> runParser parseMandate "options_create_mandate mandate_max_amount"
+    <*> (O.getOrderType <$> runParser parseMandate "options_create_mandate mandate_max_amount")
+
+    <*> withField @"gateway_id" sm (insideJust $ Vs.toInt >=> Vs.transformGatewayId)
+    <*> withField @"customer_id" sm (insideJust Vs.customerIdValidators)
+    <*> withField @"customer_email" sm pure
+    <*> withField @"customer_phone" sm pure
+    <*> apiOrderCreateToBillingAddrHolderT sm -- billingAddrHolder
+    <*> apiOrderCreateToBillingAddrT sm -- billingAddr
+    <*> apiOrderCreateToShippingAddrHolderT sm -- shippingAddrHolder
+    <*> apiOrderCreateToShippingAddrT sm -- shippingAddr
+    <*> withField @"metaData" sm pure
+    <*> withField @"description" sm pure -- description
+    <*> withField @"product_id" sm pure -- productId
 
 -- EHS: move validators to separate module.
 -- Don't duplicate validators.

@@ -47,8 +47,8 @@ data Order = Order
   -- , productId         :: Maybe Text
 
 
-  , mandate            :: OrderMandate                 -- ^ Default: MandateDisabled
-  , acquireOrderToken  :: Bool                         -- ^ Depends on version and passed param.
+  , mandate            :: OrderMandate         -- EHS: not a domain field        -- ^ Default: MandateDisabled
+  , acquireOrderToken  :: Bool                 -- EHS: not a domain field                    -- ^ Depends on version and passed param.
 
   -- , lastSynced        :: LocalTime          -- EHS: Not a domain fields
   -- , dateCreated       :: LocalTime          -- EHS: Not a domain fields

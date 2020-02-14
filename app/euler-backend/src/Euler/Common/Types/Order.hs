@@ -135,12 +135,15 @@ data OrderMandate
   = MandateDisabled
   | MandateRequired MandateMaxAmount
   | MandateOptional MandateMaxAmount
+  | MandateReqUndefined
+  | MandateOptUndefined
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 
 getOrderType :: OrderMandate -> OrderType
-getOrderType (MandateRequired _) = MANDATE_REGISTER
-getOrderType _                   = ORDER_PAYMENT
+getOrderType (MandateRequired _)   = MANDATE_REGISTER
+getOrderType MandateReqUndefined   = MANDATE_REGISTER
+getOrderType _                     = ORDER_PAYMENT
 
 
 data UDF = UDF

@@ -107,6 +107,196 @@ myerr400 n = err400 { errBody = "Err # " <> n }
 eulerUpiGateways :: [Gateway]
 eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
 
+
+data FlowError = ... -- do we have something similar?
+
+-- ----------------------------------------------------------------------------
+-- refactored top-level functions (subjects to be exported)
+
+
+
+-- API-aware handler -- naming convention?
+type OrderId = Text
+-- TODO inside authentication used "x-forwarded-for" header
+-- TODO can we collect all headers in Map and save them in state? before we run the flow?
+--processOrderStatus :: Text -> APIKey -> Flow OrderStatusResponse
+
+handleByOrderId :: OrderId -> APIKey -> Flow (Either FlowError OrderStatusResponse)
+handleByOrderId orderId apiKey = do
+  
+  -- TODO use AuthService
+  -- if merchantAccount don't exists - throw access denied exception
+  (merchantAccount, isAuthenticated) <- authenticateWithAPIKey apiKey
+  -- _ <- updateState (merchantAccount .^. _merchantId) orderId
+
+  -- TODO investigate: how is it used?
+  --instead of updateState we can save parameters with options (if they not shared over all api handlers)
+  _ <- setOption FlowStateOption $ FlowState (getField @"merchantId" merchantAccount) orderId
+  -- set metrics/log info
+  -- * field "merchantId" is mandatory, so we can define it as Text instead of Maybe Text in MerchantAccount data type
+
+  -- TODO rework using sth like imaginary "FlowError"?
+  -- * if unauthenticated calls disabled by merchant - throw access forbidden
+  _  <- unless isAuthenticated $ rejectIfUnauthenticatedCallDisabled merchantAccount
+  -- * use unless/when instead of skipIfB/execIfB
+  --rejectIfUnauthenticatedCallDisabled merchantAccount `skipIfB` isAuthenticated
+
+  -- turn into the request or not?
+
+  let q = OrderStatusQuery 
+    { orderId         = orderId
+    , merchantId      = getField @"merchantId" merchantAccount
+    , isAuthenticated = isAuthenticated
+    }
+
+  --response <- getOrderStatusWithoutAuth2 q query Nothing Nothing
+  response <- execOrderStatusQuery q
+
+ -- _ <- log "Process Order Status Response" $ response
+  pure response
+
+
+-- apparently, this case exists in PS-verison
+-- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls 
+handleByOrderStatusRequest :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
+handleByOrderStatusRequest = let q = OrderStatusQuery = blah-blah-blah
+  in processOrderStatusQuery q
+
+
+
+-- main specific API-agnostic handler
+-- former "getOrderStatusWithoutAuth(2)"
+-- no request params, no auth concerns here (the last is not exactly the case)
+execCachedOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
+
+-- execOrderStatusQuery
+--   :: -- OrderStatusRequest -- remove after fix checkAndAddOrderToken
+--   -> OrderStatusQuery
+--   -- -> Text {-RouteParameters-}
+--   -- -> MerchantAccount
+--   -- -> Bool
+--   -- -> (Maybe OrderCreateRequest)
+--   -- -> (Maybe OrderReference)
+--   -> Flow OrderStatusResponse -- Foreign
+execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
+  -- merchId <- case (getField @"merchantId" merchantAccount) of
+  --               Nothing -> throwException $ myerr "3"
+  --               Just v  -> pure v
+
+  let OrderId orderId' = orderId -- remove after fix getCachedOrdStatus
+  cachedResp <- getCachedOrdStatus isAuthenticated orderId' merchantId  --TODO check for txn based refund
+  resp <- case cachedResp of
+            Nothing -> do
+
+                          
+              -- TODO no details here!
+              -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
+              -- orderReference <- getOrderReference query
+              -- paymentlink <- getPaymentLink resellerId orderReference
+              -- resp <- fillOrderStatusResponse query orderReference paymentlink
+
+              resp = execOrderStatusQuery query
+          -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
+              pure resp
+            Just resp -> pure resp
+  ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
+
+
+  -- TODO figure out, what parts of OrderCreateRequest and OrderReference are used in 
+  -- checkAndAddOrderToken, add this info to OrderStatusQuery, default it to Nothing for common query
+
+  -- I absolutely hate the idea to modify cache entries! Did I get right this is the case?
+  -- Can we have  different cached results for regular status/order create case instead?
+  -- If not, we should pop up this logic up above the stack
+
+  -- * This part probably should be moved to the separate function, used only for orderCreate request
+  -- ^ I don't think so
+  ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
+                    let order = fromJust maybeOrd
+                    let orderCreateReq = fromJust maybeOrderCreateReq
+                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchantId order
+                  else pure ordResp'
+ ------------------------------------------------
+ -- * encode response to Foreign inside, why?
+  -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
+  pure ordResp
+
+
+
+
+
+-- former getOrdStatusResp
+execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery query@OrderStatusQuery{..} = do
+
+  order <- loadOrder orderId merchantId
+
+  links <- mkPaymentLinks $ getField @"order_uuid" orderId
+
+  let response = mkResponse 
+
+  -- ids, customer info, status info, amount, payment links
+  ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
+  -- amount(!), promotion
+                  >>= addPromotionDetails order
+  -- mandate
+  ordResp     <- addMandateDetails order ordResp'
+
+  -- TODO has to go to Server.hs or somewhere else RouteParams are still available
+  --let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
+
+  mbTxnId <- txnId <|> (getLastTxn orderId)
+
+  case mbTxnId of
+    Just txnId -> do
+      txn <- txnData txnId
+      -- status info (!), txn ids, gateway ids + payload, txn detail 
+      addTxnDetailsToResponse txnId order ordResp
+      -- risk
+      >>= addRiskCheckInfoToResponse txnId
+      -- investigate, second_factor_response
+      >>= addPaymentMethodInfo mAccnt txtxnIdn
+      -- refunds
+      >>= addRefundDetails txnId
+      -- chargebacks
+      >>= addChargeBacks txnId
+      -- payment_gateway_response
+      >>= addGatewayResponse txnId sendFullGatewayResponse
+    Nothing ->  pure ordResp
+-}
+
+-- should we divide this method to:
+-- 1) getStatusResp, where we just get it from DB
+
+-- 2) fillStatusResp, where we apply:
+--  * fillOrderDetails
+--  * addPromotionDetails
+--  * addMandateDetails
+
+-- 3) addTxnInfo (this method only for POST orderStatus api method) where we:
+--  * addTxnDetailsToResponse
+--  * addRiskCheckInfoToResponse
+--  * addPaymentMethodInfo
+--  * addRefundDetails
+--  * addChargeBacks
+--  * addGatewayResponse
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -- ----------------------------------------------------------------------------
 -- function: updateState
 -- TODO unused
@@ -129,7 +319,7 @@ updateState merchantId orderId = do
 -}
 
 -- ----------------------------------------------------------------------------
--- function: updateState
+-- function: createOrderStatusResponse
 -- TODO unused
 -- ----------------------------------------------------------------------------
 
@@ -176,25 +366,6 @@ data FlowStateOption = FlowStateOption
 
 instance OptionEntity FlowStateOption FlowState
 
--- TODO inside authentication used "x-forwarded-for" header
--- TODO can we collect all headers in Map and save them in state? before we run the flow?
-processOrderStatusGET :: Text -> APIKey -> Flow OrderStatusResponse
-processOrderStatusGET orderId apiKey = do
-  -- if merchantAccount don't exists - throw access denied exception
-  (merchantAccount, isAuthenticated) <- authenticateWithAPIKey apiKey
- -- _ <- updateState (merchantAccount .^. _merchantId) orderId
-  --instead of updateState we can save parameters with options (if they not shared over all api handlers)
-  _ <- setOption FlowStateOption $ FlowState (getField @"merchantId" merchantAccount) orderId
-  -- set metrics/log info
-  -- * field "merchantId" is mandatory, so we can define it as Text instead of Maybe Text in MerchantAccount data type
--- * if unauthenticated calls disabled by merchant - throw access forbidden
-  _  <- unless isAuthenticated $ rejectIfUnauthenticatedCallDisabled merchantAccount
--- * use unless/when instead of skipIfB/execIfB
---rejectIfUnauthenticatedCallDisabled merchantAccount `skipIfB` isAuthenticated
-  let query = undefined :: OrderStatusQuery
-  response <- getOrderStatusWithoutAuth2 defaultOrderStatusRequest query Nothing Nothing
- -- _ <- log "Process Order Status Response" $ response
-  pure response
 
 -- ----------------------------------------------------------------------------
 -- getOrderStatusWithoutAuth
@@ -835,6 +1006,8 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
 --  * addChargeBacks
 --  * addGatewayResponse
 
+-- TODO Можно использовать Сашину функцию, или в репозиторий
+-- TODO naming (load)
 getOrderReference
   :: OrderStatusQuery
   -- :: OrderStatusRequest
@@ -848,10 +1021,7 @@ getOrderReference query = do
     let OrderId orderId' = getField @"orderId" query
     -- merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
     let merchantId' = getField @"merchantId" query
-    let isAuthenticated = getField @"isAuthenticated" query
-    let resellerId = getField @"resellerId" query
- --   _           <- logInfo "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
-
+    
     (order :: OrderReference) <- do
       conn <- getConn eulerDB
       res <- runDB conn $ do
@@ -872,6 +1042,9 @@ getOrderReference query = do
     pure order
 
       -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId) ???
+
+ -- WARNING Seemingly, txnUuid & txn_uuid are always Nothing in OrderStatusRequest
+ -- Looks like `getLastTxn` always do the job.
 
  --   let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
  --   maybeTxn    <- runMaybeT $ MaybeT (getTxnFromTxnUuid order maybeTxnUuid) <|> MaybeT (getLastTxn order)
@@ -1084,12 +1257,14 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
        }
 -}
 
-fillOrderDetails :: Bool
+-- former fillOrderDetails
+mkResponse 
+  :: Bool
   -> Paymentlinks
   -> OrderReference
   -> OrderStatusResponse
   -> Flow OrderStatusResponse
-fillOrderDetails isAuthenticated paymentLinks ord status = do
+mkResponse isAuthenticated paymentLinks ord status = do
   -- let --resp = status
       -- ordObj = ord
   id <- whenNothing (orderUuid ord) (throwException $ myerr "4")-- unNullOrErr500 ordObj.orderUuid
@@ -1225,13 +1400,18 @@ getPaymentLink orderRef = do
     Nothing -> liftErr internalError --check correct Error
 -}
 
-getPaymentLink
+-- former getPaymentLink
+mkPaymentLinks
   :: Maybe Text -- resellerId
-  -> OrderReference
+  -> Text       -- orderUuid (from OrderReference)
   -> Flow Paymentlinks
-getPaymentLink resellId orderRef = do
+mkPaymentLink resellId orderUuid = do
  -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
  -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
+  
+  
+  -- TODO I suppose this contradicts the common sence -- reseller is optional
+  -- TODO use ResellerAccount's repository
   maybeResellerEndpoint <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
@@ -1247,8 +1427,54 @@ getPaymentLink resellId orderRef = do
       Left err -> do
         logError "Find ResellerAccount" $ toText $ P.show err
         throwException err500
+
   -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
-  pure $ createPaymentLinks (fromMaybe "" $ getField @"orderUuid" orderRef) maybeResellerEndpoint
+  -- TODO I think the link doesn't make sense if orderUuid is empty
+  pure $ createPaymentLinks orderUuid maybeResellerEndpoint
+
+
+-- ----------------------------------------------------------------------------
+-- function: createPaymentLinks
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
+createPaymentLinks :: String -> Maybe String -> Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint =
+  Paymentlinks {
+    web: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid,
+    mobile: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true",
+    iframe: NullOrUndefined $ Just (host <> "/merchant/ipay/") <> Just orderUuid
+  }
+  where
+    config = getECRConfig
+    protocol = (unwrap config).protocol
+    host = maybe (protocol <> "://" <> (unwrap config).host) id maybeResellerEndpoint
+-}
+
+
+
+createPaymentLinks 
+  :: Text           -- orderUuid (possibly blank string)
+  -> Maybe Text     -- maybeResellerEndpoint
+  -> Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint =
+  Paymentlinks
+    { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
+    , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"
+    , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
+  }
+  where
+    config = defaultConfig -- getECRConfig -- from (src/Config/Config.purs) looks like constant, but depend on ENV
+    {-
+     data Config = Config
+      { protocol :: String
+      , host :: String
+      , internalECHost :: String
+      }
+    -}
+    protocol = getField @"protocol" config-- (unwrap config).protocol
+    host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
 
 
 -- ----------------------------------------------------------------------------
@@ -1345,47 +1571,6 @@ getChargedTxn orderRef = do
   case txnDetails of
     [] -> pure Nothing
     _  -> pure $ find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
-
-
--- ----------------------------------------------------------------------------
--- function: createPaymentLinks
--- TODO update
--- ----------------------------------------------------------------------------
-
-{-PS
-createPaymentLinks :: String -> Maybe String -> Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint =
-  Paymentlinks {
-    web: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid,
-    mobile: NullOrUndefined $ Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true",
-    iframe: NullOrUndefined $ Just (host <> "/merchant/ipay/") <> Just orderUuid
-  }
-  where
-    config = getECRConfig
-    protocol = (unwrap config).protocol
-    host = maybe (protocol <> "://" <> (unwrap config).host) id maybeResellerEndpoint
--}
-
-
-
-createPaymentLinks :: Text -> Maybe Text -> Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint =
-  Paymentlinks
-    { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
-    , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"
-    , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
-  }
-  where
-    config = defaultConfig -- getECRConfig -- from (src/Config/Config.purs) looks like constant, but depend on ENV
-    {-
-     data Config = Config
-      { protocol :: String
-      , host :: String
-      , internalECHost :: String
-      }
-    -}
-    protocol = getField @"protocol" config-- (unwrap config).protocol
-    host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
 
 
 -- ----------------------------------------------------------------------------
@@ -1788,7 +1973,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
             pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
             else do
             r <- addRiskObjDefaultValueAsNull risk
-            pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
+            pure $ setField @"risk" r orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
     Nothing -> pure orderStatus
   where getString a = "" -- TODO: if (isNotString a) then "" else a
 
@@ -3603,16 +3788,3 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
 -- sanitizeAmount x = (fromMaybe x) <<< fromString <<< (toFixed 2) <<< fromNumber $ x
 sanitizeAmount x = x
 sanitizeNullAmount = fmap sanitizeAmount
-
-
--- seems to be unused
--- from src/Types/Communication/OLTP/OrderStatus.purs
-getOrderStatusRequest :: Text -> OrderStatusRequest
-getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
-                                                  , merchant_id = Nothing
-                                                  , order_id    = Just ordId
-                                                  , txnUuid     = Nothing
-                                                  , merchantId  = Nothing
-                                                  , orderId     = Nothing
-                                                 -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
-                                                  }

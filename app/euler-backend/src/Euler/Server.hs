@@ -268,7 +268,9 @@ orderStatus orderId auth xforwarderfor = do
               orderId
               auth
               xforwarderfor
-  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
+  -- TODO how to obtain apiKey?
+  -- rename: orderStatusById
+  res <- runFlow "orderStatusById" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatus orderId "apiKey"
   pure res
 
 -- EHS: Extract from here.

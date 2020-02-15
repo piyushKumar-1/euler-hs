@@ -259,8 +259,9 @@ data OrderStatusQuery = OrderStatusQuery
   , resellerId              :: Maybe Text -- ^
   , isAuthenticated         :: Bool
   , sendCardIsin            :: Bool
-  , txnId                   :: Text       -- ^
+  , txnId                   :: Maybe Text -- ^ optional txn (seems to be always CHARGED?)
   , sendFullGatewayResponse :: Bool
+  -- add info to handle case for orderCreate response (see execOrderStatusQuery function)
   }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
@@ -284,6 +285,32 @@ defaultOrderStatusRequest  = OrderStatusRequest
   , merchantId   = Nothing -- :: Maybe Text
   , orderId      = Nothing -- :: Maybe Text
   }
+
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+-- TODO better naming, probably - mkStatusRequest :: Text -> OrderStatusRequest
+getOrderStatusRequest :: Text -> OrderStatusRequest
+getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
+                                                  , merchant_id = Nothing
+                                                  , order_id    = Just ordId
+                                                  , txnUuid     = Nothing
+                                                  , merchantId  = Nothing
+                                                  , orderId     = Nothing
+                                                 -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
+                                                  }
+
+mkStatusRequest :: Text -> OrderStatusRequest
+mkStatusRequest orderId = 
+  OrderStatusRequest 
+  { txn_uuid    = Nothing
+  , merchant_id = Nothing
+  , order_id    = Just ordId
+  , txnUuid     = Nothing
+  , merchantId  = Nothing
+  , orderId     = Nothing
+  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
+  }
+
+
 
 
 --  Previously OrderAPIResponse

@@ -35,7 +35,7 @@
                     "_entryName": "LogMessageEntry",
                     "_entryIndex": 2,
                     "_entryPayload": {
-                        "tag": "ForkFlow",
+                        "tag": "\"ForkFlow\"",
                         "msg": "Flow forked. Description: f1 GUID: 3182917a-f452-4a80-8740-c8c03f90612a",
                         "level": "Info"
                     },
@@ -66,7 +66,7 @@
                             "_entryName": "LogMessageEntry",
                             "_entryIndex": 0,
                             "_entryPayload": {
-                                "tag": "from f1",
+                                "tag": "\"from f1\"",
                                 "msg": "hellofrom forked flow",
                                 "level": "Info"
                             },

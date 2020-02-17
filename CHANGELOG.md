@@ -2,7 +2,9 @@
 
 
 ## [1.3.0.0] - 2020-02-17
-- Euler-hs: changed Options interface
+- Euler-hs: (breaking changes) Options reworked.
+  Interface modified (Typeable instance required now).
+  Fixed a bug with identical encoding of different keys.
 - Euler-hs: added GHC options: Wcompat Widentities fhide-source-paths
 - Euler-hs: added wrappers for kvdb actions
 - Euler-hs: added callServantApi request | response logging

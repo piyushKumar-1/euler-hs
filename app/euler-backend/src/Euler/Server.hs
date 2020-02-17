@@ -270,11 +270,16 @@ orderStatus orderId auth xforwarderfor = do
               orderId
               auth
               xforwarderfor
-  let (orderIdDom :: D.OrderId) = fmap coerce $ lookupRP @OrderId routeparams
+  let (mOrderId :: Maybe D.OrderId) = fmap coerce $ lookupRP @OrderId rps
+  case mOrderId of
+    Nothing -> error "No OrderId" -- TODO: Handle error
+    Just orderId' -> do
   -- TODO how to obtain apiKey?
   -- rename: orderStatusById
-  res <- runFlow "orderStatusById" emptyRPs noReqBodyJSON $ OrderStatus.handleByOrderId orderIdDom "apiKey" rps
-  pure res
+      status <- runFlow "orderStatusById" emptyRPs noReqBodyJSON $ OrderStatus.handleByOrderId orderId' "apiKey" rps
+      case status of
+        Left _ -> error "err" -- TODO
+        Right response -> pure response
 
 -- EHS: Extract from here.
 type OrderCreateEndpoint

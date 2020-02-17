@@ -22,6 +22,7 @@ import           WebService.Language
 
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
+import           Data.Char (toLower)
 import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
@@ -165,10 +166,12 @@ getSendFullGatewayResponse routeParams = case find "options.add_full_gateway_res
   Nothing -> False
   Just str -> str == "1" || map toLower str == "true"
 
+
+
 -- apparently, this case exists in PS-verison
 -- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls
 handleByOrderStatusRequest :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
-handleByOrderStatusRequest = let q = OrderStatusQuery = blah-blah-blah
+handleByOrderStatusRequest ordRequest = let q = undefined :: OrderStatusQuery
   in processOrderStatusQuery q
 
 
@@ -242,7 +245,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   links <- mkPaymentLinks $ getField @"order_uuid" orderId
 
-  ordResp <- mkOrderStatusResponse isAuthenticated links order defaultOrderStatusResponse
+  ordResp <- fillOrderStatusResponse isAuthenticated links order defaultOrderStatusResponse
 
   -- ids, customer info, status info, amount, payment links
   -- ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
@@ -1092,8 +1095,8 @@ fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
     -- pure ordResp
 
 
-mkOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
-mkOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
+fillOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
+fillOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
   mkResponse isAuthenticated payLinks ordReference defaultOrderStatusResponse
     >>= addPromotionDetails ordReference
     >>= addMandateDetails ordReference

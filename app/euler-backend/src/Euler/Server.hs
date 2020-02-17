@@ -26,6 +26,8 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.API.Validators.Transaction       as Txn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
+import qualified Euler.Product.Domain.Order as D
+
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
 import qualified Euler.Playback.Types                   as PB
@@ -268,9 +270,10 @@ orderStatus orderId auth xforwarderfor = do
               orderId
               auth
               xforwarderfor
+  let (orderIdDom :: D.OrderId) = fmap coerce $ lookupRP @OrderId routeparams
   -- TODO how to obtain apiKey?
   -- rename: orderStatusById
-  res <- runFlow "orderStatusById" emptyRPs noReqBodyJSON $ OrderStatus.handleByOrderId orderId "apiKey" rps
+  res <- runFlow "orderStatusById" emptyRPs noReqBodyJSON $ OrderStatus.handleByOrderId orderIdDom "apiKey" rps
   pure res
 
 -- EHS: Extract from here.

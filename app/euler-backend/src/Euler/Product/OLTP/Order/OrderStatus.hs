@@ -32,7 +32,7 @@ import           Data.Time.Clock
 import           Servant.Server
 
 import           Euler.API.Order as AO
-import           Euler.API.RouteParameters
+import           Euler.API.RouteParameters (RouteParameters(..), lookupRP)
 import           Euler.API.Transaction
 import           Euler.API.Types
 
@@ -49,7 +49,7 @@ import           Euler.Common.Types.TxnDetail
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
-import           Euler.Product.Domain.Order (Order)
+import           Euler.Product.Domain.Order (Order, OrderId(..))
 
 import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
@@ -416,9 +416,9 @@ getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeO
   checkEnableCaseForResponse req routeParams ordResp
 -}
 
+
 getOrderStatusWithoutAuth
   :: OrderStatusRequest -- remove after fix checkAndAddOrderToken
-  -> OrderStatusQuery
   -> Text {-RouteParameters-}
   -> MerchantAccount
   -> Bool
@@ -1726,7 +1726,7 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
       gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
   gatewayRefId <- getGatewayReferenceId txn ordRef
   logInfo "gatewayRefId " gatewayRefId
-  pure $ orderStatus
+  pure (orderStatus
     { status = show $ getField @"status" txn
     , status_id = txnStatusToInt $ getField @"status" txn
     , txn_id = Just $ getField @"txnId" txn
@@ -1737,7 +1737,7 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
     , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
     , gateway_payload = addGatewayPayload txn
     , txn_detail = Just $ mapTxnDetail txn
-    }
+    } :: OrderStatusResponse)
   where addGatewayPayload txn =
          if (isBlankMaybe $ getField @"gatewayPayload" txn)
            then getField @"gatewayPayload" txn
@@ -2977,13 +2977,13 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
             ,  gateway_response = gatewayResponse -- TODO Text/ByteString?
           }
 
-          return $ orderStatus
+          pure (orderStatus
             { payment_gateway_response' = Nothing
             , payment_gateway_response = Just r
-            }
+            } :: OrderStatusResponse)
 
-        Nothing -> return orderStatus
-    Nothing -> return orderStatus
+        Nothing -> pure orderStatus
+    Nothing -> pure orderStatus
 
   -- TODO move to common utils or sth to that effect
   where

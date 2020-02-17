@@ -14,7 +14,9 @@ import qualified Data.Text.Encoding           as T
 import           Data.Generics.Product.Fields
 import           Data.Time
 
-import           Euler.API.RouteParameters
+-- import           Euler.API.RouteParameters
+
+import           Euler.Product.Domain.Order
 
 import           Euler.Common.Types.Order (MandateFeature, OrderStatus (..))
 import           Euler.Common.Types.Currency  (Currency)

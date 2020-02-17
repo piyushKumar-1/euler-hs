@@ -1,5 +1,18 @@
 # Changelog for euler-hs
 
+
+## [1.3.0.0] - 2020-02-17
+- Euler-hs: changed Options interface
+- Euler-hs: added GHC options: Wcompat Widentities fhide-source-paths
+- Euler-hs: added wrappers for kvdb actions
+- Euler-hs: added callServantApi request | response logging
+- Euler-hs: changed `Serializable` instances for ByteStrings
+- Euler-hs: fixed recording forked flow with exception
+- Euler-hs: fixed throwException method entry record/replay
+- Improvements in business logic and tests
+- console: removed from repo
+- dashboard: removed from repo
+
 ## [1.2.0.0] - 2019-12-20
 
 ### Added

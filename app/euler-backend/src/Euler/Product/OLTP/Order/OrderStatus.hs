@@ -30,6 +30,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Time.Clock
 import           Servant.Server
+import           Control.Comonad
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters(..), lookupRP)
@@ -111,6 +112,7 @@ eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI
 
 
 data FlowError = FlowError -- do we have something similar?
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- ----------------------------------------------------------------------------
 -- refactored top-level functions (subjects to be exported)
@@ -305,11 +307,64 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
 
 
+type ResponseBuilder = OrderStatusResponseTemp -> OrderStatusResponse
 
 
-
-
-
+buildStatusResponse :: ResponseBuilder
+buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
+  { id                        = fromMaybe T.empty $ getFirst idT
+  , merchant_id               = getFirst merchant_idT
+  , amount                    = whenNothing (getLast amountT) (Just 0)
+  , currency                  = getLast currencyT
+  , order_id                  = getFirst order_idT
+  , date_created              = fromMaybe T.empty $ getLast date_createdT
+  , return_url                = getLast return_urlT
+  , product_id                = fromMaybe T.empty $ getLast product_idT
+  , customer_email            = getLast customer_emailT
+  , customer_phone            = getLast customer_phoneT
+  , customer_id               = getLast customer_idT
+  , payment_links             = fromMaybe defaultPaymentlinks $ getLast payment_linksT
+  , udf1                      = fromMaybe "udf1" $ getLast udf1T
+  , udf2                      = fromMaybe "udf2" $ getLast udf2T
+  , udf3                      = fromMaybe "udf3" $ getLast udf3T
+  , udf4                      = fromMaybe "udf4" $ getLast udf4T
+  , udf5                      = fromMaybe "udf5" $ getLast udf5T
+  , udf6                      = fromMaybe "udf6" $ getLast udf6T
+  , udf7                      = fromMaybe "udf7" $ getLast udf7T
+  , udf8                      = fromMaybe "udf8" $ getLast udf8T
+  , udf9                      = fromMaybe "udf9" $ getLast udf9T
+  , udf10                     = fromMaybe "udf10" $ getLast udf10T
+  , txn_id                    = getLast txn_idT
+  , status_id                 = fromMaybe 0 $ getLast status_idT
+  , status                    = fromMaybe "DEFAULT" $ getLast statusT
+  , payment_method_type       = getLast payment_method_typeT
+  , auth_type                 = getLast auth_typeT
+  , card                      = getLast cardT
+  , payment_method            = getLast payment_methodT
+  , refunded                  = getLast refundedT
+  , amount_refunded           = getLast amount_refundedT
+  , chargebacks               = getLast chargebacksT
+  , refunds                   = getLast refundsT
+  , mandate                   = getLast mandateT
+  , promotion                 = getLast promotionT
+  , risk                      = getLast riskT
+  , bank_error_code           = getLast bank_error_codeT
+  , bank_error_message        = getLast bank_error_messageT
+  , txn_uuid                  = getLast txn_uuidT
+  , gateway_payload           = getLast gateway_payloadT
+  , txn_detail                = getLast txn_detailT
+  , payment_gateway_response' = getLast payment_gateway_responseT'
+  , payment_gateway_response  = getLast payment_gateway_responseT
+  , gateway_id                = getLast gateway_idT
+  , emi_bank                  = getLast emi_bankT
+  , emi_tenure                = getLast emi_tenureT
+  , gateway_reference_id      = getLast gateway_reference_idT
+  , payer_vpa                 = getLast payer_vpaT
+  , payer_app_name            = getLast payer_app_nameT
+  , juspay                    = getLast juspayT
+  , second_factor_response    = getLast second_factor_responseT
+  , txn_flow_info             = getLast txn_flow_infoT
+  }
 
 
 

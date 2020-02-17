@@ -13,6 +13,9 @@ import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
 import           Data.Generics.Product.Fields
 import           Data.Time
+import           Web.FormUrlEncoded
+import           Generics.Deriving.Monoid (GMonoid (..), gmemptydefault)
+import           Generics.Deriving.Semigroup (GSemigroup (..), gsappenddefault)
 
 -- import           Euler.API.RouteParameters
 
@@ -528,6 +531,74 @@ defaultOrderStatusResponse = OrderStatusResponse
   ,  second_factor_response    = Nothing -- :: Maybe MerchantSecondFactorResponse
   ,  txn_flow_info             = Nothing -- :: Maybe TxnFlowInfo
   }
+
+data OrderStatusResponseTemp = OrderStatusResponseTemp
+  {  idT                        :: First Text
+  -- to check: getFirst $ First Nothing <> First (Just "2") <> First (Just "3")
+  -- Just 2
+  ,  merchant_idT               :: First Text
+  -- to check: > getLast $ Last (Just 0) <> Last Nothing <> Last (Just 3)
+  -- Just 3
+  ,  amountT                    :: Last Double
+  ,  currencyT                  :: Last Text
+  ,  order_idT                  :: First Text
+  ,  date_createdT              :: Last Text
+  ,  return_urlT                :: Last Text
+  ,  product_idT                :: Last Text
+  ,  customer_emailT            :: Last Text
+  ,  customer_phoneT            :: Last Text
+  ,  customer_idT               :: Last Text
+  ,  payment_linksT             :: Last Paymentlinks
+  ,  udf1T                      :: Last Text
+  ,  udf2T                      :: Last Text
+  ,  udf3T                      :: Last Text
+  ,  udf4T                      :: Last Text
+  ,  udf5T                      :: Last Text
+  ,  udf6T                      :: Last Text
+  ,  udf7T                      :: Last Text
+  ,  udf8T                      :: Last Text
+  ,  udf9T                      :: Last Text
+  ,  udf10T                     :: Last Text
+  ,  txn_idT                    :: Last Text
+  ,  status_idT                 :: Last Int
+  ,  statusT                    :: Last Text
+  ,  payment_method_typeT       :: Last Text
+  ,  auth_typeT                 :: Last Text
+  ,  cardT                      :: Last Card
+  ,  payment_methodT            :: Last Text
+  ,  refundedT                  :: Last Bool
+  ,  amount_refundedT           :: Last Double
+  ,  chargebacksT               :: Last [Chargeback']
+  ,  refundsT                   :: Last [Refund']
+  ,  mandateT                   :: Last Mandate'
+  ,  promotionT                 :: Last Promotion'
+  ,  riskT                      :: Last Risk
+  ,  bank_error_codeT           :: Last Text
+  ,  bank_error_messageT        :: Last Text
+  ,  txn_uuidT                  :: Last Text
+  ,  gateway_payloadT           :: Last Text
+  ,  txn_detailT                :: Last TxnDetail'
+  ,  payment_gateway_responseT' :: Last MerchantPaymentGatewayResponse'
+  ,  payment_gateway_responseT  :: Last MerchantPaymentGatewayResponse
+  ,  gateway_idT                :: Last Int
+  ,  emi_bankT                  :: Last Text
+  ,  emi_tenureT                :: Last Int
+  ,  gateway_reference_idT      :: Last Text
+  ,  payer_vpaT                 :: Last Text
+  ,  payer_app_nameT            :: Last Text
+  ,  juspayT                    :: Last OrderTokenResp
+  ,  second_factor_responseT    :: Last MerchantSecondFactorResponse
+  ,  txn_flow_infoT             :: Last TxnFlowInfo
+  }
+  deriving (Show, Eq, Ord, Generic)
+
+instance Semigroup OrderStatusResponseTemp where
+  (<>) = gsappenddefault
+
+instance Monoid OrderStatusResponseTemp where
+  mempty = gmemptydefault
+  mappend = (<>)
+
 
 -- from src/Externals/EC/Common.purs
 data Card = Card

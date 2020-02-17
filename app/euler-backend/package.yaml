@@ -39,6 +39,7 @@ dependencies:
 - aeson
 - aeson-casing
 - bytestring
+- comonad
 - containers
 - errors
 - euler-hs
@@ -52,6 +53,7 @@ dependencies:
 - transformers
 - unordered-containers
 - lens
+- generic-deriving
 - http-client
 - http-client-tls
 - messagepack

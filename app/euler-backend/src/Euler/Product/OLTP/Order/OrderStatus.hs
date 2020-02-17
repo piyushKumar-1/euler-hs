@@ -108,7 +108,7 @@ eulerUpiGateways :: [Gateway]
 eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
 
 
-data FlowError = ... -- do we have something similar?
+data FlowError = FlowError -- do we have something similar?
 
 -- ----------------------------------------------------------------------------
 -- refactored top-level functions (subjects to be exported)
@@ -121,8 +121,8 @@ type OrderId = Text
 -- TODO can we collect all headers in Map and save them in state? before we run the flow?
 --processOrderStatus :: Text -> APIKey -> Flow OrderStatusResponse
 
-handleByOrderId :: OrderId -> APIKey -> Flow (Either FlowError OrderStatusResponse)
-handleByOrderId orderId apiKey = do
+handleByOrderId :: OrderId -> APIKey -> RouteParameters -> Flow (Either FlowError OrderStatusResponse)
+handleByOrderId orderId apiKey routeParams = do
 
   -- TODO use AuthService
   -- if merchantAccount don't exists - throw access denied exception
@@ -143,18 +143,27 @@ handleByOrderId orderId apiKey = do
 
   -- turn into the request or not?
 
-  let q = OrderStatusQuery
-    { orderId         = orderId
-    , merchantId      = getField @"merchantId" merchantAccount
-    , isAuthenticated = isAuthenticated
-    }
+  let query = OrderStatusQuery
+        { orderId         = orderId
+        , merchantId      = getField @"merchantId" merchantAccount
+        , resellerId      = getField @"resellerId" merchantAccount
+        , isAuthenticated = isAuthenticated
+        , sendCardIsin    = fromMaybe False $ getField @"enableSendingCardIsin" merchantAccount -- was Maybe Bool
+        , txnId           = Just CHARGED -- Check it always CHARGED
+        , sendFullGatewayResponse = getSendFullGatewayResponse routeParams
+        }
 
   --response <- getOrderStatusWithoutAuth2 q query Nothing Nothing
-  response <- execOrderStatusQuery q
+  response <- execOrderStatusQuery query
 
  -- _ <- log "Process Order Status Response" $ response
   pure response
 
+
+getSendFullGatewayResponse :: RouteParameters -> Bool
+getSendFullGatewayResponse routeParams = case find "options.add_full_gateway_response" routeParams of
+  Nothing -> False
+  Just str -> str == "1" || map toLower str == "true"
 
 -- apparently, this case exists in PS-verison
 -- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls
@@ -245,7 +254,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
   -- TODO has to go to Server.hs or somewhere else RouteParams are still available
   --let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
 
-  mTxnDetail <- getLastTxn orderId -- <|> getTxnFromTxnUuid order maybeTxnUuid ??
+  mTxnDetail <- getLastTxn orderId -- <|> getTxnFromTxnUuid order maybeTxnUuid
 
   case mTxnDetail of
     Just txn -> fillOrderStatusResponseTxn txn order ordResp

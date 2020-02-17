@@ -299,11 +299,11 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                   }
 
 mkStatusRequest :: Text -> OrderStatusRequest
-mkStatusRequest orderId = 
-  OrderStatusRequest 
+mkStatusRequest orderId =
+  OrderStatusRequest
   { txn_uuid    = Nothing
   , merchant_id = Nothing
-  , order_id    = Just ordId
+  , order_id    = Just orderId
   , txnUuid     = Nothing
   , merchantId  = Nothing
   , orderId     = Nothing

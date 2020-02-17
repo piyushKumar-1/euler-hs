@@ -123,7 +123,7 @@ type OrderId = Text
 
 handleByOrderId :: OrderId -> APIKey -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId orderId apiKey = do
-  
+
   -- TODO use AuthService
   -- if merchantAccount don't exists - throw access denied exception
   (merchantAccount, isAuthenticated) <- authenticateWithAPIKey apiKey
@@ -143,7 +143,7 @@ handleByOrderId orderId apiKey = do
 
   -- turn into the request or not?
 
-  let q = OrderStatusQuery 
+  let q = OrderStatusQuery
     { orderId         = orderId
     , merchantId      = getField @"merchantId" merchantAccount
     , isAuthenticated = isAuthenticated
@@ -157,7 +157,7 @@ handleByOrderId orderId apiKey = do
 
 
 -- apparently, this case exists in PS-verison
--- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls 
+-- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls
 handleByOrderStatusRequest :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 handleByOrderStatusRequest = let q = OrderStatusQuery = blah-blah-blah
   in processOrderStatusQuery q
@@ -188,7 +188,7 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
   resp <- case cachedResp of
             Nothing -> do
 
-                          
+
               -- TODO no details here!
               -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
               -- orderReference <- getOrderReference query
@@ -202,7 +202,7 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
   ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
 
 
-  -- TODO figure out, what parts of OrderCreateRequest and OrderReference are used in 
+  -- TODO figure out, what parts of OrderCreateRequest and OrderReference are used in
   -- checkAndAddOrderToken, add this info to OrderStatusQuery, default it to Nothing for common query
 
   -- I absolutely hate the idea to modify cache entries! Did I get right this is the case?
@@ -233,37 +233,43 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   links <- mkPaymentLinks $ getField @"order_uuid" orderId
 
-  let response = mkResponse 
+  ordResp <- mkOrderStatusResponse isAuthenticated links order defaultOrderStatusResponse
 
   -- ids, customer info, status info, amount, payment links
-  ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
-  -- amount(!), promotion
-                  >>= addPromotionDetails order
+  -- ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
+  -- -- amount(!), promotion
+  --                 >>= addPromotionDetails order
   -- mandate
-  ordResp     <- addMandateDetails order ordResp'
+  -- ordResp     <- addPromotionDetails order response >>= addMandateDetails order
 
   -- TODO has to go to Server.hs or somewhere else RouteParams are still available
   --let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
 
-  mbTxnId <- txnId <|> (getLastTxn orderId)
+  mTxnDetail <- getLastTxn orderId -- <|> getTxnFromTxnUuid order maybeTxnUuid ??
 
-  case mbTxnId of
-    Just txnId -> do
-      txn <- txnData txnId
-      -- status info (!), txn ids, gateway ids + payload, txn detail 
-      addTxnDetailsToResponse txnId order ordResp
-      -- risk
-      >>= addRiskCheckInfoToResponse txnId
-      -- investigate, second_factor_response
-      >>= addPaymentMethodInfo mAccnt txtxnIdn
-      -- refunds
-      >>= addRefundDetails txnId
-      -- chargebacks
-      >>= addChargeBacks txnId
-      -- payment_gateway_response
-      >>= addGatewayResponse txnId sendFullGatewayResponse
-    Nothing ->  pure ordResp
--}
+  case mTxnDetail of
+    Just txn -> fillOrderStatusResponseTxn txn order ordResp
+    Nothing  -> pure ordResp
+
+
+  -- mbTxnId <- txnId <|> (getLastTxn orderId) -- getLastTxn returns txnDetails not id
+
+  -- case mbTxnId of
+  --   Just txnId -> do
+  --     txn <- txnData txnId
+  --     -- status info (!), txn ids, gateway ids + payload, txn detail
+  --     addTxnDetailsToResponse txnId order ordResp
+  --     -- risk
+  --     >>= addRiskCheckInfoToResponse txnId
+  --     -- investigate, second_factor_response
+  --     >>= addPaymentMethodInfo mAccnt txtxnIdn
+  --     -- refunds
+  --     >>= addRefundDetails txnId
+  --     -- chargebacks
+  --     >>= addChargeBacks txnId
+  --     -- payment_gateway_response
+  --     >>= addGatewayResponse txnId sendFullGatewayResponse
+    -- Nothing ->  pure ordResp
 
 -- should we divide this method to:
 -- 1) getStatusResp, where we just get it from DB
@@ -1021,7 +1027,7 @@ getOrderReference query = do
     let OrderId orderId' = getField @"orderId" query
     -- merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
     let merchantId' = getField @"merchantId" query
-    
+
     (order :: OrderReference) <- do
       conn <- getConn eulerDB
       res <- runDB conn $ do
@@ -1077,9 +1083,9 @@ fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
     -- pure ordResp
 
 
-fillOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
-fillOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
-  fillOrderDetails isAuthenticated payLinks ordReference defaultOrderStatusResponse
+mkOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
+mkOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
+  mkResponse isAuthenticated payLinks ordReference defaultOrderStatusResponse
     >>= addPromotionDetails ordReference
     >>= addMandateDetails ordReference
 
@@ -1258,7 +1264,7 @@ fillOrderDetails isAuthenticated paymentLinks ord status = do
 -}
 
 -- former fillOrderDetails
-mkResponse 
+mkResponse
   :: Bool
   -> Paymentlinks
   -> OrderReference
@@ -1408,8 +1414,8 @@ mkPaymentLinks
 mkPaymentLink resellId orderUuid = do
  -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
  -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
-  
-  
+
+
   -- TODO I suppose this contradicts the common sence -- reseller is optional
   -- TODO use ResellerAccount's repository
   maybeResellerEndpoint <- do
@@ -1454,7 +1460,7 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 
 
 
-createPaymentLinks 
+createPaymentLinks
   :: Text           -- orderUuid (possibly blank string)
   -> Maybe Text     -- maybeResellerEndpoint
   -> Paymentlinks

@@ -23,6 +23,7 @@ import           WebService.Language
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Char (toLower)
+import           Data.Either.Extra
 import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
@@ -117,7 +118,6 @@ data FlowError = FlowError -- do we have something similar?
 
 
 -- API-aware handler -- naming convention?
-type OrderId = Text
 -- TODO inside authentication used "x-forwarded-for" header
 -- TODO can we collect all headers in Map and save them in state? before we run the flow?
 --processOrderStatus :: Text -> APIKey -> Flow OrderStatusResponse
@@ -132,7 +132,7 @@ handleByOrderId orderId apiKey routeParams = do
 
   -- TODO investigate: how is it used?
   --instead of updateState we can save parameters with options (if they not shared over all api handlers)
-  _ <- setOption FlowStateOption $ FlowState (getField @"merchantId" merchantAccount) orderId
+  _ <- setOption FlowStateOption $ FlowState (getField @"merchantId" merchantAccount) (runOrderId orderId)
   -- set metrics/log info
   -- * field "merchantId" is mandatory, so we can define it as Text instead of Maybe Text in MerchantAccount data type
 
@@ -146,11 +146,11 @@ handleByOrderId orderId apiKey routeParams = do
 
   let query = OrderStatusQuery
         { orderId         = orderId
-        , merchantId      = getField @"merchantId" merchantAccount
+        , merchantId      = fromMaybe T.empty $ getField @"merchantId" merchantAccount -- can it be empty?
         , resellerId      = getField @"resellerId" merchantAccount
         , isAuthenticated = isAuthenticated
         , sendCardIsin    = fromMaybe False $ getField @"enableSendingCardIsin" merchantAccount -- was Maybe Bool
-        , txnId           = Just CHARGED -- Check it always CHARGED
+        , txnId           = undefined :: Maybe Text -- TODO
         , sendFullGatewayResponse = getSendFullGatewayResponse routeParams
         }
 
@@ -158,13 +158,14 @@ handleByOrderId orderId apiKey routeParams = do
   response <- execOrderStatusQuery query
 
  -- _ <- log "Process Order Status Response" $ response
-  pure response
+  pure $ mapLeft (const FlowError) response -- TODO fix error hadler
 
 
 getSendFullGatewayResponse :: RouteParameters -> Bool
-getSendFullGatewayResponse routeParams = case find "options.add_full_gateway_response" routeParams of
-  Nothing -> False
-  Just str -> str == "1" || map toLower str == "true"
+getSendFullGatewayResponse routeParams =
+    case Map.lookup "options.add_full_gateway_response" (unRP routeParams) of
+      Nothing -> False
+      Just str -> str == "1" || T.map toLower str == "true"
 
 
 
@@ -172,7 +173,7 @@ getSendFullGatewayResponse routeParams = case find "options.add_full_gateway_res
 -- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls
 handleByOrderStatusRequest :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 handleByOrderStatusRequest ordRequest = let q = undefined :: OrderStatusQuery
-  in processOrderStatusQuery q
+  in execCachedOrderStatusQuery q
 
 
 
@@ -195,8 +196,7 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
   --               Nothing -> throwException $ myerr "3"
   --               Just v  -> pure v
 
-  let OrderId orderId' = orderId -- remove after fix getCachedOrdStatus
-  cachedResp <- getCachedOrdStatus isAuthenticated orderId' merchantId  --TODO check for txn based refund
+  cachedResp <- getCachedOrdStatus isAuthenticated (runOrderId orderId) merchantId  --TODO check for txn based refund
   resp <- case cachedResp of
             Nothing -> do
 
@@ -207,10 +207,10 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
               -- paymentlink <- getPaymentLink resellerId orderReference
               -- resp <- fillOrderStatusResponse query orderReference paymentlink
 
-              resp = execOrderStatusQuery query
+              resp <- execOrderStatusQuery query
           -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
               pure resp
-            Just resp -> pure resp
+            Just resp -> pure $ Right resp
   ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
 
 
@@ -223,11 +223,12 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 
   -- * This part probably should be moved to the separate function, used only for orderCreate request
   -- ^ I don't think so
-  ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
-                    let order = fromJust maybeOrd
-                    let orderCreateReq = fromJust maybeOrderCreateReq
-                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchantId order
-                  else pure ordResp'
+  ordResp    <- undefined -- TODO:
+                  -- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
+                  --   let order = fromJust maybeOrd
+                  --   let orderCreateReq = fromJust maybeOrderCreateReq
+                  --   checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchantId order
+                  -- else pure ordResp'
  ------------------------------------------------
  -- * encode response to Foreign inside, why?
   -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
@@ -241,11 +242,12 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery query@OrderStatusQuery{..} = do
 
-  order <- loadOrder orderId merchantId
+  order <- undefined :: Flow OrderReference -- TODO loadOrder orderId merchantId
+  let orderUuid = fromMaybe T.empty $ getField @"orderUuid" order
 
-  links <- mkPaymentLinks $ getField @"order_uuid" orderId
+  links <- mkPaymentLinks resellerId orderUuid
 
-  ordResp <- fillOrderStatusResponse isAuthenticated links order defaultOrderStatusResponse
+  ordResp <- fillOrderStatusResponse query order links
 
   -- ids, customer info, status info, amount, payment links
   -- ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
@@ -257,11 +259,12 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
   -- TODO has to go to Server.hs or somewhere else RouteParams are still available
   --let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
 
-  mTxnDetail <- getLastTxn orderId -- <|> getTxnFromTxnUuid order maybeTxnUuid
+  mTxnDetail1 <- getTxnFromTxnUuid order txnId
+  mTxnDetail2 <- getLastTxn order
 
-  case mTxnDetail of
-    Just txn -> fillOrderStatusResponseTxn txn order ordResp
-    Nothing  -> pure ordResp
+  case (mTxnDetail1 <|> mTxnDetail2) of
+    Just txn -> Right <$> fillOrderStatusResponseTxn query txn order ordResp
+    Nothing  -> pure $ Right ordResp
 
 
   -- mbTxnId <- txnId <|> (getLastTxn orderId) -- getLastTxn returns txnDetails not id
@@ -438,13 +441,12 @@ getOrderStatusWithoutAuth2 req query@OrderStatusQuery{..} maybeOrderCreateReq ma
   --               Nothing -> throwException $ myerr "3"
   --               Just v  -> pure v
 
-  let OrderId orderId' = orderId -- remove after fix getCachedOrdStatus
-  cachedResp <- getCachedOrdStatus isAuthenticated orderId' merchantId  --TODO check for txn based refund
+  cachedResp <- getCachedOrdStatus isAuthenticated (runOrderId orderId) merchantId  --TODO check for txn based refund
   resp <- case cachedResp of
             Nothing -> do
               -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
               orderReference <- getOrderReference query
-              paymentlink <- getPaymentLink resellerId orderReference
+              paymentlink <- mkPaymentLinks resellerId (fromMaybe "" $ orderUuid orderReference)
               resp <- fillOrderStatusResponse query orderReference paymentlink
          -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
               pure resp
@@ -1423,7 +1425,7 @@ mkPaymentLinks
   :: Maybe Text -- resellerId
   -> Text       -- orderUuid (from OrderReference)
   -> Flow Paymentlinks
-mkPaymentLink resellId orderUuid = do
+mkPaymentLinks resellId orderUuid = do
  -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
  -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
 
@@ -1991,7 +1993,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
             pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
             else do
             r <- addRiskObjDefaultValueAsNull risk
-            pure $ setField @"risk" r orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
+            pure $ setField @"risk" (Just r) orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
     Nothing -> pure orderStatus
   where getString a = "" -- TODO: if (isNotString a) then "" else a
 

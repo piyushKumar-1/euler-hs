@@ -118,39 +118,99 @@ spec = do
 
         it "One key" $ \rt -> do
           result <- runFlow rt $ do
-            _ <- setOption @TestStringKey "lore ipsum"
-            getOption @TestStringKey
+            _ <- setOption TestStringKey "lore ipsum"
+            getOption TestStringKey
           result `shouldBe` (Just "lore ipsum")
 
         it "Not found" $ \rt -> do
           result <- runFlow rt $ do
-            _ <- setOption @TestStringKey "lore ipsum"
-            getOption @TestStringKey2
+            _ <- setOption TestStringKey "lore ipsum"
+            getOption TestStringKey2
           result `shouldBe` Nothing
 
 
         it "Two keys" $ \rt -> do
           result <- runFlow rt $ do
-            _ <- setOption @TestStringKey "lore ipsum"
-            _ <- setOption @TestStringKey2 "lore ipsum2"
-            s1 <- getOption @TestStringKey
-            s2 <- getOption @TestStringKey2
+            _ <- setOption TestStringKey "lore ipsum"
+            _ <- setOption TestStringKey2 "lore ipsum2"
+            s1 <- getOption TestStringKey
+            s2 <- getOption TestStringKey2
             pure (s1,s2)
           result `shouldBe` (Just "lore ipsum", Just "lore ipsum2")
 
---        it "Different encoding" $ \rt -> do
---          result <- runFlow rt $ do
---            _ <- setOption @TestStringKey "lore ipsum"
---            _ <- setOption @TestStringKey2 "lore ipsum2"
---            _ <- setOption @TestStringKeyAnotherEnc "lore ipsum enc"
---            _ <- setOption @TestStringKey2AnotherEnc "lore ipsum2 enc"
---            s1 <- getOption @TestStringKey
---            s2 <- getOption @TestStringKey2
---            s1enc <- getOption @TestStringKeyAnotherEnc
---            s2enc <- getOption @TestString2KeyAnotherEnc
---            pure (s1,s2,s1enc,s2enc)
---          result `shouldBe` (Just "lore ipsum", Just "lore ipsum2", Just "lore ipsum enc", Just "lore ipsum2 enc")
+        it "Different encoding, types & payload" $ \rt -> do
+          testKVals <- runFlow rt $ do
+            _     <- setOption (TestStringKey                              ) "mbTestStringKey"
+            _     <- setOption (TestStringKey2                             ) "mbTestStringKey2"
+            _     <- setOption (TestIntKey                                 ) 1001
+            _     <- setOption (TestIntKey2                                ) 2002
+            _     <- setOption (TestStringKeyAnotherEnc                    ) "mbTestStringKeyAnotherEnc"
+            _     <- setOption (TestStringKey2AnotherEnc                   ) "mbTestStringKey2AnotherEnc"
+            _     <- setOption (TestKeyWithStringPayload             "SP1" ) "mbTestKeyWithStringPayloadS1"
+            _     <- setOption (TestKeyWithStringPayload             "SP2" ) "mbTestKeyWithStringPayloadS2"
+            _     <- setOption (TestKeyWithIntPayload                1001  ) "mbTestKeyWithIntPayloadS1"
+            _     <- setOption (TestKeyWithIntPayload                2002  ) "mbTestKeyWithIntPayloadS2"
+            _     <- setOption (TestKeyWithStringPayloadAnotherEnc   "SP1" ) "mbTestKeyWithStringPayloadAnotherEncS1"
+            _     <- setOption (TestKeyWithStringPayloadAnotherEnc   "SP2" ) "mbTestKeyWithStringPayloadAnotherEncS2"
+            _     <- setOption (TestKeyWithIntPayloadAnotherEnc      1001  ) "mbTestKeyWithIntPayloadAnotherEncS1"
+            _     <- setOption (TestKeyWithIntPayloadAnotherEnc      2002  ) "mbTestKeyWithIntPayloadAnotherEncS2"
+            _     <- setOption (NTTestKeyWithStringPayload           "SP1" ) "mbNTTestKeyWithStringPayloadS1"
+            _     <- setOption (NTTestKeyWithStringPayload           "SP2" ) "mbNTTestKeyWithStringPayloadS2"
+            _     <- setOption (NTTestKeyWithIntPayload              1001  ) 2333
+            _     <- setOption (NTTestKeyWithIntPayload              2002  ) 3322
+            _     <- setOption (NTTestKeyWithStringPayloadAnotherEnc "SP1" ) "mbNTTestKeyWithStringPayloadAnotherEncS1"
+            _     <- setOption (NTTestKeyWithStringPayloadAnotherEnc "SP2" ) "mbNTTestKeyWithStringPayloadAnotherEncS2"
+            _     <- setOption (NTTestKeyWithIntPayloadAnotherEnc    1001  ) 9009
+            _     <- setOption (NTTestKeyWithIntPayloadAnotherEnc    2002  ) 1001
 
+            TestKVals
+               <$> getOption (TestStringKey                              )
+               <*> getOption (TestStringKey2                             )
+               <*> getOption (TestIntKey                                 )
+               <*> getOption (TestIntKey2                                )
+               <*> getOption (TestStringKeyAnotherEnc                    )
+               <*> getOption (TestStringKey2AnotherEnc                   )
+               <*> getOption (TestKeyWithStringPayload             "SP1" )
+               <*> getOption (TestKeyWithStringPayload             "SP2" )
+               <*> getOption (TestKeyWithIntPayload                1001  )
+               <*> getOption (TestKeyWithIntPayload                2002  )
+               <*> getOption (TestKeyWithStringPayloadAnotherEnc   "SP1" )
+               <*> getOption (TestKeyWithStringPayloadAnotherEnc   "SP2" )
+               <*> getOption (TestKeyWithIntPayloadAnotherEnc      1001  )
+               <*> getOption (TestKeyWithIntPayloadAnotherEnc      2002  )
+               <*> getOption (NTTestKeyWithStringPayload           "SP1" )
+               <*> getOption (NTTestKeyWithStringPayload           "SP2" )
+               <*> getOption (NTTestKeyWithIntPayload              1001  )
+               <*> getOption (NTTestKeyWithIntPayload              2002  )
+               <*> getOption (NTTestKeyWithStringPayloadAnotherEnc "SP1" )
+               <*> getOption (NTTestKeyWithStringPayloadAnotherEnc "SP2" )
+               <*> getOption (NTTestKeyWithIntPayloadAnotherEnc    1001  )
+               <*> getOption (NTTestKeyWithIntPayloadAnotherEnc    2002  )
+
+          testKVals `shouldBe` TestKVals
+                  { mbTestStringKey                          = Just "mbTestStringKey"
+                  , mbTestStringKey2                         = Just "mbTestStringKey2"
+                  , mbTestIntKey                             = Just 1001
+                  , mbTestIntKey2                            = Just 2002
+                  , mbTestStringKeyAnotherEnc                = Just "mbTestStringKeyAnotherEnc"
+                  , mbTestStringKey2AnotherEnc               = Just "mbTestStringKey2AnotherEnc"
+                  , mbTestKeyWithStringPayloadS1             = Just "mbTestKeyWithStringPayloadS1"
+                  , mbTestKeyWithStringPayloadS2             = Just "mbTestKeyWithStringPayloadS2"
+                  , mbTestKeyWithIntPayloadS1                = Just "mbTestKeyWithIntPayloadS1"
+                  , mbTestKeyWithIntPayloadS2                = Just "mbTestKeyWithIntPayloadS2"
+                  , mbTestKeyWithStringPayloadAnotherEncS1   = Just "mbTestKeyWithStringPayloadAnotherEncS1"
+                  , mbTestKeyWithStringPayloadAnotherEncS2   = Just "mbTestKeyWithStringPayloadAnotherEncS2"
+                  , mbTestKeyWithIntPayloadAnotherEncS1      = Just "mbTestKeyWithIntPayloadAnotherEncS1"
+                  , mbTestKeyWithIntPayloadAnotherEncS2      = Just "mbTestKeyWithIntPayloadAnotherEncS2"
+                  , mbNTTestKeyWithStringPayloadS1           = Just "mbNTTestKeyWithStringPayloadS1"
+                  , mbNTTestKeyWithStringPayloadS2           = Just "mbNTTestKeyWithStringPayloadS2"
+                  , mbNTTestKeyWithIntPayloadS1              = Just 2333
+                  , mbNTTestKeyWithIntPayloadS2              = Just 3322
+                  , mbNTTestKeyWithStringPayloadAnotherEncS1 = Just "mbNTTestKeyWithStringPayloadAnotherEncS1"
+                  , mbNTTestKeyWithStringPayloadAnotherEncS2 = Just "mbNTTestKeyWithStringPayloadAnotherEncS2"
+                  , mbNTTestKeyWithIntPayloadAnotherEncS1    = Just 9009
+                  , mbNTTestKeyWithIntPayloadAnotherEncS2    = Just 1001
+                  }
 
       it "RunSysCmd" $ \rt -> do
         result <- runFlow rt $ runSysCmd "echo test"

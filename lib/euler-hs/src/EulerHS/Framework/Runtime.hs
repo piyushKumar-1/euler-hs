@@ -32,7 +32,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Contains logger settings
   , _httpClientManager :: Manager
   -- ^ Http manager, used for external api calls
-  , _options           :: MVar (Map ByteString ByteString)
+  , _options           :: MVar (Map Text Text)
   -- ^ Typed key-value storage
   , _kvdbConnections   :: MVar (Map ByteString T.NativeKVDBConn)
   -- ^ Connections for key-value databases

@@ -47,7 +47,9 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as BSL
 import           Servant.Client (ClientError, BaseUrl)
 import           Type.Reflection
 
@@ -81,13 +83,13 @@ data FlowMethod next where
     -> FlowMethod next
 
   GetOption
-    :: (FromJSON v, ToJSON v)-- T.OptionEntity k v
+    :: (ToJSON v, FromJSON v)
     => Text
     -> (Maybe v -> next)
     -> FlowMethod next
 
   SetOption
-    :: (FromJSON v, ToJSON v)-- T.OptionEntity k v
+    :: (ToJSON v, FromJSON v)
     => Text
     -> v
     -> (() -> next)
@@ -291,9 +293,8 @@ runIO ioAct = liftFC $ RunIO ioAct id
 
 
 -- | Get stored option by typed key.
-getOption :: forall k v . T.OptionEntity k v => Flow (Maybe v)
-getOption = liftFC $ GetOption (show $ typeRep @k) id
-
+getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
+getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 
 -- >  data MerchantIdKey = MerchantIdKey
 -- >
@@ -303,8 +304,10 @@ getOption = liftFC $ GetOption (show $ typeRep @k) id
 -- >    _ <- setOption MerchantIdKey "abc1234567"
 -- >    mKey <- getOption MerchantKey
 -- >    runIO $ putTextLn mKey
-setOption :: forall k v. T.OptionEntity k v =>  v -> Flow ()
-setOption v = liftFC $ SetOption (show $ typeRep @k) v id
+setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
+setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
+
+-- T.fromJSONMaybe
 
 -- | Just generate version 4 UUIDs as specified in RFC 4122
 -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.

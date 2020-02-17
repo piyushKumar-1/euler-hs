@@ -93,11 +93,10 @@ spec = do
 ----------------------------------------------------------------------
 
     it "Set/Get Option" $ do
- --     let testOptionKey   = TestStringKey
       let testOptionValue = "testOptionValue" :: String
       mopt <- runFlowWithArt $ do
-        L.setOption @TestStringKey testOptionValue
-        L.getOption @TestStringKey
+        L.setOption TestStringKey testOptionValue
+        L.getOption TestStringKey
       mopt `shouldBe` Just testOptionValue
 
     it "Generate distinct GUID" $ do
@@ -191,6 +190,3 @@ forkScript = do
 forkScriptWrong :: Flow String
 forkScriptWrong = do
   runSysCmd "echo hello"
-
-
-

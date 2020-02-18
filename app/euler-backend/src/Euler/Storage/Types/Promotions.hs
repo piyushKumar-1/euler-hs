@@ -6,7 +6,7 @@
 module Euler.Storage.Types.Promotions
   ( PromotionsT(..)
   , Promotions
-  , Id
+  -- , Id
   , promotionsEMod
   , defaultPromotions
   ) where
@@ -35,7 +35,7 @@ instance B.Table PromotionsT where
   primaryKey = Id . id
 
 type Promotions = PromotionsT Identity
-type Id = B.PrimaryKey PromotionsT Identity
+-- type Id = B.PrimaryKey PromotionsT Identity
 
 deriving instance Show Promotions
 deriving instance Eq Promotions

@@ -6,7 +6,7 @@
 module Euler.Storage.Types.SecondFactor
   ( SecondFactorT (..)
   , SecondFactor
-  , Id
+  -- , Id
   , secondFactorEMod
   , defaultSecondFactor
   ) where
@@ -42,7 +42,7 @@ instance B.Table SecondFactorT where
   primaryKey = Id . id
 
 type SecondFactor = SecondFactorT Identity
-type Id = B.PrimaryKey SecondFactorT Identity
+-- type Id = B.PrimaryKey SecondFactorT Identity
 
 deriving instance Show SecondFactor
 deriving instance Eq SecondFactor

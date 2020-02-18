@@ -6,7 +6,7 @@
 module Euler.Storage.Types.MerchantKey
   ( MerchantKeyT(..)
   , MerchantKey
-  , Id
+  -- , Id
   , merchantKeyEMod
   , defaultMerchantKey
   ) where
@@ -39,7 +39,7 @@ instance B.Table MerchantKeyT where
   primaryKey = Id . id
 
 type MerchantKey = MerchantKeyT Identity
-type Id = B.PrimaryKey MerchantKeyT Identity
+-- type Id = B.PrimaryKey MerchantKeyT Identity
 
 deriving instance Show MerchantKey
 deriving instance Eq MerchantKey
@@ -51,7 +51,7 @@ deriving instance Ord MerchantKey
 merchantKeyEMod :: B.EntityModification
   (B.DatabaseEntity be db) be (B.TableEntity MerchantKeyT)
 merchantKeyEMod = B.modifyTableFields
-  B.tableModification 
+  B.tableModification
     { id = B.fieldNamed "id"
     , version = B.fieldNamed "version"
     , apiKey = B.fieldNamed "api_key"

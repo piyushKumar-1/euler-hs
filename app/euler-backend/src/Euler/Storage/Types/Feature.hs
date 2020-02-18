@@ -6,7 +6,7 @@
 module Euler.Storage.Types.Feature
   ( FeatureT(..)
   , Feature
-  , Id
+  -- , Id
   , featureEMod
   , defaultFeature
   ) where
@@ -33,7 +33,7 @@ instance B.Table FeatureT where
   primaryKey = Id . id
 
 type Feature = FeatureT Identity
-type Id = B.PrimaryKey FeatureT Identity
+-- type Id = B.PrimaryKey FeatureT Identity
 
 deriving instance Show Feature
 deriving instance Eq Feature

@@ -6,7 +6,7 @@
 module Euler.Storage.Types.SecondFactorResponse
   ( SecondFactorResponseT (..)
   , SecondFactorResponse
-  , Id
+  -- , Id
   , secondFactorResponseEMod
   ) where
 
@@ -38,7 +38,7 @@ instance B.Table SecondFactorResponseT where
   primaryKey = Id . id
 
 type SecondFactorResponse = SecondFactorResponseT Identity
-type Id = B.PrimaryKey SecondFactorResponseT Identity
+-- type Id = B.PrimaryKey SecondFactorResponseT Identity
 
 deriving instance Show SecondFactorResponse
 deriving instance Eq SecondFactorResponse

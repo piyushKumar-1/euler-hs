@@ -6,7 +6,7 @@
 module Euler.Storage.Types.MerchantIframePreferences
   ( MerchantIframePreferencesT(..)
   , MerchantIframePreferences
-  , Id
+  -- , Id
   , merchantIframePreferencesEMod
   , defaultMerchantIframePreferences
   ) where
@@ -62,7 +62,7 @@ instance B.Table MerchantIframePreferencesT where
   primaryKey = Id . id
 
 type MerchantIframePreferences = MerchantIframePreferencesT Identity
-type Id = B.PrimaryKey MerchantIframePreferencesT Identity
+-- type Id = B.PrimaryKey MerchantIframePreferencesT Identity
 
 deriving instance Show MerchantIframePreferences
 deriving instance Eq MerchantIframePreferences
@@ -74,7 +74,7 @@ deriving instance Ord MerchantIframePreferences
 merchantIframePreferencesEMod :: B.EntityModification
   (B.DatabaseEntity be db) be (B.TableEntity MerchantIframePreferencesT)
 merchantIframePreferencesEMod = B.modifyTableFields
-  B.tableModification 
+  B.tableModification
     { id = B.fieldNamed "id"
     , version = B.fieldNamed "version"
     , customStylesheet = B.fieldNamed "custom_stylesheet"

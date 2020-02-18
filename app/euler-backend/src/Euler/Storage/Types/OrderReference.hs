@@ -6,7 +6,7 @@
 module Euler.Storage.Types.OrderReference
   ( OrderReferenceT(..)
   , OrderReference
-  , Id
+  -- , Id
   , orderReferenceEMod
   , defaultOrderReference
   ) where
@@ -69,7 +69,7 @@ instance B.Table OrderReferenceT where
   primaryKey = Id . id
 
 type OrderReference = OrderReferenceT Identity
-type Id = B.PrimaryKey OrderReferenceT Identity
+-- type Id = B.PrimaryKey OrderReferenceT Identity
 
 deriving instance Show OrderReference
 deriving instance Eq OrderReference

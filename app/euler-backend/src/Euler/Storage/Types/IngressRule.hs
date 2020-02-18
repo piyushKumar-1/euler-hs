@@ -6,7 +6,7 @@
 module Euler.Storage.Types.IngressRule
   ( IngressRuleT(..)
   , IngressRule
-  , Id
+  -- , Id
   , ingressRuleEMod
   , defaultIngressRule
   ) where
@@ -33,7 +33,7 @@ instance B.Table IngressRuleT where
   primaryKey = Id . id
 
 type IngressRule = IngressRuleT Identity
-type Id = B.PrimaryKey IngressRuleT Identity
+-- type Id = B.PrimaryKey IngressRuleT Identity
 
 deriving instance Show IngressRule
 deriving instance Eq IngressRule

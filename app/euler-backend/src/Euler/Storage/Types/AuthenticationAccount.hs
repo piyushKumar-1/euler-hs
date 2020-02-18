@@ -6,7 +6,7 @@
 module Euler.Storage.Types.AuthenticationAccount
   ( AuthenticationAccountT(..)
   , AuthenticationAccount
-  , Id
+  -- , Id
   , authenticationAccountEMod
   , defaultAuthenticationAccount
   ) where
@@ -37,7 +37,7 @@ instance B.Table AuthenticationAccountT where
   primaryKey = Id . id
 
 type AuthenticationAccount = AuthenticationAccountT Identity
-type Id = B.PrimaryKey AuthenticationAccountT Identity
+-- type Id = B.PrimaryKey AuthenticationAccountT Identity
 
 deriving instance Show AuthenticationAccount
 deriving instance Eq AuthenticationAccount

@@ -4,7 +4,7 @@
 module Euler.Storage.Types.Refund
   ( RefundT(..)
   , Refund
-  , Id
+  -- , Id
   , refundEMod
   ) where
 
@@ -46,7 +46,7 @@ instance B.Table RefundT where
   primaryKey = Id . id
 
 type Refund = RefundT Identity
-type Id = B.PrimaryKey RefundT Identity
+-- type Id = B.PrimaryKey RefundT Identity
 
 deriving instance Show Refund
 deriving instance Eq Refund
@@ -80,4 +80,3 @@ refundEMod = B.modifyTableFields
     , refundSource = B.fieldNamed "refund_source"
     , lastModified = B.fieldNamed "last_modified"
     }
-

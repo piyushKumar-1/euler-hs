@@ -6,7 +6,7 @@
 module Euler.Storage.Types.TxnRiskCheck
   ( TxnRiskCheckT(..)
   , TxnRiskCheck
-  , Id
+  -- , Id
   , txnRiskCheckEMod
   , defaultTxnRiskCheck
   ) where
@@ -26,7 +26,7 @@ data TxnRiskCheckT f = TxnRiskCheck
   , lastUpdated                     :: B.C f LocalTime
   , recommendedAction               :: B.C f (Maybe Text)
   , resultJson                      :: B.C f (Maybe Text)
-  , riskManagementAccountId         :: B.C f Int 
+  , riskManagementAccountId         :: B.C f Int
   , txnDetailId                     :: B.C f Text
   , message                         :: B.C f (Maybe Text)
   , status                          :: B.C f (Maybe Text) -- FIXME enum?
@@ -44,7 +44,7 @@ instance B.Table TxnRiskCheckT where
   primaryKey = Id . id
 
 type TxnRiskCheck = TxnRiskCheckT Identity
-type Id = B.PrimaryKey TxnRiskCheckT Identity
+-- type Id = B.PrimaryKey TxnRiskCheckT Identity
 
 deriving instance Show TxnRiskCheck
 deriving instance Eq TxnRiskCheck

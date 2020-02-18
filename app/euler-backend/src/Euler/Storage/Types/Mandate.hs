@@ -6,7 +6,7 @@
 module Euler.Storage.Types.Mandate
   ( MandateT(..)
   , Mandate
-  , Id
+  -- , Id
   , mandateEMod
   , defaultMandate
   ) where
@@ -52,7 +52,7 @@ instance B.Table MandateT where
   primaryKey = Id . id
 
 type Mandate = MandateT Identity
-type Id = B.PrimaryKey MandateT Identity
+-- type Id = B.PrimaryKey MandateT Identity
 
 deriving instance Show Mandate
 deriving instance Eq Mandate

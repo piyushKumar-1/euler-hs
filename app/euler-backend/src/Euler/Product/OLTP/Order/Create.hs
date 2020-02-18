@@ -16,6 +16,13 @@ import           Data.List (lookup, span)
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
+import           Servant.Server (errBody)   -- EHS: it's beter to remove this dependency
+import qualified EulerHS.Extra.Validation as V
+
+-- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
+import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
+import           EulerHS.Language
+import           WebService.Language
 
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
@@ -24,21 +31,13 @@ import qualified Euler.Storage.Types as DB
 import           Euler.Storage.Types.EulerDB (eulerDBSchema)
 import           Euler.Storage.DBConfig
 
-import           Euler.KVDB.Redis (rGet, setCacheWithExpiry)
-import           EulerHS.Language
-import           WebService.Language
-
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
 import qualified Euler.API.Order            as API
 
 -- EHS: rework imports. Use top level modules.
--- EHS: do not duplicate imports. Each import should not be specified several times.
-import           Euler.Common.Types.DefaultDate
-import           Euler.Common.Types.Gateway
-import           Euler.Common.Types.Order
-import qualified Euler.Common.Types.Order          as O
-import           Euler.Common.Types.OrderMetadata
+import qualified Euler.Common.Types                as D
+-- EHS: temporary module, should be reworked
 import qualified Euler.Common.Types.Mandate        as M
 import qualified Euler.Common.Metric               as Metric
 import qualified Euler.Product.Domain.Order        as D
@@ -51,7 +50,11 @@ import           Euler.Lens
 
 
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
-orderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
+orderCreate
+  :: RP.RouteParameters
+  -> Ts.OrderCreateTemplate
+  -> MerchantAccount
+  -> Flow API.OrderCreateResponse
 orderCreate routeParams order' mAccnt = do
 
   -- EHS: effectful validation found.
@@ -100,12 +103,15 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 --      Why this cache exist? What it does?
 updateMandateCache
   :: D.Order
-  -> MerchantId
+  -> D.MerchantId
   -> Flow ()
 updateMandateCache order = case order ^. _mandate of
-    MandateDisabled -> pure ()
-    MandateRequired maxAmount -> updateMandateCache' maxAmount
-    MandateOptional maxAmount -> updateMandateCache' maxAmount
+    D.MandateDisabled -> pure ()
+    D.MandateRequired maxAmount -> updateMandateCache' maxAmount
+    D.MandateOptional maxAmount -> updateMandateCache' maxAmount
+    -- EHS: Need to do something with this.
+    D.MandateReqUndefined       -> error "MandateReqUndefined not handled."
+    D.MandateOptUndefined       -> error "MandateReqUndefined not handled."
   where
     updateMandateCache' maxAmount = do
         let merchantId = order ^. _merchantId
@@ -114,40 +120,40 @@ updateMandateCache order = case order ^. _mandate of
         -- EHS: magic constant
         void $ setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
-    createMandate :: D.Order -> Double -> Flow Mandate
+    createMandate :: D.Order -> Double -> Flow DB.Mandate
     createMandate order maxAmount = do
       mandateId   <- getShortUUID
       currentDate <- getCurrentTimeUTC
       token       <- getUUID32
-      pure $ Mandate
-        { id = Nothing
-        , merchantId = order ^. _merchantId
-        , currency = order ^. _currency
-        , endDate = Nothing
-        , startDate = Nothing
-        , maxAmount = Just maxAmount
-        , merchantCustomerId = order ^. _customerId
-        , paymentMethod = Nothing
-        , paymentMethodType = Nothing
-        , paymentMethodId = Nothing
-        , gateway = Nothing
-        , gatewayParams = Nothing
-        , token = token
-        , mandateId = mandateId
-        , status = O.CREATED
-        , authOrderId = Just $ order ^. _id
-        , activatedAt = Nothing
-        , dateCreated = currentDate
-        , lastModified = currentDate
-        , authTxnCardInfo = Nothing
-        , merchantGatewayAccountId = Nothing
-        , metadata = Nothing
+      pure $ DB.Mandate
+        { DB.id = Nothing
+        , DB.merchantId = order ^. _merchantId
+        , DB.currency = order ^. _currency
+        , DB.endDate = Nothing
+        , DB.startDate = Nothing
+        , DB.maxAmount = Just maxAmount
+        , DB.merchantCustomerId = order ^. _customerId
+        , DB.paymentMethod = Nothing
+        , DB.paymentMethodType = Nothing
+        , DB.paymentMethodId = Nothing
+        , DB.gateway = Nothing
+        , DB.gatewayParams = Nothing
+        , DB.token = token
+        , DB.mandateId = mandateId
+        , DB.status = D.CREATED
+        , DB.authOrderId = Just $ order ^. _id
+        , DB.activatedAt = Nothing
+        , DB.dateCreated = currentDate
+        , DB.lastModified = currentDate
+        , DB.authTxnCardInfo = Nothing
+        , DB.merchantGatewayAccountId = Nothing
+        , DB.metadata = Nothing
         }
 
 mkTokenizedOrderResponse
   :: Ts.OrderCreateTemplate
   -> API.OrderCreateResponse
-  -> OrderTokenResp
+  -> API.OrderTokenResp
   -> API.OrderCreateResponse
 mkTokenizedOrderResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
     { API.status          = NEW
@@ -178,7 +184,7 @@ mkTokenizedOrderResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = api
 
 -- EHS: previously addOrderToken
 -- EHS: API type should not be used.
-acquireOrderToken :: OrderPId -> MerchantId -> Flow API.OrderTokenResp
+acquireOrderToken :: D.OrderPId -> D.MerchantId -> Flow API.OrderTokenResp
 acquireOrderToken orderPId merchantId = do
   -- EHS: magic constant
   TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
@@ -193,19 +199,22 @@ acquireOrderToken orderPId merchantId = do
 
 -- EHS: previously isMandateOrder
 -- EHS: bad function. Throws exception on invalid data.
-validateMandate :: Ts.OrderCreateTemplate -> MerchantId -> Flow ()
+validateMandate :: Ts.OrderCreateTemplate -> D.MerchantId -> Flow ()
 validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
   case mandate of
-    MandateDisabled           -> pure ()
-    MandateRequired maxAmount -> validateMaxAmount maxAmount
-    MandateOptional maxAmount -> validateMaxAmount maxAmount
+    D.MandateDisabled           -> pure ()
+    D.MandateRequired maxAmount -> validateMaxAmount maxAmount
+    D.MandateOptional maxAmount -> validateMaxAmount maxAmount
+    -- EHS: Need to do something with this.
+    D.MandateReqUndefined       -> error "MandateReqUndefined not handled."
+    D.MandateOptUndefined       -> error "MandateReqUndefined not handled."
   where
     validateMaxAmount maxAmount = do
 
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- KVDBExtra.rGet $ merchantId <> "_mandate_max_amount_limit"
 
       -- EHS: awful conversion. Rework.
       maxAmLimit <- fromStringToNumber $ maybe Config.mandateMaxAmountAllowed id mbMaxAmLimitStr
@@ -240,10 +249,10 @@ isTrueString val =
 
 -- EHS: should be MerchantIframePreferences converted to domain type?
 -- EHS: rework this function.
-loadMerchantPrefs :: MerchantId -> Flow MerchantIframePreferences
+loadMerchantPrefs :: D.MerchantId -> Flow DB.MerchantIframePreferences
 loadMerchantPrefs merchantId' = do
   res <- withDB eulerDB $ do
-    let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
+    let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
     findRow
       $ B.select
       $ B.limit_ 1
@@ -307,14 +316,14 @@ fillBillingAddressHolder (Just customer) (Ts.AddressHolderTemplate {..})
       (firstName <|> (customer ^. _firstName))
       (lastName <|> (customer ^. _lastName))
 
-loadCustomer :: Maybe CustomerId -> MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
+loadCustomer :: Maybe D.CustomerId -> MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
 loadCustomer Nothing _ = pure Nothing
 loadCustomer (Just customerId) mAccntId = do
 
     -- EHS: after refactoring, we query DB every time when customerId is available.
     -- EHS: DB type Customer should be explicit or qualified
-    mbCustomer :: Maybe Customer <- withDB eulerDB $ do
-      let predicate Customer {merchantAccountId, id, objectReferenceId}
+    mbCustomer :: Maybe DB.Customer <- withDB eulerDB $ do
+      let predicate DB.Customer {merchantAccountId, id, objectReferenceId}
             = (   id ==.  (B.val_ customerId)
               ||. objectReferenceId ==. (B.val_ customerId)  -- EHS: objectReferenceId is customerId ?
                                                              -- A: in customer DB table "objectReferenceId" - id from merchant
@@ -329,17 +338,17 @@ loadCustomer (Just customerId) mAccntId = do
         $ B.all_ (customer eulerDBSchema)
 
     pure $ case mbCustomer of
-      Just (Customer {..}) -> Just $ Ts.CustomerTemplate
+      Just (DB.Customer {..}) -> Just $ Ts.CustomerTemplate
         customerId
         firstName
         lastName
         emailAddress
-        mobileCountryCode
+        -- mobileCountryCode
         mobileNumber
       Nothing              -> Nothing
 
 
-createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe AddressId)
+createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe D.AddressId)
 createAddress addr addrHolder =
   case toDBAddress addr addrHolder of
     Nothing -> pure Nothing
@@ -351,12 +360,12 @@ createAddress addr addrHolder =
       pure $ (^. _id) =<< (safeHead mAddr)
 
 -- EHS: DB types should be denoted explicitly.
-toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe OrderAddress
+toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe DB.OrderAddress
 toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
   | nothingSet = Nothing
-  | otherwise = Just $ OrderAddress
-        { id             = Nothing  -- in DB it's not Null, Auto increment
-        , version        = 1        -- defaultVersion
+  | otherwise = Just $ DB.OrderAddress
+        { DB.id             = Nothing  -- in DB it's not Null, Auto increment
+        , DB.version        = 1        -- defaultVersion
       -- from src/Config/Constants.purs
       --  defaultVersion :: Int
       --  defaultVersion = 1
@@ -377,10 +386,10 @@ toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
       <|> phone
       <|> countryCodeIso
 
-loadOrder :: OrderId -> MerchantId -> Flow (D.Order)
+loadOrder :: D.OrderId -> D.MerchantId -> Flow (D.Order)
 loadOrder orderId' merchantId' = do
     mbOrderRef <- withDB eulerDB $ do
-      let predicate OrderReference {orderId, merchantId} =
+      let predicate DB.OrderReference {orderId, merchantId} =
             (orderId    ==. B.just_ (B.val_ orderId')) &&.
             (merchantId ==. B.just_ (B.val_ merchantId'))
       findRow
@@ -392,8 +401,8 @@ loadOrder orderId' merchantId' = do
       Nothing -> pure Nothing
       Just ordRef -> do
         case SV.transSOrderToDOrder ordRef of
-          Success order -> pure $ Just order
-          Failure e -> do
+          V.Success order -> pure $ Just order
+          V.Failure e -> do
             logError "Incorrect order in DB"
               $  "orderId: "    <> orderId'
               <> "merchantId: " <> merchantId'
@@ -408,7 +417,7 @@ loadOrder orderId' merchantId' = do
 saveOrder
   :: Ts.OrderCreateTemplate
   -> MerchantAccount
-  -> Maybe Currency
+  -> Maybe D.Currency
   -> Maybe Int
   -> Maybe Int
   -> Maybe Ts.CustomerTemplate
@@ -459,14 +468,14 @@ saveOrder
   -- EHS: should not happen, ideally.
   -- EHS: should we skip the validation and just return the orderRefVal updated with the id from insertion?
   case SV.transSOrderToDOrder orderRef of
-    Success order -> pure order
-    Failure e -> do
+    V.Success order -> pure order
+    V.Failure e -> do
       logError $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException internalError
 
 
 -- EHS: return domain type instead of DB type.
-saveOrderMetadata :: RP.RouteParameters -> OrderPId -> Maybe Text -> Flow OrderMetadataV2
+saveOrderMetadata :: RP.RouteParameters -> D.OrderPId -> Maybe Text -> Flow DB.OrderMetadataV2
 saveOrderMetadata routeParams orderPId metadata' = do
   -- EHS: Investigate this TODO.
   -- TODO: FlipKart alone uses useragent and IP address. Lets remove for others
@@ -476,20 +485,20 @@ saveOrderMetadata routeParams orderPId metadata' = do
   let sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
   let userAgent'     = RP.lookupRP @RP.UserAgent routeParams
   -- EHS: DB type should be denoted exclicitly
-  let orderMetadataDB = OrderMetadataV2
-        { id = Nothing
-        , browser = Nothing
-        , browserVersion = Nothing
-        , device = Nothing
-        , ipAddress = sourceAddress'
-        , metadata = metadata'
-        , mobile = Just False
-        , operatingSystem = Nothing
-        , orderReferenceId = Just orderPId
-        , referer = Nothing
-        , userAgent = userAgent'
-        , dateCreated = orderMetadataTimestamp
-        , lastUpdated = orderMetadataTimestamp
+  let orderMetadataDB = DB.OrderMetadataV2
+        { DB.id = Nothing
+        , DB.browser = Nothing
+        , DB.browserVersion = Nothing
+        , DB.device = Nothing
+        , DB.ipAddress = sourceAddress'
+        , DB.metadata = metadata'
+        , DB.mobile = Just False
+        , DB.operatingSystem = Nothing
+        , DB.orderReferenceId = Just orderPId
+        , DB.referer = Nothing
+        , DB.userAgent = userAgent'
+        , DB.dateCreated = orderMetadataTimestamp
+        , DB.lastUpdated = orderMetadataTimestamp
         }
 
   mbOrderMetadata :: Maybe DB.OrderMetadataV2 <- safeHead <$> withDB eulerDB
@@ -514,32 +523,25 @@ cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: Stri
 fillUDFParams :: Ts.OrderCreateTemplate -> DB.OrderReference -> DB.OrderReference
 fillUDFParams order' orderRef = smash newUDF orderRef
   where
-    (reqUDF :: UDF) = upcast order'
-    newUDF' UDF {..} = UDF
-      { udf1 = cleanUp $ udf1
-      , udf2 = cleanUp $ udf2
-      , udf3 = cleanUp $ udf3
-      , udf4 = cleanUp $ udf4
-      , udf5 = cleanUp $ udf5
-      , udf6 = udf6
-      , udf7 = udf7
-      , udf8 = udf8
-      , udf9 = udf9
-      , udf10 = udf10
+    (reqUDF :: D.UDF) = upcast order'
+    newUDF' D.UDF {..} = D.UDF
+      { D.udf1 = cleanUp udf1
+      , D.udf2 = cleanUp udf2
+      , D.udf3 = cleanUp udf3
+      , D.udf4 = cleanUp udf4
+      , D.udf5 = cleanUp udf5
+      , ..
       }
     newUDF = newUDF' reqUDF
   -- EHS: Why are udf fields 1-5 cleaned and the rest not?
 
-
-
-
 -- EHS: previously handleReseller
 -- EHS: return domain type for Reseller instead of DB type
-loadReseller :: Maybe Text -> Flow (Maybe ResellerAccount)
+loadReseller :: Maybe Text -> Flow (Maybe DB.ResellerAccount)
 loadReseller Nothing = pure Nothing
 loadReseller (Just resellerId') = withDB eulerDB $ do
     -- EHS: DB types should be qualified or explicitly named.
-    let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
+    let predicate DB.ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
     findRow
       $ B.select
       $ B.limit_ 1
@@ -548,17 +550,17 @@ loadReseller (Just resellerId') = withDB eulerDB $ do
 
 -- EHS: API type should not be used in the logic.
 -- EHS: previously makeOrderResponse
-mkOrderResponse :: Config.Config -> D.Order -> Maybe ResellerAccount -> API.OrderCreateResponse
+mkOrderResponse :: Config.Config -> D.Order -> Maybe DB.ResellerAccount -> API.OrderCreateResponse
 mkOrderResponse cfg (D.Order {..}) mbResellerAcc = API.defaultOrderCreateResponse
     { API.status        = CREATED
     , API.status_id     = orderStatusToInt CREATED        -- EHS: this logic should be tested.
     , API.id            = orderUuid
     , API.order_id      = orderId
-    , API.payment_links = Paymentlinks
+    , API.payment_links = API.Paymentlinks
         -- EHS: magic constants
-        { web    = Just url'
-        , mobile = Just $ url' <> "?mobile=true"
-        , iframe = Just url'
+        { API.web    = Just url'
+        , API.mobile = Just $ url' <> "?mobile=true"
+        , API.iframe = Just url'
         }
     }
   where

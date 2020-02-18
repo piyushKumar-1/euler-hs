@@ -6,7 +6,7 @@
 module Euler.Storage.Types.TxnCardInfo
   ( TxnCardInfoT(..)
   , TxnCardInfo
-  , Id
+  -- , Id
   , txnCardInfoEMod
   , defaultTxnCardInfo
   ) where
@@ -48,7 +48,7 @@ instance B.Table TxnCardInfoT where
   primaryKey = Id . id
 
 type TxnCardInfo = TxnCardInfoT Identity
-type Id = B.PrimaryKey TxnCardInfoT Identity
+-- type Id = B.PrimaryKey TxnCardInfoT Identity
 
 deriving instance Show TxnCardInfo
 deriving instance Eq TxnCardInfo

@@ -7,7 +7,7 @@ module Euler.Storage.Types.MerchantAccount
   (
     MerchantAccountT(..)
   , MerchantAccount
-  , Id
+  -- , Id
   , merchantAccountEMod
   , defaultMerchantAccount
   ) where
@@ -155,7 +155,7 @@ instance B.Table MerchantAccountT where
   primaryKey = Id . id
 
 type MerchantAccount = MerchantAccountT Identity
-type Id = B.PrimaryKey MerchantAccountT Identity
+-- type Id = B.PrimaryKey MerchantAccountT Identity
 
 deriving instance Show MerchantAccount
 deriving instance Eq MerchantAccount

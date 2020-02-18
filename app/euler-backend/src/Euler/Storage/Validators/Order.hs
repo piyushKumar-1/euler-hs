@@ -11,9 +11,11 @@ import qualified Euler.Common.Types.Mandate as M
 import qualified Euler.Common.Types.Order as O
 import qualified Euler.Storage.Types.OrderReference  as S
 import qualified Euler.Product.Domain.Order as DO
---
--- -- EHS: better naming
--- transSOrderToDOrder :: S.OrderReference -> V DO.Order
+
+-- EHS: better naming
+-- EHS: implement
+transSOrderToDOrder :: S.OrderReference -> V DO.Order
+transSOrderToDOrder so = error "Not implemented"
 -- transSOrderToDOrder so = DO.Order
 --   <$> withField @"id" so (extractJust >=> Vs.notNegative)
 --   <*> withField @"version" so pure

@@ -6,7 +6,7 @@
 module Euler.Storage.Types.Customer
   ( CustomerT(..)
   , Customer
-  , Id
+  -- , Id
   , customerEMod
   , defaultCustomer
   ) where
@@ -37,7 +37,7 @@ instance B.Table CustomerT where
   primaryKey = Id . id
 
 type Customer = CustomerT Identity
-type Id = B.PrimaryKey CustomerT Identity
+-- type Id = B.PrimaryKey CustomerT Identity
 
 deriving instance Show Customer
 deriving instance Eq Customer

@@ -6,7 +6,7 @@
 module Euler.Storage.Types.RiskManagementAccount
   ( RiskManagementAccountT (..)
   , RiskManagementAccount
-  , Id
+  -- , Id
   , riskManagementAccountEMod
   ) where
 
@@ -33,7 +33,7 @@ instance B.Table RiskManagementAccountT where
   primaryKey = Id . id
 
 type RiskManagementAccount = RiskManagementAccountT Identity
-type Id = B.PrimaryKey RiskManagementAccountT Identity
+-- type Id = B.PrimaryKey RiskManagementAccountT Identity
 
 deriving instance Show RiskManagementAccount
 deriving instance Eq RiskManagementAccount

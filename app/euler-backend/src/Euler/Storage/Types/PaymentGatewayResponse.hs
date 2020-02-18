@@ -6,7 +6,7 @@
 module Euler.Storage.Types.PaymentGatewayResponse
   ( PaymentGatewayResponseT(..)
   , PaymentGatewayResponse
-  , Id
+  -- , Id
   , paymentGatewayResponseEMod
   , defaultPaymentGatewayResponse
   , defaultPaymentGatewayResponse'
@@ -48,7 +48,7 @@ instance B.Table PaymentGatewayResponseT where
 -- }
 
 type PaymentGatewayResponse = PaymentGatewayResponseT Identity
-type Id = B.PrimaryKey PaymentGatewayResponseT Identity
+-- type Id = B.PrimaryKey PaymentGatewayResponseT Identity
 
 deriving instance Show PaymentGatewayResponse
 deriving instance Eq PaymentGatewayResponse
@@ -97,4 +97,3 @@ defaultPaymentGatewayResponse' id' = PaymentGatewayResponse
   , responseXml =  Nothing -- -- Maybe Text
   , txnId = Just "" -- Maybe Text
   }
-

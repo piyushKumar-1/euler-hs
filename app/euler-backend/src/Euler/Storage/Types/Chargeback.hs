@@ -6,7 +6,7 @@
 module Euler.Storage.Types.Chargeback
   ( ChargebackT(..)
   , Chargeback
-  , Id
+  -- , Id
   , chargebackEMod
   ) where
 
@@ -35,7 +35,7 @@ instance B.Table ChargebackT where
   primaryKey = Id . id
 
 type Chargeback = ChargebackT Identity
-type Id = B.PrimaryKey ChargebackT Identity
+-- type Id = B.PrimaryKey ChargebackT Identity
 
 deriving instance Show Chargeback
 deriving instance Eq Chargeback
@@ -51,10 +51,10 @@ chargebackEMod = B.modifyTableFields
     , version = B.fieldNamed "version"
     , amount = B.fieldNamed "amount"
     , dateCreated = B.fieldNamed "date_created"
-    , dateResolved = B.fieldNamed "date_resolved"    
-    , disputeStatus = B.fieldNamed "dispute_status"    
-    , lastUpdated = B.fieldNamed "last_updated"    
-    , merchantAccountId = B.fieldNamed "merchant_account_id"    
-    , txnDetailId = B.fieldNamed "txn_detail_id"    
+    , dateResolved = B.fieldNamed "date_resolved"
+    , disputeStatus = B.fieldNamed "dispute_status"
+    , lastUpdated = B.fieldNamed "last_updated"
+    , merchantAccountId = B.fieldNamed "merchant_account_id"
+    , txnDetailId = B.fieldNamed "txn_detail_id"
     , objectReferenceId = B.fieldNamed "object_reference_id"
     }

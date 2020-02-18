@@ -3,6 +3,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DeriveGeneric #-}
 
+-- EHS: doesn't have explicit exports as other modules do (fix it)
 module Euler.Storage.Types.OrderAddress where
 
 import EulerHS.Prelude hiding (id, state)
@@ -33,7 +34,7 @@ instance B.Table OrderAddressT where
   primaryKey = Id . id
 
 type OrderAddress = OrderAddressT Identity
-type Id = B.PrimaryKey OrderAddressT Identity
+-- type Id = B.PrimaryKey OrderAddressT Identity
 
 deriving instance Show OrderAddress
 deriving instance Eq OrderAddress
@@ -112,8 +113,8 @@ data APIShippingAddress = APIShippingAddress
 -- Usefull with 'upcast' and 'smash' functions from generic lens.
 -- They help extract and insert sub-types.
 
-mkShippingAddress :: APIShippingAddress -> OrderAddress 
-mkShippingAddress APIShippingAddress {..} = OrderAddress 
+mkShippingAddress :: APIShippingAddress -> OrderAddress
+mkShippingAddress APIShippingAddress {..} = OrderAddress
   { id             = Nothing
   , version        = 1 -- defaultVersion -- from src/Config/Constants.purs = 1 :: Int
   , firstName      = shipping_address_first_name

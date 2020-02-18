@@ -6,7 +6,7 @@
 module Euler.Storage.Types.OrderMetadataV2
   ( OrderMetadataV2T(..)
   , OrderMetadataV2
-  , Id
+  -- , Id
   , orderMetadataV2EMod
   , defaultOrderMetadataV2
   ) where

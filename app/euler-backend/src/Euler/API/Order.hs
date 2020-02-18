@@ -14,10 +14,9 @@ import qualified Data.Text.Encoding           as T
 import           Data.Generics.Product.Fields
 import           Data.Time
 import           Web.FormUrlEncoded
-import           Generics.Deriving.Monoid (GMonoid (..), gmemptydefault)
-import           Generics.Deriving.Semigroup (GSemigroup (..), gsappenddefault)
+import           Data.Semigroup
+import           Generics.Deriving.Semigroup (gsappenddefault)
 
--- import           Euler.API.RouteParameters
 
 import           Euler.Product.Domain.Order
 
@@ -533,70 +532,122 @@ defaultOrderStatusResponse = OrderStatusResponse
   }
 
 data OrderStatusResponseTemp = OrderStatusResponseTemp
-  {  idT                        :: First Text
-  -- to check: getFirst $ First Nothing <> First (Just "2") <> First (Just "3")
-  -- Just 2
-  ,  merchant_idT               :: First Text
-  -- to check: > getLast $ Last (Just 0) <> Last Nothing <> Last (Just 3)
-  -- Just 3
-  ,  amountT                    :: Last Double
-  ,  currencyT                  :: Last Text
-  ,  order_idT                  :: First Text
-  ,  date_createdT              :: Last Text
-  ,  return_urlT                :: Last Text
-  ,  product_idT                :: Last Text
-  ,  customer_emailT            :: Last Text
-  ,  customer_phoneT            :: Last Text
-  ,  customer_idT               :: Last Text
-  ,  payment_linksT             :: Last Paymentlinks
-  ,  udf1T                      :: Last Text
-  ,  udf2T                      :: Last Text
-  ,  udf3T                      :: Last Text
-  ,  udf4T                      :: Last Text
-  ,  udf5T                      :: Last Text
-  ,  udf6T                      :: Last Text
-  ,  udf7T                      :: Last Text
-  ,  udf8T                      :: Last Text
-  ,  udf9T                      :: Last Text
-  ,  udf10T                     :: Last Text
-  ,  txn_idT                    :: Last Text
-  ,  status_idT                 :: Last Int
-  ,  statusT                    :: Last Text
-  ,  payment_method_typeT       :: Last Text
-  ,  auth_typeT                 :: Last Text
-  ,  cardT                      :: Last Card
-  ,  payment_methodT            :: Last Text
-  ,  refundedT                  :: Last Bool
-  ,  amount_refundedT           :: Last Double
-  ,  chargebacksT               :: Last [Chargeback']
-  ,  refundsT                   :: Last [Refund']
-  ,  mandateT                   :: Last Mandate'
-  ,  promotionT                 :: Last Promotion'
-  ,  riskT                      :: Last Risk
-  ,  bank_error_codeT           :: Last Text
-  ,  bank_error_messageT        :: Last Text
-  ,  txn_uuidT                  :: Last Text
-  ,  gateway_payloadT           :: Last Text
-  ,  txn_detailT                :: Last TxnDetail'
-  ,  payment_gateway_responseT' :: Last MerchantPaymentGatewayResponse'
-  ,  payment_gateway_responseT  :: Last MerchantPaymentGatewayResponse
-  ,  gateway_idT                :: Last Int
-  ,  emi_bankT                  :: Last Text
-  ,  emi_tenureT                :: Last Int
-  ,  gateway_reference_idT      :: Last Text
-  ,  payer_vpaT                 :: Last Text
-  ,  payer_app_nameT            :: Last Text
-  ,  juspayT                    :: Last OrderTokenResp
-  ,  second_factor_responseT    :: Last MerchantSecondFactorResponse
-  ,  txn_flow_infoT             :: Last TxnFlowInfo
+  {  idT                        :: Maybe (First Text)
+  ,  merchant_idT               :: Maybe (First Text)
+  ,  amountT                    :: Maybe (Last Double)
+  ,  currencyT                  :: Maybe (Last Text)
+  ,  order_idT                  :: Maybe (First Text)
+  ,  date_createdT              :: Maybe (Last Text)
+  ,  return_urlT                :: Maybe (Last Text)
+  ,  product_idT                :: Maybe (Last Text)
+  ,  customer_emailT            :: Maybe (Last Text)
+  ,  customer_phoneT            :: Maybe (Last Text)
+  ,  customer_idT               :: Maybe (Last Text)
+  ,  payment_linksT             :: Maybe (Last Paymentlinks)
+  ,  udf1T                      :: Maybe (Last Text)
+  ,  udf2T                      :: Maybe (Last Text)
+  ,  udf3T                      :: Maybe (Last Text)
+  ,  udf4T                      :: Maybe (Last Text)
+  ,  udf5T                      :: Maybe (Last Text)
+  ,  udf6T                      :: Maybe (Last Text)
+  ,  udf7T                      :: Maybe (Last Text)
+  ,  udf8T                      :: Maybe (Last Text)
+  ,  udf9T                      :: Maybe (Last Text)
+  ,  udf10T                     :: Maybe (Last Text)
+  ,  txn_idT                    :: Maybe (Last Text)
+  ,  status_idT                 :: Maybe (Last Int)
+  ,  statusT                    :: Maybe (Last Text)
+  ,  payment_method_typeT       :: Maybe (Last Text)
+  ,  auth_typeT                 :: Maybe (Last Text)
+  ,  cardT                      :: Maybe (Last Card)
+  ,  payment_methodT            :: Maybe (Last Text)
+  ,  refundedT                  :: Maybe (Last Bool)
+  ,  amount_refundedT           :: Maybe (Last Double)
+  ,  chargebacksT               :: Maybe (Last [Chargeback'])
+  ,  refundsT                   :: Maybe (Last [Refund'])
+  ,  mandateT                   :: Maybe (Last Mandate')
+  ,  promotionT                 :: Maybe (Last Promotion')
+  ,  riskT                      :: Maybe (Last Risk)
+  ,  bank_error_codeT           :: Maybe (Last Text)
+  ,  bank_error_messageT        :: Maybe (Last Text)
+  ,  txn_uuidT                  :: Maybe (Last Text)
+  ,  gateway_payloadT           :: Maybe (Last Text)
+  ,  txn_detailT                :: Maybe (Last TxnDetail')
+  ,  payment_gateway_responseT' :: Maybe (Last MerchantPaymentGatewayResponse')
+  ,  payment_gateway_responseT  :: Maybe (Last MerchantPaymentGatewayResponse)
+  ,  gateway_idT                :: Maybe (Last Int)
+  ,  emi_bankT                  :: Maybe (Last Text)
+  ,  emi_tenureT                :: Maybe (Last Int)
+  ,  gateway_reference_idT      :: Maybe (Last Text)
+  ,  payer_vpaT                 :: Maybe (Last Text)
+  ,  payer_app_nameT            :: Maybe (Last Text)
+  ,  juspayT                    :: Maybe (Last OrderTokenResp)
+  ,  second_factor_responseT    :: Maybe (Last MerchantSecondFactorResponse)
+  ,  txn_flow_infoT             :: Maybe (Last TxnFlowInfo)
   }
   deriving (Show, Eq, Ord, Generic)
+
+defaultOrderStatusResponseTemp :: OrderStatusResponseTemp
+defaultOrderStatusResponseTemp = OrderStatusResponseTemp
+  {  idT                        = mempty
+  ,  merchant_idT               = mempty
+  ,  amountT                    = mempty
+  ,  currencyT                  = mempty
+  ,  order_idT                  = mempty
+  ,  date_createdT              = mempty
+  ,  return_urlT                = mempty
+  ,  product_idT                = mempty
+  ,  customer_emailT            = mempty
+  ,  customer_phoneT            = mempty
+  ,  customer_idT               = mempty
+  ,  payment_linksT             = mempty
+  ,  udf1T                      = mempty
+  ,  udf2T                      = mempty
+  ,  udf3T                      = mempty
+  ,  udf4T                      = mempty
+  ,  udf5T                      = mempty
+  ,  udf6T                      = mempty
+  ,  udf7T                      = mempty
+  ,  udf8T                      = mempty
+  ,  udf9T                      = mempty
+  ,  udf10T                     = mempty
+  ,  txn_idT                    = mempty
+  ,  status_idT                 = mempty
+  ,  statusT                    = mempty
+  ,  payment_method_typeT       = mempty
+  ,  auth_typeT                 = mempty
+  ,  cardT                      = mempty
+  ,  payment_methodT            = mempty
+  ,  refundedT                  = mempty
+  ,  amount_refundedT           = mempty
+  ,  chargebacksT               = mempty
+  ,  refundsT                   = mempty
+  ,  mandateT                   = mempty
+  ,  promotionT                 = mempty
+  ,  riskT                      = mempty
+  ,  bank_error_codeT           = mempty
+  ,  bank_error_messageT        = mempty
+  ,  txn_uuidT                  = mempty
+  ,  gateway_payloadT           = mempty
+  ,  txn_detailT                = mempty
+  ,  payment_gateway_responseT' = mempty
+  ,  payment_gateway_responseT  = mempty
+  ,  gateway_idT                = mempty
+  ,  emi_bankT                  = mempty
+  ,  emi_tenureT                = mempty
+  ,  gateway_reference_idT      = mempty
+  ,  payer_vpaT                 = mempty
+  ,  payer_app_nameT            = mempty
+  ,  juspayT                    = mempty
+  ,  second_factor_responseT    = mempty
+  ,  txn_flow_infoT             = mempty
+  }
 
 instance Semigroup OrderStatusResponseTemp where
   (<>) = gsappenddefault
 
 instance Monoid OrderStatusResponseTemp where
-  mempty = gmemptydefault
+  mempty = defaultOrderStatusResponseTemp
   mappend = (<>)
 
 

@@ -11,7 +11,7 @@ module Euler.Product.OLTP.Order.OrderStatus where
 
 
 
-import           EulerHS.Prelude hiding (id)
+import           EulerHS.Prelude hiding (id, First, getFirst, Last, getLast)
 import qualified EulerHS.Prelude as P (id)
 import qualified Prelude as P (show)
 
@@ -31,6 +31,7 @@ import qualified Data.Text.Encoding as T
 import           Data.Time.Clock
 import           Servant.Server
 import           Control.Comonad
+import           Data.Semigroup as S
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters(..), lookupRP)
@@ -304,69 +305,75 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 --  * addChargeBacks
 --  * addGatewayResponse
 
-
-
-
+-- Use functions from Data.Semigroup only. Data.Monoid and Universum.Monoid depricated
 type ResponseBuilder = OrderStatusResponseTemp -> OrderStatusResponse
 
 
 buildStatusResponse :: ResponseBuilder
 buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
-  { id                        = fromMaybe T.empty $ getFirst idT
-  , merchant_id               = getFirst merchant_idT
-  , amount                    = whenNothing (getLast amountT) (Just 0)
-  , currency                  = getLast currencyT
-  , order_id                  = getFirst order_idT
-  , date_created              = fromMaybe T.empty $ getLast date_createdT
-  , return_url                = getLast return_urlT
-  , product_id                = fromMaybe T.empty $ getLast product_idT
-  , customer_email            = getLast customer_emailT
-  , customer_phone            = getLast customer_phoneT
-  , customer_id               = getLast customer_idT
-  , payment_links             = fromMaybe defaultPaymentlinks $ getLast payment_linksT
-  , udf1                      = fromMaybe "udf1" $ getLast udf1T
-  , udf2                      = fromMaybe "udf2" $ getLast udf2T
-  , udf3                      = fromMaybe "udf3" $ getLast udf3T
-  , udf4                      = fromMaybe "udf4" $ getLast udf4T
-  , udf5                      = fromMaybe "udf5" $ getLast udf5T
-  , udf6                      = fromMaybe "udf6" $ getLast udf6T
-  , udf7                      = fromMaybe "udf7" $ getLast udf7T
-  , udf8                      = fromMaybe "udf8" $ getLast udf8T
-  , udf9                      = fromMaybe "udf9" $ getLast udf9T
-  , udf10                     = fromMaybe "udf10" $ getLast udf10T
-  , txn_id                    = getLast txn_idT
-  , status_id                 = fromMaybe 0 $ getLast status_idT
-  , status                    = fromMaybe "DEFAULT" $ getLast statusT
-  , payment_method_type       = getLast payment_method_typeT
-  , auth_type                 = getLast auth_typeT
-  , card                      = getLast cardT
-  , payment_method            = getLast payment_methodT
-  , refunded                  = getLast refundedT
-  , amount_refunded           = getLast amount_refundedT
-  , chargebacks               = getLast chargebacksT
-  , refunds                   = getLast refundsT
-  , mandate                   = getLast mandateT
-  , promotion                 = getLast promotionT
-  , risk                      = getLast riskT
-  , bank_error_code           = getLast bank_error_codeT
-  , bank_error_message        = getLast bank_error_messageT
-  , txn_uuid                  = getLast txn_uuidT
-  , gateway_payload           = getLast gateway_payloadT
-  , txn_detail                = getLast txn_detailT
-  , payment_gateway_response' = getLast payment_gateway_responseT'
-  , payment_gateway_response  = getLast payment_gateway_responseT
-  , gateway_id                = getLast gateway_idT
-  , emi_bank                  = getLast emi_bankT
-  , emi_tenure                = getLast emi_tenureT
-  , gateway_reference_id      = getLast gateway_reference_idT
-  , payer_vpa                 = getLast payer_vpaT
-  , payer_app_name            = getLast payer_app_nameT
-  , juspay                    = getLast juspayT
-  , second_factor_response    = getLast second_factor_responseT
-  , txn_flow_info             = getLast txn_flow_infoT
+  { id                        = fromMaybe T.empty $ fmap getFirst idT
+  , merchant_id               = fmap getFirst merchant_idT
+  , amount                    = whenNothing (fmap getLast amountT) (Just 0)
+  , currency                  = fmap getLast currencyT
+  , order_id                  = fmap getFirst order_idT
+  , date_created              = fromMaybe T.empty $ fmap getLast date_createdT
+  , return_url                = fmap getLast return_urlT
+  , product_id                = fromMaybe T.empty $ fmap getLast product_idT
+  , customer_email            = fmap getLast customer_emailT
+  , customer_phone            = fmap getLast customer_phoneT
+  , customer_id               = fmap getLast customer_idT
+  , payment_links             = fromMaybe defaultPaymentlinks $ fmap getLast payment_linksT
+  , udf1                      = fromMaybe "udf1" $ fmap getLast udf1T
+  , udf2                      = fromMaybe "udf2" $ fmap getLast udf2T
+  , udf3                      = fromMaybe "udf3" $ fmap getLast udf3T
+  , udf4                      = fromMaybe "udf4" $ fmap getLast udf4T
+  , udf5                      = fromMaybe "udf5" $ fmap getLast udf5T
+  , udf6                      = fromMaybe "udf6" $ fmap getLast udf6T
+  , udf7                      = fromMaybe "udf7" $ fmap getLast udf7T
+  , udf8                      = fromMaybe "udf8" $ fmap getLast udf8T
+  , udf9                      = fromMaybe "udf9" $ fmap getLast udf9T
+  , udf10                     = fromMaybe "udf10" $ fmap getLast udf10T
+  , txn_id                    = fmap getLast txn_idT
+  , status_id                 = fromMaybe 0 $ fmap getLast status_idT
+  , status                    = fromMaybe "DEFAULT" $ fmap getLast statusT
+  , payment_method_type       = fmap getLast payment_method_typeT
+  , auth_type                 = fmap getLast auth_typeT
+  , card                      = fmap getLast cardT
+  , payment_method            = fmap getLast payment_methodT
+  , refunded                  = fmap getLast refundedT
+  , amount_refunded           = fmap getLast amount_refundedT
+  , chargebacks               = fmap getLast chargebacksT
+  , refunds                   = fmap getLast refundsT
+  , mandate                   = fmap getLast mandateT
+  , promotion                 = fmap getLast promotionT
+  , risk                      = fmap getLast riskT
+  , bank_error_code           = fmap getLast bank_error_codeT
+  , bank_error_message        = fmap getLast bank_error_messageT
+  , txn_uuid                  = fmap getLast txn_uuidT
+  , gateway_payload           = fmap getLast gateway_payloadT
+  , txn_detail                = fmap getLast txn_detailT
+  , payment_gateway_response' = fmap getLast payment_gateway_responseT'
+  , payment_gateway_response  = fmap getLast payment_gateway_responseT
+  , gateway_id                = fmap getLast gateway_idT
+  , emi_bank                  = fmap getLast emi_bankT
+  , emi_tenure                = fmap getLast emi_tenureT
+  , gateway_reference_id      = fmap getLast gateway_reference_idT
+  , payer_vpa                 = fmap getLast payer_vpaT
+  , payer_app_name            = fmap getLast payer_app_nameT
+  , juspay                    = fmap getLast juspayT
+  , second_factor_response    = fmap getLast second_factor_responseT
+  , txn_flow_info             = fmap getLast txn_flow_infoT
   }
 
+-- > extract $ buildStatusResponse =>> changeId "hello" =>> changeId "world"
+-- OrderStatusResponse {id = "hello", merchant_id = Nothing, ...
 
+changeId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeId newId builder =
+  -- let oldId = getField @"id" $ extract builder
+  --     checkedOldId = if oldId == "" then mempty else (Just $ First oldId)
+  -- in builder $ mempty { idT = Option checkedOldId <> Option (Just $ First newId)}
+  builder $ mempty { idT = Just $ First newId}
 
 
 
@@ -1707,6 +1714,79 @@ addPromotionDetails orderRef orderStatus = do
               ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
           pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
         Nothing -> pure orderStatus
+
+
+
+loadPromotions :: OrderReference -> Flow (Text, [Promotions])
+loadPromotions orderRef = do
+  -- Order contains two id -like fields (better names?)
+  let orderId = fromMaybe "" $ getField @"id" orderRef
+      -- OrderReference's orderId was changed to Text type, Promotions's orderReferenceId is still Int type at PS.
+      -- readMaybe used to equal them in predicate. It is just workaround while Promotions not solved
+      orderId' = fromMaybe 0 $ readMaybe $ T.unpack orderId
+      ordId = fromMaybe "" $ getField @"orderId" orderRef
+  promotions <- do
+    conn <- getConn eulerDB
+    res  <- runDB conn $ do
+      let predicate Promotions{orderReferenceId} =
+            orderReferenceId ==. B.just_ (B.val_ orderId')
+      findRows
+        $ B.select
+        $ B.filter_ predicate
+        $ B.all_ (promotions eulerDBSchema)
+    case res of
+      Right proms -> pure proms
+      Left err -> do
+        logError "Find Promotions" $ toText $ P.show err
+        throwException err500
+  pure (ordId, promotions)
+
+decryptActivePromotion :: (Text, [Promotions]) -> Flow (Maybe Promotion')
+decryptActivePromotion (_,[]) = pure Nothing
+decryptActivePromotion (ordId, promotions) = do
+  let mPromotion = find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
+  traverse (decryptPromotionRules ordId) mPromotion
+
+  -- = decryptPromotionRules ordId promotionVal
+  -- <$> find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
+  --         let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
+  --             ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
+
+  --         pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
+
+changePromotion :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changePromotion Nothing builder = builder mempty
+changePromotion mNewProm@(Just newProm) builder =
+  -- let oldStatus = extract builder
+  --     mOldProm = getField @"currency" oldStatus
+      -- mOldAmount= getField @"amount" oldStatus
+      -- newAmount = (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
+  builder mempty
+      -- { currencyT = Last mOldProm <> Last mNewProm
+      { currencyT = fmap Last mNewProm -- <> Last mOldProm
+      -- , amountT = Last mOldAmount <> Last (Just newAmount)
+      }
+
+
+promotion1 :: Promotion'
+promotion1 = Promotion'
+  { id              = Nothing
+  , order_id        = Nothing
+  , rules           = Nothing
+  , created         = Nothing
+  , discount_amount = Just 1
+  , status          = Just "hello"
+  }
+
+promotion2 :: Promotion'
+promotion2 = Promotion'
+  { id              = Nothing
+  , order_id        = Nothing
+  , rules           = Nothing
+  , created         = Nothing
+  , discount_amount = Just 3
+  , status          = Just "world"
+  }
 
 
 -- ----------------------------------------------------------------------------

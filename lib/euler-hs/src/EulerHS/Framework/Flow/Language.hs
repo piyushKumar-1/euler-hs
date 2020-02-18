@@ -466,13 +466,31 @@ runPubSub
 runPubSub act = liftFC $ RunPubSub act id
 
 
-publish :: PSL.Channel -> PSL.Payload -> Flow (Either T.KVDBReply Integer)
+-- | Publish payload to channel
+publish
+  :: PSL.Channel                        -- ^ Channel in which payload will be send
+  -> PSL.Payload                        -- ^ Payload
+  -> Flow (Either T.KVDBReply Integer)  -- ^ Number of subscribers received payload
 publish channel payload = runPubSub $ PubSub $ const $ PSL.publish channel payload
 
-subscribe :: [PSL.Channel] -> MessageCallback -> Flow (Flow ())
+
+-- | Subscribe to all channels from list.
+-- Note: Subscription won't be unsubscribed automatically on thread end.
+-- Use canceller explicitly to cancel subscription
+subscribe
+  :: [PSL.Channel]    -- ^ List of channels to subscribe
+  -> MessageCallback  -- ^ Callback function.
+  -> Flow (Flow ())   -- ^ Inner flow is a canceller of current subscription
 subscribe channels cb = fmap runIO $
   runPubSub $ PubSub $ \runFlow -> PSL.subscribe channels (runFlow . cb)
 
-psubscribe :: [PSL.ChannelPattern] -> PMessageCallback -> Flow (Flow ())
+
+-- | Subscribe to all channels from list. Respects redis pattern syntax.
+-- Note: Subscription won't be unsubscribed automatically on thread end.
+-- Use canceller explicitly to cancel subscription
+psubscribe
+  :: [PSL.ChannelPattern] -- ^ List of channels to subscribe (wit respect to patterns supported by redis)
+  -> PMessageCallback     -- ^ Callback function
+  -> Flow (Flow ())       -- ^ Inner flow is a canceller of current subscription
 psubscribe channels cb = fmap runIO $
   runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)

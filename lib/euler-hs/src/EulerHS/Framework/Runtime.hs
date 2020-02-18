@@ -112,6 +112,10 @@ createLoggerRuntime' mbLoggerCfg = case mbLoggerCfg of
   Nothing        -> R.createVoidLoggerRuntime
   Just loggerCfg -> R.createLoggerRuntime loggerCfg
 
+
+-- Use {-# NOINLINE foo #-} as a pragma on any function foo that calls unsafePerformIO.
+-- If the call is inlined, the I/O may be performed more than once.
+{-# NOINLINE pubSubWorkerLock #-}
 pubSubWorkerLock :: MVar ()
 pubSubWorkerLock = unsafePerformIO $ newMVar ()
 
@@ -134,7 +138,8 @@ runPubSubWorker rt log = do
         error "Unable to run Publish/Subscribe worker: No connection to Redis provided"
 
       Just conn -> forkIO $ forever $ do
-        res <- try @_ @SomeException $ RD.pubSubForever conn (_pubSubController rt) $
+        res <- try @_ @SomeException $ RD.pubSubForever conn (_pubSubController rt) $ do
+          writeIORef delayRef tsecond
           log "Publish/Subscribe worker: Run successfuly"
 
         case res of

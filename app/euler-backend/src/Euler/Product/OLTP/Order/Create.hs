@@ -19,7 +19,7 @@ import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
 -- Map to Servant in handlers.
-import           Servant.Server (errBody, err500)
+import           Servant.Server (errBody, err500, err400)
 import qualified EulerHS.Extra.Validation as V
 
 -- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
@@ -83,17 +83,13 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   -- EHS: config should be requested on the start of the logic and passed purely.
   cfg          <- runIO Config.getECRConfig
 
-  let orderResponse = mkOrderResponse cfg order mbReseller
-
   -- EHS: magic constants
   -- EHS: versioning should be done using a service
   let version = RP.lookupRP @RP.Version routeParams
-  if (version >= Just "2018-07-01")
-      && (order' ^. _acquireOrderToken)
-    then do
-      orderToken <- acquireOrderToken (order ^. _id) merchantId
-      pure $ mkTokenizedOrderResponse order' orderResponse orderToken
-    else pure orderResponse
+  let thatVersion = (version >= Just "2018-07-01") && (order' ^. _acquireOrderToken)
+  case thatVersion of
+    True  -> mkTokenizedOrderResponse cfg order mbReseller
+    False -> mkOrderResponse          cfg order mbReseller
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?
@@ -153,38 +149,6 @@ updateMandateCache order = case order ^. _mandate of
         , DB.metadata = Nothing
         }
 
-mkTokenizedOrderResponse
-  :: Ts.OrderCreateTemplate
-  -> API.OrderCreateResponse
-  -> API.OrderTokenResp
-  -> API.OrderCreateResponse
-mkTokenizedOrderResponse Ts.OrderCreateTemplate{..} apiResp orderTokenResp = apiResp
-    { API.status          = NEW
-    , API.status_id       = orderStatusToInt NEW      -- EHS: this logic should be tested.
-    , API.juspay          = Just orderTokenResp
-    , API.udf1            = udf1 <|> Just ""
-    , API.udf2            = udf2 <|> Just ""
-    , API.udf3            = udf3 <|> Just ""
-    , API.udf4            = udf4 <|> Just ""
-    , API.udf5            = udf5 <|> Just ""
-    , API.udf6            = udf6 <|> Just ""
-    , API.udf7            = udf7 <|> Just ""
-    , API.udf8            = udf8 <|> Just ""
-    , API.udf9            = udf9 <|> Just ""
-    , API.udf10           = udf10 <|> Just ""
-    , API.return_url      = returnUrl <|> Just ""
-    , API.refunded        = refundedEntirely <|> Just False
-    , API.product_id      = productId <|> Just ""
-    , API.merchant_id     = merchantId <|> Just ""
-    , API.date_created    = Just $ dateCreated
-    , API.customer_phone  = customerPhone <|> Just ""
-    , API.customer_id     = customerId <|> Just ""
-    , API.customer_email  = customerEmail <|> Just ""
-    , API.currency        = currency <|> Just ""
-    , API.amount_refunded = amountRefunded <|> Just 0.0
-    , API.amount          = amount <|> Just 0.0
-    }
-
 -- EHS: previously addOrderToken
 -- EHS: API type should not be used.
 acquireOrderToken :: D.OrderPId -> D.MerchantId -> Flow API.OrderTokenResp
@@ -224,7 +188,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
 
       when (maxAmount <= 0.0 || maxAmount > maxAmLimit)
         $ throwException
-        $ invalidMandateMaxAmount maxAmLimit
+        $ Errs.invalidMandateMaxAmount maxAmLimit
 
 
 -- EHS: bad function. Get rid of it.
@@ -234,7 +198,7 @@ fromStringToNumber str = do
   num <- pure $ readMayT str
   case num of
     Just x -> pure $ x
-    Nothing -> throwException $  err400 {errBody = "Invalid amount"} -- defaultThrowECException "INVALID_REQUEST" "Invalid amount"
+    Nothing -> throwException $ err400 {errBody = "Invalid amount"}
 
 readMayT :: Read a => Text -> Maybe a
 readMayT = TR.readMaybe . Text.unpack
@@ -260,7 +224,7 @@ loadMerchantPrefs merchantId' = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (merchant_iframe_preferences eulerDBSchema)
+      $ B.all_ (DB.merchant_iframe_preferences eulerDBSchema)
 
   case res of
     Just mIPrefs -> pure mIPrefs
@@ -279,16 +243,16 @@ createOrder' routeParams order' mAccnt = do
 
   let merchantId = mAccnt ^. _merchantId
   let currency' = (order' ^. _currency)
-        <|> defaultCurrency merchantPrefs
-        <|> Just INR
+        <|> DB.defaultCurrency merchantPrefs
+        <|> Just D.INR
 
   mbLoadedCustomer <- loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
   let mbCustomer = fillCustomerContacts order' mbLoadedCustomer
 
   -- EHS: strange validation in the middle of logic.
-  case (mbCustomer >>= (^. _customerId), (order' ^. _orderType) == MANDATE_REGISTER) of
+  case (mbCustomer >>= (^. _customerId), (order' ^. _orderType) == D.MANDATE_REGISTER) of
       -- EHS: misleading error message. Should explicitly state that customerId has to be set on MANDATE_REGISTER
-      (Nothing, True) -> throwException customerNotFound
+      (Nothing, True) -> throwException Errs.customerNotFound
       (mbCId, _)      -> pure ()
 
   let billingAddrHolder     = fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
@@ -296,8 +260,8 @@ createOrder' routeParams order' mAccnt = do
   -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
   mbShippingAddrId          <- createAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
 
-  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId billingAddrCustomer mbCustomer
-  _     <- saveOrderMetadata routeParams (order .^ _id) (order' .^ _metadata)
+  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId mbCustomer
+  _     <- saveOrderMetadata routeParams (order ^. _id) (order' ^. _metadata)
 
   pure order
 
@@ -338,7 +302,7 @@ loadCustomer (Just customerId) mAccntId = do
       findRow
         $ B.select
         $ B.filter_ predicate
-        $ B.all_ (customer eulerDBSchema)
+        $ B.all_ (DB.customer eulerDBSchema)
 
     pure $ case mbCustomer of
       Just (DB.Customer {..}) -> Just $ Ts.CustomerTemplate
@@ -358,7 +322,7 @@ createAddress addr addrHolder =
     Just dbAddr -> do
       mAddr <- withDB eulerDB
           $ insertRowsReturningList
-          $ B.insert (order_address eulerDBSchema)
+          $ B.insert (DB.order_address eulerDBSchema)
           $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
       pure $ (^. _id) =<< (safeHead mAddr)
 
@@ -444,7 +408,7 @@ saveOrder
   let orderRefVal' = DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = mAccnt ^. _merchantId
-          , DB.amount             = Just $ fromMoney amount
+          , DB.amount             = Just $ D.fromMoney amount
           , DB.billingAddressId   = mbBillingAddrId
           , DB.shippingAddressId  = mbShippingAddrId
           , DB.currency           = mbCurrency
@@ -553,8 +517,14 @@ loadReseller (Just resellerId') = withDB eulerDB $ do
 
 -- EHS: API type should not be used in the logic.
 -- EHS: previously makeOrderResponse
-mkOrderResponse :: Config.Config -> D.Order -> Maybe DB.ResellerAccount -> API.OrderCreateResponse
-mkOrderResponse cfg (D.Order {..}) mbResellerAcc = API.defaultOrderCreateResponse
+-- EHS: fill the fields
+mkOrderResponse
+  :: Config.Config
+  -> D.Order
+  -> Maybe DB.ResellerAccount
+  -> Flow API.OrderCreateResponse
+mkOrderResponse cfg (D.Order {..}) mbResellerAcc =
+  pure $ API.defaultOrderCreateResponse
     { API.status        = OEx.CREATED
     , API.status_id     = OEx.orderStatusToInt OEx.CREATED
     , API.id            = orderUuid
@@ -571,3 +541,39 @@ mkOrderResponse cfg (D.Order {..}) mbResellerAcc = API.defaultOrderCreateRespons
     mbResellerEndpoint = mbResellerAcc >>= (^. _resellerApiEndpoint)
     url = maybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id mbResellerEndpoint
     url' = url <> "/merchant/pay/" <> orderUuid
+
+
+mkTokenizedOrderResponse
+  :: Config.Config
+  -> D.Order
+  -> Maybe DB.ResellerAccount
+  -> Flow API.OrderCreateResponse
+mkTokenizedOrderResponse cfg order'@(D.Order {..}) mbResellerAcc = do
+  orderToken <- acquireOrderToken (order ^. _id) merchantId
+  apiResp
+    { API.status          = OEx.NEW
+    , API.status_id       = OEx.orderStatusToInt OEx.NEW      -- EHS: this logic should be tested.
+    , API.juspay          = Just orderToken
+    , API.udf1            = udf1      <|> Just ""
+    , API.udf2            = udf2      <|> Just ""
+    , API.udf3            = udf3      <|> Just ""
+    , API.udf4            = udf4      <|> Just ""
+    , API.udf5            = udf5      <|> Just ""
+    , API.udf6            = udf6      <|> Just ""
+    , API.udf7            = udf7      <|> Just ""
+    , API.udf8            = udf8      <|> Just ""
+    , API.udf9            = udf9      <|> Just ""
+    , API.udf10           = udf10     <|> Just ""
+    , API.return_url      = returnUrl <|> Just ""
+    , API.refunded        = refundedEntirely <|> Just False
+    , API.product_id      = productId <|> Just ""
+    , API.merchant_id     = merchantId <|> Just ""
+    , API.date_created    = Just dateCreated
+    , API.customer_phone  = customerPhone <|> Just ""
+    , API.customer_id     = customerId <|> Just ""
+    , API.customer_email  = customerEmail <|> Just ""
+    , API.currency        = currency <|> Just ""
+    -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
+    , API.amount_refunded = Just 0.0 -- EHS: where this shoud be taken from on order create??
+    , API.amount          = amount <|> Just 0.0
+    }

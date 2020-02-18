@@ -54,3 +54,39 @@ _host = field' @"host"
 
 _value :: HasField' "value" s a => Lens s s a a --  t a b
 _value = field' @"value"
+
+_mobileNumber :: HasField' "mobileNumber" s a => Lens s s a a
+_mobileNumber = field' @"mobileNumber"
+
+_email :: HasField' "email" s a => Lens s s a a
+_email = field' @"email"
+
+_customerId :: HasField' "customerId" s a => Lens s s a a
+_customerId = field' @"customerId"
+
+_lastName :: HasField' "lastName" s a => Lens s s a a
+_lastName = field' @"lastName"
+
+_firstName :: HasField' "firstName" s a => Lens s s a a
+_firstName = field' @"firstName"
+
+_metadata :: HasField' "metadata" s a => Lens s s a a
+_metadata = field' @"metadata"
+
+_currency :: HasField' "currency" s a => Lens s s a a
+_currency = field' @"currency"
+
+_shippingAddrHolder :: HasField' "shippingAddrHolder" s a => Lens s s a a
+_shippingAddrHolder = field' @"shippingAddrHolder"
+
+_billingAddrHolder :: HasField' "billingAddrHolder" s a => Lens s s a a
+_billingAddrHolder = field' @"billingAddrHolder"
+
+_shippingAddr :: HasField' "shippingAddr" s a => Lens s s a a
+_shippingAddr = field' @"shippingAddr"
+
+_billingAddr :: HasField' "billingAddr" s a => Lens s s a a
+_billingAddr = field' @"billingAddr"
+
+_orderType :: HasField' "orderType" s a => Lens s s a a
+_orderType = field' @"orderType"

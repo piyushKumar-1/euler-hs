@@ -24,7 +24,7 @@ data Order = Order
   , orderId           :: OrderId
   , orderUuid         :: Text
   , orderType         :: OrderType
-  , orderStatus       :: OrderStatus -- field name = "status" in db orderReference
+  , orderStatus       :: OrderStatus
   , customerId        :: Maybe Text
   , customerEmail     :: Maybe Text
   , customerPhone     :: Maybe Text
@@ -32,27 +32,27 @@ data Order = Order
   , billingAddressId  :: Maybe Int
   , shippingAddressId :: Maybe Int
 
-  -- , udf               :: UDF
+  , udf               :: UDF
   -- -- , browser           :: Maybe Text       -- EHS: Not a fields for order, should not be here
   -- -- , browserVersion    :: Maybe Text       -- EHS: Not a fields for order, should not be here
   -- -- , popupLoaded       :: Maybe Bool       -- EHS: Not a fields for order, should not be here
   -- -- , popupLoadedTime   :: Maybe LocalTime  -- EHS: Not a fields for order, should not be here
   , description       :: Maybe Text
-  -- , returnUrl         :: Maybe Text
+  , returnUrl         :: Maybe Text
 
-  -- , amountRefunded    :: Maybe Double
-  -- , refundedEntirely  :: Maybe Bool
-  -- , autoRefund        :: Bool
+  , amountRefunded    :: Maybe Double
+  , refundedEntirely  :: Maybe Bool
+  , autoRefund        :: Bool
 
-  -- , productId         :: Maybe Text
+  , productId         :: Maybe Text
 
 
   , mandate            :: OrderMandate         -- EHS: not a domain field        -- ^ Default: MandateDisabled
   , acquireOrderToken  :: Bool                 -- EHS: not a domain field                    -- ^ Depends on version and passed param.
 
-  -- , lastSynced        :: LocalTime          -- EHS: Not a domain fields
-  -- , dateCreated       :: LocalTime          -- EHS: Not a domain fields
-  -- , lastModified      :: LocalTime          -- EHS: Not a domain fields
+  , lastSynced        :: LocalTime          -- EHS: Not a domain fields
+  , dateCreated       :: LocalTime          -- EHS: Not a domain fields
+  , lastModified      :: LocalTime          -- EHS: Not a domain fields
   --
   -- , preferredGateway  :: Maybe Text         -- EHS: Not a field for order, should not be here.
   -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a field for order, should not be here.

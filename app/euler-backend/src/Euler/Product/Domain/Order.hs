@@ -6,7 +6,7 @@ import EulerHS.Prelude
 import Data.Time
 import Euler.Common.Types.Merchant(MerchantId)
 import Euler.Common.Types.Money
-import Euler.Common.Types.Order (OrderStatus(NEW), OrderMandate, UDF, OrderType, OrderId, OrderPId)
+import Euler.Common.Types.Order (OrderStatus(OrderStatusNew), OrderMandate, UDF, OrderType, OrderId, OrderPId)
 import Euler.Common.Types.Currency (Currency)
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.GatewayMetadata (GatewayMetadata)

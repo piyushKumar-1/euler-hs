@@ -17,7 +17,7 @@ import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway (Gateway)
 import qualified Database.Beam as B
 import qualified Euler.Common.Types.Transaction as T
-import qualified Euler.Common.Types.Mandate as M
+import qualified Euler.Common.Types.External.Mandate as M
 
 -- from src/Types/Storage/EC/Mandate/Types.purs
 data MandateT f = Mandate

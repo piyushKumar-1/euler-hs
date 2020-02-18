@@ -11,7 +11,8 @@ import GHC.Records (getField)
 -- EHS: it's better to use top level modules and qualified access.
 import           Euler.Common.Types.Currency  (Currency(..))
 import           Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
-import           Euler.Common.Types.Mandate   (MandateFeature(..))
+import           Euler.Common.Types.External.Mandate as MEx
+import           Euler.Common.Types.External.Order as OEx
 import           Euler.Common.Types.Order     (UDF(..))
 import qualified Euler.Common.Types.Order     as O
 import           Euler.Common.Types.Money     (mkMoney)
@@ -98,6 +99,7 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> withField @"metaData" sm pure
     <*> withField @"description" sm pure -- description
     <*> withField @"product_id" sm pure -- productId
+    <*> withField @"return_url" sm pure -- returnUrl
 
   where
     parseMandate = do

@@ -16,6 +16,9 @@ import qualified Data.Text as T (pack, unpack)
 import qualified Prelude as P (show)
 import qualified Text.Read as TR (readEither)
 
+import qualified Euler.Common.Types.External.Order   as OEx
+import qualified Euler.Common.Types.External.Mandate as MEx
+
 type OrderId = Text
 type OrderPId = Int
 
@@ -40,54 +43,66 @@ instance FromBackendRow MySQL OrderType where
 -- EHS: too generic names for domain data type (NEW, SUCCESS etc.)
 -- Should be reworked.
 data OrderStatus
-  = NEW
-  | SUCCESS
-  | NOT_FOUND
-  | ERROR
-  | JUSPAY_DECLINED
-  | PENDING_AUTHENTICATION
-  | AUTHENTICATION_FAILED
-  | AUTHORIZATION_FAILED
-  | AUTHORIZING
-  | AUTHORIZED
-  | CREATED
-  | COD_INITIATED
-  | VOIDED
-  | VOID_INITIATED
+  = OrderStatusNew
+  | OrderStatusSuccess
+  | OrderStatusNotFound
+  | OrderStatusError
+  | OrderStatusJuspayDeclined
+  | OrderStatusPendingAuthentication
+  | OrderStatusAuthenticationFailed
+  | OrderStatusAuthorizationFailed
+  | OrderStatusAuthorizing
+  | OrderStatusAuthorized
+  | OrderStatusCreated
+  | OrderStatusCodInitiated
+  | OrderStatusVoided
+  | OrderStatusVoidInitiated
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
- -- :set -XUndecidableInstances
+toOrderStatusEx :: OrderStatus -> OEx.OrderStatus
+toOrderStatusEx OrderStatusNew                   = OEx.NEW
+toOrderStatusEx OrderStatusSuccess               = OEx.SUCCESS
+toOrderStatusEx OrderStatusNotFound              = OEx.NOT_FOUND
+toOrderStatusEx OrderStatusError                 = OEx.ERROR
+toOrderStatusEx OrderStatusJuspayDeclined        = OEx.JUSPAY_DECLINED
+toOrderStatusEx OrderStatusPendingAuthentication = OEx.PENDING_AUTHENTICATION
+toOrderStatusEx OrderStatusAuthenticationFailed  = OEx.AUTHENTICATION_FAILED
+toOrderStatusEx OrderStatusAuthorizationFailed   = OEx.AUTHORIZATION_FAILED
+toOrderStatusEx OrderStatusAuthorizing           = OEx.AUTHORIZING
+toOrderStatusEx OrderStatusAuthorized            = OEx.AUTHORIZED
+toOrderStatusEx OrderStatusCreated               = OEx.CREATED
+toOrderStatusEx OrderStatusCodInitiated          = OEx.COD_INITIATED
+toOrderStatusEx OrderStatusVoided                = OEx.VOIDED
+toOrderStatusEx OrderStatusVoidInitiated         = OEx.VOID_INITIATED
 
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be OrderStatus where
-  sqlValueSyntax = autoSqlValueSyntax
+fromOrderStatusEx :: OEx.OrderStatus -> OrderStatus
+fromOrderStatusEx OEx.NEW                    = OrderStatusNew
+fromOrderStatusEx OEx.SUCCESS                = OrderStatusSuccess
+fromOrderStatusEx OEx.NOT_FOUND              = OrderStatusNotFound
+fromOrderStatusEx OEx.ERROR                  = OrderStatusError
+fromOrderStatusEx OEx.JUSPAY_DECLINED        = OrderStatusJuspayDeclined
+fromOrderStatusEx OEx.PENDING_AUTHENTICATION = OrderStatusPendingAuthentication
+fromOrderStatusEx OEx.AUTHENTICATION_FAILED  = OrderStatusAuthenticationFailed
+fromOrderStatusEx OEx.AUTHORIZATION_FAILED   = OrderStatusAuthorizationFailed
+fromOrderStatusEx OEx.AUTHORIZING            = OrderStatusAuthorizing
+fromOrderStatusEx OEx.AUTHORIZED             = OrderStatusAuthorized
+fromOrderStatusEx OEx.CREATED                = OrderStatusCreated
+fromOrderStatusEx OEx.COD_INITIATED          = OrderStatusCodInitiated
+fromOrderStatusEx OEx.VOIDED                 = OrderStatusVoided
+fromOrderStatusEx OEx.VOID_INITIATED         = OrderStatusVoidInitiated
 
-instance FromBackendRow Postgres OrderStatus where
-  fromBackendRow = read . T.unpack <$> fromBackendRow
 
-instance FromBackendRow Sqlite OrderStatus where
-  fromBackendRow = read . T.unpack <$> fromBackendRow
+toMandateEx :: OrderMandate -> MEx.MandateFeature
+toMandateEx  MandateDisabled    = MEx.DISABLED
+toMandateEx (MandateRequired _) = MEx.REQUIRED
+toMandateEx (MandateOptional _) = MEx.OPTIONAL
+toMandateEx MandateReqUndefined = MEx.REQUIRED
+toMandateEx MandateOptUndefined = MEx.OPTIONAL
 
-instance FromBackendRow MySQL OrderStatus where
-  fromBackendRow = read . T.unpack <$> fromBackendRow
-
-
-orderStatusToInt :: OrderStatus -> Int
-orderStatusToInt CREATED = 1
-orderStatusToInt NEW = 10
-orderStatusToInt SUCCESS = 30
-orderStatusToInt NOT_FOUND = 40
-orderStatusToInt ERROR = -1
-orderStatusToInt JUSPAY_DECLINED = 23
-orderStatusToInt PENDING_AUTHENTICATION = 15
-orderStatusToInt AUTHENTICATION_FAILED = 26
-orderStatusToInt AUTHORIZATION_FAILED = 27
-orderStatusToInt AUTHORIZING = 28
-orderStatusToInt AUTHORIZED = 30
-orderStatusToInt VOIDED = 31
-orderStatusToInt VOID_INITIATED = 32
--- orderStatusToInt AUTHORIZATION_FAILURE = -1
-orderStatusToInt COD_INITIATED = 29
-
+fromMandateEx :: MEx.MandateFeature -> OrderMandate
+fromMandateEx MEx.DISABLED = MandateDisabled
+fromMandateEx MEx.REQUIRED = MandateReqUndefined
+fromMandateEx MEx.OPTIONAL = MandateOptUndefined
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data ClientAuthTokenData = ClientAuthTokenData
@@ -135,8 +150,8 @@ data OrderMandate
   = MandateDisabled
   | MandateRequired MandateMaxAmount
   | MandateOptional MandateMaxAmount
-  | MandateReqUndefined
-  | MandateOptUndefined
+  | MandateReqUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
+  | MandateOptUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 

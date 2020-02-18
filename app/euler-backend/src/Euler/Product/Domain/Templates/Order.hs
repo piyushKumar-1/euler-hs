@@ -53,5 +53,7 @@ data OrderCreateTemplate = OrderCreateTemplate
   , metaData                       :: Maybe Text
   , description                    :: Maybe Text
   , productId                      :: Maybe Text
+
+  , returnUrl                      :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)

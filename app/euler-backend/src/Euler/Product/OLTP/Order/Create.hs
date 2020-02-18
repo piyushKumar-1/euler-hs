@@ -3,7 +3,7 @@
 
 module Euler.Product.OLTP.Order.Create where
 
-import EulerHS.Prelude hiding (id, show, get)
+import EulerHS.Prelude hiding (id, get)
 import qualified EulerHS.Prelude as EHP
 
 import qualified Prelude              as P (show, notElem)
@@ -16,7 +16,10 @@ import           Data.List (lookup, span)
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
-import           Servant.Server (errBody)   -- EHS: it's beter to remove this dependency
+-- EHS: it's beter to get rid of this dependency.
+-- Rework exceptions. Introduce app specific exceptions.
+-- Map to Servant in handlers.
+import           Servant.Server (errBody, err500)
 import qualified EulerHS.Extra.Validation as V
 
 -- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
@@ -37,9 +40,10 @@ import qualified Euler.API.Order            as API
 
 -- EHS: rework imports. Use top level modules.
 import qualified Euler.Common.Types                as D
--- EHS: temporary module, should be reworked
-import qualified Euler.Common.Types.Mandate        as M
+import qualified Euler.Common.Types.External.Mandate as MEx
+import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Common.Metric               as Metric
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Product.Domain.Order        as D
 import           Euler.Product.Domain.MerchantAccount
 import           Euler.Product.OLTP.Services.RedisService
@@ -47,7 +51,6 @@ import qualified Euler.Product.Domain.Templates    as Ts
 import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
 import           Euler.Lens
-
 
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
 orderCreate
@@ -140,7 +143,7 @@ updateMandateCache order = case order ^. _mandate of
         , DB.gatewayParams = Nothing
         , DB.token = token
         , DB.mandateId = mandateId
-        , DB.status = D.CREATED
+        , DB.status = MEx.CREATED
         , DB.authOrderId = Just $ order ^. _id
         , DB.activatedAt = Nothing
         , DB.dateCreated = currentDate
@@ -263,7 +266,7 @@ loadMerchantPrefs merchantId' = do
     Just mIPrefs -> pure mIPrefs
     Nothing -> do
       logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
-      throwException internalError    -- EHS: error should be specified.
+      throwException Errs.internalError    -- EHS: error should be specified.
 
 createOrder'
   :: RP.RouteParameters
@@ -396,7 +399,7 @@ loadOrder orderId' merchantId' = do
         $ B.select
         $ B.limit_ 1
         $ B.filter_ predicate
-        $ B.all_ (order_reference eulerDBSchema)
+        $ B.all_ (DB.order_reference eulerDBSchema)
     case mbOrderRef of
       Nothing -> pure Nothing
       Just ordRef -> do
@@ -407,7 +410,7 @@ loadOrder orderId' merchantId' = do
               $  "orderId: "    <> orderId'
               <> "merchantId: " <> merchantId'
               <> "error: "      <> show e
-            throwException internalError
+            throwException Errs.internalError
 
 -- EHS: objectReferenceId is customerId ?
 -- A: in the Customer DB table "objectReferenceId" - id from merchant
@@ -452,17 +455,17 @@ saveOrder
           , DB.description        = description
           , DB.orderUuid          = Just orderUuid
           , DB.productId          = productId
-          , DB.preferredGateway   = gatewayId >>= lookupGatewayName
-          , DB.status             = NEW
+          , DB.preferredGateway   = gatewayId >>= D.lookupGatewayName
+          , DB.status             = OEx.NEW
           , DB.dateCreated        = orderTimestamp
           , DB.lastModified       = orderTimestamp
           , DB.orderType          = Just orderType
-          , DB.mandateFeature     = M.toDBMandate mandate
+          , DB.mandateFeature     = D.toMandateEx mandate
           }
   let orderRefVal = fillUDFParams order' orderRefVal'
 
   orderRef <- unsafeInsertRow (err500 {errBody = "Inserting order reference failed."}) eulerDB
-      $ B.insert (order_reference eulerDBSchema)
+      $ B.insert (DB.order_reference eulerDBSchema)
       $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
 
   -- EHS: should not happen, ideally.
@@ -471,7 +474,7 @@ saveOrder
     V.Success order -> pure order
     V.Failure e -> do
       logError $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
-      throwException internalError
+      throwException Errs.internalError
 
 
 -- EHS: return domain type instead of DB type.
@@ -503,10 +506,10 @@ saveOrderMetadata routeParams orderPId metadata' = do
 
   mbOrderMetadata :: Maybe DB.OrderMetadataV2 <- safeHead <$> withDB eulerDB
     $ insertRowsReturningList
-    $ B.insert (order_metadata_v2 eulerDBSchema)
+    $ B.insert (DB.order_metadata_v2 eulerDBSchema)
     $ B.insertExpressions [ (B.val_ orderMetadataDB) & _id .~ B.default_ ]
 
-  pure $ orderMetadataDB & (_id .~ pId)
+  pure $ orderMetadataDB & (_id .~ orderPId)
 
 
 cleanUp :: Maybe Text -> Maybe Text
@@ -546,14 +549,14 @@ loadReseller (Just resellerId') = withDB eulerDB $ do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (reseller_account eulerDBSchema)
+      $ B.all_ (DB.reseller_account eulerDBSchema)
 
 -- EHS: API type should not be used in the logic.
 -- EHS: previously makeOrderResponse
 mkOrderResponse :: Config.Config -> D.Order -> Maybe DB.ResellerAccount -> API.OrderCreateResponse
 mkOrderResponse cfg (D.Order {..}) mbResellerAcc = API.defaultOrderCreateResponse
-    { API.status        = CREATED
-    , API.status_id     = orderStatusToInt CREATED        -- EHS: this logic should be tested.
+    { API.status        = OEx.CREATED
+    , API.status_id     = OEx.orderStatusToInt OEx.CREATED
     , API.id            = orderUuid
     , API.order_id      = orderId
     , API.payment_links = API.Paymentlinks

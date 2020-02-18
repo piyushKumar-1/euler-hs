@@ -18,8 +18,8 @@ import qualified Prelude                      as P
 import           Euler.Common.Types.Currency  (Currency)
 import           Euler.Common.Types.Customer  (CustomerId)
 import           Euler.Common.Types.Money     (Money)
-import           Euler.Common.Types.Order     (OrderStatus (..))
-import           Euler.Common.Types.Mandate   (MandateFeature (..))
+import           Euler.Common.Types.External.Order     (OrderStatus (..))
+import           Euler.Common.Types.External.Mandate   (MandateFeature (..))
 import           Euler.Common.Types.Promotion
 
 

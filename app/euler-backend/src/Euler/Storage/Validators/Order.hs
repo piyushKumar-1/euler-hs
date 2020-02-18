@@ -7,8 +7,8 @@ import EulerHS.Extra.Validation
 
 import           Euler.Common.Types.Money     (mkMoney)
 import qualified Euler.Common.Validators as Vs
-import qualified Euler.Common.Types.Mandate as M
-import qualified Euler.Common.Types.Order as O
+import qualified Euler.Common.Types.External.Mandate as MEx
+import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Storage.Types.OrderReference  as S
 import qualified Euler.Product.Domain.Order as DO
 

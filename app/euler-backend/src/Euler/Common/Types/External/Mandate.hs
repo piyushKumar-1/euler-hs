@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE UndecidableInstances  #-}
 
-module Euler.Common.Types.Mandate where
+module Euler.Common.Types.External.Mandate where
 
 import EulerHS.Prelude
 import Data.Data (Data)
@@ -18,12 +18,11 @@ import qualified Data.Text as T (pack, unpack)
 import qualified Prelude as P (show)
 import qualified Text.Read as TR (readEither)
 
-import qualified Euler.Common.Types.Order as O
 
 -- EHS: Type for API and DB.
 -- Temporary, split into separate types for API and DB
 -- and move into the appropriate namespaces.
-
+-- EHS: too generic names for domain data type
 data MandateFeature
   = DISABLED
   | REQUIRED
@@ -47,11 +46,6 @@ instance FromBackendRow Sqlite MandateFeature where
 
 instance FromBackendRow MySQL MandateFeature where
   fromBackendRow = read . T.unpack <$> fromBackendRow
-
-toDBMandate :: O.OrderMandate -> MandateFeature
-toDBMandate O.MandateDisabled     = DISABLED
-toDBMandate (O.MandateRequired _) = REQUIRED
-toDBMandate (O.MandateOptional _) = OPTIONAL
 
 -- EHS: Type for API and DB.
 -- Temporary, split into separate types for API and DB

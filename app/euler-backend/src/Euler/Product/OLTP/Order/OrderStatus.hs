@@ -30,7 +30,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Time.Clock
 import           Servant.Server
-import           Control.Comonad
+import           Control.Comonad hiding ((<<=))
 import           Data.Semigroup as S
 
 import           Euler.API.Order as AO
@@ -305,7 +305,17 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 --  * addChargeBacks
 --  * addGatewayResponse
 
+
+
+---------------------------------------------------------------------------------------------------
+-- Builders
+---------------------------------------------------------------------------------------------------
+
 -- Use functions from Data.Semigroup only. Data.Monoid and Universum.Monoid depricated
+-- Hide <<= from Control.Comonad and use custome one equal to =>> for intuitive percieving
+(<<=) :: Comonad w => w a -> (w a -> b) -> w b
+(<<=) = (=>>)
+
 type ResponseBuilder = OrderStatusResponseTemp -> OrderStatusResponse
 
 
@@ -365,15 +375,14 @@ buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
   , txn_flow_info             = fmap getLast txn_flow_infoT
   }
 
--- > extract $ buildStatusResponse =>> changeId "hello" =>> changeId "world"
+-- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
 -- OrderStatusResponse {id = "hello", merchant_id = Nothing, ...
 
 changeId :: Text -> ResponseBuilder -> OrderStatusResponse
-changeId newId builder =
-  -- let oldId = getField @"id" $ extract builder
-  --     checkedOldId = if oldId == "" then mempty else (Just $ First oldId)
-  -- in builder $ mempty { idT = Option checkedOldId <> Option (Just $ First newId)}
-  builder $ mempty { idT = Just $ First newId}
+changeId newId builder = builder $ mempty { idT = Just $ First newId}
+
+changeAmount :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
+changeAmount newAmount builder = builder $ mempty {amountT = fmap Last newAmount}
 
 
 
@@ -1426,7 +1435,7 @@ addMandateDetails ordRef orderStatus =
     Nothing -> pure $ orderStatus
 -}
 
-addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow  OrderStatusResponse
+addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
 addMandateDetails ordRef orderStatus =
   case (orderType ordRef) of
     Just orderType ->
@@ -1461,6 +1470,48 @@ mapMandate Mandate {..} =
              , mandate_status = Just $ show $ status
              , mandate_id = mandateId
             }
+
+
+-- for Builders
+
+
+loadMandate :: OrderReference -> Flow (Maybe Mandate')
+loadMandate ordRef =
+  -- TODO: should we move logic from here?
+  case (orderType ordRef) of
+    Just orderType ->
+      if orderType == C.MANDATE_REGISTER then do
+        let orderId = getField @"id" ordRef
+        mandate <- do
+            conn <- getConn eulerDB
+            let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
+                  &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
+            res <- runDB conn $
+              findRow
+                $ B.select
+                $ B.limit_ 1
+                $ B.filter_ predicate
+                $ B.all_ (eulerDBSchema ^. _mandate)
+            case res of
+              Right mMandate -> pure mMandate
+              Left err -> do
+                logError "Find Mandate" $ toText $ P.show err
+                throwException err500
+        pure $ mapMandate <$> mandate
+      else pure Nothing
+    Nothing -> pure Nothing
+
+changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
+changeMandate Nothing builder = builder mempty
+changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
+
+-- extract $ buildStatusResponse <<= changeMandate (Just mandate1) <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
+mandate1 = Mandate'
+  { mandate_token  = "token"
+  , mandate_status = Just "status"
+  , mandate_id     = "man_id"
+  }
+
 
 -- ----------------------------------------------------------------------------
 -- function: getPaymentLink
@@ -1716,6 +1767,8 @@ addPromotionDetails orderRef orderStatus = do
         Nothing -> pure orderStatus
 
 
+-- for builder
+-- > extract $ buildStatusResponse <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
 
 loadPromotions :: OrderReference -> Flow (Text, [Promotions])
 loadPromotions orderRef = do
@@ -1754,17 +1807,16 @@ decryptActivePromotion (ordId, promotions) = do
 
   --         pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
 
-changePromotion :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
 changePromotion Nothing builder = builder mempty
 changePromotion mNewProm@(Just newProm) builder =
-  -- let oldStatus = extract builder
-  --     mOldProm = getField @"currency" oldStatus
-      -- mOldAmount= getField @"amount" oldStatus
-      -- newAmount = (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
-  builder mempty
-      -- { currencyT = Last mOldProm <> Last mNewProm
-      { currencyT = fmap Last mNewProm -- <> Last mOldProm
-      -- , amountT = Last mOldAmount <> Last (Just newAmount)
+  let oldStatus = extract builder
+  -- TODO: amount logic is wrong now, when used more then one changePromotion
+      mOldAmount= getField @"amount" oldStatus
+      newAmount = sanitizeAmount $ (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
+  in builder mempty
+      { promotionT = fmap Last mNewProm
+      , amountT = Just (Last newAmount)
       }
 
 

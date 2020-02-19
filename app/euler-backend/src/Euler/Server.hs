@@ -15,6 +15,7 @@ import           Servant.API.Raw
 import           Text.Show (showString)
 import           Data.Coerce (coerce)
 import           Data.Time
+import qualified EulerHS.Extra.Validation as V
 
 import Euler.API.RouteParameters
 
@@ -77,13 +78,13 @@ type EulerAPI
 -- Order create
   :<|> "orders"
       :> OrderCreateEndpoint
-      -- :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
-      -- :> Post '[JSON] ApiOrder.OrderCreateResponse
+      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+      :> Post '[JSON] ApiOrder.OrderCreateResponse
 
 -- Order update
   :<|> "orders"
       :> Capture "orderId" Text
-      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.Order
+      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
       :> Post '[JSON] ApiOrder.OrderStatusResponse
 
 -- Other APIS
@@ -296,7 +297,7 @@ type OrderCreateEndpoint
   --  Remote host
   :>  RemoteHost
   --  POST Body
-  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.Order
+  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
   --  Response
   :>  Post '[JSON] ApiOrder.OrderCreateResponse
 
@@ -310,7 +311,8 @@ orderCreate
   -- Remote IP
   -> SockAddr
   -- Response
-  -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderCreateResponse
+  -> ApiOrder.OrderCreateRequest
+  -> FlowHandler ApiOrder.OrderCreateResponse
 orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
 
   -- EHS: review this function
@@ -328,8 +330,8 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
 
   -- EHS: function `orderCreate` is also about validation.
   case eValidated of
-    Failure err -> error "Not implemented"   -- TODO: EHS: return error.
-    Success validatedOrder ->
+    V.Failure err -> error "Not implemented"   -- TODO: EHS: return error.
+    V.Success validatedOrder ->
       runFlow "orderCreate" rps (toJSON ordReq)
           $ AS.withMacc OrderCreate.orderCreate rps validatedOrder
 

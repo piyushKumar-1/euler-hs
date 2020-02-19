@@ -31,7 +31,8 @@ runMethodPlayer
   -> PlayerParams
   -> IO MethodPlayerResult
 runMethodPlayer "testFlow2"        = withMethodPlayer (getMethod testFlow2)
-runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.orderCreate)
+-- EHS: restore
+-- runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.orderCreate)
 runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 

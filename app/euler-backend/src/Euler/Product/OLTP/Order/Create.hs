@@ -74,14 +74,15 @@ orderCreate routeParams order' mAccnt = do
 
 doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
-  order        <- createOrder' routeParams order' mAccnt
+  merchantPrefs <- loadMerchantPrefs merchantId
+  order         <- createOrder' routeParams order' mAccnt merchantPrefs
 
-  _            <- updateOrderCache order
-  _            <- updateMandateCache order
+  _             <- updateOrderCache order
+  _             <- updateMandateCache order
 
-  mbReseller   <- loadReseller (mAccnt ^. _resellerId)
+  mbReseller    <- loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.
-  cfg          <- runIO Config.getECRConfig
+  cfg           <- runIO Config.getECRConfig
 
   -- EHS: magic constants
   -- EHS: versioning should be done using a service
@@ -95,7 +96,8 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 --      Why this cache exist? What it does?
 updateOrderCache :: D.Order -> Flow ()
 updateOrderCache order = do
-  let orderId = order ^. _orderId
+  let orderId    = order ^. _orderId
+  let merchantId = order ^. _merchantId
   -- EHS: magic constant.
   void $ KVDBExtra.setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
@@ -105,22 +107,19 @@ updateOrderCache order = do
 --      It's not clear whether this a valid behaviour (seems not).
 -- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
 --      Why this cache exist? What it does?
-updateMandateCache
-  :: D.Order
-  -> D.MerchantId
-  -> Flow ()
+updateMandateCache :: D.Order -> Flow ()
 updateMandateCache order = case order ^. _mandate of
-    D.MandateDisabled -> pure ()
+    D.MandateDisabled           -> pure ()
     D.MandateRequired maxAmount -> updateMandateCache' maxAmount
     D.MandateOptional maxAmount -> updateMandateCache' maxAmount
     -- EHS: Need to do something with this.
     D.MandateReqUndefined       -> error "MandateReqUndefined not handled."
     D.MandateOptUndefined       -> error "MandateReqUndefined not handled."
   where
-    updateMandateCache' maxAmount = do
+    updateMandateCache' ma = do
         let merchantId = order ^. _merchantId
         let orderId    = order ^. _orderId
-        mandate <- createMandate order maxAmount
+        mandate <- createMandate order ma
         -- EHS: magic constant
         void $ KVDBExtra.setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
@@ -132,7 +131,7 @@ updateMandateCache order = case order ^. _mandate of
       pure $ DB.Mandate
         { DB.id = Nothing
         , DB.merchantId = order ^. _merchantId
-        , DB.currency = order ^. _currency
+        , DB.currency = Just $ order ^. _currency
         , DB.endDate = Nothing
         , DB.startDate = Nothing
         , DB.maxAmount = Just maxAmount
@@ -187,23 +186,19 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
       mbMaxAmLimitStr <- KVDBExtra.rGet $ merchantId <> "_mandate_max_amount_limit"
-
       -- EHS: awful conversion. Rework.
-      maxAmLimit <- fromStringToNumber $ maybe Config.mandateMaxAmountAllowed id mbMaxAmLimitStr
+      maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 
       when (maxAmount <= 0.0 || maxAmount > maxAmLimit)
         $ throwException
         $ Errs.invalidMandateMaxAmount maxAmLimit
-
-
--- EHS: bad function. Get rid of it.
--- from src/Utils/Utils.purs
-fromStringToNumber :: Text -> Flow Double
-fromStringToNumber str = do
-  num <- pure $ readMayT str
-  case num of
-    Just x -> pure $ x
-    Nothing -> throwException $ err400 {errBody = "Invalid amount"}
+    -- EHS: bad function. Get rid of it.
+    fromStringToNumber :: Text -> Flow Double
+    fromStringToNumber str = do
+      num <- pure $ readMayT str
+      case num of
+        Just x -> pure $ x
+        Nothing -> throwException $ err400 {errBody = "Invalid amount"}
 
 readMayT :: Read a => Text -> Maybe a
 readMayT = TR.readMaybe . Text.unpack
@@ -241,12 +236,9 @@ createOrder'
   :: RP.RouteParameters
   -> Ts.OrderCreateTemplate
   -> MerchantAccount
+  -> DB.MerchantIframePreferences
   -> Flow D.Order
-createOrder' routeParams order' mAccnt = do
-
-  merchantPrefs <- loadMerchantPrefs merchantId
-
-  let merchantId = mAccnt ^. _merchantId
+createOrder' routeParams order' mAccnt merchantPrefs = do
   let currency' = (order' ^. _currency)
         <|> DB.defaultCurrency merchantPrefs
         <|> Just D.INR
@@ -255,7 +247,7 @@ createOrder' routeParams order' mAccnt = do
   let mbCustomer = fillCustomerContacts order' mbLoadedCustomer
 
   -- EHS: strange validation in the middle of logic.
-  case (mbCustomer >>= (^. _customerId), (order' ^. _orderType) == D.MANDATE_REGISTER) of
+  case (mbCustomer >>= (\c -> Just $ c ^. _customerId), (order' ^. _orderType) == D.MANDATE_REGISTER) of
       -- EHS: misleading error message. Should explicitly state that customerId has to be set on MANDATE_REGISTER
       (Nothing, True) -> throwException Errs.customerNotFound
       (mbCId, _)      -> pure ()
@@ -271,11 +263,11 @@ createOrder' routeParams order' mAccnt = do
   pure order
 
 fillCustomerContacts
-  :: Maybe Ts.CustomerTemplate
-  -> Ts.OrderCreateTemplate
+  :: Ts.OrderCreateTemplate
   -> Maybe Ts.CustomerTemplate
-fillCustomerContacts Nothing _ = Nothing
-fillCustomerContacts (Just customer) (Ts.OrderCreateTemplate {..}) =
+  -> Maybe Ts.CustomerTemplate
+fillCustomerContacts _ Nothing = Nothing
+fillCustomerContacts (Ts.OrderCreateTemplate {..}) (Just customer) =
   Just $ customer
     { Ts.email        = customerEmail <|> (customer ^. _email)
     , Ts.mobileNumber = fromMaybe (customer ^. _mobileNumber) customerPhone
@@ -296,8 +288,8 @@ loadCustomer (Just customerId) mAccntId = do
     -- EHS: DB type Customer should be explicit or qualified
     mbCustomer :: Maybe DB.Customer <- withDB eulerDB $ do
       let predicate DB.Customer {merchantAccountId, id, objectReferenceId}
-            = (   id ==.  (B.val_ customerId)
-              ||. objectReferenceId ==. (B.val_ customerId)  -- EHS: objectReferenceId is customerId ?
+            = (   id ==.  (B.val_ (Just customerId))
+              ||. objectReferenceId ==. (B.val_ (Just customerId))  -- EHS: objectReferenceId is customerId ?
                                                              -- A: in customer DB table "objectReferenceId" - id from merchant
                                                              -- (how merchant identifies customer in their DB eg. by email or mobile number )
                                                              -- and "id" - our id. So merchant can use both
@@ -358,7 +350,7 @@ toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
       <|> phone
       <|> countryCodeIso
 
-loadOrder :: D.OrderId -> D.MerchantId -> Flow (D.Order)
+loadOrder :: D.OrderId -> D.MerchantId -> Flow (Maybe D.Order)
 loadOrder orderId' merchantId' = do
     mbOrderRef <- withDB eulerDB $ do
       let predicate DB.OrderReference {orderId, merchantId} =
@@ -412,12 +404,12 @@ saveOrder
   -- EHS: TODO: add UDF fields
   let orderRefVal' = DB.defaultOrderReference
           { DB.orderId            = Just orderId
-          , DB.merchantId         = mAccnt ^. _merchantId
+          , DB.merchantId         = Just $ mAccnt ^. _merchantId
           , DB.amount             = Just $ D.fromMoney amount
           , DB.billingAddressId   = mbBillingAddrId
           , DB.shippingAddressId  = mbShippingAddrId
           , DB.currency           = mbCurrency
-          , DB.customerId         = mbCustomer >>= (^. _customerId)
+          , DB.customerId         = mbCustomer >>= (\c -> Just $ c ^. _customerId)
           , DB.customerEmail      = mbCustomer >>= (^. _email)
           , DB.customerPhone      = mbCustomer >>= (\c -> Just $ c ^. _mobileNumber)
           , DB.returnUrl          = returnUrl
@@ -429,7 +421,7 @@ saveOrder
           , DB.dateCreated        = orderTimestamp
           , DB.lastModified       = orderTimestamp
           , DB.orderType          = Just orderType
-          , DB.mandateFeature     = D.toMandateEx mandate
+          , DB.mandateFeature     = Just $ D.toMandateEx mandate
           }
   let orderRefVal = fillUDFParams order' orderRefVal'
 

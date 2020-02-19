@@ -14,6 +14,7 @@ module Euler.Storage.Types.MerchantIframePreferences
 import EulerHS.Prelude hiding (id)
 import Data.Time
 import qualified Database.Beam as B
+import Euler.Common.Types.Currency (Currency)
 
 data MerchantIframePreferencesT f = MerchantIframePreferences
   { id                          :: B.C f (Maybe Int)
@@ -25,7 +26,7 @@ data MerchantIframePreferencesT f = MerchantIframePreferences
   , showCancelButton            :: B.C f (Maybe Bool)
   , emergencyMessage            :: B.C f (Maybe Text)
   , redirectModeOnly            :: B.C f (Maybe Bool)
-  , defaultCurrency             :: B.C f (Maybe Text)
+  , defaultCurrency             :: B.C f (Maybe Currency)     -- EHS: TODO: check if this conversion works with the existing data.
   , termsAndConditionsLink      :: B.C f (Maybe Text)
   , orderSessionTimeout         :: B.C f (Maybe Double)
   , walletTopupReturnUrl        :: B.C f (Maybe Text)

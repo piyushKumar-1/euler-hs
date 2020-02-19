@@ -15,6 +15,7 @@ import EulerHS.Prelude hiding (id)
 import Data.Time
 import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway (Gateway)
+import Euler.Common.Types.Currency (Currency)
 import qualified Database.Beam as B
 import qualified Euler.Common.Types.Transaction as T
 import qualified Euler.Common.Types.External.Mandate as M
@@ -28,19 +29,19 @@ data MandateT f = Mandate
   ,  maxAmount                :: B.C f (Maybe Double)
   ,  merchantCustomerId       :: B.C f (Maybe Text)
   ,  paymentMethod            :: B.C f (Maybe Text)
-  ,  paymentMethodType        :: B.C f (Maybe T.PaymentMethodType)
-  ,  status                   :: B.C f M.MandateStatus
+  ,  paymentMethodType        :: B.C f (Maybe T.PaymentMethodType)  -- EHS: check this conversion on real DB
+  ,  status                   :: B.C f M.MandateStatus               -- EHS: check this conversion on real DB
   ,  token                    :: B.C f Text
   ,  mandateId                :: B.C f Text
   ,  paymentMethodId          :: B.C f (Maybe Text)
-  ,  gateway                  :: B.C f (Maybe Gateway)
+  ,  gateway                  :: B.C f (Maybe Gateway)      -- EHS: check this conversion on real DB
   ,  gatewayParams            :: B.C f (Maybe Text)
   ,  authOrderId              :: B.C f (Maybe Int)
   ,  activatedAt              :: B.C f (Maybe LocalTime)
   ,  dateCreated              :: B.C f LocalTime
   ,  lastModified             :: B.C f LocalTime
   ,  authTxnCardInfo          :: B.C f (Maybe Text)
-  ,  currency                 :: B.C f (Maybe Text)
+  ,  currency                 :: B.C f (Maybe Currency)     -- EHS: check this conversion on real DB
   ,  merchantGatewayAccountId :: B.C f (Maybe Int)
   ,  metadata                 :: B.C f (Maybe Text)
   }

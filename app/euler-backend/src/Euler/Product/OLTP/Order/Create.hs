@@ -65,11 +65,11 @@ orderCreate routeParams order' mAccnt = do
 
   -- EHS: loading merchant is a effectful pre-validation procedure.
   --      Should be done on the validation layer.
-  mbExistingOrder <- loadOrder (order' ^. _order_id) (mAccnt ^. _merchantId)
+  mbExistingOrder <- loadOrder (order' ^. _orderId) (mAccnt ^. _merchantId)
 
   case mbExistingOrder of
     -- EHS: should we throw exception or return a previous order?
-    Just orderRef -> throwException $ orderAlreadyCreated (order' ^. _order_id)
+    Just orderRef -> throwException $ Errs.orderAlreadyCreated (order' ^. _orderId)
     Nothing       -> doOrderCreate routeParams order' mAccnt
 
 doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
@@ -86,13 +86,18 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   -- EHS: magic constants
   -- EHS: versioning should be done using a service
   let version = RP.lookupRP @RP.Version routeParams
-  let thatVersion = (version >= Just "2018-07-01") && (order' ^. _acquireOrderToken)
+  let thatVersion = (version >= Just "2018-07-01") && (order' ^. _orderTokenNeeded)
   case thatVersion of
     True  -> mkTokenizedOrderResponse cfg order mAccnt mbReseller
     False -> mkOrderResponse          cfg order mAccnt mbReseller
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?
+updateOrderCache :: D.Order -> Flow ()
+updateOrderCache order = do
+  let orderId = order ^. _orderId
+  -- EHS: magic constant.
+  void $ KVDBExtra.setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
 -- EHS: previously setMandateInCache
 -- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
@@ -437,7 +442,7 @@ saveOrder
   case SV.transSOrderToDOrder orderRef of
     V.Success order -> pure order
     V.Failure e -> do
-      logError $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
+      logError "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException Errs.internalError
 
 
@@ -452,7 +457,7 @@ saveOrderMetadata routeParams orderPId metadata' = do
   let sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
   let userAgent'     = RP.lookupRP @RP.UserAgent routeParams
   -- EHS: DB type should be denoted exclicitly
-  let orderMetadataDB = DB.OrderMetadataV2
+  let orderMetadataDBVal = DB.OrderMetadataV2
         { DB.id = Nothing
         , DB.browser = Nothing
         , DB.browserVersion = Nothing
@@ -461,46 +466,25 @@ saveOrderMetadata routeParams orderPId metadata' = do
         , DB.metadata = metadata'
         , DB.mobile = Just False
         , DB.operatingSystem = Nothing
-        , DB.orderReferenceId = Just orderPId
+        , DB.orderReferenceId = orderPId
         , DB.referer = Nothing
         , DB.userAgent = userAgent'
         , DB.dateCreated = orderMetadataTimestamp
         , DB.lastUpdated = orderMetadataTimestamp
         }
 
-  mbOrderMetadata :: Maybe DB.OrderMetadataV2 <- safeHead <$> withDB eulerDB
-    $ insertRowsReturningList
+  -- mbOrderMetadata :: Maybe DB.OrderMetadataV2 <- safeHead <$> withDB eulerDB
+  --   $ insertRowsReturningList
+  orderMetadataDB <- unsafeInsertRow (err500 {errBody = "Inserting order reference failed."}) eulerDB
     $ B.insert (DB.order_metadata_v2 eulerDBSchema)
-    $ B.insertExpressions [ (B.val_ orderMetadataDB) & _id .~ B.default_ ]
+    $ B.insertExpressions [ (B.val_ orderMetadataDBVal) & _id .~ B.default_ ]
 
-  pure $ orderMetadataDB & (_id .~ orderPId)
-
-
-cleanUp :: Maybe Text -> Maybe Text
-cleanUp mStr =  cleanUpSpecialChars <$>  mStr
-
-cleanUpSpecialChars :: Text -> Text
-cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: String))
--- from src/Euler/Utils/Utils.js
--- exports.cleanUpSpecialChars = function(val){
---   return val.replace(/[\\\\~!#%^=+\\|:;,\"'()-.&/]/g,"");
--- }
+  -- EHS: this is extremely suspicious. Substituting id from DB by orderPid
+  pure $ orderMetadataDB & (_id .~ Just orderPId)
 
 -- EHS: previously mapUDFParams
 fillUDFParams :: Ts.OrderCreateTemplate -> DB.OrderReference -> DB.OrderReference
-fillUDFParams order' orderRef = smash newUDF orderRef
-  where
-    (reqUDF :: D.UDF) = upcast order'
-    newUDF' D.UDF {..} = D.UDF
-      { D.udf1 = cleanUp udf1
-      , D.udf2 = cleanUp udf2
-      , D.udf3 = cleanUp udf3
-      , D.udf4 = cleanUp udf4
-      , D.udf5 = cleanUp udf5
-      , ..
-      }
-    newUDF = newUDF' reqUDF
-  -- EHS: Why are udf fields 1-5 cleaned and the rest not?
+fillUDFParams Ts.OrderCreateTemplate{udf} orderRef = smash udf orderRef
 
 -- EHS: previously handleReseller
 -- EHS: return domain type for Reseller instead of DB type
@@ -551,9 +535,8 @@ mkTokenizedOrderResponse
   -> MerchantAccount
   -> Maybe DB.ResellerAccount
   -> Flow API.OrderCreateResponse
-mkTokenizedOrderResponse cfg order@(D.Order {..}) _ mbResellerAcc = do
-
-  apiResp    <- mkOrderResponse cfg order mbResellerAcc
+mkTokenizedOrderResponse cfg order@(D.Order {..}) mAcc mbResellerAcc = do
+  apiResp    <- mkOrderResponse cfg order mAcc mbResellerAcc
   orderToken <- acquireOrderToken (order ^. _id) merchantId
   let (r :: API.OrderCreateResponse) = apiResp
         { API.status          = OEx.NEW
@@ -570,16 +553,16 @@ mkTokenizedOrderResponse cfg order@(D.Order {..}) _ mbResellerAcc = do
         , API.udf9            = (D.udf9  udf) <|> Just ""
         , API.udf10           = (D.udf10 udf) <|> Just ""
         , API.return_url      = returnUrl <|> Just ""
-        , API.refunded        = refundedEntirely <|> Just False
+        , API.refunded        = Just refundedEntirely
         , API.product_id      = productId <|> Just ""
-        , API.merchant_id     = merchantId <|> Just ""
+        , API.merchant_id     = Just merchantId
         , API.date_created    = Just dateCreated
         , API.customer_phone  = customerPhone <|> Just ""
         , API.customer_id     = customerId <|> Just ""
         , API.customer_email  = customerEmail <|> Just ""
-        , API.currency        = currency <|> Just ""
+        , API.currency        = (Just $ show currency) -- Is show valid here?
         -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
-        , API.amount_refunded = Just 0.0 -- EHS: where this shoud be taken from on order create??
-        , API.amount          = amount <|> Just 0.0
+        , API.amount_refunded = Just 0.0
+        , API.amount          = Just (D.fromMoney amount) -- <|> Just 0.0
         }
   pure r

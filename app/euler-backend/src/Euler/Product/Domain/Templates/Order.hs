@@ -50,10 +50,12 @@ data OrderCreateTemplate = OrderCreateTemplate
   , shippingAddr                   :: AddressTemplate
   -- EHS: shipping address country_code_iso Default: "IND"
   -- EHS: seems we always write the same first & last names for billing & shipping addresses.
-  , metaData                       :: Maybe Text
+  , metadata                       :: Maybe Text
   , description                    :: Maybe Text
   , productId                      :: Maybe Text
 
   , returnUrl                      :: Maybe Text
+  , udf                            :: UDF
+  , orderTokenNeeded               :: Bool                 -- EHS: not a domain field                    -- ^ Depends on version and passed param.
   }
   deriving (Show, Eq, Ord, Generic, ToJSON)

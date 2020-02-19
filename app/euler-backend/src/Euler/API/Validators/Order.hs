@@ -79,6 +79,41 @@ apiOrderUpdToUDF req = UDF
   <*> withField @"udf9" req pure
   <*> withField @"udf10" req pure
 
+apiOrderCreateToUDF :: API.OrderCreateRequest -> V UDF
+apiOrderCreateToUDF req = UDF
+  <$> withField @"udf1" req pure
+  <*> withField @"udf2" req pure
+  <*> withField @"udf3" req pure
+  <*> withField @"udf4" req pure
+  <*> withField @"udf5" req pure
+  <*> withField @"udf6" req pure
+  <*> withField @"udf7" req pure
+  <*> withField @"udf8" req pure
+  <*> withField @"udf9" req pure
+  <*> withField @"udf10" req pure
+
+-- -- EHS: cleanup UDFs
+-- cleanupTemplatedUdf D.UDF {..} = D.UDF
+--       { D.udf1 = cleanUp udf1
+--       , D.udf2 = cleanUp udf2
+--       , D.udf3 = cleanUp udf3
+--       , D.udf4 = cleanUp udf4
+--       , D.udf5 = cleanUp udf5
+--       , ..
+--       }
+--     newUDF = cleanupTemplatedUdf $ Ts.udf order'
+--   -- EHS: Why are udf fields 1-5 cleaned and the rest not?
+--   where
+--     cleanUp :: Maybe Text -> Maybe Text
+--     cleanUp mStr = cleanUpSpecialChars <$> mStr
+--
+--     cleanUpSpecialChars :: Text -> Text
+--     cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: String))
+--     -- from src/Euler/Utils/Utils.js
+--     -- exports.cleanUpSpecialChars = function(val){
+--     --   return val.replace(/[\\\\~!#%^=+\\|:;,\"'()-.&/]/g,"");
+--     -- }
+
 transApiOrdCreateToOrdCreateT :: API.OrderCreateRequest -> V Ts.OrderCreateTemplate
 transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <$> withField @"order_id" sm Vs.textNotEmpty
@@ -98,8 +133,10 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> apiOrderCreateToShippingAddrT sm -- shippingAddr
     <*> withField @"metaData" sm pure
     <*> withField @"description" sm pure -- description
-    <*> withField @"product_id" sm pure -- productId    
+    <*> withField @"product_id" sm pure -- productId
     <*> withField @"return_url" sm pure -- returnUrl
+    <*> apiOrderCreateToUDF sm
+    <*> withField @"options_get_client_auth_token" sm (extractMaybeWithDefault False)
 
   where
     parseMandate = do

@@ -91,5 +91,5 @@ _billingAddr = field' @"billingAddr"
 _orderType :: HasField' "orderType" s a => Lens s s a a
 _orderType = field' @"orderType"
 
-_acquireOrderToken :: HasField' "acquireOrderToken" s a => Lens s s a a
-_acquireOrderToken = field' @"acquireOrderToken"
+_orderTokenNeeded :: HasField' "orderTokenNeeded" s a => Lens s s a a
+_orderTokenNeeded = field' @"orderTokenNeeded"

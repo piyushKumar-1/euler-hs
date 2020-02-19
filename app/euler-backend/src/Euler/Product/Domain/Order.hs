@@ -41,7 +41,7 @@ data Order = Order
   , returnUrl         :: Maybe Text
 
   , amountRefunded    :: Maybe Double
-  , refundedEntirely  :: Maybe Bool
+  , refundedEntirely  :: Bool
   , autoRefund        :: Bool
 
   , productId         :: Maybe Text

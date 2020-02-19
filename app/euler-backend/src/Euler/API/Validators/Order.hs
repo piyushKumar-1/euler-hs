@@ -98,7 +98,7 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> apiOrderCreateToShippingAddrT sm -- shippingAddr
     <*> withField @"metaData" sm pure
     <*> withField @"description" sm pure -- description
-    <*> withField @"product_id" sm pure -- productId
+    <*> withField @"product_id" sm pure -- productId    
     <*> withField @"return_url" sm pure -- returnUrl
 
   where

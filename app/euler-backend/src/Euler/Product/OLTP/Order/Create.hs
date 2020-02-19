@@ -88,8 +88,8 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   let version = RP.lookupRP @RP.Version routeParams
   let thatVersion = (version >= Just "2018-07-01") && (order' ^. _acquireOrderToken)
   case thatVersion of
-    True  -> mkTokenizedOrderResponse cfg order mbReseller
-    False -> mkOrderResponse          cfg order mbReseller
+    True  -> mkTokenizedOrderResponse cfg order mAccnt mbReseller
+    False -> mkOrderResponse          cfg order mAccnt mbReseller
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?
@@ -117,7 +117,7 @@ updateMandateCache order = case order ^. _mandate of
         let orderId    = order ^. _orderId
         mandate <- createMandate order maxAmount
         -- EHS: magic constant
-        void $ setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
+        void $ KVDBExtra.setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
     createMandate :: D.Order -> Double -> Flow DB.Mandate
     createMandate order maxAmount = do
@@ -521,21 +521,23 @@ loadReseller (Just resellerId') = withDB eulerDB $ do
 mkOrderResponse
   :: Config.Config
   -> D.Order
+  -> MerchantAccount
   -> Maybe DB.ResellerAccount
   -> Flow API.OrderCreateResponse
-mkOrderResponse cfg (D.Order {..}) mbResellerAcc =
-  pure $ API.defaultOrderCreateResponse
-    { API.status        = OEx.CREATED
-    , API.status_id     = OEx.orderStatusToInt OEx.CREATED
-    , API.id            = orderUuid
-    , API.order_id      = orderId
-    , API.payment_links = API.Paymentlinks
-        -- EHS: magic constants
-        { API.web    = Just url'
-        , API.mobile = Just $ url' <> "?mobile=true"
-        , API.iframe = Just url'
+mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
+  let (r :: API.OrderCreateResponse) = API.defaultOrderCreateResponse
+        { API.status        = OEx.CREATED
+        , API.status_id     = OEx.orderStatusToInt OEx.CREATED
+        , API.id            = orderUuid
+        , API.order_id      = orderId
+        , API.payment_links = API.Paymentlinks
+            -- EHS: magic constants
+            { API.web    = Just url'
+            , API.mobile = Just $ url' <> "?mobile=true"
+            , API.iframe = Just url'
+            }
         }
-    }
+  pure r
   where
   -- EHS: magic constants
     mbResellerEndpoint = mbResellerAcc >>= (^. _resellerApiEndpoint)
@@ -546,34 +548,38 @@ mkOrderResponse cfg (D.Order {..}) mbResellerAcc =
 mkTokenizedOrderResponse
   :: Config.Config
   -> D.Order
+  -> MerchantAccount
   -> Maybe DB.ResellerAccount
   -> Flow API.OrderCreateResponse
-mkTokenizedOrderResponse cfg order'@(D.Order {..}) mbResellerAcc = do
+mkTokenizedOrderResponse cfg order@(D.Order {..}) _ mbResellerAcc = do
+
+  apiResp    <- mkOrderResponse cfg order mbResellerAcc
   orderToken <- acquireOrderToken (order ^. _id) merchantId
-  apiResp
-    { API.status          = OEx.NEW
-    , API.status_id       = OEx.orderStatusToInt OEx.NEW      -- EHS: this logic should be tested.
-    , API.juspay          = Just orderToken
-    , API.udf1            = udf1      <|> Just ""
-    , API.udf2            = udf2      <|> Just ""
-    , API.udf3            = udf3      <|> Just ""
-    , API.udf4            = udf4      <|> Just ""
-    , API.udf5            = udf5      <|> Just ""
-    , API.udf6            = udf6      <|> Just ""
-    , API.udf7            = udf7      <|> Just ""
-    , API.udf8            = udf8      <|> Just ""
-    , API.udf9            = udf9      <|> Just ""
-    , API.udf10           = udf10     <|> Just ""
-    , API.return_url      = returnUrl <|> Just ""
-    , API.refunded        = refundedEntirely <|> Just False
-    , API.product_id      = productId <|> Just ""
-    , API.merchant_id     = merchantId <|> Just ""
-    , API.date_created    = Just dateCreated
-    , API.customer_phone  = customerPhone <|> Just ""
-    , API.customer_id     = customerId <|> Just ""
-    , API.customer_email  = customerEmail <|> Just ""
-    , API.currency        = currency <|> Just ""
-    -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
-    , API.amount_refunded = Just 0.0 -- EHS: where this shoud be taken from on order create??
-    , API.amount          = amount <|> Just 0.0
-    }
+  let (r :: API.OrderCreateResponse) = apiResp
+        { API.status          = OEx.NEW
+        , API.status_id       = OEx.orderStatusToInt OEx.NEW
+        , API.juspay          = Just orderToken
+        , API.udf1            = (D.udf1  udf) <|> Just ""
+        , API.udf2            = (D.udf2  udf) <|> Just ""
+        , API.udf3            = (D.udf3  udf) <|> Just ""
+        , API.udf4            = (D.udf4  udf) <|> Just ""
+        , API.udf5            = (D.udf5  udf) <|> Just ""
+        , API.udf6            = (D.udf6  udf) <|> Just ""
+        , API.udf7            = (D.udf7  udf) <|> Just ""
+        , API.udf8            = (D.udf8  udf) <|> Just ""
+        , API.udf9            = (D.udf9  udf) <|> Just ""
+        , API.udf10           = (D.udf10 udf) <|> Just ""
+        , API.return_url      = returnUrl <|> Just ""
+        , API.refunded        = refundedEntirely <|> Just False
+        , API.product_id      = productId <|> Just ""
+        , API.merchant_id     = merchantId <|> Just ""
+        , API.date_created    = Just dateCreated
+        , API.customer_phone  = customerPhone <|> Just ""
+        , API.customer_id     = customerId <|> Just ""
+        , API.customer_email  = customerEmail <|> Just ""
+        , API.currency        = currency <|> Just ""
+        -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
+        , API.amount_refunded = Just 0.0 -- EHS: where this shoud be taken from on order create??
+        , API.amount          = amount <|> Just 0.0
+        }
+  pure r

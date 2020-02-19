@@ -1396,49 +1396,68 @@ makeOrderStatusResponse
   -> Bool
   -> Maybe Promotion'
   -> Maybe Mandate'
+  -> OrderStatusQuery
+  -> TxnDetail
+  -> Text -- use getGatewayReferenceId to get it
   -> Flow OrderStatusResponse
-makeOrderStatusResponse ordRef@OrderReference{..} paymentLinks isAuthenticated promotion mandate = do
-  -- TODO: handle exception to have pure function
-  id <- whenNothing orderUuid (throwException $ myerr "4")
+makeOrderStatusResponse ordRef@OrderReference{..} paymentLinks isAuthenticated promotion mandate query txn gatewayRefId = do
 
-  let mCustomerId = whenNothing customerId (Just "")
-  let email = (\email -> if isAuthenticated then email else Just "") customerEmail
-  let phone = (\phone -> if isAuthenticated then phone else Just "") customerPhone
+  -- Validation
 
+  -- TODO: handle exception as Either to have pure function
+  ordId <- whenNothing (getField @ "orderUuid" ordRef) (throwException $ myerr "4")
+
+  let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
+  let email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
+  let phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
+
+  let gateway   = fromMaybe "" (getField @"gateway" txn)
+      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
+      gatewayPay = getField @"gatewayPayload" txn
+      gatewayPayload' = if isBlankMaybe gatewayPay then gatewayPay else Nothing
+
+
+-- builder
 
   pure $ extract $ buildStatusResponse
     -- end
+    <<= changeGatewayRefId gatewayRefId
+    <<= changeGatewayId gatewayId
+    <<= changeTxnUuid (getField @"txnUuid" txn)
+    <<= changeTxnId (getField @"txnId" txn)
+    <<= changeStatusId (txnStatusToInt $ getField @"status" txn)
+    <<= changeStatus (show $ getField @"status" txn) -- double change
     <<= changeMandate mandate
     <<= changePromotion promotion
-    <<= changeUtf10 udf10
-    <<= changeUtf9 udf9
-    <<= changeUtf8 udf8
-    <<= changeUtf7 udf7
-    <<= changeUtf6 udf6
-    <<= changeUtf5 udf5
-    <<= changeUtf4 udf4
-    <<= changeUtf3 udf3
-    <<= changeUtf2 udf2
-    <<= changeUtf1 udf1
-    <<= changeReturnUrl returnUrl
+    <<= changeUtf10 (getField @"udf10" ordRef)
+    <<= changeUtf9 (getField @"udf9" ordRef)
+    <<= changeUtf8 (getField @"udf8" ordRef)
+    <<= changeUtf7 (getField @"udf7" ordRef)
+    <<= changeUtf6 (getField @"udf6" ordRef)
+    <<= changeUtf5 (getField @"udf5" ordRef)
+    <<= changeUtf4 (getField @"udf4" ordRef)
+    <<= changeUtf3 (getField @"udf3" ordRef)
+    <<= changeUtf2 (getField @"udf2" ordRef)
+    <<= changeUtf1 (getField @"udf1" ordRef)
+    <<= changeReturnUrl (getField @"returnUrl" ordRef)
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
-    <<= changeDateCreated (show dateCreated)
-    <<= changeAmountRefunded (fmap sanitizeAmount amountRefunded)
+    <<= changeDateCreated (show $ getField @"dateCreated" ordRef)
+    <<= changeAmountRefunded (fmap sanitizeAmount $ getField @"amountRefunded" ordRef)
     <<= changePaymentLinks paymentLinks
-    <<= changeRefunded refundedEntirely
-    <<= changeCurrency currency
-    <<= changeAmount (fmap sanitizeAmount amount)
-    <<= changeStatus (show status)
-    <<= changeProductId productId
+    <<= changeRefunded (getField @"refundedEntirely" ordRef)
+    <<= changeCurrency (getField @"currency" ordRef)
+    <<= changeAmount (fmap sanitizeAmount $ getField @ "amount" ordRef)
+    <<= changeStatus (show $ getField @ "status" ordRef)
+    <<= changeProductId (getField @"productId" ordRef)
     <<= changeCustomerId mCustomerId
-    <<= changeOrderId orderId
-    <<= changeMerchantId merchantId
-    <<= changeId id
+    <<= changeOrderId (getField @"orderId" ordRef)
+    <<= changeMerchantId (getField @"merchantId" ordRef)
+    <<= changeId ordId
     -- begin
 
 -- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
--- OrderStatusResponse {id = "hello", merchant_id = Nothing, ...
+-- OrderStatusResponse {id = "world", merchant_id = Nothing, ...
 
 changeId :: Text -> ResponseBuilder -> OrderStatusResponse
 changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
@@ -1515,6 +1534,36 @@ changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
 changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
 
+-- Move changePromotion and changeMandate here
+
+changeStatusId :: Int -> ResponseBuilder -> OrderStatusResponse
+changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
+
+changeTxnId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeTxnId txnId builder = builder $ mempty {txn_idT = Just $ Last txnId}
+
+changeTxnUuid :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeTxnUuid txnUuid builder = builder $ mempty {txn_uuidT = fmap Last txnUuid}
+
+changeGatewayId :: Int -> ResponseBuilder -> OrderStatusResponse
+changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = Just $ Last gatewayId}
+
+changeGatewayRefId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeGatewayRefId gatewayRefId builder = builder $ mempty {gateway_reference_idT = Just $ Last gatewayRefId}
+
+  -- pure (orderStatus
+  --   { status = show $ getField @"status" txn
+  --   , status_id = txnStatusToInt $ getField @"status" txn
+  --   , txn_id = Just $ getField @"txnId" txn
+  --   , txn_uuid = getField @"txnUuid" txn
+  --   , gateway_id = Just gatewayId
+  --   , gateway_reference_id = Just gatewayRefId
+
+  --   , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
+  --   , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+  --   , gateway_payload = addGatewayPayload txn
+  --   , txn_detail = Just $ mapTxnDetail txn
+  --   } :: OrderStatusResponse)
 
 
 
@@ -1886,7 +1935,7 @@ addPromotionDetails orderRef orderStatus = do
 
 
 -- for builder
--- > extract $ buildStatusResponse <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
+
 
 loadPromotions :: OrderReference -> Flow (Text, [Promotions])
 loadPromotions orderRef = do
@@ -1925,6 +1974,13 @@ decryptActivePromotion (ordId, promotions) = do
 
   --         pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
 
+-- wrong logic
+-- > extract $ buildStatusResponse <<= changePromotion (Just promotion2) <<= changePromotion (Just promotion1)
+-- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 7.0, ...
+
+-- > extract $ buildStatusResponse <<= changePromotion (Just promotion1) <<= changePromotion (Just promotion2)
+-- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 5.0, ...
+
 changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
 changePromotion Nothing builder = builder mempty
 changePromotion mNewProm@(Just newProm) builder =
@@ -1934,8 +1990,9 @@ changePromotion mNewProm@(Just newProm) builder =
       newAmount = sanitizeAmount $ (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
   in builder mempty
       { promotionT = fmap Last mNewProm
-      , amountT = Just (Last newAmount)
+      , amountT = (fmap Last mOldAmount) <> Just (Last newAmount)
       }
+
 
 
 promotion1 :: Promotion'
@@ -2047,6 +2104,8 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
          if (isBlankMaybe $ getField @"gatewayPayload" txn)
            then getField @"gatewayPayload" txn
            else Nothing
+
+
 
 -- ----------------------------------------------------------------------------
 -- function: mapTxnDetail

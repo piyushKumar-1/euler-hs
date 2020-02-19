@@ -28,7 +28,7 @@ import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import           Data.Time.Clock
+import           Data.Time
 import           Servant.Server
 import           Control.Comonad hiding ((<<=))
 import           Data.Semigroup as S
@@ -374,17 +374,6 @@ buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
   , second_factor_response    = fmap getLast second_factor_responseT
   , txn_flow_info             = fmap getLast txn_flow_infoT
   }
-
--- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
--- OrderStatusResponse {id = "hello", merchant_id = Nothing, ...
-
-changeId :: Text -> ResponseBuilder -> OrderStatusResponse
-changeId newId builder = builder $ mempty { idT = Just $ First newId}
-
-changeAmount :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
-changeAmount newAmount builder = builder $ mempty {amountT = fmap Last newAmount}
-
-
 
 
 
@@ -1398,6 +1387,135 @@ mkResponse isAuthenticated paymentLinks ord status = do
        , udf9 = fromMaybe "" (getField @"udf9" ord)
        , udf10 = fromMaybe "" (getField @"udf10" ord)
        }
+
+
+-- main builder
+makeOrderStatusResponse
+  :: OrderReference
+  -> Paymentlinks
+  -> Bool
+  -> Maybe Promotion'
+  -> Maybe Mandate'
+  -> Flow OrderStatusResponse
+makeOrderStatusResponse ordRef@OrderReference{..} paymentLinks isAuthenticated promotion mandate = do
+  -- TODO: handle exception to have pure function
+  id <- whenNothing orderUuid (throwException $ myerr "4")
+
+  let mCustomerId = whenNothing customerId (Just "")
+  let email = (\email -> if isAuthenticated then email else Just "") customerEmail
+  let phone = (\phone -> if isAuthenticated then phone else Just "") customerPhone
+
+
+  pure $ extract $ buildStatusResponse
+    -- end
+    <<= changeMandate mandate
+    <<= changePromotion promotion
+    <<= changeUtf10 udf10
+    <<= changeUtf9 udf9
+    <<= changeUtf8 udf8
+    <<= changeUtf7 udf7
+    <<= changeUtf6 udf6
+    <<= changeUtf5 udf5
+    <<= changeUtf4 udf4
+    <<= changeUtf3 udf3
+    <<= changeUtf2 udf2
+    <<= changeUtf1 udf1
+    <<= changeReturnUrl returnUrl
+    <<= changeCustomerPhone phone
+    <<= changeCustomerEmail email
+    <<= changeDateCreated (show dateCreated)
+    <<= changeAmountRefunded (fmap sanitizeAmount amountRefunded)
+    <<= changePaymentLinks paymentLinks
+    <<= changeRefunded refundedEntirely
+    <<= changeCurrency currency
+    <<= changeAmount (fmap sanitizeAmount amount)
+    <<= changeStatus (show status)
+    <<= changeProductId productId
+    <<= changeCustomerId mCustomerId
+    <<= changeOrderId orderId
+    <<= changeMerchantId merchantId
+    <<= changeId id
+    -- begin
+
+-- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
+-- OrderStatusResponse {id = "hello", merchant_id = Nothing, ...
+
+changeId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
+
+changeMerchantId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = fmap First mMerchantId}
+
+changeAmount :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
+changeAmount amount builder = builder $ mempty {amountT = fmap Last amount}
+
+changeOrderId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeOrderId orderId builder = builder $ mempty {order_idT = fmap First orderId}
+
+changeCustomerId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCustomerId customerId builder = builder $ mempty {customer_idT = fmap Last customerId}
+
+changeProductId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeProductId productId builder = builder $ mempty {product_idT = fmap Last productId}
+
+changeStatus :: Text -> ResponseBuilder -> OrderStatusResponse
+changeStatus status builder = builder $ mempty {statusT = Just $ Last status}
+
+changeCurrency :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCurrency currency builder = builder $ mempty {currencyT = map Last currency}
+
+changeRefunded :: Maybe Bool -> ResponseBuilder -> OrderStatusResponse
+changeRefunded refunded builder = builder $ mempty {refundedT = map Last refunded}
+
+changePaymentLinks :: Paymentlinks -> ResponseBuilder -> OrderStatusResponse
+changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Just $ Last paymentLinks}
+
+changeAmountRefunded :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
+changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = fmap Last amountRefunded}
+
+changeDateCreated :: Text -> ResponseBuilder -> OrderStatusResponse
+changeDateCreated dateCreated builder = builder $ mempty {date_createdT = Just $ Last dateCreated}
+
+changeCustomerEmail :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCustomerEmail customerEmail builder = builder $ mempty {customer_emailT = map Last customerEmail}
+
+changeCustomerPhone :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = map Last customerPhone}
+
+changeReturnUrl :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = map Last returnUrl}
+
+changeUtf1 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf1 utf1 builder = builder $ mempty {udf1T = map Last utf1}
+
+changeUtf2 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf2 utf2 builder = builder $ mempty {udf2T = map Last utf2}
+
+changeUtf3 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf3 utf3 builder = builder $ mempty {udf3T = map Last utf3}
+
+changeUtf4 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf4 utf4 builder = builder $ mempty {udf4T = map Last utf4}
+
+changeUtf5 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf5 utf5 builder = builder $ mempty {udf5T = map Last utf5}
+
+changeUtf6 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf6 utf6 builder = builder $ mempty {udf6T = map Last utf6}
+
+changeUtf7 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf7 utf7 builder = builder $ mempty {udf7T = map Last utf7}
+
+changeUtf8 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf8 utf8 builder = builder $ mempty {udf8T = map Last utf8}
+
+changeUtf9 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
+
+changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
+
+
 
 
 -- ----------------------------------------------------------------------------

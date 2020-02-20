@@ -111,6 +111,7 @@ dependencies:
 - beam-sqlite
 - beam-mysql
 - beam-migrate
+- template-haskell
 
 library:
   source-dirs:

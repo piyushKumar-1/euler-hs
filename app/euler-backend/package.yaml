@@ -38,6 +38,7 @@ dependencies:
 - base >= 4.7 && < 5
 - aeson
 - aeson-casing
+- binary
 - bytestring
 - comonad
 - containers
@@ -116,6 +117,7 @@ dependencies:
 - beam-migrate
 - template-haskell
 - hedis
+- raw-strings-qq
 
 library:
   source-dirs:

@@ -15,6 +15,7 @@ import qualified Euler.Tests.API.OrderSpec                  as Order
 =======
 import qualified Euler.Tests.API.CardSpec as Card
 import qualified Euler.Tests.API.OrderSpec as Order
+import qualified Euler.Tests.EncDec.XML.PaymentGatewayResponse as PGRXml
 import qualified Euler.Tests.EncDec.XML.RMSIDResult as RMSIDResultXML
 import qualified Euler.Tests.Encryption.EncryptionSpec as Encryption
 import qualified Euler.Tests.FlexApis.SampleApiSpec as FlexApis.SampleApiSpec
@@ -47,3 +48,4 @@ spec = do
     describe "Money Tests"                                MoneySpec.spec
     describe "AuthRSA"                                    AuthRSA.spec
     describe "RMSIDResultXML"                             RMSIDResultXML.spec
+    describe "PGRXml"                                     PGRXml.spec

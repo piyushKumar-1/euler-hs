@@ -34,6 +34,7 @@ import qualified Euler.API.Transaction                  as ApiTxn
 
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
+import qualified Euler.API.Validators.Order             as VO
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 import qualified Data.ByteString.Lazy                   as BSL
@@ -78,8 +79,8 @@ type EulerAPI
 -- Order create
   :<|> "orders"
       :> OrderCreateEndpoint
-      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
-      :> Post '[JSON] ApiOrder.OrderCreateResponse
+--      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderCreateRequest
+--      :> Post '[JSON] ApiOrder.OrderCreateResponse
 
 -- Order update
   :<|> "orders"
@@ -278,13 +279,13 @@ orderStatus
   -> Maybe Authorization
   -> Maybe XForwardedFor
   -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId auth xforwarderfor = do
-  let (rps :: RouteParameters) = collectRPs
-              orderId
-              auth
-              xforwarderfor
-  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
-  pure res
+orderStatus orderId auth xforwarderfor = undefined --do
+--  let (rps :: RouteParameters) = collectRPs
+--              orderId
+--              auth
+--              xforwarderfor
+--  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
+--  pure res
 
 -- EHS: Extract from here.
 type OrderCreateEndpoint
@@ -324,7 +325,7 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
                xforwarderfor
                (sockAddrToSourceIP sockAddr)
 
-  let eValidated = transform ordReq
+  let eValidated = VO.transApiOrdCreateToOrdCreateT ordReq
   -- EHS: TODO: move validations from validateOrderParams
   -- validateOrderParams orderCreateReq
 
@@ -335,7 +336,7 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
       runFlow "orderCreate" rps (toJSON ordReq)
           $ AS.withMacc OrderCreate.orderCreate rps validatedOrder
 
-orderUpdate :: Text -> ApiOrder.OrderCreateRequest -> FlowHandler ApiOrder.OrderStatusResponse
+orderUpdate :: Text -> ApiOrder.OrderUpdateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do
   res <- do
     liftIO $ putStrLn ("orderUpdateStart" :: String)

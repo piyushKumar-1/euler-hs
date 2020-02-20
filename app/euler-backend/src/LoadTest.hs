@@ -7,6 +7,7 @@ import           EulerHS.Prelude
 import App
 import Control.Concurrent.MVar (modifyMVar, modifyMVar_)
 import Euler.API.Order
+import Euler.Common.Types.Currency
 import Network.HTTP.Client
 import Network.Socket (SockAddr(..))
 import Network.Wai.Handler.Warp (run, Settings, setPort, defaultSettings, runSettings, setBeforeMainLoop)
@@ -70,7 +71,7 @@ main = do
   let orderCreateBody = defaultOrderCreateRequest
         { order_id                          = "hello"
         , amount                            = 1.01
-        , currency                          = Just "INR"
+        , currency                          = Just INR
         , customer_id                       = Just "randomcustomer"
         , customer_email                    = Just "randomcustomer@mail.com"
         , customer_phone                    = Just "7076607677"

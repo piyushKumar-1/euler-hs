@@ -5,6 +5,7 @@ module Euler.Common.Validators where
 import EulerHS.Prelude
 import EulerHS.Extra.Validation as V
 import qualified Data.Map  as Map
+import qualified Data.Set  as Set
 import qualified Data.Text as T
 import           Data.Char (isDigit, digitToInt)
 import           Data.Attoparsec.Text
@@ -12,6 +13,7 @@ import           GHC.Records (getField)
 
 -- EHS: rework imports, rework dependencies.
 import Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
+import Euler.Common.Types.Order (UDF(..))
 import Euler.Common.Types.Transaction (AuthType(..))
 import Euler.Product.Domain.UPIPayment (UPITxnType)
 import Euler.Product.Domain.Card (CardType)
@@ -236,3 +238,22 @@ lastNameValidators =
   parValidate
     [ textMaxLength64
     ]
+
+cleanUpUDF :: UDF -> UDF
+cleanUpUDF UDF {..} = UDF
+  { udf1 = cleanUp udf1
+  , udf2 = cleanUp udf2
+  , udf3 = cleanUp udf3
+  , udf4 = cleanUp udf4
+  , udf5 = cleanUp udf5
+  , ..
+  }
+  where
+    cleanUp :: Maybe Text -> Maybe Text
+    cleanUp mStr =  cleanUpSpecialChars <$>  mStr
+
+    cleanUpSpecialChars :: Text -> Text
+    cleanUpSpecialChars = T.filter (`Set.notMember` specialChars)
+
+    specialChars :: Set.Set Char
+    specialChars = Set.fromList "~!#%^=+\\|:;,\"'()-.&/"

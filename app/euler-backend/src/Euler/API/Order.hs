@@ -21,6 +21,7 @@ import           Euler.Common.Types.Money     (Money)
 import           Euler.Common.Types.External.Order     (OrderStatus (..))
 import           Euler.Common.Types.External.Mandate   (MandateFeature (..))
 import           Euler.Common.Types.Promotion
+import           Euler.Common.Types.Refund as Refund
 
 
 
@@ -497,7 +498,7 @@ data Refund' = Refund'
   ,  unique_request_id     :: Maybe Text
   ,  ref                   :: Maybe Text -- Foreign
   ,  created               :: Text
-  ,  status                :: RefundStatus -- Refund.RefundStatus
+  ,  status                :: Refund.RefundStatus
   ,  error_message         :: Maybe Text
   ,  sent_to_gateway       :: Maybe Bool
   ,  arn                   :: Maybe Text
@@ -508,8 +509,8 @@ data Refund' = Refund'
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Storage/EC/Refund.purs
-data RefundStatus = FAILURE | MANUAL_REVIEW | PENDING | SUCCESS | TXN_FAILURE
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+-- data RefundStatus = FAILURE | MANUAL_REVIEW | PENDING | SUCCESS | TXN_FAILURE
+--   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Storage/EC/Mandate/Types.purs
 data Mandate' = Mandate'
   { mandate_token  :: Text

@@ -3,11 +3,12 @@
 module Euler.Product.OLTP.Services.AuthenticationService where
 
 
-import EulerHS.Prelude hiding (show, id)
+import EulerHS.Prelude hiding (id)
 import Euler.Lens
 import EulerHS.Language
 import EulerHS.Types hiding (error)
 
+import qualified EulerHS.Extra.Validation as V
 
 import Data.Generics.Product
 import Data.Generics.Product.Fields
@@ -15,9 +16,12 @@ import Data.List (intersect)
 import Servant.Server
 
 import Euler.API.RouteParameters
+import Euler.Common.Errors.PredefinedErrors
 import Euler.Common.Types.Merchant
+import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Storage.Types.IngressRule as DBIR
 import qualified Euler.Storage.Types.MerchantAccount as DBM
+import qualified Euler.Storage.Validators.MerchantAccount as MV
 import Euler.Storage.Types.IngressRule
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.EulerDB
@@ -38,10 +42,10 @@ import qualified Euler.Storage.Types.SqliteTest as SQLITE
 import Euler.Common.Types.DefaultDate
 import Euler.KVDB.Redis
 
-withMacc :: forall req resp . (req -> RouteParameters -> DBM.MerchantAccount -> Flow  resp) -> req -> RouteParameters -> Flow resp
-withMacc f req rp = do
+withMacc :: forall req resp . (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp) -> RouteParameters -> req -> Flow resp
+withMacc f rp req = do
   ma <- authenticateRequest rp
-  f req rp ma
+  f rp req ma
 
 getMerchantId :: DBM.MerchantAccount -> Flow Text
 getMerchantId mAcc = case DBM.merchantId mAcc of
@@ -62,7 +66,7 @@ extractApiKey k = T.takeWhile (/=':') <$> decodeB64Text (T.strip $ snd $ T.break
 
 
 -- used "X-Auth-Scope", "Authorization" and "x-forwarded-for" headers
-authenticateRequest :: RouteParameters -> Flow DBM.MerchantAccount
+authenticateRequest :: RouteParameters -> Flow DM.MerchantAccount
 authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
   Just apiKeyStr -> do
     case extractApiKey apiKeyStr of
@@ -97,7 +101,12 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         --TODO: Need to validate the X-Auth-Scope with MerchantKey.scope -> If different, throw ecAccessDenied
         authScope <- getAuthScope routeParams
         _ <- if authScope == MERCHANT then ipAddressFilters merchantAccount (lookupRP @XForwardedFor routeParams) else pure True
-        pure $ merchantAccount
+        let eValidMerchant = MV.transSMaccToDomMacc merchantAccount
+        case eValidMerchant of
+          V.Failure e -> do
+            logError "DB MerchantAccount Validation" $ show e
+            throwException internalError
+          V.Success validMAcc -> pure validMAcc
   Nothing -> do
     logError "authenticateRequestWithouthErr" "No authorization found in header"
     throwException err403 {errBody = "API key not present in Authorization header"}

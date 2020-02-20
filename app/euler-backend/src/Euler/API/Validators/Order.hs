@@ -26,7 +26,7 @@ import qualified Euler.Product.Domain.Templates.Order as Ts
 apiOrderUpdToOrderUpdT :: API.OrderUpdateRequest -> V Ts.OrderUpdateTemplate
 apiOrderUpdToOrderUpdT req = Ts.OrderUpdateTemplate
   <$> ( (fmap . fmap) mkMoney $ withField @"amount" req (insideJust Vs.amountValidators))
-  <*> apiOrderUpdToUDF req
+  <*> (Vs.cleanUpUDF <$> apiOrderUpdToUDF req)
   <*> apiOrderUpdToBillingAddrHolderT req
   <*> apiOrderUpdToBillingAddrT req
   <*> apiOrderUpdToShippingAddrHolderT req
@@ -92,6 +92,8 @@ apiOrderCreateToUDF req = UDF
   <*> withField @"udf9" req pure
   <*> withField @"udf10" req pure
 
+
+
 -- -- EHS: cleanup UDFs
 -- cleanupTemplatedUdf D.UDF {..} = D.UDF
 --       { D.udf1 = cleanUp udf1
@@ -135,7 +137,7 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     <*> withField @"description" sm pure -- description
     <*> withField @"product_id" sm pure -- productId
     <*> withField @"return_url" sm pure -- returnUrl
-    <*> apiOrderCreateToUDF sm
+    <*> (Vs.cleanUpUDF <$> apiOrderCreateToUDF sm)
     <*> withField @"options_get_client_auth_token" sm (extractMaybeWithDefault False)
 
   where

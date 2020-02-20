@@ -1431,6 +1431,7 @@ makeOrderStatusResponse
       email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
       phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
 
+      amount = fmap sanitizeAmount $ getField @ "amount" ordRef
       amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" ordRef
       statusId = txnStatusToInt $ getField @"status" txn
       gateway   = fromMaybe "" (getField @"gateway" txn)
@@ -1453,10 +1454,14 @@ makeOrderStatusResponse
       mChargebacks = maybeList chargebacks
 
 
--- build pipeline
+-- Build pipeline
+-- keep it pure
 
   pure $ extract $ buildStatusResponse
     -- end
+
+    -- TODO addGatewayResponse here
+    -- addGatewayResponse
 
     <<= changeChargeBacks mChargebacks
     -- addChargeBacks
@@ -1527,7 +1532,7 @@ makeOrderStatusResponse
     <<= changePaymentLinks paymentLinks
     <<= changeRefunded (getField @"refundedEntirely" ordRef)
     <<= changeCurrency (getField @"currency" ordRef)
-    <<= changeAmount (fmap sanitizeAmount $ getField @ "amount" ordRef)
+    <<= changeAmount amount
     <<= changeStatus (show $ getField @ "status" ordRef) -- first status change
     <<= changeProductId (getField @"productId" ordRef)
     <<= changeCustomerId mCustomerId
@@ -3551,9 +3556,9 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
       $ B.filter_ predicate
       $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
 
-  --case join paymentGatewayResp of
   case mPaymentGatewayResp of
     Just pgr -> do
+      -- Зависимость
       ordStatus <- getPaymentGatewayResponse txn pgr orderStatus
 
       -- unNullOrUndefined (ordStatus ^._payment_gateway_response'))
@@ -3562,21 +3567,7 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
       case mPgr' of
         Just pgr' -> do
           gatewayResponse <- getGatewayResponseInJson pgr shouldSendFullGatewayResponse
-          let r = MerchantPaymentGatewayResponse {
-               resp_code = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.resp_code nullVal
-            ,  rrn = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.rrn nullVal
-            ,  created = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.created nullVal
-            ,  epg_txn_id = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.epg_txn_id nullVal
-            ,  resp_message = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.resp_message nullVal
-            ,  auth_id_code = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.auth_id_code nullVal
-            ,  txn_id = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.txn_id nullVal
-            ,  offer = getField @"offer" pgr' -- : pgr'.offer
-            ,  offer_type = getField @"offer_type" pgr' -- : pgr'.offer_type
-            ,  offer_availed = getField @"offer_availed" pgr' -- : pgr'.offer_availed
-            ,  discount_amount = getField @"discount_amount" pgr' -- : pgr'.discount_amount
-            ,  offer_failure_reason = getField @"offer_failure_reason" pgr' -- : pgr'.offer_failure_reason
-            ,  gateway_response = gatewayResponse -- TODO Text/ByteString?
-          }
+          let r = makeMerchantPaymentGatewayResponse gatewayResponse pgr'
 
           pure (orderStatus
             { payment_gateway_response' = Nothing
@@ -3586,16 +3577,53 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
         Nothing -> pure orderStatus
     Nothing -> pure orderStatus
 
-  -- TODO move to common utils or sth to that effect
+
+loadPaymentGatewayResponse :: TxnDetail -> Bool -> Flow (Maybe PaymentGatewayResponse)
+loadPaymentGatewayResponse txn sendFullGatewayResponse = do
+
+  -- TODO OS: We need to have this clarified with Sushobhith
+  -- they introduces PGRV1 in early 2020
+
+  -- paymentGatewayResp <- sequence $ findMaybePGRById <$> unNullOrUndefined (txn ^. _successResponseId)
+
+  -- findMaybePGRById :: forall st rt e. Newtype st (TState e) => String -> BackendFlow st _ (Maybe PaymentGatewayResponseV1)
+  -- findMaybePGRById pgrRefId = DB.findOne ecDB $ where_ := WHERE ["id" /\ String pgrRefId]
+
+  respId <- whenNothing (getField @"successResponseId" txn)  (throwException err500)
+
+  withDB eulerDB $ do
+    let predicate PaymentGatewayResponse {id} =
+          id ==. B.just_ (B.val_ $ show respId)
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
+
+
+makeMerchantPaymentGatewayResponse :: Maybe Text -> MerchantPaymentGatewayResponse' -> MerchantPaymentGatewayResponse
+makeMerchantPaymentGatewayResponse gatewayResponse pgr' = MerchantPaymentGatewayResponse
+  { resp_code = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.resp_code nullVal
+  , rrn = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.rrn nullVal
+  , created = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.created nullVal
+  , epg_txn_id = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.epg_txn_id nullVal
+  , resp_message = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.resp_message nullVal
+  , auth_id_code = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.auth_id_code nullVal
+  , txn_id = Just $ checkNull $ getField @"resp_code" pgr' -- : just $ checkNull pgr'.txn_id nullVal
+  , offer = getField @"offer" pgr' -- : pgr'.offer
+  , offer_type = getField @"offer_type" pgr' -- : pgr'.offer_type
+  , offer_availed = getField @"offer_availed" pgr' -- : pgr'.offer_availed
+  , discount_amount = getField @"discount_amount" pgr' -- : pgr'.discount_amount
+  , offer_failure_reason = getField @"offer_failure_reason" pgr' -- : pgr'.offer_failure_reason
+  , gateway_response = gatewayResponse -- TODO Text/ByteString?
+  }
+    -- TODO move to common utils or sth to that effect
   where
     checkNull :: Maybe Text -> Text
-    checkNull (Just resp)
-      | resp == "null" = nullVal  --  (unNull resp "") == "null" = nullVal
-      | otherwise      = resp -- TODO original: toForeign $ (unNull resp "")
-      where
-        -- TODO what's that?  nullVal   <- pure $ nullValue unit
-        nullVal = mempty
     checkNull Nothing = mempty
+    checkNull (Just resp)
+      | resp == "null" = mempty  --  (unNull resp "") == "null" = nullVal
+      | otherwise      = resp -- TODO original: toForeign $ (unNull resp "")
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayResponseInJson
@@ -3789,16 +3817,8 @@ getPaymentGatewayResponse txn pgr orderStatusResp = do
         upgr    = defaultPaymentGatewayResponse # _created .~ date
 -}
 
-getPaymentGatewayResponse ::
-  -- ∀ st r.
-  --     Newtype st
-  --       { orderId           :: Maybe String
-  --       , merchantId        :: Maybe String
-  --       , isDBMeshEnabled   :: Maybe Boolean
-  --       , isMemCacheEnabled :: Boolean
-  --       | r }
-  --     =>
-  TxnDetail
+getPaymentGatewayResponse
+  :: TxnDetail
   -> PaymentGatewayResponse
   -> OrderStatusResponse
   -> Flow OrderStatusResponse

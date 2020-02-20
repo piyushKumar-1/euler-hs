@@ -18,6 +18,8 @@ import qualified Database.Beam.Backend.SQL as B
 
 import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
+-- EHS: rework this logic.
+
 -- import Data.StrMap
 -- import ECPrelude
 --

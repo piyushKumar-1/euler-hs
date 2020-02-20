@@ -318,6 +318,9 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
 type ResponseBuilder = OrderStatusResponseTemp -> OrderStatusResponse
 
+emptyBuilder :: ResponseBuilder -> OrderStatusResponse
+emptyBuilder builder = builder mempty
+
 
 buildStatusResponse :: ResponseBuilder
 buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
@@ -1399,9 +1402,10 @@ makeOrderStatusResponse
   -> OrderStatusQuery
   -> TxnDetail
   -> Text -- use getGatewayReferenceId to get it
-  -> Risk
+  -> Maybe Risk
+  -> Maybe TxnCardInfo
   -> Flow OrderStatusResponse
-makeOrderStatusResponse ordRef paymentLinks isAuthenticated promotion mandate query txn gatewayRefId risk = do
+makeOrderStatusResponse ordRef paymentLinks isAuthenticated mPromotion mMandate query txn gatewayRefId mRisk mTxnCard = do
 
   -- Validation
 
@@ -1412,29 +1416,53 @@ makeOrderStatusResponse ordRef paymentLinks isAuthenticated promotion mandate qu
       email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
       phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
 
+      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" ordRef
+      statusId = txnStatusToInt $ getField @"status" txn
       gateway   = fromMaybe "" (getField @"gateway" txn)
       gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
       mGatewayPayload' = getField @"gatewayPayload" txn
       gatewayPayload = if isBlankMaybe mGatewayPayload' then mGatewayPayload' else Nothing
+      bankErrorCode = whenNothing (getField @"bankErrorCode" txn) (Just "")
+      bankErrorMessage = whenNothing (getField @"bankErrorMessage" txn) (Just "")
       txnDetail' = mapTxnDetail txn
+
+  -- case txnCard of
+  --   Just card -> do
+  --     cardBrandMaybe <- getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+  --     orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
+  --     let orderStatus' =
+  --           addCardInfo txn card sendCardIsin cardBrandMaybe
+  --             $ addAuthType card
+  --             $ addEmi txn orderStatus
+  --     addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
+  --   Nothing -> pure ordStatus
 
 -- builder
 
   pure $ extract $ buildStatusResponse
     -- end
-    <<= changeRisk risk
+    <<= changeRisk mRisk
+    -- addRiskCheckInfoToResponse
+
+
     <<= changeTxnDetails txnDetail'
     <<= changeGatewayPayload gatewayPayload
-    <<= changeBankErrorMessage (whenNothing (getField @"bankErrorMessage" txn) (Just ""))
-    <<= changeBankErrorCode (whenNothing (getField @"bankErrorCode" txn) (Just ""))
+    <<= changeBankErrorMessage bankErrorMessage
+    <<= changeBankErrorCode bankErrorCode
     <<= changeGatewayRefId gatewayRefId
     <<= changeGatewayId gatewayId
     <<= changeTxnUuid (getField @"txnUuid" txn)
     <<= changeTxnId (getField @"txnId" txn)
-    <<= changeStatusId (txnStatusToInt $ getField @"status" txn)
-    <<= changeStatus (show $ getField @"status" txn) -- double change
-    <<= changeMandate mandate
-    <<= changePromotion promotion
+    <<= changeStatusId statusId
+    <<= changeStatus (show $ getField @"status" txn) -- second status change
+    -- addTxnDetailsToResponse
+
+    <<= changeMandate mMandate
+    -- addMandateDetails
+
+    <<= changePromotion mPromotion
+    -- addPromotionDetails
+
     <<= changeUtf10 (getField @"udf10" ordRef)
     <<= changeUtf9 (getField @"udf9" ordRef)
     <<= changeUtf8 (getField @"udf8" ordRef)
@@ -1449,22 +1477,28 @@ makeOrderStatusResponse ordRef paymentLinks isAuthenticated promotion mandate qu
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
     <<= changeDateCreated (show $ getField @"dateCreated" ordRef)
-    <<= changeAmountRefunded (fmap sanitizeAmount $ getField @"amountRefunded" ordRef)
+    <<= changeAmountRefunded amountRefunded
     <<= changePaymentLinks paymentLinks
     <<= changeRefunded (getField @"refundedEntirely" ordRef)
     <<= changeCurrency (getField @"currency" ordRef)
     <<= changeAmount (fmap sanitizeAmount $ getField @ "amount" ordRef)
-    <<= changeStatus (show $ getField @ "status" ordRef)
+    <<= changeStatus (show $ getField @ "status" ordRef) -- first status change
     <<= changeProductId (getField @"productId" ordRef)
     <<= changeCustomerId mCustomerId
     <<= changeOrderId (getField @"orderId" ordRef)
     <<= changeMerchantId (getField @"merchantId" ordRef)
     <<= changeId ordId
-    -- begin
+    -- mkResponse
+
+    -- begin (reverse direction)
+    -- последовательность имеет значение
+
 
 -- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
 -- OrderStatusResponse {id = "world", merchant_id = Nothing, ...
 
+-- former fillOrderDetails
+-- mkResponse
 changeId :: Text -> ResponseBuilder -> OrderStatusResponse
 changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
 
@@ -1540,6 +1574,10 @@ changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
 changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
 
+
+-- addPromotionDetails
+
+
   --         let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
   --             ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
 
@@ -1564,8 +1602,16 @@ changePromotion mNewProm@(Just newProm) builder =
       , amountT = (fmap Last mOldAmount) <> Just (Last newAmount)
       }
 
+
+-- addMandateDetails
+
+
 changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
 changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
+
+
+-- addTxnDetailsToResponse
+
 
 changeStatusId :: Int -> ResponseBuilder -> OrderStatusResponse
 changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
@@ -1594,8 +1640,14 @@ changeGatewayPayload gatewayPayload builder = builder $ mempty {gateway_payloadT
 changeTxnDetails :: TxnDetail' -> ResponseBuilder -> OrderStatusResponse
 changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last txnDetail}
 
-changeRisk :: Risk -> ResponseBuilder -> OrderStatusResponse
-changeRisk risk builder = builder $ mempty {riskT = Just $ Last risk}
+
+-- addRiskCheckInfoToResponse
+
+changeRisk :: Maybe Risk -> ResponseBuilder -> OrderStatusResponse
+changeRisk risk builder = builder $ mempty {riskT = map Last risk}
+
+
+
 
 
 
@@ -1703,7 +1755,7 @@ mapMandate Mandate {..} =
             }
 
 
--- for Builders
+-- refactoring
 
 
 loadMandate :: OrderReference -> Flow (Maybe Mandate')
@@ -1992,7 +2044,7 @@ addPromotionDetails orderRef orderStatus = do
         Nothing -> pure orderStatus
 
 
--- for builder
+-- refactoring
 
 
 loadPromotions :: OrderReference -> Flow (Text, [Promotions])
@@ -2322,6 +2374,7 @@ addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStat
 addRiskCheckInfoToResponse txn orderStatus = do
   let txnId = fromMaybe T.empty $ getField @"id" txn
 
+-- loadTxnRiskCheck
   txnRiskCheck <- withDB eulerDB $ do
     let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
     findRow
@@ -2330,6 +2383,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
       $ B.filter_ predicate
       $ B.all_ (EDB.txn_risk_check eulerDBSchema)
 
+-- loadRiskManagementAccount
   case txnRiskCheck of
     Just trc -> do
       let riskMAId = getField @"riskManagementAccountId" trc
@@ -2342,6 +2396,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
           $ B.filter_ predicate
           $ B.all_ (EDB.risk_management_account eulerDBSchema)
 
+-- makeRisk'
       let risk = Risk'
             { provider = getField @"provider" <$> riskMngAcc
             , status = getField @"status" trc
@@ -2353,6 +2408,8 @@ addRiskCheckInfoToResponse txn orderStatus = do
             , ebs_risk_percentage = Nothing
             , ebs_bin_country = Nothing
             }
+
+-- makeRisk
       if (fromMaybe T.empty (getField @"provider" risk)) == "ebs"
         then do
             -- TODO not sure is this reliable enough? how port it?
@@ -2377,7 +2434,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
 
 
 
--- For builder
+-- refactoring
 
 
 loadTxnRiskCheck :: Text -> Flow (Maybe TxnRiskCheck)
@@ -2545,6 +2602,22 @@ addPaymentMethodInfo sendCardIsin txn ordStatus = do
               $ addEmi txn orderStatus
       addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
     Nothing -> pure ordStatus
+
+
+
+-- refactoring
+
+loadTxnCardInfo :: Text -> Flow (Maybe TxnCardInfo)
+loadTxnCardInfo txnId =
+  withDB eulerDB $ do
+    let predicate TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_card_info eulerDBSchema)
+
+
 
 -- ----------------------------------------------------------------------------
 -- function: addSecondFactorResponseAndTxnFlowInfo
@@ -2724,6 +2797,8 @@ addEmi txn ordStatus =
   if isTrueMaybe (getField @"isEmi" txn)
   then ordStatus{emi_tenure = getField @"emiTenure" txn, emi_bank = getField @"emiBank" txn}
   else ordStatus
+
+
 
 -- ----------------------------------------------------------------------------
 -- function: addCardInfo

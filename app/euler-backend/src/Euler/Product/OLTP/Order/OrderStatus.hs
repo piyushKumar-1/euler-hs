@@ -1399,8 +1399,9 @@ makeOrderStatusResponse
   -> OrderStatusQuery
   -> TxnDetail
   -> Text -- use getGatewayReferenceId to get it
+  -> Risk
   -> Flow OrderStatusResponse
-makeOrderStatusResponse ordRef@OrderReference{..} paymentLinks isAuthenticated promotion mandate query txn gatewayRefId = do
+makeOrderStatusResponse ordRef paymentLinks isAuthenticated promotion mandate query txn gatewayRefId risk = do
 
   -- Validation
 
@@ -1408,19 +1409,24 @@ makeOrderStatusResponse ordRef@OrderReference{..} paymentLinks isAuthenticated p
   ordId <- whenNothing (getField @ "orderUuid" ordRef) (throwException $ myerr "4")
 
   let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
-  let email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
-  let phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
+      email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
+      phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
 
-  let gateway   = fromMaybe "" (getField @"gateway" txn)
+      gateway   = fromMaybe "" (getField @"gateway" txn)
       gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
-      gatewayPay = getField @"gatewayPayload" txn
-      gatewayPayload' = if isBlankMaybe gatewayPay then gatewayPay else Nothing
-
+      mGatewayPayload' = getField @"gatewayPayload" txn
+      gatewayPayload = if isBlankMaybe mGatewayPayload' then mGatewayPayload' else Nothing
+      txnDetail' = mapTxnDetail txn
 
 -- builder
 
   pure $ extract $ buildStatusResponse
     -- end
+    <<= changeRisk risk
+    <<= changeTxnDetails txnDetail'
+    <<= changeGatewayPayload gatewayPayload
+    <<= changeBankErrorMessage (whenNothing (getField @"bankErrorMessage" txn) (Just ""))
+    <<= changeBankErrorCode (whenNothing (getField @"bankErrorCode" txn) (Just ""))
     <<= changeGatewayRefId gatewayRefId
     <<= changeGatewayId gatewayId
     <<= changeTxnUuid (getField @"txnUuid" txn)
@@ -1534,7 +1540,32 @@ changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
 changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
 
--- Move changePromotion and changeMandate here
+  --         let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
+  --             ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
+
+  --         pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
+
+-- wrong logic
+-- > extract $ buildStatusResponse <<= changePromotion (Just promotion2) <<= changePromotion (Just promotion1)
+-- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 7.0, ...
+
+-- > extract $ buildStatusResponse <<= changePromotion (Just promotion1) <<= changePromotion (Just promotion2)
+-- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 5.0, ...
+
+changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
+changePromotion Nothing builder = builder mempty
+changePromotion mNewProm@(Just newProm) builder =
+  let oldStatus = extract builder
+  -- TODO: amount logic is wrong now, when used more then one changePromotion
+      mOldAmount= getField @"amount" oldStatus
+      newAmount = sanitizeAmount $ (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
+  in builder mempty
+      { promotionT = fmap Last mNewProm
+      , amountT = (fmap Last mOldAmount) <> Just (Last newAmount)
+      }
+
+changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
+changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
 
 changeStatusId :: Int -> ResponseBuilder -> OrderStatusResponse
 changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
@@ -1551,20 +1582,50 @@ changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = Just $ Last 
 changeGatewayRefId :: Text -> ResponseBuilder -> OrderStatusResponse
 changeGatewayRefId gatewayRefId builder = builder $ mempty {gateway_reference_idT = Just $ Last gatewayRefId}
 
-  -- pure (orderStatus
-  --   { status = show $ getField @"status" txn
-  --   , status_id = txnStatusToInt $ getField @"status" txn
-  --   , txn_id = Just $ getField @"txnId" txn
-  --   , txn_uuid = getField @"txnUuid" txn
-  --   , gateway_id = Just gatewayId
-  --   , gateway_reference_id = Just gatewayRefId
+changeBankErrorCode :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeBankErrorCode bankErrorCode builder = builder $ mempty {bank_error_codeT = fmap Last bankErrorCode}
 
-  --   , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
-  --   , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
-  --   , gateway_payload = addGatewayPayload txn
-  --   , txn_detail = Just $ mapTxnDetail txn
-  --   } :: OrderStatusResponse)
+changeBankErrorMessage :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeBankErrorMessage bankErrorMessage builder = builder $ mempty {bank_error_messageT = fmap Last bankErrorMessage}
 
+changeGatewayPayload :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeGatewayPayload gatewayPayload builder = builder $ mempty {gateway_payloadT = fmap Last gatewayPayload}
+
+changeTxnDetails :: TxnDetail' -> ResponseBuilder -> OrderStatusResponse
+changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last txnDetail}
+
+changeRisk :: Risk -> ResponseBuilder -> OrderStatusResponse
+changeRisk risk builder = builder $ mempty {riskT = Just $ Last risk}
+
+
+
+
+promotion1 :: Promotion'
+promotion1 = Promotion'
+  { id              = Nothing
+  , order_id        = Nothing
+  , rules           = Nothing
+  , created         = Nothing
+  , discount_amount = Just 1
+  , status          = Just "hello"
+  }
+
+promotion2 :: Promotion'
+promotion2 = Promotion'
+  { id              = Nothing
+  , order_id        = Nothing
+  , rules           = Nothing
+  , created         = Nothing
+  , discount_amount = Just 3
+  , status          = Just "world"
+  }
+
+-- extract $ buildStatusResponse <<= changeMandate (Just mandate1) <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
+mandate1 = Mandate'
+  { mandate_token  = "token"
+  , mandate_status = Just "status"
+  , mandate_id     = "man_id"
+  }
 
 
 -- ----------------------------------------------------------------------------
@@ -1602,6 +1663,7 @@ addMandateDetails ordRef orderStatus =
     Nothing -> pure $ orderStatus
 -}
 
+-- Became loadMandate and changeMandate
 addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
 addMandateDetails ordRef orderStatus =
   case (orderType ordRef) of
@@ -1629,6 +1691,8 @@ addMandateDetails ordRef orderStatus =
           Nothing -> pure $ orderStatus
         else pure $ orderStatus
     Nothing -> pure $ orderStatus
+
+
 
 -- from src/Types/Storage/EC/Mandate.purs
 mapMandate :: Mandate -> Mandate'
@@ -1668,16 +1732,9 @@ loadMandate ordRef =
       else pure Nothing
     Nothing -> pure Nothing
 
-changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
-changeMandate Nothing builder = builder mempty
-changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
 
--- extract $ buildStatusResponse <<= changeMandate (Just mandate1) <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
-mandate1 = Mandate'
-  { mandate_token  = "token"
-  , mandate_status = Just "status"
-  , mandate_id     = "man_id"
-  }
+
+
 
 
 -- ----------------------------------------------------------------------------
@@ -1898,6 +1955,7 @@ addPromotionDetails orderRef orderStatus = do
         Nothing -> pure orderStatus
 -}
 
+-- Became loadPromotions, decryptActivePromotion and changePromotion
 addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
 addPromotionDetails orderRef orderStatus = do
   -- Order contains two id -like fields (better names?)
@@ -1967,53 +2025,6 @@ decryptActivePromotion (ordId, promotions) = do
   let mPromotion = find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
   traverse (decryptPromotionRules ordId) mPromotion
 
-  -- = decryptPromotionRules ordId promotionVal
-  -- <$> find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
-  --         let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
-  --             ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
-
-  --         pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
-
--- wrong logic
--- > extract $ buildStatusResponse <<= changePromotion (Just promotion2) <<= changePromotion (Just promotion1)
--- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 7.0, ...
-
--- > extract $ buildStatusResponse <<= changePromotion (Just promotion1) <<= changePromotion (Just promotion2)
--- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 5.0, ...
-
-changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
-changePromotion Nothing builder = builder mempty
-changePromotion mNewProm@(Just newProm) builder =
-  let oldStatus = extract builder
-  -- TODO: amount logic is wrong now, when used more then one changePromotion
-      mOldAmount= getField @"amount" oldStatus
-      newAmount = sanitizeAmount $ (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
-  in builder mempty
-      { promotionT = fmap Last mNewProm
-      , amountT = (fmap Last mOldAmount) <> Just (Last newAmount)
-      }
-
-
-
-promotion1 :: Promotion'
-promotion1 = Promotion'
-  { id              = Nothing
-  , order_id        = Nothing
-  , rules           = Nothing
-  , created         = Nothing
-  , discount_amount = Just 1
-  , status          = Just "hello"
-  }
-
-promotion2 :: Promotion'
-promotion2 = Promotion'
-  { id              = Nothing
-  , order_id        = Nothing
-  , rules           = Nothing
-  , created         = Nothing
-  , discount_amount = Just 3
-  , status          = Just "world"
-  }
 
 
 -- ----------------------------------------------------------------------------
@@ -2306,6 +2317,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
     where getString a = if (isNotString a) then "" else a
 -}
 
+-- Became loadTxnRiskCheck, loadRiskManagementAccount, makeRisk', makeRisk, changeRisk
 addRiskCheckInfoToResponse :: TxnDetail -> OrderStatusResponse -> Flow OrderStatusResponse
 addRiskCheckInfoToResponse txn orderStatus = do
   let txnId = fromMaybe T.empty $ getField @"id" txn
@@ -2341,25 +2353,94 @@ addRiskCheckInfoToResponse txn orderStatus = do
             , ebs_risk_percentage = Nothing
             , ebs_bin_country = Nothing
             }
-      if (fromMaybe T.empty (getField @"provider" risk)) == "ebs" then do
+      if (fromMaybe T.empty (getField @"provider" risk)) == "ebs"
+        then do
             -- TODO not sure is this reliable enough? how port it?
             -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
             -- outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
             -- responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
             -- outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
+          let r' = undefined :: Risk'
             -- let r' = wrap (unwrap risk) {
             --   ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
             --   ebs_payment_status = (trc ^. _riskStatus),
             --   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
             --   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
             -- }
-            -- r  <- addRiskObjDefaultValueAsNull r'
-            pure orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
-            else do
-            r <- addRiskObjDefaultValueAsNull risk
-            pure $ setField @"risk" (Just r) orderStatus -- TODO: $ orderStatus # _risk .~ (just r)
+          r  <- addRiskObjDefaultValueAsNull r'
+          pure $ setField @"risk" (Just r) orderStatus
+        else do
+          r <- addRiskObjDefaultValueAsNull risk
+          pure $ setField @"risk" (Just r) orderStatus
     Nothing -> pure orderStatus
   where getString a = "" -- TODO: if (isNotString a) then "" else a
+
+
+
+-- For builder
+
+
+loadTxnRiskCheck :: Text -> Flow (Maybe TxnRiskCheck)
+loadTxnRiskCheck txnId =
+  -- let txnId = fromMaybe T.empty $ getField @"id" txn
+  withDB eulerDB $ do
+    let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.txn_risk_check eulerDBSchema)
+
+
+loadRiskManagementAccount :: Int -> Flow (Maybe RiskManagementAccount)
+loadRiskManagementAccount riskMAId =
+  withDB eulerDB $ do
+    let predicate RiskManagementAccount {id} = id ==. B.val_ riskMAId
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.risk_management_account eulerDBSchema)
+
+
+makeRisk' :: Maybe Text -> TxnRiskCheck -> Risk'
+makeRisk' provider trc = Risk'
+  { provider = provider
+  , status = getField @"status" trc
+  , message = getField @"message" trc
+  , flagged = whenNothing (getField @"flagged" trc) (Just False)
+  , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
+  , ebs_risk_level = Nothing
+  , ebs_payment_status = Nothing
+  , ebs_risk_percentage = Nothing
+  , ebs_bin_country = Nothing
+  }
+
+-- TODO: check if it can become pure
+makeRisk :: Risk' -> Flow Risk
+makeRisk risk' = if (fromMaybe T.empty (getField @"provider" risk')) == "ebs"
+  then do
+      -- TODO not sure is this reliable enough? how port it?
+      -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
+      -- outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
+      -- responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
+      -- outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
+    let r' = undefined :: Risk'
+      -- TODO
+      -- let r' = wrap (unwrap risk) {
+      --   ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
+      --   ebs_payment_status = (trc ^. _riskStatus),
+      --   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
+      --   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
+      -- }
+    addRiskObjDefaultValueAsNull r'
+  else
+    addRiskObjDefaultValueAsNull risk'
+    where getString a = "" -- TODO: if (isNotString a) then "" else a
+
+
+
+
 
 
 -- ----------------------------------------------------------------------------

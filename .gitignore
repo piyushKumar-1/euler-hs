@@ -39,4 +39,4 @@ euler-backend.cabal
 *.patch
 tags
 
-.vscode
+.vscode/

@@ -50,7 +50,9 @@ import           Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Product.Domain.Templates    as Ts
 import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
+import           Euler.Constant.Constants (defaultVersion)
 import           Euler.Lens
+
 
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
 orderCreate
@@ -314,7 +316,7 @@ loadCustomer (Just customerId) mAccntId = do
 
 createAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Flow (Maybe D.AddressId)
 createAddress addr addrHolder =
-  case toDBAddress addr addrHolder of
+  case toDBAddress Nothing addr addrHolder of
     Nothing -> pure Nothing
     Just dbAddr -> do
       mAddr <- withDB eulerDB
@@ -324,31 +326,67 @@ createAddress addr addrHolder =
       pure $ (^. _id) =<< (safeHead mAddr)
 
 -- EHS: DB types should be denoted explicitly.
-toDBAddress :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe DB.OrderAddress
-toDBAddress (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
-  | nothingSet = Nothing
+--toDBAddress' :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe DB.OrderAddress
+--toDBAddress' (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..})
+--  | nothingSet = Nothing
+--  | otherwise = Just $ DB.OrderAddress
+--        { DB.id             = Nothing  -- in DB it's not Null, Auto increment
+--        , DB.version        = 1        -- defaultVersion
+--      -- from src/Config/Constants.purs
+--      --  defaultVersion :: Int
+--      --  defaultVersion = 1
+--
+--
+--        }
+--  where
+--    nothingSet = isNothing
+--      $   firstName
+--      <|> lastName
+--      <|> line1
+--      <|> line2
+--      <|> line3
+--      <|> city
+--      <|> state
+--      <|> country
+--      <|> postalCode
+--      <|> phone
+--      <|> countryCodeIso
+
+toDBAddress :: Maybe Ts.CustomerTemplate -> Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Maybe DB.OrderAddress
+toDBAddress mCT aT@Ts.AddressTemplate {..} ahT
+  | addressEmpty aT ahT = Nothing
   | otherwise = Just $ DB.OrderAddress
         { DB.id             = Nothing  -- in DB it's not Null, Auto increment
-        , DB.version        = 1        -- defaultVersion
-      -- from src/Config/Constants.purs
-      --  defaultVersion :: Int
-      --  defaultVersion = 1
-
-        -- EHS: fill address
+        , DB.version        = defaultVersion
+        , DB.firstName      = firstName
+        , DB.lastName       = lastName
+        , DB.line1          = line1
+        , DB.line2          = line2
+        , DB.line3          = line3
+        , DB.city           = city
+        , DB.state          = state
+        , DB.country        = country
+        , DB.countryCodeIso = countryCodeIso
+        , DB.postalCode     = postalCode
+        , DB.phone          = phone
         }
   where
-    nothingSet = isNothing
-      $   firstName
-      <|> lastName
-      <|> line1
-      <|> line2
-      <|> line3
-      <|> city
-      <|> state
-      <|> country
-      <|> postalCode
-      <|> phone
-      <|> countryCodeIso
+    Ts.AddressHolderTemplate {..} = fillBillingAddressHolder mCT ahT
+
+addressEmpty :: Ts.AddressTemplate -> Ts.AddressHolderTemplate -> Bool
+addressEmpty (Ts.AddressTemplate {..}) (Ts.AddressHolderTemplate {..}) =
+  isNothing
+    $   firstName
+    <|> lastName
+    <|> line1
+    <|> line2
+    <|> line3
+    <|> city
+    <|> state
+    <|> country
+    <|> postalCode
+    <|> phone
+    <|> countryCodeIso
 
 loadOrder :: D.OrderId -> D.MerchantId -> Flow (Maybe D.Order)
 loadOrder orderId' merchantId' = do

@@ -37,6 +37,7 @@ import           Euler.Storage.DBConfig
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
 import qualified Euler.API.Order            as API
+import qualified Euler.API.Validators.Order as VO
 
 -- EHS: rework imports. Use top level modules.
 import qualified Euler.Common.Types                as D
@@ -54,13 +55,25 @@ import           Euler.Constant.Constants (defaultVersion)
 import           Euler.Lens
 
 
+
 -- EHS: should not depend on API types. Rethink OrderCreateResponse.
+-- EHS: move methods launchers with validations to separate module ?
 orderCreate
+  :: RP.RouteParameters
+  -> API.OrderCreateRequest
+  -> MerchantAccount
+  -> Flow API.OrderCreateResponse
+orderCreate rp req ma = do
+  case VO.transApiOrdCreateToOrdCreateT req of
+    V.Failure err -> throwException Errs.internalError
+    V.Success validatedOrder -> orderCreate'' rp validatedOrder ma
+
+orderCreate''
   :: RP.RouteParameters
   -> Ts.OrderCreateTemplate
   -> MerchantAccount
   -> Flow API.OrderCreateResponse
-orderCreate routeParams order' mAccnt = do
+orderCreate'' routeParams order' mAccnt = do
 
   -- EHS: effectful validation found.
   _               <- validateMandate order' (mAccnt ^. _merchantId)
@@ -115,8 +128,8 @@ updateMandateCache order = case order ^. _mandate of
     D.MandateRequired maxAmount -> updateMandateCache' maxAmount
     D.MandateOptional maxAmount -> updateMandateCache' maxAmount
     -- EHS: Need to do something with this.
-    D.MandateReqUndefined       -> error "MandateReqUndefined not handled."
-    D.MandateOptUndefined       -> error "MandateReqUndefined not handled."
+    D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
+    D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
   where
     updateMandateCache' ma = do
         let merchantId = order ^. _merchantId
@@ -406,9 +419,9 @@ loadOrder orderId' merchantId' = do
           V.Success order -> pure $ Just order
           V.Failure e -> do
             logError "Incorrect order in DB"
-              $  "orderId: "    <> orderId'
-              <> "merchantId: " <> merchantId'
-              <> "error: "      <> show e
+              $  " orderId: "    <> orderId'
+              <> " merchantId: " <> merchantId'
+              <> " error: "      <> show e
             throwException Errs.internalError
 
 -- EHS: objectReferenceId is customerId ?

@@ -325,16 +325,16 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
                xforwarderfor
                (sockAddrToSourceIP sockAddr)
 
-  let eValidated = VO.transApiOrdCreateToOrdCreateT ordReq
+--  let eValidated = VO.transApiOrdCreateToOrdCreateT ordReq
   -- EHS: TODO: move validations from validateOrderParams
   -- validateOrderParams orderCreateReq
 
   -- EHS: function `orderCreate` is also about validation.
-  case eValidated of
-    V.Failure err -> error "Not implemented"   -- TODO: EHS: return error.
-    V.Success validatedOrder ->
-      runFlow "orderCreate" rps (toJSON ordReq)
-          $ AS.withMacc OrderCreate.orderCreate rps validatedOrder
+--  case eValidated of
+--    V.Failure err -> error "Not implemented"   -- TODO: EHS: return error.
+--    V.Success validatedOrder ->
+  runFlow "orderCreate" rps (toJSON ordReq)
+          $ AS.withMacc OrderCreate.orderCreate rps ordReq -- validatedOrder
 
 orderUpdate :: Text -> ApiOrder.OrderUpdateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do

@@ -48,7 +48,7 @@ data Order = Order
 
   , mandate           :: OrderMandate         -- EHS: not a domain field        -- ^ Default: MandateDisabled
 
-  , lastSynced        :: LocalTime          -- EHS: Not a domain fields
+  , lastSynced        :: Maybe LocalTime          -- EHS: Not a domain fields
   , dateCreated       :: LocalTime          -- EHS: Not a domain fields
   , lastModified      :: LocalTime          -- EHS: Not a domain fields
   --

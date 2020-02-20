@@ -7,6 +7,7 @@ import EulerHS.Extra.Validation
 
 import           Euler.Common.Types.Money     (mkMoney)
 import qualified Euler.Common.Validators as Vs
+import qualified Euler.Common.Types.Order as CO
 import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Storage.Types.OrderReference  as S
@@ -15,48 +16,59 @@ import qualified Euler.Product.Domain.Order as DO
 -- EHS: better naming
 -- EHS: implement
 transSOrderToDOrder :: S.OrderReference -> V DO.Order
-transSOrderToDOrder so = error "Not implemented"
--- transSOrderToDOrder so = DO.Order
---   <$> withField @"id" so (extractJust >=> Vs.notNegative)
---   <*> withField @"version" so pure
---   <*> ( mkMoney <$> withField @"amount" so (extractJust >=> Vs.amountValidators))
---   <*> withField @"currency" so  extractJust
---   <*> withField @"merchantId" so extractJust
---   <*> withField @"orderId" so extractJust
---   <*> withField @"orderUuid" so extractJust
---   <*> withField @"orderType" so extractJust
---   <*> withField @"status" so  extractJust
---   <*> withField @"customerId" so pure
---   <*> withField @"customerEmail" so pure
---   <*> withField @"customerPhone" so pure
---   -- , udf               :: UDF
---   -- -- , browser           :: Maybe Text       EHS: ?
---   -- -- , browserVersion    :: Maybe Text       EHS: ?
---   -- -- , popupLoaded       :: Maybe Bool       EHS: ?
---   -- -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
---   -- , returnUrl         :: Maybe Text
---   -- , amountRefunded    :: Maybe Double
---   -- , refundedEntirely  :: Maybe Bool
---   -- -- , preferredGateway  :: Maybe Text  EHS: ?
---   -- , productId         :: Maybe Text
---   <*> withField @"billingAddressId" so pure
---   <*> withField @"shippingAddressId" so pure
---   -- , autoRefund        :: Bool
---   -- , lastSynced        :: LocalTime
---   -- , dateCreated       :: LocalTime          -- EHS: Not a domain fields
---   -- , lastModified      :: LocalTime          -- EHS: Not a domain fields
---   <*> withField @"description" so pure
---   --
---   -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
---
---   <*> withField @"mandateFeature" so (extractJust >=> mkMandate)
---   <*> pure False
---
---   where
---     mkMandate M.DISABLED = O.MandateDisabled
---     mkMandate M.REQUIRED = O.MandateReqUndefined      -- EHS: bug: we don't know what is max amount
---     mkMandate M.OPTIONAL = O.MandateOptUndefined      -- EHS: bug: we don't know what is max amount
+--transSOrderToDOrder so = error "Not implemented"
+transSOrderToDOrder so = DO.Order
+  <$> withField @"id" so (extractJust >=> Vs.notNegative)
+  <*> withField @"version" so pure
+  <*> ( mkMoney <$> withField @"amount" so (extractJust >=> Vs.amountValidators))
+  <*> withField @"currency" so  extractJust
+  <*> withField @"merchantId" so extractJust
+  <*> withField @"orderId" so extractJust
+  <*> withField @"orderUuid" so extractJust
+  <*> withField @"orderType" so extractJust
+  <*> (CO.fromOrderStatusEx <$> withField @"status" so  pure)
+  <*> withField @"customerId" so pure
+  <*> withField @"customerEmail" so pure
+  <*> withField @"customerPhone" so pure
+  -- -- , browser           :: Maybe Text       EHS: ?
+  -- -- , browserVersion    :: Maybe Text       EHS: ?
+  -- -- , popupLoaded       :: Maybe Bool       EHS: ?
+  -- -- , popupLoadedTime   :: Maybe LocalTime  EHS: ?
+  -- -- , preferredGateway  :: Maybe Text  EHS: ?
+  <*> withField @"billingAddressId" so pure
+  <*> withField @"shippingAddressId" so pure
+  <*> (Vs.cleanUpUDF <$> orderReferenceToUDF so)
 
+  <*> withField @"description" so pure
+  <*> withField @"returnUrl" so pure
+  <*> withField @"amountRefunded" so pure
+  <*> withField @"refundedEntirely" so (extractMaybeWithDefault False)
+  <*> withField @"autoRefund" so (extractMaybeWithDefault False)
+  <*> withField @"productId" so pure
+    -- , gatewayMetadata   :: GatewayMetadata    -- EHS: Not a domain fields, should not be here.
+  <*> (mkMandate <$> withField @"mandateFeature" so extractJust )
+  <*> withField @"lastSynced" so pure
+  <*> withField @"dateCreated" so pure
+  <*> withField @"lastModified" so pure
+--
+  where
+    mkMandate MEx.DISABLED = CO.MandateDisabled
+    mkMandate MEx.REQUIRED = CO.MandateReqUndefined      -- EHS: bug: we don't know what is max amount
+    mkMandate MEx.OPTIONAL = CO.MandateOptUndefined      -- EHS: bug: we don't know what is max amount
+
+
+orderReferenceToUDF :: S.OrderReference -> V CO.UDF
+orderReferenceToUDF oRef = CO.UDF
+  <$> withField @"udf1" oRef pure
+  <*> withField @"udf2" oRef pure
+  <*> withField @"udf3" oRef pure
+  <*> withField @"udf4" oRef pure
+  <*> withField @"udf5" oRef pure
+  <*> withField @"udf6" oRef pure
+  <*> withField @"udf7" oRef pure
+  <*> withField @"udf8" oRef pure
+  <*> withField @"udf9" oRef pure
+  <*> withField @"udf10" oRef pure
 
 -- EHS: move validators to separate module.
 -- Don't duplicate validators.

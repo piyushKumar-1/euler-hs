@@ -30,9 +30,9 @@ runMethodPlayer
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
-runMethodPlayer "testFlow2"        = withMethodPlayer (getMethod testFlow2)
+--runMethodPlayer "testFlow2"        = withMethodPlayer (getMethod testFlow2)
 -- EHS: restore
--- runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.orderCreate)
+runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.orderCreate)
 runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 
@@ -53,7 +53,7 @@ testFlow2  _ = do
 
 withMethodPlayer
   :: (FromJSON req, FromJSON resp, ToJSON resp, Eq resp, Show resp)
-  =>  ( req -> RouteParameters -> Flow resp)
+  =>  ( RouteParameters -> req ->  Flow resp)
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
@@ -91,7 +91,7 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
             , _runMode = ReplayingMode playerRt
             , _sqldbConnections = sqldbConnectionsVar
             }
-      let method = methodF req (coerce mcRouteParams) -- mr.parameters
+      let method = methodF (coerce mcRouteParams) req  -- mr.parameters
       eResult :: Either SomeException resp <- try $ runFlow flowRt method
       case eResult of
         Right eResult' -> do

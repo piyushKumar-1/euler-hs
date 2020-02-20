@@ -16,11 +16,11 @@ data AddressTemplate = AddressTemplate
   , phone             :: Maybe Text
   , countryCodeIso    :: Maybe Text -- Default value: IND
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
 data AddressHolderTemplate = AddressHolderTemplate
   { firstName  :: Maybe Text
   , lastName   :: Maybe Text
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

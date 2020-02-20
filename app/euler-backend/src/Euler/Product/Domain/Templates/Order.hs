@@ -58,4 +58,4 @@ data OrderCreateTemplate = OrderCreateTemplate
   , udf                            :: UDF
   , orderTokenNeeded               :: Bool                 -- EHS: not a domain field                    -- ^ Depends on version and passed param.
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON)
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

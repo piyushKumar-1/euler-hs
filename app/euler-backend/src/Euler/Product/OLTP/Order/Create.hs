@@ -401,8 +401,8 @@ saveOrder
   -- EHS: is this time ok?
   orderTimestamp    <- getCurrentTimeUTC
 
-  -- EHS: TODO: add UDF fields
-  let orderRefVal' = DB.defaultOrderReference
+
+  let orderRefVal = fillUDFParams order' $ DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = Just $ mAccnt ^. _merchantId
           , DB.amount             = Just $ D.fromMoney amount
@@ -423,7 +423,7 @@ saveOrder
           , DB.orderType          = Just orderType
           , DB.mandateFeature     = Just $ D.toMandateEx mandate
           }
-  let orderRefVal = fillUDFParams order' orderRefVal'
+ -- let orderRefVal = fillUDFParams order' orderRefVal'
 
   orderRef <- unsafeInsertRow (err500 {errBody = "Inserting order reference failed."}) eulerDB
       $ B.insert (DB.order_reference eulerDBSchema)
@@ -493,7 +493,7 @@ loadReseller (Just resellerId') = withDB eulerDB $ do
 
 -- EHS: API type should not be used in the logic.
 -- EHS: previously makeOrderResponse
--- EHS: fill the fields
+
 mkOrderResponse
   :: Config.Config
   -> D.Order
@@ -512,6 +512,18 @@ mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
             , API.mobile = Just $ url' <> "?mobile=true"
             , API.iframe = Just url'
             }
+        , API.return_url    = returnUrl
+        , API.refunded      = Just refundedEntirely
+        , API.product_id    = productId
+        , API.merchant_id   = Just merchantId
+        , API.date_created  = Just dateCreated
+        , API.customer_phone = customerPhone
+        , API.customer_id   = customerId
+        , API.customer_email = customerEmail
+        , API.currency      = Just $ show currency
+        , API.amount_refunded = amountRefunded
+        , API.amount = Just $ D.fromMoney amount
+        , API.juspay = Nothing
         }
   pure r
   where

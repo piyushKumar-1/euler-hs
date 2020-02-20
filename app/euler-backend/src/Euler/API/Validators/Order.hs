@@ -94,27 +94,7 @@ apiOrderCreateToUDF req = UDF
 
 
 
--- -- EHS: cleanup UDFs
--- cleanupTemplatedUdf D.UDF {..} = D.UDF
---       { D.udf1 = cleanUp udf1
---       , D.udf2 = cleanUp udf2
---       , D.udf3 = cleanUp udf3
---       , D.udf4 = cleanUp udf4
---       , D.udf5 = cleanUp udf5
---       , ..
---       }
---     newUDF = cleanupTemplatedUdf $ Ts.udf order'
---   -- EHS: Why are udf fields 1-5 cleaned and the rest not?
---   where
---     cleanUp :: Maybe Text -> Maybe Text
---     cleanUp mStr = cleanUpSpecialChars <$> mStr
---
---     cleanUpSpecialChars :: Text -> Text
---     cleanUpSpecialChars = Text.filter (`P.notElem` ("~!#%^=+\\|:;,\"'()-.&/" :: String))
---     -- from src/Euler/Utils/Utils.js
---     -- exports.cleanUpSpecialChars = function(val){
---     --   return val.replace(/[\\\\~!#%^=+\\|:;,\"'()-.&/]/g,"");
---     -- }
+
 
 transApiOrdCreateToOrdCreateT :: API.OrderCreateRequest -> V Ts.OrderCreateTemplate
 transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate

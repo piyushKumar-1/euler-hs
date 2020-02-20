@@ -91,8 +91,8 @@ import           Euler.Storage.DBConfig
 
 -- porting statistics:
 -- to port '-- TODO port' - 21
--- to update '-- TODO update' - 22
--- completed '-- done' - 30
+-- to update '-- TODO update' - 21
+-- completed '-- done' - 31
 -- refactored '-- refactored' - 4
 -- total number of functions = 73
 
@@ -1396,7 +1396,6 @@ mkResponse isAuthenticated paymentLinks ord status = do
 makeOrderStatusResponse
   :: OrderReference
   -> Paymentlinks
-  -> Bool
   -> Maybe Promotion'
   -> Maybe Mandate'
   -> OrderStatusQuery
@@ -1404,8 +1403,24 @@ makeOrderStatusResponse
   -> Text -- use getGatewayReferenceId to get it
   -> Maybe Risk
   -> Maybe TxnCardInfo
+  -> Maybe Text
+  -> [Refund']
+  -> [Chargeback']
   -> Flow OrderStatusResponse
-makeOrderStatusResponse ordRef paymentLinks isAuthenticated mPromotion mMandate query txn gatewayRefId mRisk mTxnCard = do
+makeOrderStatusResponse
+  ordRef
+  paymentLinks
+  mPromotion
+  mMandate
+  query@OrderStatusQuery{..}
+  txn
+  gatewayRefId
+  mRisk
+  mTxnCard
+  mCardBrand
+  refunds
+  chargebacks
+  = do
 
   -- Validation
 
@@ -1426,21 +1441,52 @@ makeOrderStatusResponse ordRef paymentLinks isAuthenticated mPromotion mMandate 
       bankErrorMessage = whenNothing (getField @"bankErrorMessage" txn) (Just "")
       txnDetail' = mapTxnDetail txn
 
-  -- case txnCard of
-  --   Just card -> do
-  --     cardBrandMaybe <- getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
-  --     orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
-  --     let orderStatus' =
-  --           addCardInfo txn card sendCardIsin cardBrandMaybe
-  --             $ addAuthType card
-  --             $ addEmi txn orderStatus
-  --     addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
-  --   Nothing -> pure ordStatus
+      maybeTxnCard f = maybe emptyBuilder f mTxnCard
 
--- builder
+      isEmi = isTrueMaybe (getField @"isEmi" txn)
+      emiTenure = getField @"emiTenure" txn
+      emiBank = getField @"emiBank" txn
+
+      paymentMethod = if isJust mCardBrand then mCardBrand else Just "UNKNOWN"
+
+      mRefunds = maybeList refunds
+      mChargebacks = maybeList chargebacks
+
+
+-- build pipeline
 
   pure $ extract $ buildStatusResponse
     -- end
+
+    <<= changeChargeBacks mChargebacks
+    -- addChargeBacks
+
+    <<= changeRefund mRefunds
+    -- addRefundDetails
+
+      -- TODO: add addSecondFactorResponseAndTxnFlowInfo here
+      -- addSecondFactorResponseAndTxnFlowInfo
+
+    <<= maybeTxnCard (\txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
+      then changeCard (getCardDetails txnCard txn sendCardIsin)
+      else emptyBuilder)
+
+    <<= maybeTxnCard (\txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
+      then changePaymentMethodType "CARD"
+      else emptyBuilder)
+
+    <<= maybeTxnCard (\txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
+      then changeEmiPaymentMethod paymentMethod
+      else emptyBuilder)
+      -- addCardInfo
+
+    <<= maybeTxnCard (\txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just ""))
+      -- addAuthType
+    <<= maybeTxnCard (const $ if isEmi then changeEmiTenureEmiBank emiTenure emiBank else emptyBuilder)
+      -- addEmi
+      -- TODO: add updatePaymentMethodAndType here
+    -- addPaymentMethodInfo
+
     <<= changeRisk mRisk
     -- addRiskCheckInfoToResponse
 
@@ -1496,6 +1542,9 @@ makeOrderStatusResponse ordRef paymentLinks isAuthenticated mPromotion mMandate 
 
 -- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
 -- OrderStatusResponse {id = "world", merchant_id = Nothing, ...
+
+
+-- Begin
 
 -- former fillOrderDetails
 -- mkResponse
@@ -1644,10 +1693,42 @@ changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last
 -- addRiskCheckInfoToResponse
 
 changeRisk :: Maybe Risk -> ResponseBuilder -> OrderStatusResponse
-changeRisk risk builder = builder $ mempty {riskT = map Last risk}
+changeRisk risk builder = builder $ mempty {riskT = fmap Last risk}
 
 
+-- addPaymentMethodInfo
 
+changeEmiTenureEmiBank :: Maybe Int -> Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeEmiTenureEmiBank emiTenure emiBank builder = builder $ mempty
+  {emi_tenureT = map Last emiTenure
+  , emi_bankT = map Last emiBank
+  }
+
+changeAuthType :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeAuthType authType builder = builder $ mempty {auth_typeT = fmap Last authType}
+
+changeEmiPaymentMethod :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeEmiPaymentMethod paymentMethod builder = builder $ mempty {payment_methodT = fmap Last paymentMethod}
+
+changePaymentMethodType :: Text -> ResponseBuilder -> OrderStatusResponse
+changePaymentMethodType paymentMethodType builder =
+  builder $ mempty {payment_method_typeT = Just $ Last paymentMethodType}
+
+changeCard :: Card -> ResponseBuilder -> OrderStatusResponse
+changeCard card builder = builder $ mempty {cardT = Just $ Last card}
+
+
+-- addRefundDetails
+
+changeRefund :: Maybe [Refund'] -> ResponseBuilder -> OrderStatusResponse
+changeRefund mRefunds builder = builder $ mempty {refundsT = fmap Last mRefunds}
+
+
+-- addChargeBacks
+changeChargeBacks :: Maybe [Chargeback'] -> ResponseBuilder -> OrderStatusResponse
+changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap Last mChargebacks}
+
+-- End
 
 
 
@@ -2555,7 +2636,7 @@ addRiskObjDefaultValueAsNull risk' = do
 
 -- ----------------------------------------------------------------------------
 -- function: addPaymentMethodInfo
--- TODO update
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2595,7 +2676,7 @@ addPaymentMethodInfo sendCardIsin txn ordStatus = do
   case txnCard of
     Just card -> do
       cardBrandMaybe <- getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
-      orderStatus  <- (undefined :: Flow OrderStatusResponse) -- TODO: updatePaymentMethodAndType txn card ordStatus
+      orderStatus  <- updatePaymentMethodAndType txn card ordStatus
       let orderStatus' =
             addCardInfo txn card sendCardIsin cardBrandMaybe
               $ addAuthType card
@@ -2827,7 +2908,7 @@ addCardInfo txnDetail txnCardInfo shouldSendCardIsin cardBrandMaybe ordStatus =
         cardDetails = Just $ getCardDetails txnCardInfo txnDetail shouldSendCardIsin
     in ordStatus
         { payment_method = payment_method'
-        , payment_method_type = (Just "CARD")
+        , payment_method_type = Just "CARD"
         , card = cardDetails
         }
   else ordStatus

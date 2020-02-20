@@ -83,7 +83,7 @@ isin cardData = T.take 6 (getField @"cardNumber" cardData)
 
 getCardBrandFromIsin :: Text -> Flow (Maybe Text)
 getCardBrandFromIsin cardIsin' = do
-  cardBrand <- pure $ getCardBrand cardIsin'
+  let cardBrand = getCardBrand cardIsin'
   case cardBrand of
     "" -> do
       cardInfo <- withDB eulerDB $ do
@@ -93,10 +93,7 @@ getCardBrandFromIsin cardIsin' = do
           $ B.limit_ 1
           $ B.filter_ predicate
           $ B.all_ (EDB.card_info eulerDBSchema)
-
-      case cardInfo of
-        Nothing       -> pure Nothing
-        Just cardinfo -> pure $ Just $ getField @"cardSwitchProvider" cardinfo
+      pure $ getField @"cardSwitchProvider" <$> cardInfo
     _ -> pure $ Just cardBrand
 
 

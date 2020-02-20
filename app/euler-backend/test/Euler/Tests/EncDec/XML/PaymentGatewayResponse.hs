@@ -160,8 +160,13 @@ rawXML2TextValue = [r|
       </soap:Body>
     |]
 
+<<<<<<< HEAD
 testGroovyHM :: PGRXml
 testGroovyHM = PGRGhm $ GroovyHM (Map.fromList
+=======
+testGroovyHM :: GroovyHM
+testGroovyHM = GroovyHM (Map.fromList
+>>>>>>> aded to/from xml instances for PaymentGatewayResponseXml
   [("checksum",EText "b43ac9dcfb502b3e8e0a5578e40e18d0db8dbf19d88f419146aa12ca1771d47a")
   ,("customResponse",EText "{}")
   ,("payload",EGroovyHM (GroovyHM (Map.fromList [("amount",EText "1.00")
@@ -254,8 +259,13 @@ groovyHMS = [r|<org.codehaus.groovy.grails.web.json.JSONObject>
   </myHashMap>
 </org.codehaus.groovy.grails.web.json.JSONObject>|]
 
+<<<<<<< HEAD
 testXmlMap :: PGRXml
 testXmlMap = PGRMap $ XmlMap $ Map.fromList $ coerce [ Entry ("SomeTextEntry", EText "TextValue")
+=======
+testXmlMap :: XmlMap
+testXmlMap = XmlMap $ Map.fromList $ coerce [ Entry ("SomeTextEntry", EText "TextValue")
+>>>>>>> aded to/from xml instances for PaymentGatewayResponseXml
               , Entry ("SomeBoolEntry", EBool True)
               , Entry ("SomeIntEntry", EInt 5)
               ]
@@ -274,4 +284,8 @@ rawXmlMapXML = [r|<map>
     <string>SomeIntEntry</string>
     <int>5</int>
   </entry>
+<<<<<<< HEAD
 </map>|]
+=======
+</map>|]
+>>>>>>> aded to/from xml instances for PaymentGatewayResponseXml

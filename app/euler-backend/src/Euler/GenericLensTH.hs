@@ -4,6 +4,7 @@ module Euler.GenericLensTH where
 
 
 import EulerHS.Prelude
+import Data.List (intersect)
 import Language.Haskell.TH
 import Data.Generics.Product.Fields
 
@@ -12,8 +13,8 @@ prepareName :: String -> String
 prepareName strName = "_" <> strName
 
 
-makeLens :: String -> Q [Dec]
-makeLens strName = do
+makeGenericLens :: String -> Q [Dec]
+makeGenericLens strName = do
   let sym   = pure $ LitT (StrTyLit strName)
   let name  = mkName $ prepareName strName
 
@@ -24,20 +25,39 @@ makeLens strName = do
     , ValD (VarP name) body  []
     ]
 
+
 makeGenericLenses :: Name -> Q [Dec]
 makeGenericLenses name = do
     tInfo <- reify name
 
     let fieldNames = case tInfo of
-          TyConI (DataD _ _ _ _ [RecC _ varbangtypes] _) -> extractName <$> varbangtypes
-          ast -> error $ unlines
+          TyConI (DataD _ _ _ _ (extractNamesFromCons -> []   ) _) -> error $ unlines
             [ ""
             , "-----------------------------------"
-            , "| Generic lens generator. Unsupported structure: "
+            , "| Generic lens generator. Intersection of field names is an empty list"
+            , "| We consider this as error as it does not look like something you expect"
             , "-----------------------------------"
-            , show (ppr ast)
+            , show (ppr tInfo)
             , "-----------------------------------"
-            , "| Only record-like types allowed (with single data-constructor and named fields)"
+            , show tInfo
+            , "-----------------------------------"
+            , "| Only types with record-like data constructors allowed"
+            , "-----------------------------------"
+            , ""
+            ]
+
+          TyConI (DataD _ _ _ _ (extractNamesFromCons -> names) _) -> names
+
+          _ -> error $ unlines
+            [ ""
+            , "-----------------------------------"
+            , "| Generic lens generator. Unsupported structure:"
+            , "-----------------------------------"
+            , show (ppr tInfo)
+            , "-----------------------------------"
+            , show tInfo
+            , "-----------------------------------"
+            , "| Only types with record-like data constructors allowed"
             , "-----------------------------------"
             , ""
             ]
@@ -49,7 +69,15 @@ makeGenericLenses name = do
     -- let duplNames = fmap fst $ filter (isJust    . snd) lookedUpNames
     -- liftIO $ print duplNames
 
-    join <$> traverse makeLens uniqNames
+    join <$> traverse makeGenericLens uniqNames
 
     where
-      extractName (_name, _, _) = nameBase _name
+      extractNamesFromCon :: Con -> [String]
+      extractNamesFromCon (RecC _ vbps) = fmap (\(n, _, _) -> nameBase n) vbps
+      extractNamesFromCon _             = []
+
+      extractNamesFromCons :: [Con] -> [String]
+      extractNamesFromCons []       = []
+      extractNamesFromCons (fmap extractNamesFromCon -> c : cs) = foldr intersect c cs
+
+

@@ -201,6 +201,8 @@ defaultOrderCreateRequest = OrderCreateRequest
   , gateway_id                        = Nothing -- converted to Int, why Text?
   , mandate_max_amount                = Nothing
   , auto_refund                       = Nothing
+  , options_create_mandate            = Nothing
+  , options_get_client_auth_token     = Nothing
   }
 
 runSuit :: IO a -> IO (MVar [(Double, a)])
@@ -213,5 +215,3 @@ runSuit io = do
           loop
     in loop
   pure summaryVar
-
-

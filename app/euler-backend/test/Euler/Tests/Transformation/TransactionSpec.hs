@@ -4,14 +4,14 @@ import           EulerHS.Prelude
 import           Test.Hspec
 import           EulerHS.Extra.Validation
 
+-- EHS: rework all of this.
+
 import qualified Euler.API.Transaction as AT
-import qualified Euler.API.Types as AT
 import Euler.Product.Domain.CardPayment
 import Euler.Product.Domain.UPIPayment
 import Euler.Product.Domain.WalletPayment
 import Euler.Product.Domain.NBPayment
 import qualified Euler.Product.Domain.Transaction as DT
-import qualified Euler.Product.Domain.Types as DT
 import Euler.Product.Domain.PaymentMethod.Card
 import Euler.Product.Domain.PaymentMethod.ATMCard
 import Euler.Product.Domain.PaymentMethod.NB
@@ -20,6 +20,7 @@ import qualified Euler.Product.Domain.PaymentMethod.WalletDirect as WD
 import Euler.Product.Domain.PaymentMethod.UPI
 import Euler.API.Validators.Transaction
 import Euler.Common.Types.Transaction (AuthType(..))
+import qualified Euler.Common.Types.Transaction  as AT
 import Data.Validation
 
 
@@ -50,8 +51,8 @@ apiRegularNewCardTxn = AT.Transaction
   }
 
 domainRegularNewCardTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type =
     DT.CardTransaction (CardPayment
       {payment_method = VISA
@@ -99,8 +100,8 @@ apiRegularSavedCardTxn = AT.Transaction
   }
 
 domainRegularSavedCardTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.CardTransaction (CardPayment
     { payment_method = VISA
     , card_payment_type = SavedCardPayment
@@ -143,8 +144,8 @@ apiSeamlessNewCardTxn = AT.Transaction
   }
 
 domainSeamlessNewCardTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type =
     DT.ATMSeamlessTransaction (ATMSeamlessPayment
       { payment_method = VISA
@@ -189,8 +190,8 @@ apiSeamlessSavedCardTxn = AT.Transaction
   }
 
 domainSeamlessSavedCardTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.ATMSeamlessTransaction (ATMSeamlessPayment
     { payment_method = VISA
     , card_payment_type = SavedCardPayment
@@ -230,8 +231,8 @@ apiATMRedirectCardTxn = AT.Transaction
   }
 
 domainATMRedirectCardTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.ATMRedirectionTransaction (ATMRedirectionPayment
     { payment_method = ATM_CARD_BOB
     , auth_type = ATMPIN
@@ -266,8 +267,8 @@ apiUpiCollectTxn = AT.Transaction
   }
 
 domainUpiCollectTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.UPITransaction (UPICollect
     { payment_method = UPI
     , txn_type = UPI_COLLECT
@@ -304,8 +305,8 @@ apiUpiPAYTxn = AT.Transaction
   }
 
 domainUpiPAYTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.UPITransaction (UPIPay
     { payment_method = UPI
     , txn_type = UPI_PAY
@@ -341,8 +342,8 @@ apiWalletTxn = AT.Transaction
   }
 
 domainWalletTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.WalletTransaction (WalletPayment
      { payment_method = W.PAYPAL
      })
@@ -377,8 +378,8 @@ apiDirectWalletTxn = AT.Transaction
   }
 
 domainDirectWalletTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.WalletDirectDebitTransaction (DirectWalletPayment
      { payment_method = WD.MOBIKWIK
      , direct_wallet_token = "direct_wallet_token"
@@ -414,8 +415,8 @@ apiNetbankingTxn = AT.Transaction
   }
 
 domainNetbankingTxn = DT.Transaction
-  { _order_id = DT.OrderId "some_order_id"
-  , _merchant_id = DT.MerchantId "merchant_id"
+  { _order_id = "some_order_id"
+  , _merchant_id = "merchant_id"
   , _transaction_type = DT.NBTransaction (NBPayment
     { payment_method = NB_AXIS
     })

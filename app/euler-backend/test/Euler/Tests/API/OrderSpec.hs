@@ -1,9 +1,8 @@
 module Euler.Tests.API.OrderSpec where
 
-import           EulerHS.Prelude hiding (show)
+import           EulerHS.Prelude
 import           Test.Hspec
 
-import qualified Prelude as P (show)
 import qualified Data.Text as T
 
 import           EulerHS.Language
@@ -12,19 +11,25 @@ import           EulerHS.Interpreters
 import           EulerHS.Types hiding (error)
 
 import Euler.Common.Types.DefaultDate
-import Euler.Common.Types.Order (OrderStatus(..), MandateFeature(..))
+import Euler.Common.Types.Currency (Currency(..))
+import Euler.Common.Types.External.Mandate (MandateFeature(..))
+import Euler.Common.Types.External.Order (OrderStatus(..))
+import qualified Euler.Product.Domain as DM
 import Euler.API.RouteParameters
 
 import qualified Euler.API.Order                        as OrderAPI
+import           Euler.API.Order                        (OrderCreateRequest(..))
 import qualified Euler.Storage.DBConfig                 as DB
 import qualified Euler.Storage.Types.MerchantAccount    as Merchant
+import qualified Euler.Storage.Validators.MerchantAccount as Merchant
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy  as OrderCreateUpdateLegacy
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 
 import qualified WebService.Types as T
-import qualified EulerHS.Types as T
 import qualified WebService.Language as L
+import qualified EulerHS.Extra.Validation as V
+import qualified EulerHS.Types as T
 import           Data.Time.Clock (NominalDiffTime)
 
 testDBName :: String
@@ -46,9 +51,21 @@ withEmptyDB act = withFlowRuntime Nothing (\rt -> do
   try (runFlow rt prepareTestDB) >>= \case
     Left (e :: SomeException) ->
       runFlow rt rmTestDB
-      `finally` error ("Preparing test values failed: " <> (toText $ P.show e))
+      `finally` error ("Preparing test values failed: " <> show e)
     Right _ -> act rt `finally` runFlow rt rmTestDB
     )
+
+createMerchantAccount :: Flow DM.MerchantAccount
+createMerchantAccount = case Merchant.transSMaccToDomMacc Merchant.defaultMerchantAccount of
+    V.Failure e -> do
+      logError "DB MerchantAccount Validation" $ show e
+      error "MerchantAccount faulted"
+    V.Success validMAcc -> pure validMAcc
+
+withMerchantAccount :: (DM.MerchantAccount -> Flow a) -> Flow a
+withMerchantAccount flowF = do
+  mAcc <- createMerchantAccount
+  flowF mAcc
 
 orderReqTemplate :: OrderAPI.OrderCreateRequest
 orderReqTemplate = OrderAPI.OrderCreateRequest
@@ -108,45 +125,46 @@ orderReqTemplate = OrderAPI.OrderCreateRequest
 -- options_create_mandate default: DISABLED
 ordReqForValidators = orderReqTemplate
   { amount = 0.0104
-  , customer_id = Just "  "}
+  , customer_id = Just "  "
+  }
 
 ordReqExisted = orderReqTemplate
-  {order_id = "orderId"
-  , amount = 1
+  { order_id = "orderId"
+  , amount = 1.0
   }
 
 ordReqMandateFeatureFailData = orderReqTemplate
   { order_id = "wrongMandateParams"
-  , amount = 500
+  , amount = 500.0
   , mandate_max_amount = Nothing
   , options_create_mandate = Just OPTIONAL
   }
 
 ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   { order_id = "wrongMandateParams"
-  , amount = 50000
+  , amount = 50000.0
   , mandate_max_amount = Just "100500"
   , options_create_mandate = Just OPTIONAL
   }
 
 ordReqUdf = orderReqTemplate
-  { orderId = "udfId"
-  , amount = 100
-  , udf1 = "filtered~!#%^=+\\|:;,\"'()-.&/"
-  , udf2 = "filtered~!#%^=+\\|:;,\"'()-.&/"
-  , udf3 = "filtered~!#%^=+\\|:;,\"'()-.&/"
-  , udf4 = "filtered~!#%^=+\\|:;,\"'()-.&/"
-  , udf5 = "filtered~!#%^=+\\|:;,\"'()-.&/"
-  , udf6 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
-  , udf7 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
-  , udf8 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
-  , udf9 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
-  , udf10 = "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  { order_id = "udfId"
+  , amount = 100.0
+  , udf1  = Just "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf2  = Just "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf3  = Just "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf4  = Just "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf5  = Just "filtered~!#%^=+\\|:;,\"'()-.&/"
+  , udf6  = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf7  = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf8  = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf9  = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , udf10 = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
   }
 
 ordReqWithAddresses = orderReqTemplate
-  { orderId = "orderWithAddr"
-  , amount = 100
+  { order_id = "orderWithAddr"
+  , amount = 100.0
   , billing_address_first_name = Just "billing_address_first_name"
   , billing_address_last_name = Just "billing_address_last_name"
   , billing_address_line1 = Just "billing_address_line1"
@@ -174,8 +192,8 @@ ordReqWithAddresses = orderReqTemplate
 ordReq :: OrderAPI.OrderCreateRequest
 ordReq = OrderAPI.OrderCreateRequest
   { order_id                          = "orderId2" -- :: Text
-  , amount                            = 1000 -- :: Double
-  , currency                          = Just "INR" -- :: Maybe Text -- EUR, USD, GBP,  Default value: INR
+  , amount                            = 1000.0 -- :: Double
+  , currency                          = Just INR -- EUR, USD, GBP,  Default value: INR
   , customer_id                       = Just "customerId" -- :: Maybe Text
   , customer_email                    = Just "customer@email.com" -- :: Maybe Text
   , customer_phone                    = Just "" -- :: Maybe Text
@@ -367,7 +385,7 @@ spec =
         let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-        eRes <- runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
+        eRes <- runFlow rt $ prepareDBConnections *> withMerchantAccount (OrderCreate.orderCreate rp ordReq)
         eRes `shouldSatisfy` (\OrderAPI.OrderCreateResponse{..} ->
           status == NEW
           && status_id == 10
@@ -398,73 +416,53 @@ spec =
          -- && juspay ==
           )
 
+      let runOrderCreate rt ordReq rp = runFlow rt $ do
+            prepareDBConnections
+            withMerchantAccount (OrderCreate.orderCreate rp ordReq)
+
       it "Order with ordReqForValidators" $ \rt -> do
-        eRes <- do
           let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          let validatedReq = transform ordReqForValidators
-          case validatedReq of
-            Left err -> pure err
-            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
-          eRes `shouldBe` ""
+          resp <- runOrderCreate rt ordReqForValidators rp
+          resp `shouldBe` ordCreateResp
 
       it "Order with ordReqExisted" $ \rt -> do
-        eRes <- do
           let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          let validatedReq = transform ordReqExisted
-          case validatedReq of
-            Left err -> pure err
-            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
-          eRes `shouldBe` ""
+          resp <- runOrderCreate rt ordReqExisted rp
+          resp `shouldBe` ordCreateResp
 
       it "Order with ordReqMandateFeatureFailData" $ \rt -> do
-        eRes <- do
           let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          let validatedReq = transform ordReqMandateFeatureFailData
-          case validatedReq of
-            Left err -> pure err
-            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
-          eRes `shouldBe` ""
+          resp <- runOrderCreate rt ordReqMandateFeatureFailData rp
+          resp `shouldBe` ordCreateResp
 
       it "Order with ordReqMandateFeatureTooBigMandateMaxAmount" $ \rt -> do
-        eRes <- do
           let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          let validatedReq = transform ordReqMandateFeatureTooBigMandateMaxAmount
-          case validatedReq of
-            Left err -> pure err
-            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
-          eRes `shouldBe` ""
+          resp <- runOrderCreate rt ordReqMandateFeatureTooBigMandateMaxAmount rp
+          resp `shouldBe` ordCreateResp
 
       it "Order UDF cleaned" $ \rt -> do
-        eRes <- do
           let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          let validatedReq = transform ordReqUdf
-          case validatedReq of
-            Left err -> pure err
-            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
-          eRes `shouldBe` ""
+          resp <- runOrderCreate rt ordReqUdf rp
+          resp `shouldBe` ordCreateResp
 
       it "Order with addresses" $ \rt -> do
-        eRes <- do
           let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          let validatedReq = transform ordReqWithAddresses
-          case validatedReq of
-            Left err -> pure err
-            Right ordReq -> runFlow rt $ prepareDBConnections *> OrderCreate.orderCreate ordReq rp Merchant.defaultMerchantAccount
-          eRes `shouldBe` ""
+          resp <- runOrderCreate rt ordReqWithAddresses rp
+          resp `shouldBe` ordCreateResp
 
-      it "OrderStatus" $ \rt -> do
-        eRes <- runFlow rt $ prepareDBConnections *> OrderStatus.processOrderStatusGET "orderId" "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI="
-        eRes `shouldBe` orderStatusResp
-
+      -- it "OrderStatus" $ \rt -> do
+      --   eRes <- runFlow rt $ do
+      --     prepareDBConnections *> OrderStatus.processOrderStatusGET "orderId" "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI="
+      --   eRes `shouldBe` orderStatusResp

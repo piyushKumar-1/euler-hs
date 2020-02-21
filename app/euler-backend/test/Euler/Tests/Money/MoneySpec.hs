@@ -3,7 +3,7 @@ module Euler.Tests.Money.MoneySpec where
 import           EulerHS.Prelude
 import           Test.Hspec
 
-import qualified Euler.Product.Domain.Money as M
+import qualified Euler.Common.Types.Money as M
 
 
 m1 :: Double

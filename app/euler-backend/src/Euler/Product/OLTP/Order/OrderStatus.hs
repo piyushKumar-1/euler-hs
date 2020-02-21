@@ -1444,9 +1444,10 @@ makeOrderStatusResponse
   -> Text -- use getGatewayReferenceId to get it
   -> Maybe Risk
   -> Maybe TxnCardInfo
-  -> Maybe Text
+  -> Maybe Text -- CardBrand
   -> Maybe [Refund']
   -> Maybe [Chargeback']
+  -- After OrderReference be validated, it makeOrderStatusResponse will return OrderStatusResponse only
   -> Except Text OrderStatusResponse
 makeOrderStatusResponse
   ordRef
@@ -1543,7 +1544,7 @@ makeOrderStatusResponse
     <<= maybeTxn (changeTxnUuid . getField @"txnUuid")
     <<= maybeTxn (changeTxnId . getField @"txnId")
     <<= maybeTxn (changeStatusId . getStatusId)
-    <<= maybeTxn (changeStatus . getStatus) -- second status change
+    <<= maybeTxn (changeStatus . getStatus) -- second status change when Just TxnDetail
     -- addTxnDetailsToResponse
 
     <<= changeMandate mMandate
@@ -1588,6 +1589,8 @@ makeOrderStatusResponse
 
 
 -- Begin
+
+-- TODO abstract change functions to reduce boilerplate
 
 -- former fillOrderDetails
 -- mkResponse
@@ -1775,7 +1778,7 @@ changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap L
 
 
 
-
+-- For checking. TODO remove
 promotion1 :: Promotion'
 promotion1 = Promotion'
   { id              = Nothing
@@ -1786,6 +1789,7 @@ promotion1 = Promotion'
   , status          = Just "hello"
   }
 
+-- For checking. TODO remove
 promotion2 :: Promotion'
 promotion2 = Promotion'
   { id              = Nothing
@@ -1796,6 +1800,7 @@ promotion2 = Promotion'
   , status          = Just "world"
   }
 
+-- For checking. TODO remove
 -- extract $ buildStatusResponse <<= changeMandate (Just mandate1) <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
 mandate1 = Mandate'
   { mandate_token  = "token"

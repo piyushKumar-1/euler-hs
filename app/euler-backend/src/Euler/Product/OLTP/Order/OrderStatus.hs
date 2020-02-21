@@ -32,6 +32,7 @@ import           Data.Time
 import           Servant.Server
 import           Control.Comonad hiding ((<<=))
 import           Data.Semigroup as S
+import           Control.Monad.Except
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters(..), lookupRP)
@@ -245,12 +246,17 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery query@OrderStatusQuery{..} = do
 
-  order <- undefined :: Flow OrderReference -- TODO loadOrder orderId merchantId
-  let orderUuid = fromMaybe T.empty $ getField @"orderUuid" order
+  orderRef <- undefined :: Flow OrderReference -- TODO loadOrder orderId merchantId
+
+  let orderUuid = fromMaybe T.empty $ getField @"orderUuid" orderRef
 
   links <- mkPaymentLinks resellerId orderUuid
 
-  ordResp <- fillOrderStatusResponse query order links
+
+
+  -- ordResp <- fillOrderStatusResponse query order links
+  mPromotion' <- getPromotion orderRef
+  mMandate' <- loadMandate orderRef
 
   -- ids, customer info, status info, amount, payment links
   -- ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
@@ -262,13 +268,48 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
   -- TODO has to go to Server.hs or somewhere else RouteParams are still available
   --let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
 
-  mTxnDetail1 <- getTxnFromTxnUuid order txnId
-  mTxnDetail2 <- getLastTxn order
+  mTxnDetail1 <- getTxnFromTxnUuid orderRef txnId
+  mTxnDetail2 <- getLastTxn orderRef
+  let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
-  case (mTxnDetail1 <|> mTxnDetail2) of
-    Just txn -> Right <$> fillOrderStatusResponseTxn query txn order ordResp
-    Nothing  -> pure $ Right ordResp
+  -- case (mTxnDetail1 <|> mTxnDetail2) of
+  --   Just txn -> Right <$> fillOrderStatusResponseTxn query txn order ordResp
+  --   Nothing  -> pure $ Right ordResp
+  gatewayRefId <- case mTxn of
+    Nothing -> getGatewayReferenceId2 T.empty orderRef
+    Just txn -> do
+      let gateway = fromMaybe "" $ getField @"gateway" txn
+      getGatewayReferenceId2 gateway orderRef
 
+  (mRisk, mTxnCard, mRefunds', mChargeback') <- case mTxn of
+    Nothing -> pure (Nothing, Nothing, Nothing, Nothing)
+    Just txn -> do
+      case getField @"id" txn of
+        Nothing -> pure (Nothing, Nothing, Nothing, Nothing)
+        Just txnId -> do
+          mRisk <- getRisk txnId
+          mTxnCard <- loadTxnCardInfo txnId
+          mRefunds' <- maybeList <$> (refundDetails txnId)
+          mChargeback' <- maybeList <$> (chargebackDetails txnId $ mapTxnDetail txn)
+          pure (mRisk, mTxnCard, mRefunds', mChargeback')
+
+  mCardBrand <- case mTxnCard of
+    Nothing -> pure Nothing
+    Just (card :: TxnCardInfo) -> getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+
+  pure $ runExcept $ makeOrderStatusResponse
+    orderRef
+    links
+    mPromotion'
+    mMandate'
+    query
+    mTxn
+    gatewayRefId
+    mRisk
+    mTxnCard
+    mCardBrand
+    mRefunds'
+    mChargeback'
 
   -- mbTxnId <- txnId <|> (getLastTxn orderId) -- getLastTxn returns txnDetails not id
 
@@ -1399,63 +1440,58 @@ makeOrderStatusResponse
   -> Maybe Promotion'
   -> Maybe Mandate'
   -> OrderStatusQuery
-  -> TxnDetail
+  -> Maybe TxnDetail
   -> Text -- use getGatewayReferenceId to get it
   -> Maybe Risk
   -> Maybe TxnCardInfo
   -> Maybe Text
-  -> [Refund']
-  -> [Chargeback']
-  -> Flow OrderStatusResponse
+  -> Maybe [Refund']
+  -> Maybe [Chargeback']
+  -> Except Text OrderStatusResponse
 makeOrderStatusResponse
   ordRef
   paymentLinks
   mPromotion
   mMandate
   query@OrderStatusQuery{..}
-  txn
+  mTxn
   gatewayRefId
   mRisk
   mTxnCard
   mCardBrand
-  refunds
-  chargebacks
+  mRefunds
+  mChargebacks
   = do
 
   -- Validation
 
-  -- TODO: handle exception as Either to have pure function
-  ordId <- whenNothing (getField @ "orderUuid" ordRef) (throwException $ myerr "4")
+  ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef -- (throwException $ myerr "4")
 
   let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
       email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
       phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
-
       amount = fmap sanitizeAmount $ getField @ "amount" ordRef
       amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" ordRef
-      statusId = txnStatusToInt $ getField @"status" txn
-      gateway   = fromMaybe "" (getField @"gateway" txn)
-      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
-      mGatewayPayload' = getField @"gatewayPayload" txn
-      gatewayPayload = if isBlankMaybe mGatewayPayload' then mGatewayPayload' else Nothing
-      bankErrorCode = whenNothing (getField @"bankErrorCode" txn) (Just "")
-      bankErrorMessage = whenNothing (getField @"bankErrorMessage" txn) (Just "")
-      txnDetail' = mapTxnDetail txn
 
+      getStatus = show . getField @"status"
+      getStatusId = txnStatusToInt . getField @"status"
+      getGatewayId txn = maybe 0 gatewayIdFromGateway $ join $ stringToGateway <$> getField @"gateway" txn
+      getBankErrorCode txn = whenNothing (getField @"bankErrorCode" txn) (Just "")
+      getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+      getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
+        where mGatewayPayload' t= getField @"gatewayPayload" t
+
+      isEmi txn = isTrueMaybe (getField @"isEmi" txn)
+      emiTenure txn = getField @"emiTenure" txn
+      emiBank txn = getField @"emiBank" txn
+
+      paymentMethod = whenNothing mCardBrand (Just "UNKNOWN")
+
+      -- Abstract functions to elemenate boilerplate
       maybeTxnCard f = maybe emptyBuilder f mTxnCard
-
-      isEmi = isTrueMaybe (getField @"isEmi" txn)
-      emiTenure = getField @"emiTenure" txn
-      emiBank = getField @"emiBank" txn
-
-      paymentMethod = if isJust mCardBrand then mCardBrand else Just "UNKNOWN"
-
-      mRefunds = maybeList refunds
-      mChargebacks = maybeList chargebacks
-
+      maybeTxn f = maybe emptyBuilder f mTxn
 
 -- Build pipeline
--- keep it pure
 
   pure $ extract $ buildStatusResponse
     -- end
@@ -1472,22 +1508,25 @@ makeOrderStatusResponse
       -- TODO: add addSecondFactorResponseAndTxnFlowInfo here
       -- addSecondFactorResponseAndTxnFlowInfo
 
-    <<= maybeTxnCard (\txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
-      then changeCard (getCardDetails txnCard txn sendCardIsin)
-      else emptyBuilder)
+    <<= maybeTxn (\txn -> maybeTxnCard (\txnCard ->
+      if isBlankMaybe (getField @"cardIsin" txnCard)
+        then changeCard (getCardDetails txnCard txn sendCardIsin)
+        else emptyBuilder))
 
-    <<= maybeTxnCard (\txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
-      then changePaymentMethodType "CARD"
-      else emptyBuilder)
+    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
+      if isBlankMaybe (getField @"cardIsin" txnCard)
+        then changePaymentMethodType "CARD"
+        else emptyBuilder))
 
-    <<= maybeTxnCard (\txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
-      then changeEmiPaymentMethod paymentMethod
-      else emptyBuilder)
+    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
+      if isBlankMaybe (getField @"cardIsin" txnCard)
+        then changeEmiPaymentMethod paymentMethod
+        else emptyBuilder))
       -- addCardInfo
 
-    <<= maybeTxnCard (\txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just ""))
+    <<= maybeTxn (const $ maybeTxnCard (\txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just "")))
       -- addAuthType
-    <<= maybeTxnCard (const $ if isEmi then changeEmiTenureEmiBank emiTenure emiBank else emptyBuilder)
+    <<= maybeTxn (\txn -> maybeTxnCard (const $ if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder))
       -- addEmi
       -- TODO: add updatePaymentMethodAndType here
     -- addPaymentMethodInfo
@@ -1495,17 +1534,16 @@ makeOrderStatusResponse
     <<= changeRisk mRisk
     -- addRiskCheckInfoToResponse
 
-
-    <<= changeTxnDetails txnDetail'
-    <<= changeGatewayPayload gatewayPayload
-    <<= changeBankErrorMessage bankErrorMessage
-    <<= changeBankErrorCode bankErrorCode
-    <<= changeGatewayRefId gatewayRefId
-    <<= changeGatewayId gatewayId
-    <<= changeTxnUuid (getField @"txnUuid" txn)
-    <<= changeTxnId (getField @"txnId" txn)
-    <<= changeStatusId statusId
-    <<= changeStatus (show $ getField @"status" txn) -- second status change
+    <<= maybeTxn (changeTxnDetails . mapTxnDetail)
+    <<= maybeTxn (changeGatewayPayload . getGatewayPayload)
+    <<= maybeTxn (changeBankErrorMessage . getBankErrorMessage)
+    <<= maybeTxn (changeBankErrorCode . getBankErrorCode)
+    <<= maybeTxn (const $ changeGatewayRefId gatewayRefId)
+    <<= maybeTxn (changeGatewayId . getGatewayId)
+    <<= maybeTxn (changeTxnUuid . getField @"txnUuid")
+    <<= maybeTxn (changeTxnId . getField @"txnId")
+    <<= maybeTxn (changeStatusId . getStatusId)
+    <<= maybeTxn (changeStatus . getStatus) -- second status change
     -- addTxnDetailsToResponse
 
     <<= changeMandate mMandate
@@ -2157,13 +2195,17 @@ loadPromotions orderRef = do
         throwException err500
   pure (ordId, promotions)
 
+-- May it become pure after decryptPromotionRules be refactored
 decryptActivePromotion :: (Text, [Promotions]) -> Flow (Maybe Promotion')
 decryptActivePromotion (_,[]) = pure Nothing
 decryptActivePromotion (ordId, promotions) = do
   let mPromotion = find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
   traverse (decryptPromotionRules ordId) mPromotion
 
-
+getPromotion :: OrderReference -> Flow (Maybe Promotion')
+getPromotion orderRef = do
+  proms <- loadPromotions orderRef
+  decryptActivePromotion  proms
 
 -- ----------------------------------------------------------------------------
 -- function: decryptPromotionRules
@@ -2380,6 +2422,43 @@ getGatewayReferenceId txn ordRef = do
     Nothing -> checkGatewayRefIdForVodafone ordRef txn
 
 
+loadOrderMetadataV2 :: Text -> Flow (Maybe OrderMetadataV2)
+loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
+  let predicate OrderMetadataV2 {orderReferenceId} =
+        orderReferenceId ==. B.val_ ordRefId
+  findRow
+    $ B.select
+    $ B.limit_ 1
+    $ B.filter_ predicate
+    $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
+
+
+-- partly refactored getGatewayReferenceId
+getGatewayReferenceId2 :: Text -> OrderReference -> Flow Text
+getGatewayReferenceId2 gateway ordRef = do
+  let checkGateway = checkGatewayRefIdForVodafone2 ordRef gateway
+
+  case getField @"id" ordRef of
+    Nothing -> checkGateway
+    Just refId -> do
+      ordMeta <- loadOrderMetadataV2 refId
+
+      case ordMeta of
+        Just (ordM :: OrderMetadataV2) ->
+          case blankToNothing (getField @"metadata" ordM) of
+            Nothing -> checkGateway
+            Just md -> do
+              let md' = decode $ BSL.fromStrict $ T.encodeUtf8 md :: Maybe (Map Text Text)
+              case md' of
+                Nothing -> checkGateway
+                Just metadata -> do
+                  gRefId <- pure $ Map.lookup (gateway <> ":gateway_reference_id") metadata
+                  jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
+                  case (gRefId <|> jusId) of
+                    Just v  -> pure v
+                    Nothing -> checkGateway
+
+
 -- ----------------------------------------------------------------------------
 -- function: checkGatewayRefIdForVodafone
 -- done
@@ -2403,6 +2482,32 @@ checkGatewayRefIdForVodafone ordRef txn = do
   case meybeFeature of
     Just feature ->
         if ((fromMaybe "" $ getField @"gateway" txn) == "HSBC_UPI")
+            && (getField @"enabled" feature)
+            && (isJust $ getField @"udf2" ordRef)
+        then pure $ fromMaybe "" $ getField @"udf2" ordRef
+        else pure mempty -- nullValue unit
+    Nothing -> pure mempty -- nullValue unit
+
+
+-- Partly refactored
+checkGatewayRefIdForVodafone2 :: OrderReference -> Text -> Flow Text
+checkGatewayRefIdForVodafone2 ordRef gateway = do
+  merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500) -- ordRef .^. _merchantId
+
+  meybeFeature <- withDB eulerDB $ do
+    let predicate Feature {name, merchantId} =
+          name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
+          &&. merchantId ==. B.just_ (B.val_ merchantId')
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (EDB.feature eulerDBSchema)
+
+
+  case meybeFeature of
+    Just feature ->
+        if (gateway == "HSBC_UPI")
             && (getField @"enabled" feature)
             && (isJust $ getField @"udf2" ordRef)
         then pure $ fromMaybe "" $ getField @"udf2" ordRef
@@ -2582,6 +2687,17 @@ makeRisk risk' = if (fromMaybe T.empty (getField @"provider" risk')) == "ebs"
     where getString a = "" -- TODO: if (isNotString a) then "" else a
 
 
+-- Partly refactored
+getRisk :: Text -> Flow (Maybe Risk)
+getRisk txnId = do
+  txnRiskCheck <- loadTxnRiskCheck txnId
+  case txnRiskCheck of
+    Just trc -> do
+      let riskMAId = getField @"riskManagementAccountId" trc
+      riskMngAcc <- loadRiskManagementAccount riskMAId
+      let risk' = makeRisk' (getField @"provider" <$> riskMngAcc) trc
+      Just <$> makeRisk risk'
+    Nothing -> pure Nothing
 
 
 

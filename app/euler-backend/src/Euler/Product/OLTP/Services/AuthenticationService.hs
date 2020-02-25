@@ -47,11 +47,6 @@ withMacc f rp req = do
   ma <- authenticateRequest rp
   f rp req ma
 
-getMerchantId :: DBM.MerchantAccount -> Flow Text
-getMerchantId mAcc = case DBM.merchantId mAcc of
-  Just mId -> pure mId
-  Nothing -> throwException err500 {errBody = "getMerchantId"}
-
 
 
 decodeB64Text :: Text -> Either Text Text
@@ -99,14 +94,15 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         -- findOneWithErr ecDB (where_ := WHERE ["id" /\ Int (fromMaybe 0 (merchantAccountId))]) ecAccessDenied
         merchantAccount <- pure $ merchantAccount' & _apiKey .~ (Just apiKey') -- setField @"apiKey" (Just apiKey') merchantAccount'
         --TODO: Need to validate the X-Auth-Scope with MerchantKey.scope -> If different, throw ecAccessDenied
-        authScope <- getAuthScope routeParams
-        _ <- if authScope == MERCHANT then ipAddressFilters merchantAccount (lookupRP @XForwardedFor routeParams) else pure True
         let eValidMerchant = MV.transSMaccToDomMacc merchantAccount
         case eValidMerchant of
           V.Failure e -> do
             logError "DB MerchantAccount Validation" $ show e
             throwException internalError
-          V.Success validMAcc -> pure validMAcc
+          V.Success validMAcc -> do
+            authScope <- getAuthScope routeParams
+            _ <- if authScope == MERCHANT then ipAddressFilters validMAcc (lookupRP @XForwardedFor routeParams) else pure True
+            pure validMAcc
   Nothing -> do
     logError "authenticateRequestWithouthErr" "No authorization found in header"
     throwException err403 {errBody = "API key not present in Authorization header"}
@@ -211,13 +207,12 @@ getMACC mid = do
 --    _ -> MERCHANT
 --  Nothing -> MERCHANT
 
-ipAddressFilters ::  DBM.MerchantAccount -> Maybe Text -> Flow Bool
+ipAddressFilters ::  DM.MerchantAccount -> Maybe Text -> Flow Bool
 ipAddressFilters mAcc mForward =  do
   whitelistedIps <- getWhitelistedIps mAcc
   case whitelistedIps of
     Just ips -> do
-      mId <- getMerchantId mAcc
-      _ <- logInfo "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mId
+      _ <- logInfo "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
       case (mForward) of
         Just forward -> do
           reqIPs <- pure $ T.strip <$> (filter (not . T.null) $ T.split (==',') forward)
@@ -231,16 +226,15 @@ ipAddressFilters mAcc mForward =  do
         Nothing -> pure True
     Nothing -> pure True
 
-getWhitelistedIps :: DBM.MerchantAccount -> Flow (Maybe [Text])
+getWhitelistedIps :: DM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
-  mId <- getMerchantId mAcc
-  ipAddresses <- L.rGet ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  ipAddresses <- L.rGet ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
       ir <- do
         withDB eulerDB $ do
-          let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ (fromMaybe 0 $ mAcc ^. _id)
+          let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
           findRows
             $ B.select
             $ B.filter_ predicate
@@ -248,5 +242,5 @@ getWhitelistedIps mAcc = do
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
-        _   <- setCacheWithExpiry ("euler_ip_whitelist_for_" <> mId) ips (5 * 60 * 60)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        _   <- setCacheWithExpiry ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips (5 * 60 * 60)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

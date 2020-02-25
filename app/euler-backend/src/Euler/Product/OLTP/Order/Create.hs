@@ -95,7 +95,7 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   order         <- createOrder' routeParams order' mAccnt merchantPrefs
 
   _             <- updateOrderCache order
-  _             <- updateMandateCache order
+  _             <- updateMandateCache order -- maybe pass mandate from OrderCreateTemplate?
 
   mbReseller    <- loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.

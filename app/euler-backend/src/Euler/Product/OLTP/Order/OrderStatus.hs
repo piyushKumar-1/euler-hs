@@ -1480,7 +1480,7 @@ makeOrderStatusResponse
       getBankErrorCode txn = whenNothing (getField @"bankErrorCode" txn) (Just "")
       getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
       getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
-        where mGatewayPayload' t= getField @"gatewayPayload" t
+        where mGatewayPayload' t = getField @"gatewayPayload" t
 
       isEmi txn = isTrueMaybe (getField @"isEmi" txn)
       emiTenure txn = getField @"emiTenure" txn
@@ -1550,6 +1550,7 @@ makeOrderStatusResponse
     <<= changeMandate mMandate
     -- addMandateDetails
 
+    <<= changeAmountIf mPromotion
     <<= changePromotion mPromotion
     -- addPromotionDetails
 
@@ -1687,14 +1688,18 @@ changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
 
 changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
 changePromotion Nothing builder = builder mempty
-changePromotion mNewProm@(Just newProm) builder =
+changePromotion mNewProm builder = builder mempty { promotionT = fmap Last mNewProm }
+
+changeAmountIf :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
+changeAmountIf Nothing builder = builder mempty
+changeAmountIf (Just newProm) builder =
   let oldStatus = extract builder
   -- TODO: amount logic is wrong now, when used more then one changePromotion
-      mOldAmount= getField @"amount" oldStatus
-      newAmount = sanitizeAmount $ (fromMaybe 0 $ getField @"amount" oldStatus) + (fromMaybe 0 $ getField @"discount_amount" newProm)
+      mOldAmount = getField @"amount" oldStatus
+      mOldPromotion = getField @"discount_amount" newProm
+      newAmount = sanitizeAmount $ (fromMaybe 0 mOldAmount) + (fromMaybe 0 mOldPromotion)
   in builder mempty
-      { promotionT = fmap Last mNewProm
-      , amountT = (fmap Last mOldAmount) <> Just (Last newAmount)
+      { amountT = Just (Last newAmount)
       }
 
 

@@ -23,6 +23,7 @@ import qualified Euler.Tests.Transformation.TransactionSpec as TxnTransform
 import qualified Euler.Tests.Money.MoneySpec                as MoneySpec
 import qualified Euler.Tests.API.AuthRSA                    as AuthRSA
 import           Test.Hspec
+import qualified Euler.Tests.OrderStatus.OrderStatusSpec as OrderStatus
 
 
 
@@ -31,6 +32,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
+    describe "Order status"                               OrderStatus.spec
     describe "Order spec"                                 Order.spec
 <<<<<<< HEAD
     describe "OrderUpdate"                                OrderUpdate.spec

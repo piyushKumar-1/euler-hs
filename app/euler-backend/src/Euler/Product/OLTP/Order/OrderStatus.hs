@@ -1466,7 +1466,7 @@ makeOrderStatusResponse
 
   -- Validation
 
-  ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef -- (throwException $ myerr "4")
+  ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef -- previous (throwException $ myerr "4")
 
   let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
       email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
@@ -1529,6 +1529,7 @@ makeOrderStatusResponse
       -- addAuthType
     <<= maybeTxn (\txn -> maybeTxnCard (const $ if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder))
       -- addEmi
+
       -- TODO: add updatePaymentMethodAndType here
     -- addPaymentMethodInfo
 
@@ -1550,7 +1551,8 @@ makeOrderStatusResponse
     <<= changeMandate mMandate
     -- addMandateDetails
 
-    <<= changeAmountIf mPromotion
+    <<= changeAmountAfterPromotion mPromotion
+    -- changeAmountAfterPromotion should follow after changePromotion always
     <<= changePromotion mPromotion
     -- addPromotionDetails
 
@@ -1583,10 +1585,6 @@ makeOrderStatusResponse
 
     -- begin (reverse direction)
     -- последовательность имеет значение
-
-
--- > extract $ buildStatusResponse <<= changeId "hello" <<= changeId "world"
--- OrderStatusResponse {id = "world", merchant_id = Nothing, ...
 
 
 -- Begin
@@ -1673,45 +1671,27 @@ changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
 
 -- addPromotionDetails
 
-
-  --         let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
-  --             ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
-
-  --         pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
-
--- wrong logic
--- > extract $ buildStatusResponse <<= changePromotion (Just promotion2) <<= changePromotion (Just promotion1)
--- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 7.0, ...
-
--- > extract $ buildStatusResponse <<= changePromotion (Just promotion1) <<= changePromotion (Just promotion2)
--- OrderStatusResponse {id = "", merchant_id = Nothing, amount = Just 5.0, ...
-
 changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
 changePromotion Nothing builder = builder mempty
 changePromotion mNewProm builder = builder mempty { promotionT = fmap Last mNewProm }
 
-changeAmountIf :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
-changeAmountIf Nothing builder = builder mempty
-changeAmountIf (Just newProm) builder =
+changeAmountAfterPromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
+changeAmountAfterPromotion Nothing builder = builder mempty
+changeAmountAfterPromotion (Just newProm) builder =
   let oldStatus = extract builder
-  -- TODO: amount logic is wrong now, when used more then one changePromotion
       mOldAmount = getField @"amount" oldStatus
       mOldPromotion = getField @"discount_amount" newProm
       newAmount = sanitizeAmount $ (fromMaybe 0 mOldAmount) + (fromMaybe 0 mOldPromotion)
-  in builder mempty
-      { amountT = Just (Last newAmount)
-      }
+  in builder mempty { amountT = Just $ Last newAmount }
 
 
 -- addMandateDetails
-
 
 changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
 changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
 
 
 -- addTxnDetailsToResponse
-
 
 changeStatusId :: Int -> ResponseBuilder -> OrderStatusResponse
 changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}

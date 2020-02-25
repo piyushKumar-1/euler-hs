@@ -65,7 +65,9 @@ orderCreate
   -> Flow API.OrderCreateResponse
 orderCreate rp req ma = do
   case VO.transApiOrdCreateToOrdCreateT req of
-    V.Failure err -> throwException Errs.internalError
+    V.Failure err -> do
+      logError "OrderCreateRequest validation" $ show err
+      throwException $ Errs.mkValidationError err
     V.Success validatedOrder -> orderCreate'' rp validatedOrder ma
 
 orderCreate''

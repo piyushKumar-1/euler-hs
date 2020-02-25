@@ -48,6 +48,7 @@ import           WebService.PostRewrite
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
+import qualified Euler.Common.Errors.ErrorsMapping as EMap
 import qualified Euler.Storage.Types.MerchantAccount    as Merchant
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
@@ -187,7 +188,7 @@ runFlow flowTag rps req flow = do
         , mcSourceIP = ""
         , mcUserAgent = ""
         }
-  res <- try (lift $ lift $ R.runFlow newRt flow)
+  res <- try (lift $ lift $ R.runFlow newRt flow `CES.catches` EMap.handlers)
   jsonRes <- case res of
     Left err -> pure $ toJSON @String $ show err
     Right r -> pure $ toJSON r

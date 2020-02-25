@@ -3,25 +3,31 @@ where
 
 import EulerHS.Prelude
 
+import qualified Control.Exception.Safe   as CES (catches, Handler(..), throwIO)
 import qualified Data.Aeson.Encode.Pretty as A   (encodePretty)
-import qualified Servant.Server as SE
+import qualified Servant as SE
 
 import qualified Euler.Common.Errors.Types as ET
 
 
-class (Exception a, Exception b) => MappableErrors a b where
-  mapError :: a -> b
+handlers :: [CES.Handler IO a]
+handlers = [ CES.Handler (\ (ex :: ET.ErrorResponse)   -> CES.throwIO $ handleErrorResponse   ex)
+           , CES.Handler (\ (ex :: ET.ECErrorResponse) -> CES.throwIO $ handleECErrorResponse ex)
+           , CES.Handler (\ (ex :: SE.ServerError)     -> CES.throwIO ex)
+           , CES.Handler (\ (ex :: SomeException)      -> CES.throwIO SE.err500)
+           ]
 
-instance MappableErrors ET.ErrorResponse SE.ServerError where
-  mapError ET.ErrorResponse {..} = SE.ServerError
+
+handleErrorResponse :: ET.ErrorResponse -> SE.ServerError
+handleErrorResponse ET.ErrorResponse {..} = SE.ServerError
     { errHTTPCode = code
     , errReasonPhrase = ""
     , errBody         = A.encodePretty response
     , errHeaders      =[]
     }
 
-instance MappableErrors ET.ECErrorResponse SE.ServerError where
-  mapError ET.ECErrorResponse {..} = SE.ServerError
+handleECErrorResponse :: ET.ECErrorResponse -> SE.ServerError
+handleECErrorResponse ET.ECErrorResponse {..} = SE.ServerError
     { errHTTPCode = code
     , errReasonPhrase = ""
     , errBody         = response

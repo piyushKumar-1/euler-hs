@@ -191,6 +191,17 @@ invalidMandateFields = ECErrorResponse
       }
   }
 
+mkValidationError :: [Text] -> ECErrorResponse
+mkValidationError errs = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "invalid_request_error"
+      , status_id = Nothing
+      , error_message = Just $ show errs
+      , error_code = Just "INVALID_REQUEST"
+      }
+  }
+
 invalidCustomerId :: ECErrorResponse
 invalidCustomerId = ECErrorResponse
   { code = 400

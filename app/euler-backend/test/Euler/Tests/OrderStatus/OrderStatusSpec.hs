@@ -34,21 +34,51 @@ import           Euler.Storage.Types.TxnDetail (TxnDetail, TxnDetailT (..))
 spec :: Spec
 spec =
     describe "makeOrderStatusResponse" $ do
-      it "success makeOrderStatusResponse" $ \rt -> do
+      it "Success with txnDetailJust, promotionJust" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
               orderRef
               paymentlinks
-              mPromotion
+              promotionJust
               mMandate
               query
-              mTxnDetailJust
+              txnDetailJust
               gatewayReferenceId
               mRisk
               txnCardInfo
               mCardBrand
               mRefunds
               mChargeback
-        statusResp `shouldBe` Right orderStatusResponse
+        statusResp `shouldBe` Right orderStatusResponse1
+      it "Success with txnDetailNothing, promotionJust" $ \rt -> do
+        let statusResp = runExcept $ makeOrderStatusResponse
+              orderRef
+              paymentlinks
+              promotionJust
+              mMandate
+              query
+              txnDetailNothing
+              gatewayReferenceId
+              mRisk
+              txnCardInfo
+              mCardBrand
+              mRefunds
+              mChargeback
+        statusResp `shouldBe` Right orderStatusResponse2
+      it "Success with txnDetailJust, promotionNothing" $ \rt -> do
+        let statusResp = runExcept $ makeOrderStatusResponse
+              orderRef
+              paymentlinks
+              promotionNothing
+              mMandate
+              query
+              txnDetailJust
+              gatewayReferenceId
+              mRisk
+              txnCardInfo
+              mCardBrand
+              mRefunds
+              mChargeback
+        statusResp `shouldBe` Right orderStatusResponse3
 
 
 orderRef :: OrderReference
@@ -101,8 +131,8 @@ paymentlinks = Paymentlinks
   , mobile = Just "mobile"
   }
 
-mPromotion :: Maybe Promotion'
-mPromotion = Just Promotion'
+promotionJust :: Maybe Promotion'
+promotionJust = Just Promotion'
   { id              = Just "promotion_id"
   , order_id        = Just "odrer_id"
   , rules           = Just [rule]
@@ -110,6 +140,9 @@ mPromotion = Just Promotion'
   , discount_amount = Just (-9)
   , status          = Just "ACTIVE"
   }
+
+promotionNothing :: Maybe Promotion'
+promotionNothing = Nothing
 
 rule :: Rules
 rule = Rules
@@ -135,8 +168,8 @@ query = OrderStatusQuery
   , sendFullGatewayResponse = True
   }
 
-mTxnDetailJust :: Maybe TxnDetail
-mTxnDetailJust = Just TxnDetail
+txnDetailJust :: Maybe TxnDetail
+txnDetailJust = Just TxnDetail
   { id                       = Just "txnCardInfo_id"
   , version                  = 2
   , errorMessage             = Just "error"
@@ -172,8 +205,8 @@ mTxnDetailJust = Just TxnDetail
   , taxAmount                = Just 0
   }
 
-mTxnDetailNothing :: Maybe TxnDetail
-mTxnDetailNothing = Nothing
+txnDetailNothing :: Maybe TxnDetail
+txnDetailNothing = Nothing
 
 gatewayReferenceId :: Text
 gatewayReferenceId = "JUSPAY:gateway_reference_id"
@@ -274,8 +307,8 @@ mChargeback = Just
       , created          = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 1 30 0)
       }
 
-orderStatusResponse :: OrderStatusResponse
-orderStatusResponse = OrderStatusResponse
+orderStatusResponse1 :: OrderStatusResponse
+orderStatusResponse1 = OrderStatusResponse
   { id = "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just 11.0
@@ -434,3 +467,277 @@ defaultPaymentlinks = Paymentlinks
   , mobile = Nothing
   }
 
+orderStatusResponse2 :: OrderStatusResponse
+orderStatusResponse2 = OrderStatusResponse
+  { id = "orderUuid"
+  , merchant_id = Just "merchantId"
+  , amount = Just 11.0
+  , currency = Just "USD"
+  , order_id = Just "orderId"
+  , date_created = "2020-01-12 02:13:00"
+  , return_url = Just "returnUrl"
+  , product_id = "productId"
+  , customer_email = Just "email@email.ru"
+  , customer_phone = Just "911"
+  , customer_id = Just "customerId"
+  , payment_links = Paymentlinks {iframe = Just "iFrame", web = Just "web", mobile = Just "mobile"}
+  , udf1 = "udf1"
+  , udf2 = "udf2"
+  , udf3 = "udf3"
+  , udf4 = "udf4"
+  , udf5 = "udf5"
+  , udf6 = "udf6"
+  , udf7 = "udf7"
+  , udf8 = "udf8"
+  , udf9 = "udf9"
+  , udf10 = "udf10"
+  , txn_id = Nothing
+  , status_id = 0
+  , status = "SUCCESS"
+  , payment_method_type = Nothing
+  , auth_type = Nothing
+  , card = Nothing
+  , payment_method = Nothing
+  , refunded = Just False
+  , amount_refunded = Just 0.0
+  , chargebacks = Just
+    [ Chargeback'
+      { id = "chargeback_id"
+      , amount = 0.0
+      , object_reference_id = "object_reference_id"
+      , txn = TxnDetail'
+          { txn_id = "txn_id"
+          , order_id = "order_id"
+          , txn_uuid = Just "txn_uuid"
+          , gateway_id = Just 2
+          , status = "STARTED"
+          , gateway = Just "CYBERSOURCE"
+          , express_checkout = Just False
+          , redirect = Just False
+          , net_amount = Just "0"
+          , surcharge_amount = Just "0"
+          , tax_amount = Just "0"
+          , txn_amount = Just "0"
+          , currency = Just "USD"
+          , error_message = Just "error_message"
+          , error_code = Just "error_code"
+          , txn_object_type = Just "txn_object_type"
+          , source_object = Just "source_object"
+          , source_object_id = Just "source_object_id"
+          , created = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 1 30 0)
+          }
+      , date_resolved = Just $ LocalTime (fromGregorian 2020 2 14) (TimeOfDay 5 33 0)
+      , date_created = LocalTime (fromGregorian 2020 1 13) (TimeOfDay 1 30 0)
+      , last_updated = LocalTime (fromGregorian 2020 1 13) (TimeOfDay 13 30 0)
+      , object = "object"
+      , dispute_status = "dispute_status"
+      }
+    ]
+  , refunds = Just
+      [ Refund'
+        { id = "refund_id"
+        , amount = 0.0
+        , unique_request_id = "unique_request_id"
+        , ref = "ref"
+        , created = "2020-01-21"
+        , status = Refund.SUCCESS
+        , error_message = "error_message"
+        , sent_to_gateway = True
+        , arn = "arn"
+        , initiated_by = "initiated_by"
+        , internal_reference_id = "internal_reference_id"
+        , refund_source = "refund_source"
+        , refund_type = "refund_type"
+        }
+      ]
+    , mandate = Just
+      ( Mandate'
+        { mandate_token = "mandate_token"
+        , mandate_status = Just "ACTIVE"
+        , mandate_id = "mandate_id"
+        }
+      )
+    , promotion = Just
+      ( Promotion'
+        { id = Just "promotion_id"
+        , order_id = Just "odrer_id"
+        , rules = Just [Rules {dimension = "dimension", value = "value"}]
+        , created = Just "2018-07-01"
+        , discount_amount = Just (-9.0)
+        , status = Just "ACTIVE"
+        }
+      )
+    , risk = Just
+      ( Risk
+        { provider = Just "provider"
+        , status = Just "ACTIVE"
+        , message = Just "message"
+        , flagged = Just "flagged"
+        , recommended_action = Just "recommended_action"
+        , ebs_risk_level = Just "ebs_risk_level"
+        , ebs_payment_status = Just "ebs_payment_status"
+        , ebs_bin_country = Just "ebs_bin_country"
+        , ebs_risk_percentage = Just "ebs_risk_percentage"
+        }
+      )
+    , bank_error_code = Nothing
+    , bank_error_message = Nothing
+    , txn_uuid = Nothing
+    , gateway_payload = Nothing
+    , txn_detail = Nothing
+    , payment_gateway_response' = Nothing
+    , payment_gateway_response = Nothing
+    , gateway_id = Nothing
+    , emi_bank =Nothing
+    , emi_tenure = Nothing
+    , gateway_reference_id = Nothing
+    , payer_vpa = Nothing
+    , payer_app_name = Nothing
+    , juspay = Nothing
+    , second_factor_response = Nothing
+    , txn_flow_info = Nothing
+    }
+
+orderStatusResponse3 :: OrderStatusResponse
+orderStatusResponse3 = OrderStatusResponse
+  { id = "orderUuid"
+  , merchant_id = Just "merchantId"
+  , amount = Just 20.0
+  , currency = Just "USD"
+  , order_id = Just "orderId"
+  , date_created = "2020-01-12 02:13:00"
+  , return_url = Just "returnUrl"
+  , product_id = "productId"
+  , customer_email = Just "email@email.ru"
+  , customer_phone = Just "911"
+  , customer_id = Just "customerId"
+  , payment_links = Paymentlinks {iframe = Just "iFrame", web = Just "web", mobile = Just "mobile"}
+  , udf1 = "udf1"
+  , udf2 = "udf2"
+  , udf3 = "udf3"
+  , udf4 = "udf4"
+  , udf5 = "udf5"
+  , udf6 = "udf6"
+  , udf7 = "udf7"
+  , udf8 = "udf8"
+  , udf9 = "udf9"
+  , udf10 = "udf10"
+  , txn_id = Just "txnId"
+  , status_id = 20
+  , status = "STARTED"
+  , payment_method_type = Nothing
+  , auth_type = Just "authType"
+  , card = Nothing
+  , payment_method = Nothing
+  , refunded = Just False
+  , amount_refunded = Just 0.0
+  , chargebacks = Just
+    [ Chargeback'
+      { id = "chargeback_id"
+      , amount = 0.0
+      , object_reference_id = "object_reference_id"
+      , txn = TxnDetail'
+          { txn_id = "txn_id"
+          , order_id = "order_id"
+          , txn_uuid = Just "txn_uuid"
+          , gateway_id = Just 2
+          , status = "STARTED"
+          , gateway = Just "CYBERSOURCE"
+          , express_checkout = Just False
+          , redirect = Just False
+          , net_amount = Just "0"
+          , surcharge_amount = Just "0"
+          , tax_amount = Just "0"
+          , txn_amount = Just "0"
+          , currency = Just "USD"
+          , error_message = Just "error_message"
+          , error_code = Just "error_code"
+          , txn_object_type = Just "txn_object_type"
+          , source_object = Just "source_object"
+          , source_object_id = Just "source_object_id"
+          , created = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 1 30 0)
+          }
+      , date_resolved = Just $ LocalTime (fromGregorian 2020 2 14) (TimeOfDay 5 33 0)
+      , date_created = LocalTime (fromGregorian 2020 1 13) (TimeOfDay 1 30 0)
+      , last_updated = LocalTime (fromGregorian 2020 1 13) (TimeOfDay 13 30 0)
+      , object = "object"
+      , dispute_status = "dispute_status"
+      }
+    ]
+  , refunds = Just
+      [ Refund'
+        { id = "refund_id"
+        , amount = 0.0
+        , unique_request_id = "unique_request_id"
+        , ref = "ref"
+        , created = "2020-01-21"
+        , status = Refund.SUCCESS
+        , error_message = "error_message"
+        , sent_to_gateway = True
+        , arn = "arn"
+        , initiated_by = "initiated_by"
+        , internal_reference_id = "internal_reference_id"
+        , refund_source = "refund_source"
+        , refund_type = "refund_type"
+        }
+      ]
+    , mandate = Just
+      ( Mandate'
+        { mandate_token = "mandate_token"
+        , mandate_status = Just "ACTIVE"
+        , mandate_id = "mandate_id"
+        }
+      )
+    , promotion = Nothing
+    , risk = Just
+      ( Risk
+        { provider = Just "provider"
+        , status = Just "ACTIVE"
+        , message = Just "message"
+        , flagged = Just "flagged"
+        , recommended_action = Just "recommended_action"
+        , ebs_risk_level = Just "ebs_risk_level"
+        , ebs_payment_status = Just "ebs_payment_status"
+        , ebs_bin_country = Just "ebs_bin_country"
+        , ebs_risk_percentage = Just "ebs_risk_percentage"
+        }
+      )
+    , bank_error_code = Just "bankErrorCode"
+    , bank_error_message = Just "bankErrorMessage"
+    , txn_uuid = Just "txnUuid"
+    , gateway_payload = Nothing
+    , txn_detail = Just
+      ( TxnDetail'
+        { txn_id = "txnId"
+        , order_id = "orderId"
+        , txn_uuid = Just "txnUuid"
+        , gateway_id = Just 6
+        , status = "STARTED"
+        , gateway = Just "CYBERSOURCE"
+        , express_checkout = Just False
+        , redirect = Just False
+        , net_amount = Just "0.0"
+        , surcharge_amount = Just "0.0"
+        , tax_amount = Just "0.0"
+        , txn_amount = Just "0.0"
+        , currency = Just "EUR"
+        , error_message = Just "bankErrorMessage"
+        , error_code = Just "bankErrorCode"
+        , txn_object_type = Just "txnObjectType"
+        , source_object = Just "sourceObject"
+        , source_object_id = Just "sourceObjectId"
+        , created = Just $ LocalTime (fromGregorian 2020 1 14) (TimeOfDay 3 30 0)
+        }
+      )
+    , payment_gateway_response' = Nothing
+    , payment_gateway_response = Nothing
+    , gateway_id = Just 6
+    , emi_bank = Just "emiBank"
+    , emi_tenure = Just 3
+    , gateway_reference_id = Just "JUSPAY:gateway_reference_id"
+    , payer_vpa = Nothing
+    , payer_app_name = Nothing
+    , juspay = Nothing
+    , second_factor_response = Nothing
+    , txn_flow_info = Nothing
+    }

@@ -82,6 +82,7 @@ import           Euler.Storage.Types.EulerDB as EDB
 
 import           Euler.Storage.Repository.Refund as RR
 import           Euler.Storage.Repository.Chargeback as RC
+import           Euler.Storage.Repository.ResellerAccount as RRA
 
 import           Euler.Version.Services.OrderStatusResponse
 
@@ -250,7 +251,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   let orderUuid = fromMaybe T.empty $ getField @"orderUuid" orderRef
 
-  links <- mkPaymentLinks resellerId orderUuid
+  links <- getPaymentLinks resellerId orderUuid
 
 
 
@@ -1954,6 +1955,14 @@ mkPaymentLinks resellId orderUuid = do
   -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
   -- TODO I think the link doesn't make sense if orderUuid is empty
   pure $ createPaymentLinks orderUuid maybeResellerEndpoint
+
+-- Refactoring
+
+getPaymentLinks :: Maybe Text -> Text ->  Flow Paymentlinks
+getPaymentLinks resellerId orderUuid = do
+  mResellerAccount <- maybe (pure Nothing) loadResellerAccount resellerId
+  let mResellerEndpoint = maybe Nothing (getField @"resellerApiEndpoint") mResellerAccount
+  pure $ createPaymentLinks orderUuid mResellerEndpoint
 
 
 -- ----------------------------------------------------------------------------

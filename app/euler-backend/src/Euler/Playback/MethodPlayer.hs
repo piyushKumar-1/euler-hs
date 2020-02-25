@@ -20,6 +20,7 @@ import qualified Control.Exception.Safe as CES (catches, Handler(..))
 import Euler.API.RouteParameters
 import Euler.Playback.Types
 
+import qualified Euler.Common.Errors.ErrorsMapping as EMap
 import qualified Euler.Product.OLTP.Services.AuthenticationService as AS (withMacc)
 import qualified Euler.Product.OLTP.Order.Create                   as OrderCreate
 import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy       as OrderCreateUpdateLegacy
@@ -92,7 +93,7 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
             , _sqldbConnections = sqldbConnectionsVar
             }
       let method = methodF (coerce mcRouteParams) req  -- mr.parameters
-      eResult :: Either SomeException resp <- try $ runFlow flowRt method
+      eResult :: Either SomeException resp <- try $ runFlow flowRt method `CES.catches` EMap.handlers
       case eResult of
         Right eResult' -> do
 

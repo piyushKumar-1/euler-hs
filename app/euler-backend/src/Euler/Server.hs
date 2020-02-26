@@ -257,27 +257,33 @@ type OrderStatusGetEndpoint
   = Capture "orderId" OrderId
   -- Headers
   :> Header "Authorization" Authorization
-  :>  Header "X-Forwarded-For" XForwardedFor
+  :> Header "X-Auth-Scope" XAuthScope -- most likely this header is not used in order status
+  :> Header "X-Forwarded-For" XForwardedFor
   :> Get '[JSON] ApiOrder.OrderStatusResponse
 
 orderStatus ::
      OrderId
   -> Maybe Authorization
+  -> Maybe XAuthScope
   -> Maybe XForwardedFor
   -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId auth xforwarderfor = do
-  let (rps :: RouteParameters) = collectRPs
-              orderId
-              auth
-              xforwarderfor
-  let (mOrderId :: Maybe D.OrderId) = fmap coerce $ lookupRP @OrderId rps
-  case mOrderId of
-    Nothing -> error "No OrderId" -- TODO: Handle error
-    Just orderId' -> do
-  -- TODO how to obtain apiKey?
-  -- rename: orderStatusById
-      status <- runFlow "orderStatusById" emptyRPs noReqBodyJSON $ OrderStatus.handleByOrderId orderId' "apiKey" rps
-      case status of
+orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor = do
+  let rps = collectRPs
+              --orderId -- is it really needed?
+              mbAuth
+              mbXAuthScope
+              mbXForwarderFor
+
+  -- TODO willbasky: I don't see the reason behind this code
+  --let (mOrderId :: Maybe D.OrderId) = fmap coerce $ lookupRP @OrderId rps
+  --case mOrderId of
+  --  Nothing -> error "No OrderId" -- TODO: Handle error
+  --  Just orderId' -> do
+
+  status <- runFlow "orderStatusById" rps noReqBodyJSON  -- FIXME is noReqBodyJSON appropriate here?
+        $ AS.withMacc OrderStatus.handleByOrderId orderId rps
+
+  case status of
         Left _ -> error "err" -- TODO
         Right response -> pure response
 

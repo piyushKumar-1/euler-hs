@@ -18,7 +18,9 @@ import           Database.Beam ((==.))
 import qualified Database.Beam as B
 import           Euler.Lens
 
--- EHS: Should we validate MerchantIframePreferences ?
+-- EHS: should be MerchantIframePreferences converted to domain type?
+-- EHS: should we validate MerchantIframePreferences?
+-- EHS: rework this function.
 loadMerchantPrefs :: C.MerchantId -> Flow DB.MerchantIframePreferences
 loadMerchantPrefs merchantId' = do
   res <- withDB eulerDB $ do

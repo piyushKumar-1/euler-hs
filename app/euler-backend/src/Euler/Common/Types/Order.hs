@@ -12,7 +12,8 @@ import Database.Beam.MySQL
 import Web.FormUrlEncoded
 import Web.Internal.HttpApiData
 
-import qualified Data.Text as T (pack, unpack)
+import qualified Data.Set as Set
+import qualified Data.Text as T (pack, unpack, filter)
 import qualified Prelude as P (show)
 import qualified Text.Read as TR (readEither)
 

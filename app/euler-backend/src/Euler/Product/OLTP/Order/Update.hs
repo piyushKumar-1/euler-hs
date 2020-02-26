@@ -36,7 +36,6 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
-
 -- EHS: since original update function consumed orderCreate type - fields "amount" and "order_id"
 -- was mandatory. But what if we dont whant to update amount? Also we dont need order_id field
 -- because we take order_id from route parameters.
@@ -44,30 +43,6 @@ import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 -- All this fields in new OrderUpdateRequest type are optional.
 
 -- EHS: we did not check amount like in orderCreate it's ok?
-
--- ### EHS: functions like in orderCreate - move to separate module ###
-
-cleanUpUDF :: C.UDF -> C.UDF
-cleanUpUDF C.UDF {..} = C.UDF
-  { C.udf1 = cleanUp udf1
-  , C.udf2 = cleanUp udf2
-  , C.udf3 = cleanUp udf3
-  , C.udf4 = cleanUp udf4
-  , C.udf5 = cleanUp udf5
-  , ..
-  }
---
-cleanUp :: Maybe Text -> Maybe Text
-cleanUp mStr =  cleanUpSpecialChars <$>  mStr
---
-cleanUpSpecialChars :: Text -> Text
-cleanUpSpecialChars = Text.filter (`Set.notMember` specialChars)
---
-specialChars :: Set.Set Char
-specialChars = Set.fromList "~!#%^=+\\|:;,\"'()-.&/"
-
--- ### ###
-
 
 orderUpdate :: RP.RouteParameters -> Ts.OrderUpdateTemplate -> D.MerchantAccount -> Flow API.OrderStatusResponse
 orderUpdate  routeParams orderUpdateT mAccnt = do
@@ -78,22 +53,21 @@ orderUpdate  routeParams orderUpdateT mAccnt = do
     $ RP.lookupRP @RP.OrderId routeParams
   (mOrder :: Maybe D.Order) <- Rep.loadOrder orderId' merchantId'
   resp <- case mOrder of
-            Just order' -> do
-              doOrderUpdate orderUpdateT order' mAccnt
-              resp' <- OSSrv.getOrderStatusResponse
-                OSSrv.defaultOrderStatusService
-                orderId'
-                mAccnt
-                True
-                routeParams
-              let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
-              let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
-              pure $ VSrv.transformOrderStatus
-                (VSrv.mkOrderStatusService version gatewayId) resp'
-            Nothing -> throwException $ Errs.orderDoesNotExist orderId'
+    Just order' -> do
+      doOrderUpdate orderUpdateT order' mAccnt
+      resp' <- OSSrv.getOrderStatusResponse
+        OSSrv.defaultOrderStatusService
+        orderId'
+        mAccnt
+        True
+        routeParams
+      let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
+      let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
+      pure $ VSrv.transformOrderStatus
+        (VSrv.mkOrderStatusService version gatewayId) resp'
+    Nothing -> throwException $ Errs.orderDoesNotExist orderId'
   logInfo "order update response: " $ show resp
   pure API.defaultOrderStatusResponse --resp
-
 
 doOrderUpdate :: Ts.OrderUpdateTemplate -> D.Order -> D.MerchantAccount -> Flow ()
 doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do
@@ -102,7 +76,7 @@ doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do
       logError "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
     _ ->  do
       let mNewAmount = getField @"amount" orderUpdateT
-      let newUDF = cleanUpUDF $ orderUpdateT ^. _udf
+      let newUDF = orderUpdateT ^. _udf
       mbCustomer <- Rep.loadCustomer customerId (mAccnt ^. _id)
       billingAddressId' <- Rep.updateAddress mbCustomer billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
       shippingAddressId' <- Rep.updateAddress Nothing shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)

@@ -19,7 +19,8 @@ import           Euler.Lens
 
 
 
-
+-- EHS: previously handleReseller
+-- EHS: return domain type for Reseller instead of DB type
 loadReseller :: Maybe Text -> Flow (Maybe DB.ResellerAccount)
 loadReseller Nothing = pure Nothing
 loadReseller (Just resellerId') = withDB eulerDB $ do

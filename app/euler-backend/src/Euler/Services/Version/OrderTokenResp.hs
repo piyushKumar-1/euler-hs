@@ -41,7 +41,7 @@ acquireOrderToken orderPId merchantId = do
   TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
 --
 --   -- EHS: check this
---   runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
+  runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
 --
   pure $ API.OrderTokenResp
     { API.client_auth_token        = Just token

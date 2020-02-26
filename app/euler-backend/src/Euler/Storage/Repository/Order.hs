@@ -72,10 +72,6 @@ updateOrder orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do
       (    (\oRef -> DBO.amount oRef  <-. case (C.fromMoney <$> mAmount) of
                 Just m -> B.val_ $ Just m
                 Nothing -> (B.current_ (DBO.amount oRef))
-                -- B.maybe_
-                --  (B.current_ (DBO.amount oRef))
-                --  (\a -> B.val_ $ a)
-                --  (C.fromMoney <$> mAmount)
            )
         <> (\oRef -> DBO.billingAddressId oRef <-. B.val_ mbBillingAddrId)
         <> (\oRef -> DBO.shippingAddressId oRef <-. B.val_ mbShippingAddrId)
@@ -93,21 +89,3 @@ updateOrder orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do
       )
       (\oRef ->  oRef ^. _id ==. B.val_ (Just orderRefId))
   pure ()
-
--- -- another variant of update
--- -- Domain Order should contain fields like storage OrderReference
--- updateDBOrder2 :: Order -> C.UDF -> Maybe Money -> Maybe AddressId -> Maybe AddressId -> Flow () --OrderReference
--- updateDBOrder2 currOrd@Order{..} newUdf mAmount mbBillingAddrId mbShippingAddrId = do
---   currentDate' <- getCurrentDateUTC
---   withDB eulerDB
---     $ updateRows
---     $ B.save (order_reference eulerDBSchema) newOrder
---   pure ()
---   where
---     newOrder = smash newUdf $ OrderReference
---         { amount = fromMoney <$> (mAmount <|> (Just amount))
---         , billingAddressId = mbBillingAddrId
---         , shippingAddressId = mbShippingAddrId
---         , lastModified = currentDate'
---         , ..
---         }

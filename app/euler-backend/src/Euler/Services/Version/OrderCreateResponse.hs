@@ -17,25 +17,26 @@ import qualified Euler.Common.Types as C
 import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Product.Domain as D
 import qualified Euler.Product.Domain.Templates as Ts
+
+import Euler.Lens
 --
 
 type Version = Text
 
 tokenizeOrderCreateResponse
   :: OrderCreateResponseService
-  -> C.OrderPId
-  -> C.MerchantId
+  -> Bool
   -> D.Order
   -> API.OrderCreateResponse
   -> Flow API.OrderCreateResponse
+tokenizeOrderCreateResponse _ False _ resp = pure resp
 tokenizeOrderCreateResponse
   OrderCreateResponseService{..}
-  orderPId
-  merchantId
-  orderCreateTemplate
+  True
+  dOrder@D.Order{..}
   oResp = do
-    token <- getToken tokenService orderPId merchantId
-    pure $ updateResponse orderCreateTemplate oResp token
+    token <- getToken tokenService (dOrder ^. _id) (dOrder ^. _merchantId)
+    pure $ updateResponse dOrder oResp token
 --
 data OrderCreateResponseService = OrderCreateResponseService
   { tokenService :: OrderTokenRespService
@@ -75,14 +76,15 @@ mkTokenizedOrderResponse D.Order{..} apiResp orderTokenResp = apiResp
     , API.udf9            = (C.udf9  udf) <|> Just ""
     , API.udf10           = (C.udf10 udf) <|> Just ""
     , API.return_url      = returnUrl <|> Just ""
-    , API.refunded        = Just refundedEntirely -- refundedEntirely <|> Just False
+    , API.refunded        = Just refundedEntirely
     , API.product_id      = productId <|> Just ""
-    , API.merchant_id     = Just merchantId -- merchantId <|> Just ""
+    , API.merchant_id     = Just merchantId
     , API.date_created    = Just $ dateCreated
     , API.customer_phone  = customerPhone <|> Just ""
     , API.customer_id     = customerId <|> Just ""
     , API.customer_email  = customerEmail <|> Just ""
-    , API.currency        = (Just $ show currency) -- currency <|> Just ""
-    , API.amount_refunded = amountRefunded <|> Just 0.0
-    , API.amount          = Just (C.fromMoney amount) -- amount <|> Just 0.0
+    , API.currency        = (Just $ show currency)  -- Is show valid here?
+   -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
+    , API.amount_refunded = Just 0.0
+    , API.amount          = Just (C.fromMoney amount)
     }

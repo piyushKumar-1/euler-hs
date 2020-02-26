@@ -1,4 +1,4 @@
-module Euler.Version.Services.MerchantPaymentGatewayResponse
+module Euler.Services.Version.MerchantPaymentGatewayResponse
   ( MerchantPGRService
   , mkMerchantPGRService
   , transformMPGR
@@ -72,13 +72,13 @@ setDiscountAmount' version
   | otherwise = id
 
 setAuthIdCodeAndRRN' :: Version -> GatewayId -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-setAuthIdCodeAndRRN' = undefined
--- setAuthIdCodeAndRRN' version gwId mpgr
---   | (version < "2017-10-26"  || version == "")
---     && gwId == gatewayIdFromGateway PAYU =
---       setField @"auth_id_code" newAuthIdCode
---       $ setField @"rrn" newRRN mpgr
---   | otherwise = mpgr
---   where
---     newAuthIdCode = getField @"rrn" mpgr
---     newRRN = getField @"epg_txn_id" mpgr
+-- setAuthIdCodeAndRRN' = undefined
+setAuthIdCodeAndRRN' version gwId mpgr
+  | (version < "2017-10-26"  || version == "")
+    && Just gwId == gatewayIdFromGateway PAYU =
+      setField @"auth_id_code" newAuthIdCode
+      $ setField @"rrn" newRRN mpgr
+  | otherwise = mpgr
+  where
+    newAuthIdCode = getField @"rrn" mpgr
+    newRRN = getField @"epg_txn_id" mpgr

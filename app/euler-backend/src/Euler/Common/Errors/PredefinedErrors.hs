@@ -191,6 +191,17 @@ invalidMandateFields = ECErrorResponse
       }
   }
 
+mkDBError :: Text -> ECErrorResponse
+mkDBError err = ECErrorResponse
+  { code = 500
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "INTERNAL_ERROR"
+      , status_id = Nothing
+      , error_message = Just $ err
+      , error_code = Just "INTERNAL_ERROR"
+      }
+  }
+
 mkValidationError :: [Text] -> ECErrorResponse
 mkValidationError errs = ECErrorResponse
   { code = 400
@@ -392,6 +403,16 @@ customerNotFound = ECErrorResponse
       }
   }
 
+orderIdNotFoundInPath :: ECErrorResponse
+orderIdNotFoundInPath = ECErrorResponse
+  { code = 400
+  , response = A.encodePretty $ ECErrorPayload
+      { status = "INVALID_REQUEST"
+      , status_id = Nothing
+      , error_message = Just "Can't find order_id in path parameters"
+      , error_code = Nothing
+      }
+  }
 -- customerNotFound :: ECErrorResponse
 -- customerNotFound = ECErrorResponse
 --   { code = 200

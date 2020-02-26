@@ -172,3 +172,6 @@ gatewayRMap = Map.fromList $ map swap gatewayList
 
 lookupGatewayName :: GatewayId -> Maybe Text
 lookupGatewayName k = Map.lookup k gatewayRMap >>= Just . show
+
+gatewayIdFromGateway :: Gateway -> Maybe GatewayId
+gatewayIdFromGateway k = Map.lookup k gatewayMap

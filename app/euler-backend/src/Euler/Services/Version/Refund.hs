@@ -1,4 +1,4 @@
-module Euler.Version.Services.Refund
+module Euler.Services.Version.Refund
   ( RefundService
   , mkRefundService
   , transformRefunds

@@ -29,9 +29,12 @@ import           Euler.Common.Types.Refund as Refund
 
 
 
+import           Euler.Storage.Types.Mandate
+
 import           Euler.Product.Domain.Chargeback as D
 import           Euler.Product.Domain.Money
 import           Euler.Product.Domain.Refund as D
+import           Euler.Product.Domain.Mandate as D
 
 
 -- Previously: OrderCreateReq
@@ -782,6 +785,13 @@ data EmandateDetail = EmandateDetail
   , beneficiary_name :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mapMandate :: D.Mandate -> Mandate'
+mapMandate D.Mandate {..} = Mandate'
+  { mandate_token = token
+  , mandate_status = Just $ show $ status
+  , mandate_id = mandateId
+  }
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Risk' = Risk'

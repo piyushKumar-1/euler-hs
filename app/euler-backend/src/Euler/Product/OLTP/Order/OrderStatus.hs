@@ -52,7 +52,7 @@ import           Euler.Common.Types.TxnDetail
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
-import qualified Euler.Product.Domain.Order as DO (Order, OrderId(..)) 
+import qualified Euler.Product.Domain.Order as DO (Order, OrderId(..))
 
 import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
@@ -83,6 +83,7 @@ import           Euler.Storage.Types.EulerDB as EDB
 import           Euler.Storage.Repository.Refund as RR
 import           Euler.Storage.Repository.Chargeback as RC
 import           Euler.Storage.Repository.ResellerAccount as RRA
+import           Euler.Storage.Repository.Mandate
 
 import           Euler.Version.Services.OrderStatusResponse
 
@@ -93,9 +94,9 @@ import           Euler.Storage.DBConfig
 
 -- porting statistics:
 -- to port '-- TODO port' - 21
--- to update '-- TODO update' - 21
--- completed '-- done' - 31
--- refactored '-- refactored' - 4
+-- to update '-- TODO update' - 20
+-- completed '-- done' - 32
+-- refactored '-- refactored' - 5
 -- total number of functions = 73
 
 -- "xml cases"
@@ -128,10 +129,10 @@ data FlowError = FlowError -- do we have something similar?
 -- API-aware handler -- naming convention?
 -- TODO can we collect all headers in Map and save them in state? before we run the flow?
 -- former signature: processOrderStatus :: Text -> APIKey -> Flow OrderStatusResponse
-handleByOrderId 
+handleByOrderId
   :: OrderId
-  -> RouteParameters 
-  -> MerchantAccount 
+  -> RouteParameters
+  -> MerchantAccount
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId orderId rps merchantAccount  = do
 
@@ -155,7 +156,7 @@ handleByOrderId orderId rps merchantAccount  = do
   let query = OrderStatusQuery
         { orderId         = DO.OrderId . show $ orderId -- better transformation?
         -- FIXME -- can it be empty? Use validated domain's type
-        , merchantId      = fromMaybe T.empty $ getField @"merchantId" merchantAccount 
+        , merchantId      = fromMaybe T.empty $ getField @"merchantId" merchantAccount
         , resellerId      = getField @"resellerId" merchantAccount
         , isAuthenticated = True
         , sendCardIsin    = fromMaybe False $ getField @"enableSendingCardIsin" merchantAccount
@@ -256,29 +257,16 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   links <- getPaymentLinks resellerId orderUuid
 
-
-
-  -- ordResp <- fillOrderStatusResponse query order links
   mPromotion' <- getPromotion orderRef
-  mMandate' <- loadMandate orderRef
+  mMandate' <- getMandate orderRef
 
-  -- ids, customer info, status info, amount, payment links
-  -- ordResp'    <- fillOrderDetails isAuthenticated paymentlink order def
-  -- -- amount(!), promotion
-  --                 >>= addPromotionDetails order
-  -- mandate
-  -- ordResp     <- addPromotionDetails order response >>= addMandateDetails order
 
   -- TODO has to go to Server.hs or somewhere else RouteParams are still available
-  --let shouldSendFullGatewayResponse = fromMaybe false $ getBooleanValue <$> StrMap.lookup "options.add_full_gateway_response" routeParam
 
   mTxnDetail1 <- getTxnFromTxnUuid orderRef txnId
   mTxnDetail2 <- getLastTxn orderRef
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
-  -- case (mTxnDetail1 <|> mTxnDetail2) of
-  --   Just txn -> Right <$> fillOrderStatusResponseTxn query txn order ordResp
-  --   Nothing  -> pure $ Right ordResp
   gatewayRefId <- case mTxn of
     Nothing -> getGatewayReferenceId2 T.empty orderRef
     Just txn -> do
@@ -314,42 +302,6 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     mCardBrand
     mRefunds'
     mChargeback'
-
-  -- mbTxnId <- txnId <|> (getLastTxn orderId) -- getLastTxn returns txnDetails not id
-
-  -- case mbTxnId of
-  --   Just txnId -> do
-  --     txn <- txnData txnId
-  --     -- status info (!), txn ids, gateway ids + payload, txn detail
-  --     addTxnDetailsToResponse txnId order ordResp
-  --     -- risk
-  --     >>= addRiskCheckInfoToResponse txnId
-  --     -- investigate, second_factor_response
-  --     >>= addPaymentMethodInfo mAccnt txtxnIdn
-  --     -- refunds
-  --     >>= addRefundDetails txnId
-  --     -- chargebacks
-  --     >>= addChargeBacks txnId
-  --     -- payment_gateway_response
-  --     >>= addGatewayResponse txnId sendFullGatewayResponse
-    -- Nothing ->  pure ordResp
-
--- should we divide this method to:
--- 1) getStatusResp, where we just get it from DB
-
--- 2) fillStatusResp, where we apply:
---  * fillOrderDetails
---  * addPromotionDetails
---  * addMandateDetails
-
--- 3) addTxnInfo (this method only for POST orderStatus api method) where we:
---  * addTxnDetailsToResponse
---  * addRiskCheckInfoToResponse
---  * addPaymentMethodInfo
---  * addRefundDetails
---  * addChargeBacks
---  * addGatewayResponse
-
 
 
 ---------------------------------------------------------------------------------------------------
@@ -535,45 +487,44 @@ getOrderStatusWithoutAuth
   -> Flow OrderStatusResponse -- Foreign
 getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = undefined
 
+-- getOrderStatusWithoutAuth2
+--   :: OrderStatusRequest -- remove after fix checkAndAddOrderToken
+--   -> OrderStatusQuery
+--   -- -> Text {-RouteParameters-}
+--   -- -> MerchantAccount
+--   -- -> Bool
+--   -> (Maybe OrderCreateRequest)
+--   -> (Maybe OrderReference)
+--   -> Flow OrderStatusResponse -- Foreign
+-- getOrderStatusWithoutAuth2 req query@OrderStatusQuery{..} maybeOrderCreateReq maybeOrd = do
+--   -- merchId <- case (getField @"merchantId" merchantAccount) of
+--   --               Nothing -> throwException $ myerr "3"
+--   --               Just v  -> pure v
 
-{-
-getOrderStatusWithoutAuth2
-  :: OrderStatusRequest -- remove after fix checkAndAddOrderToken
-  -> OrderStatusQuery
-  -- -> Text {-RouteParameters-}
-  -- -> MerchantAccount
-  -- -> Bool
-  -> (Maybe OrderCreateRequest)
-  -> (Maybe OrderReference)
-  -> Flow OrderStatusResponse -- Foreign
-getOrderStatusWithoutAuth2 req query@OrderStatusQuery{..} maybeOrderCreateReq maybeOrd = do
-  -- merchId <- case (getField @"merchantId" merchantAccount) of
-  --               Nothing -> throwException $ myerr "3"
-  --               Just v  -> pure v
+--   cachedResp <- getCachedOrdStatus isAuthenticated (runOrderId orderId) merchantId  --TODO check for txn based refund
+--   resp <- case cachedResp of
+--             Nothing -> do
+--               -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
+--               orderReference <- getOrderReference query
+--               paymentlink <- mkPaymentLinks resellerId (fromMaybe "" $ orderUuid orderReference)
+--               resp <- fillOrderStatusResponse query orderReference paymentlink
+--          -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
+--               pure resp
+--             Just resp -> pure resp
+--   ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
 
-  cachedResp <- getCachedOrdStatus isAuthenticated (DO.runOrderId orderId) merchantId  --TODO check for txn based refund
-  resp <- case cachedResp of
-            Nothing -> do
-              -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
-              orderReference <- getOrderReference query
-              paymentlink <- mkPaymentLinks resellerId (fromMaybe "" $ orderUuid orderReference)
-              resp <- fillOrderStatusResponse query orderReference paymentlink
-         -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
-              pure resp
-            Just resp -> pure resp
-  ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
+--   -- * This part probably shoul be moved to the separate function, used only for orderCreate request
+--   ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
+--                     let order = fromJust maybeOrd
+--                     let orderCreateReq = fromJust maybeOrderCreateReq
+--                     checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchantId order
+--                   else pure ordResp'
+--  ------------------------------------------------
+--  -- * encode response to Foreign inside, why?
+--   -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
+--   pure ordResp
 
-  -- * This part probably shoul be moved to the separate function, used only for orderCreate request
-  ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
-                    let order = fromJust maybeOrd
-                    let orderCreateReq = fromJust maybeOrderCreateReq
-                    checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchantId order
-                  else pure ordResp'
- ------------------------------------------------
- -- * encode response to Foreign inside, why?
-  -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
-  pure ordResp
--}
+
 
 -- ----------------------------------------------------------------------------
 -- function: checkAndAddOrderToken
@@ -1192,15 +1143,15 @@ getOrderReference query = do
     --                 >>= addPromotionDetails order >>= addMandateDetails order
     -- ordResp     <- addMandateDetails order ordResp'
 
-{-
-fillOrderStatusResponseTxn :: OrderStatusQuery -> TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
-fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
-  addTxnDetailsToResponse txn order ordResp
-    >>= addRiskCheckInfoToResponse txn
-    >>= addPaymentMethodInfo sendCardIsin txn
-    >>= addRefundDetails txn
-    >>= addChargeBacks txn
-    >>= addGatewayResponse txn sendFullGatewayResponse
+
+-- fillOrderStatusResponseTxn :: OrderStatusQuery -> TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+-- fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
+--   addTxnDetailsToResponse txn order ordResp
+--     >>= addRiskCheckInfoToResponse txn
+--     >>= addPaymentMethodInfo sendCardIsin txn
+--     >>= addRefundDetails txn
+--     >>= addChargeBacks txn
+--     >>= addGatewayResponse txn sendFullGatewayResponse
 
    -- used in POST method
    --  case maybeTxn of
@@ -1213,15 +1164,15 @@ fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
    --      >>= addGatewayResponse txn
    --    Nothing ->  pure ordResp
     -- pure ordResp
--}
+-- -}
 
-{-
-fillOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
-fillOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
-  mkResponse isAuthenticated payLinks ordReference defaultOrderStatusResponse
-    >>= addPromotionDetails ordReference
-    >>= addMandateDetails ordReference
--}
+
+-- fillOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
+-- fillOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
+--   mkResponse isAuthenticated payLinks ordReference defaultOrderStatusResponse
+--     >>= addPromotionDetails ordReference
+--     >>= addMandateDetails ordReference
+
 
 -- ----------------------------------------------------------------------------
 -- function: getTxnFromTxnUuid
@@ -1828,7 +1779,8 @@ formatAmount (NullOrUndefined (Just amt)) = do
 
 -- ----------------------------------------------------------------------------
 -- function: addMandateDetails
--- TODO update
+-- TODO done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1847,73 +1799,51 @@ addMandateDetails ordRef orderStatus =
 -}
 
 -- Became loadMandate and changeMandate
-addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
-addMandateDetails ordRef orderStatus =
-  case (orderType ordRef) of
-    Just orderType ->
-      if orderType == C.MANDATE_REGISTER then do
-        orderId <- pure $ getField @"id" ordRef  -- unNullOrErr500 $ ordRef ^. _id
-        mandate :: Maybe Mandate <- do
-          conn <- getConn eulerDB
-          let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
-                &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
-          res <- runDB conn $
-            findRow
-              $ B.select
-              $ B.limit_ 1
-              $ B.filter_ predicate
-              $ B.all_ (eulerDBSchema ^. _mandate)
-          case res of
-            Right m -> pure m
-            Left err -> do
-              logError "Find Mandate" $ toText $ P.show err
-              throwException err500
-          -- pure Nothing -- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ Int orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
-        case mandate of
-          Just mandateVal -> pure $ setField @"mandate" (Just $ mapMandate $ mandateVal) orderStatus -- # _mandate .~ (just $ mapMandate $ mandateVal)
-          Nothing -> pure $ orderStatus
-        else pure $ orderStatus
-    Nothing -> pure $ orderStatus
+-- addMandateDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+-- addMandateDetails ordRef orderStatus =
+--   case (orderType ordRef) of
+--     Just orderType ->
+--       if orderType == C.MANDATE_REGISTER then do
+--         orderId <- pure $ getField @"id" ordRef  -- unNullOrErr500 $ ordRef ^. _id
+--         mandate :: Maybe Mandate <- do
+--           conn <- getConn eulerDB
+--           let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
+--                 &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
+--           res <- runDB conn $
+--             findRow
+--               $ B.select
+--               $ B.limit_ 1
+--               $ B.filter_ predicate
+--               $ B.all_ (eulerDBSchema ^. _mandate)
+--           case res of
+--             Right m -> pure m
+--             Left err -> do
+--               logError "Find Mandate" $ toText $ P.show err
+--               throwException err500
+--           -- pure Nothing -- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ Int orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
+--         case mandate of
+--           Just mandateVal -> pure $ setField @"mandate" (Just $ mapMandate $ mandateVal) orderStatus -- # _mandate .~ (just $ mapMandate $ mandateVal)
+--           Nothing -> pure $ orderStatus
+--         else pure $ orderStatus
+--     Nothing -> pure $ orderStatus
 
 
+-- refactored
 
--- from src/Types/Storage/EC/Mandate.purs
-mapMandate :: Mandate -> Mandate'
-mapMandate Mandate {..} =
-   Mandate' {  mandate_token = token
-             , mandate_status = Just $ show $ status
-             , mandate_id = mandateId
-            }
+getMandate :: OrderReference -> Flow (Maybe Mandate')
+getMandate ordRef = do
+  let ordId = getField @"id" ordRef
+      merchId = getField @"merchantId" ordRef
+      orderType = getField @"orderType" ordRef
 
+  case (merchId, orderType) of
+    (Just merchantId, Just C.MANDATE_REGISTER) -> do
 
--- refactoring
+      mandate <- loadMandate ordId merchantId
+      pure $ mapMandate <$> mandate
 
+    _ -> pure Nothing
 
-loadMandate :: OrderReference -> Flow (Maybe Mandate')
-loadMandate ordRef =
-  -- TODO: should we move logic from here?
-  case (orderType ordRef) of
-    Just orderType ->
-      if orderType == C.MANDATE_REGISTER then do
-        let orderId = getField @"id" ordRef
-        mandate <- do
-            conn <- getConn eulerDB
-            let predicate Mandate {authOrderId, merchantId} = authOrderId ==. B.val_ orderId
-                  &&. merchantId ==. (B.val_ $ fromMaybe "" $ ordRef ^. _merchantId)
-            res <- runDB conn $
-              findRow
-                $ B.select
-                $ B.limit_ 1
-                $ B.filter_ predicate
-                $ B.all_ (eulerDBSchema ^. _mandate)
-            case res of
-              Right mMandate -> pure mMandate
-              Left err -> do
-                logError "Find Mandate" $ toText $ P.show err
-                throwException err500
-        pure $ mapMandate <$> mandate
-      else pure Nothing
-    Nothing -> pure Nothing
 
 
 

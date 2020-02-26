@@ -274,12 +274,6 @@ orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor = do
               mbXAuthScope
               mbXForwarderFor
 
-  -- TODO willbasky: I don't see the reason behind this code
-  --let (mOrderId :: Maybe D.OrderId) = fmap coerce $ lookupRP @OrderId rps
-  --case mOrderId of
-  --  Nothing -> error "No OrderId" -- TODO: Handle error
-  --  Just orderId' -> do
-
   status <- runFlow "orderStatusById" rps noReqBodyJSON  -- FIXME is noReqBodyJSON appropriate here?
         $ AS.withMacc OrderStatus.handleByOrderId orderId rps
 

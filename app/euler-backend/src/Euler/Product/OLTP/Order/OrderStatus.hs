@@ -94,9 +94,9 @@ import           Euler.Storage.DBConfig
 
 -- porting statistics:
 -- to port '-- TODO port' - 21
--- to update '-- TODO update' - 20
--- completed '-- done' - 32
--- refactored '-- refactored' - 5
+-- to update '-- TODO update' - 19
+-- completed '-- done' - 33
+-- refactored '-- refactored' - 7
 -- total number of functions = 73
 
 -- "xml cases"
@@ -251,7 +251,7 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery query@OrderStatusQuery{..} = do
 
-  orderRef <- undefined :: Flow OrderReference -- TODO loadOrder orderId merchantId
+  orderRef <- getOrderReference query  -- TODO loadOrder orderId merchantId
 
   let orderUuid = fromMaybe T.empty $ getField @"orderUuid" orderRef
 
@@ -305,7 +305,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
 
 ---------------------------------------------------------------------------------------------------
--- Builders
+-- Builder
 ---------------------------------------------------------------------------------------------------
 
 -- Use functions from Data.Semigroup only. Data.Monoid and Universum.Monoid depricated
@@ -374,6 +374,342 @@ buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
   , second_factor_response    = fmap getLast second_factor_responseT
   , txn_flow_info             = fmap getLast txn_flow_infoT
   }
+
+
+-- main builder
+makeOrderStatusResponse
+  :: OrderReference
+  -> Paymentlinks
+  -> Maybe Promotion'
+  -> Maybe Mandate'
+  -> OrderStatusQuery
+  -> Maybe TxnDetail
+  -> Text -- use getGatewayReferenceId to get it
+  -> Maybe Risk
+  -> Maybe TxnCardInfo
+  -> Maybe Text -- CardBrand
+  -> Maybe [Refund']
+  -> Maybe [Chargeback']
+  -- After OrderReference be validated, it makeOrderStatusResponse will return OrderStatusResponse only
+  -> Except Text OrderStatusResponse
+makeOrderStatusResponse
+  ordRef
+  paymentLinks
+  mPromotion
+  mMandate
+  query@OrderStatusQuery{..}
+  mTxn
+  gatewayRefId
+  mRisk
+  mTxnCard
+  mCardBrand
+  mRefunds
+  mChargebacks
+  = do
+
+  -- Validation
+
+  ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef -- previous (throwException $ myerr "4")
+
+  let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
+      email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
+      phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
+      amount = fmap sanitizeAmount $ getField @ "amount" ordRef
+      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" ordRef
+
+      getStatus = show . getField @"status"
+      getStatusId = txnStatusToInt . getField @"status"
+      getGatewayId txn = maybe 0 gatewayIdFromGateway $ join $ stringToGateway <$> getField @"gateway" txn
+      getBankErrorCode txn = whenNothing (getField @"bankErrorCode" txn) (Just "")
+      getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+      getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
+        where mGatewayPayload' t = getField @"gatewayPayload" t
+
+      isEmi txn = isTrueMaybe (getField @"isEmi" txn)
+      emiTenure txn = getField @"emiTenure" txn
+      emiBank txn = getField @"emiBank" txn
+
+      paymentMethod = whenNothing mCardBrand (Just "UNKNOWN")
+
+      -- Abstract functions to elemenate boilerplate
+      maybeTxnCard f = maybe emptyBuilder f mTxnCard
+      maybeTxn f = maybe emptyBuilder f mTxn
+
+-- Build pipeline
+
+  pure $ extract $ buildStatusResponse
+    -- end
+
+    -- TODO addGatewayResponse here
+    -- addGatewayResponse
+
+    <<= changeChargeBacks mChargebacks
+    -- addChargeBacks
+
+    <<= changeRefund mRefunds
+    -- addRefundDetails
+
+      -- TODO: add addSecondFactorResponseAndTxnFlowInfo here
+      -- addSecondFactorResponseAndTxnFlowInfo
+
+    <<= maybeTxn (\txn -> maybeTxnCard (\txnCard ->
+      if isBlankMaybe (getField @"cardIsin" txnCard)
+        then changeCard (getCardDetails txnCard txn sendCardIsin)
+        else emptyBuilder))
+
+    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
+      if isBlankMaybe (getField @"cardIsin" txnCard)
+        then changePaymentMethodType "CARD"
+        else emptyBuilder))
+
+    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
+      if isBlankMaybe (getField @"cardIsin" txnCard)
+        then changeEmiPaymentMethod paymentMethod
+        else emptyBuilder))
+      -- addCardInfo
+
+    <<= maybeTxn (const $ maybeTxnCard (\txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just "")))
+      -- addAuthType
+    <<= maybeTxn (\txn -> maybeTxnCard (const $ if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder))
+      -- addEmi
+
+      -- TODO: add updatePaymentMethodAndType here
+    -- addPaymentMethodInfo
+
+    <<= changeRisk mRisk
+    -- addRiskCheckInfoToResponse
+
+    <<= maybeTxn (changeTxnDetails . mapTxnDetail)
+    <<= maybeTxn (changeGatewayPayload . getGatewayPayload)
+    <<= maybeTxn (changeBankErrorMessage . getBankErrorMessage)
+    <<= maybeTxn (changeBankErrorCode . getBankErrorCode)
+    <<= maybeTxn (const $ changeGatewayRefId gatewayRefId)
+    <<= maybeTxn (changeGatewayId . getGatewayId)
+    <<= maybeTxn (changeTxnUuid . getField @"txnUuid")
+    <<= maybeTxn (changeTxnId . getField @"txnId")
+    <<= maybeTxn (changeStatusId . getStatusId)
+    <<= maybeTxn (changeStatus . getStatus) -- second status change when Just TxnDetail
+    -- addTxnDetailsToResponse
+
+    <<= changeMandate mMandate
+    -- addMandateDetails
+
+    <<= changeAmountAfterPromotion mPromotion
+    -- changeAmountAfterPromotion should follow after changePromotion always
+    <<= changePromotion mPromotion
+    -- addPromotionDetails
+
+    <<= changeUtf10 (getField @"udf10" ordRef)
+    <<= changeUtf9 (getField @"udf9" ordRef)
+    <<= changeUtf8 (getField @"udf8" ordRef)
+    <<= changeUtf7 (getField @"udf7" ordRef)
+    <<= changeUtf6 (getField @"udf6" ordRef)
+    <<= changeUtf5 (getField @"udf5" ordRef)
+    <<= changeUtf4 (getField @"udf4" ordRef)
+    <<= changeUtf3 (getField @"udf3" ordRef)
+    <<= changeUtf2 (getField @"udf2" ordRef)
+    <<= changeUtf1 (getField @"udf1" ordRef)
+    <<= changeReturnUrl (getField @"returnUrl" ordRef)
+    <<= changeCustomerPhone phone
+    <<= changeCustomerEmail email
+    <<= changeDateCreated (show $ getField @"dateCreated" ordRef)
+    <<= changeAmountRefunded amountRefunded
+    <<= changePaymentLinks paymentLinks
+    <<= changeRefunded (getField @"refundedEntirely" ordRef)
+    <<= changeCurrency (getField @"currency" ordRef)
+    <<= changeAmount amount
+    <<= changeStatus (show $ getField @ "status" ordRef) -- first status change
+    <<= changeProductId (getField @"productId" ordRef)
+    <<= changeCustomerId mCustomerId
+    <<= changeOrderId (getField @"orderId" ordRef)
+    <<= changeMerchantId (getField @"merchantId" ordRef)
+    <<= changeId ordId
+    -- mkResponse, former fillOrderDetails
+
+    -- begin (reverse direction)
+    -- последовательность имеет значение
+
+
+-- Begin
+
+-- TODO abstract change functions to reduce boilerplate
+
+-- former fillOrderDetails
+-- mkResponse
+changeId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
+
+changeMerchantId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = fmap First mMerchantId}
+
+changeAmount :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
+changeAmount amount builder = builder $ mempty {amountT = fmap Last amount}
+
+changeOrderId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeOrderId orderId builder = builder $ mempty {order_idT = fmap First orderId}
+
+changeCustomerId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCustomerId customerId builder = builder $ mempty {customer_idT = fmap Last customerId}
+
+changeProductId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeProductId productId builder = builder $ mempty {product_idT = fmap Last productId}
+
+changeStatus :: Text -> ResponseBuilder -> OrderStatusResponse
+changeStatus status builder = builder $ mempty {statusT = Just $ Last status}
+
+changeCurrency :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCurrency currency builder = builder $ mempty {currencyT = map Last currency}
+
+changeRefunded :: Maybe Bool -> ResponseBuilder -> OrderStatusResponse
+changeRefunded refunded builder = builder $ mempty {refundedT = map Last refunded}
+
+changePaymentLinks :: Paymentlinks -> ResponseBuilder -> OrderStatusResponse
+changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Just $ Last paymentLinks}
+
+changeAmountRefunded :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
+changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = fmap Last amountRefunded}
+
+changeDateCreated :: Text -> ResponseBuilder -> OrderStatusResponse
+changeDateCreated dateCreated builder = builder $ mempty {date_createdT = Just $ Last dateCreated}
+
+changeCustomerEmail :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCustomerEmail customerEmail builder = builder $ mempty {customer_emailT = map Last customerEmail}
+
+changeCustomerPhone :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = map Last customerPhone}
+
+changeReturnUrl :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = map Last returnUrl}
+
+changeUtf1 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf1 utf1 builder = builder $ mempty {udf1T = map Last utf1}
+
+changeUtf2 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf2 utf2 builder = builder $ mempty {udf2T = map Last utf2}
+
+changeUtf3 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf3 utf3 builder = builder $ mempty {udf3T = map Last utf3}
+
+changeUtf4 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf4 utf4 builder = builder $ mempty {udf4T = map Last utf4}
+
+changeUtf5 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf5 utf5 builder = builder $ mempty {udf5T = map Last utf5}
+
+changeUtf6 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf6 utf6 builder = builder $ mempty {udf6T = map Last utf6}
+
+changeUtf7 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf7 utf7 builder = builder $ mempty {udf7T = map Last utf7}
+
+changeUtf8 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf8 utf8 builder = builder $ mempty {udf8T = map Last utf8}
+
+changeUtf9 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
+
+changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
+
+
+-- addPromotionDetails
+
+changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
+changePromotion Nothing builder = builder mempty
+changePromotion mNewProm builder = builder mempty { promotionT = fmap Last mNewProm }
+
+changeAmountAfterPromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
+changeAmountAfterPromotion Nothing builder = builder mempty
+changeAmountAfterPromotion (Just newProm) builder =
+  let oldStatus = extract builder
+      mOldAmount = getField @"amount" oldStatus
+      mOldPromotion = getField @"discount_amount" newProm
+      newAmount = sanitizeAmount $ (fromMaybe 0 mOldAmount) + (fromMaybe 0 mOldPromotion)
+  in builder mempty { amountT = Just $ Last newAmount }
+
+
+-- addMandateDetails
+
+changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
+changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
+
+
+-- addTxnDetailsToResponse
+
+changeStatusId :: Int -> ResponseBuilder -> OrderStatusResponse
+changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
+
+changeTxnId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeTxnId txnId builder = builder $ mempty {txn_idT = Just $ Last txnId}
+
+changeTxnUuid :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeTxnUuid txnUuid builder = builder $ mempty {txn_uuidT = fmap Last txnUuid}
+
+changeGatewayId :: Int -> ResponseBuilder -> OrderStatusResponse
+changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = Just $ Last gatewayId}
+
+changeGatewayRefId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeGatewayRefId gatewayRefId builder = builder $ mempty {gateway_reference_idT = Just $ Last gatewayRefId}
+
+changeBankErrorCode :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeBankErrorCode bankErrorCode builder = builder $ mempty {bank_error_codeT = fmap Last bankErrorCode}
+
+changeBankErrorMessage :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeBankErrorMessage bankErrorMessage builder = builder $ mempty {bank_error_messageT = fmap Last bankErrorMessage}
+
+changeGatewayPayload :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeGatewayPayload gatewayPayload builder = builder $ mempty {gateway_payloadT = fmap Last gatewayPayload}
+
+changeTxnDetails :: TxnDetail' -> ResponseBuilder -> OrderStatusResponse
+changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last txnDetail}
+
+
+-- addRiskCheckInfoToResponse
+
+changeRisk :: Maybe Risk -> ResponseBuilder -> OrderStatusResponse
+changeRisk risk builder = builder $ mempty {riskT = fmap Last risk}
+
+
+-- addPaymentMethodInfo
+
+changeEmiTenureEmiBank :: Maybe Int -> Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeEmiTenureEmiBank emiTenure emiBank builder = builder $ mempty
+  {emi_tenureT = map Last emiTenure
+  , emi_bankT = map Last emiBank
+  }
+
+changeAuthType :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeAuthType authType builder = builder $ mempty {auth_typeT = fmap Last authType}
+
+changeEmiPaymentMethod :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeEmiPaymentMethod paymentMethod builder = builder $ mempty {payment_methodT = fmap Last paymentMethod}
+
+changePaymentMethodType :: Text -> ResponseBuilder -> OrderStatusResponse
+changePaymentMethodType paymentMethodType builder =
+  builder $ mempty {payment_method_typeT = Just $ Last paymentMethodType}
+
+changeCard :: Card -> ResponseBuilder -> OrderStatusResponse
+changeCard card builder = builder $ mempty {cardT = Just $ Last card}
+
+
+-- addRefundDetails
+
+changeRefund :: Maybe [Refund'] -> ResponseBuilder -> OrderStatusResponse
+changeRefund mRefunds builder = builder $ mempty {refundsT = fmap Last mRefunds}
+
+
+-- addChargeBacks
+changeChargeBacks :: Maybe [Chargeback'] -> ResponseBuilder -> OrderStatusResponse
+changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap Last mChargebacks}
+
+-- End
+
+
+
+
+
+
+
 
 
 
@@ -1291,6 +1627,7 @@ getLastTxn orderRef = do
 -- ----------------------------------------------------------------------------
 -- function: fillOrderDetails
 -- done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1401,365 +1738,10 @@ mkResponse isAuthenticated paymentLinks ord status = do
        }
 -}
 
--- main builder
-makeOrderStatusResponse
-  :: OrderReference
-  -> Paymentlinks
-  -> Maybe Promotion'
-  -> Maybe Mandate'
-  -> OrderStatusQuery
-  -> Maybe TxnDetail
-  -> Text -- use getGatewayReferenceId to get it
-  -> Maybe Risk
-  -> Maybe TxnCardInfo
-  -> Maybe Text -- CardBrand
-  -> Maybe [Refund']
-  -> Maybe [Chargeback']
-  -- After OrderReference be validated, it makeOrderStatusResponse will return OrderStatusResponse only
-  -> Except Text OrderStatusResponse
-makeOrderStatusResponse
-  ordRef
-  paymentLinks
-  mPromotion
-  mMandate
-  query@OrderStatusQuery{..}
-  mTxn
-  gatewayRefId
-  mRisk
-  mTxnCard
-  mCardBrand
-  mRefunds
-  mChargebacks
-  = do
+-- See 'makeOrderStatusResponse' to make response
 
-  -- Validation
 
-  ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef -- previous (throwException $ myerr "4")
 
-  let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
-      email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
-      phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
-      amount = fmap sanitizeAmount $ getField @ "amount" ordRef
-      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" ordRef
-
-      getStatus = show . getField @"status"
-      getStatusId = txnStatusToInt . getField @"status"
-      getGatewayId txn = maybe 0 gatewayIdFromGateway $ join $ stringToGateway <$> getField @"gateway" txn
-      getBankErrorCode txn = whenNothing (getField @"bankErrorCode" txn) (Just "")
-      getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
-      getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
-        where mGatewayPayload' t = getField @"gatewayPayload" t
-
-      isEmi txn = isTrueMaybe (getField @"isEmi" txn)
-      emiTenure txn = getField @"emiTenure" txn
-      emiBank txn = getField @"emiBank" txn
-
-      paymentMethod = whenNothing mCardBrand (Just "UNKNOWN")
-
-      -- Abstract functions to elemenate boilerplate
-      maybeTxnCard f = maybe emptyBuilder f mTxnCard
-      maybeTxn f = maybe emptyBuilder f mTxn
-
--- Build pipeline
-
-  pure $ extract $ buildStatusResponse
-    -- end
-
-    -- TODO addGatewayResponse here
-    -- addGatewayResponse
-
-    <<= changeChargeBacks mChargebacks
-    -- addChargeBacks
-
-    <<= changeRefund mRefunds
-    -- addRefundDetails
-
-      -- TODO: add addSecondFactorResponseAndTxnFlowInfo here
-      -- addSecondFactorResponseAndTxnFlowInfo
-
-    <<= maybeTxn (\txn -> maybeTxnCard (\txnCard ->
-      if isBlankMaybe (getField @"cardIsin" txnCard)
-        then changeCard (getCardDetails txnCard txn sendCardIsin)
-        else emptyBuilder))
-
-    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
-      if isBlankMaybe (getField @"cardIsin" txnCard)
-        then changePaymentMethodType "CARD"
-        else emptyBuilder))
-
-    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
-      if isBlankMaybe (getField @"cardIsin" txnCard)
-        then changeEmiPaymentMethod paymentMethod
-        else emptyBuilder))
-      -- addCardInfo
-
-    <<= maybeTxn (const $ maybeTxnCard (\txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just "")))
-      -- addAuthType
-    <<= maybeTxn (\txn -> maybeTxnCard (const $ if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder))
-      -- addEmi
-
-      -- TODO: add updatePaymentMethodAndType here
-    -- addPaymentMethodInfo
-
-    <<= changeRisk mRisk
-    -- addRiskCheckInfoToResponse
-
-    <<= maybeTxn (changeTxnDetails . mapTxnDetail)
-    <<= maybeTxn (changeGatewayPayload . getGatewayPayload)
-    <<= maybeTxn (changeBankErrorMessage . getBankErrorMessage)
-    <<= maybeTxn (changeBankErrorCode . getBankErrorCode)
-    <<= maybeTxn (const $ changeGatewayRefId gatewayRefId)
-    <<= maybeTxn (changeGatewayId . getGatewayId)
-    <<= maybeTxn (changeTxnUuid . getField @"txnUuid")
-    <<= maybeTxn (changeTxnId . getField @"txnId")
-    <<= maybeTxn (changeStatusId . getStatusId)
-    <<= maybeTxn (changeStatus . getStatus) -- second status change when Just TxnDetail
-    -- addTxnDetailsToResponse
-
-    <<= changeMandate mMandate
-    -- addMandateDetails
-
-    <<= changeAmountAfterPromotion mPromotion
-    -- changeAmountAfterPromotion should follow after changePromotion always
-    <<= changePromotion mPromotion
-    -- addPromotionDetails
-
-    <<= changeUtf10 (getField @"udf10" ordRef)
-    <<= changeUtf9 (getField @"udf9" ordRef)
-    <<= changeUtf8 (getField @"udf8" ordRef)
-    <<= changeUtf7 (getField @"udf7" ordRef)
-    <<= changeUtf6 (getField @"udf6" ordRef)
-    <<= changeUtf5 (getField @"udf5" ordRef)
-    <<= changeUtf4 (getField @"udf4" ordRef)
-    <<= changeUtf3 (getField @"udf3" ordRef)
-    <<= changeUtf2 (getField @"udf2" ordRef)
-    <<= changeUtf1 (getField @"udf1" ordRef)
-    <<= changeReturnUrl (getField @"returnUrl" ordRef)
-    <<= changeCustomerPhone phone
-    <<= changeCustomerEmail email
-    <<= changeDateCreated (show $ getField @"dateCreated" ordRef)
-    <<= changeAmountRefunded amountRefunded
-    <<= changePaymentLinks paymentLinks
-    <<= changeRefunded (getField @"refundedEntirely" ordRef)
-    <<= changeCurrency (getField @"currency" ordRef)
-    <<= changeAmount amount
-    <<= changeStatus (show $ getField @ "status" ordRef) -- first status change
-    <<= changeProductId (getField @"productId" ordRef)
-    <<= changeCustomerId mCustomerId
-    <<= changeOrderId (getField @"orderId" ordRef)
-    <<= changeMerchantId (getField @"merchantId" ordRef)
-    <<= changeId ordId
-    -- mkResponse
-
-    -- begin (reverse direction)
-    -- последовательность имеет значение
-
-
--- Begin
-
--- TODO abstract change functions to reduce boilerplate
-
--- former fillOrderDetails
--- mkResponse
-changeId :: Text -> ResponseBuilder -> OrderStatusResponse
-changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
-
-changeMerchantId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = fmap First mMerchantId}
-
-changeAmount :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
-changeAmount amount builder = builder $ mempty {amountT = fmap Last amount}
-
-changeOrderId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeOrderId orderId builder = builder $ mempty {order_idT = fmap First orderId}
-
-changeCustomerId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeCustomerId customerId builder = builder $ mempty {customer_idT = fmap Last customerId}
-
-changeProductId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeProductId productId builder = builder $ mempty {product_idT = fmap Last productId}
-
-changeStatus :: Text -> ResponseBuilder -> OrderStatusResponse
-changeStatus status builder = builder $ mempty {statusT = Just $ Last status}
-
-changeCurrency :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeCurrency currency builder = builder $ mempty {currencyT = map Last currency}
-
-changeRefunded :: Maybe Bool -> ResponseBuilder -> OrderStatusResponse
-changeRefunded refunded builder = builder $ mempty {refundedT = map Last refunded}
-
-changePaymentLinks :: Paymentlinks -> ResponseBuilder -> OrderStatusResponse
-changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Just $ Last paymentLinks}
-
-changeAmountRefunded :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
-changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = fmap Last amountRefunded}
-
-changeDateCreated :: Text -> ResponseBuilder -> OrderStatusResponse
-changeDateCreated dateCreated builder = builder $ mempty {date_createdT = Just $ Last dateCreated}
-
-changeCustomerEmail :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeCustomerEmail customerEmail builder = builder $ mempty {customer_emailT = map Last customerEmail}
-
-changeCustomerPhone :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = map Last customerPhone}
-
-changeReturnUrl :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = map Last returnUrl}
-
-changeUtf1 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf1 utf1 builder = builder $ mempty {udf1T = map Last utf1}
-
-changeUtf2 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf2 utf2 builder = builder $ mempty {udf2T = map Last utf2}
-
-changeUtf3 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf3 utf3 builder = builder $ mempty {udf3T = map Last utf3}
-
-changeUtf4 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf4 utf4 builder = builder $ mempty {udf4T = map Last utf4}
-
-changeUtf5 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf5 utf5 builder = builder $ mempty {udf5T = map Last utf5}
-
-changeUtf6 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf6 utf6 builder = builder $ mempty {udf6T = map Last utf6}
-
-changeUtf7 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf7 utf7 builder = builder $ mempty {udf7T = map Last utf7}
-
-changeUtf8 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf8 utf8 builder = builder $ mempty {udf8T = map Last utf8}
-
-changeUtf9 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
-
-changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
-
-
--- addPromotionDetails
-
-changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
-changePromotion Nothing builder = builder mempty
-changePromotion mNewProm builder = builder mempty { promotionT = fmap Last mNewProm }
-
-changeAmountAfterPromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
-changeAmountAfterPromotion Nothing builder = builder mempty
-changeAmountAfterPromotion (Just newProm) builder =
-  let oldStatus = extract builder
-      mOldAmount = getField @"amount" oldStatus
-      mOldPromotion = getField @"discount_amount" newProm
-      newAmount = sanitizeAmount $ (fromMaybe 0 mOldAmount) + (fromMaybe 0 mOldPromotion)
-  in builder mempty { amountT = Just $ Last newAmount }
-
-
--- addMandateDetails
-
-changeMandate :: Maybe Mandate' -> ResponseBuilder -> OrderStatusResponse
-changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
-
-
--- addTxnDetailsToResponse
-
-changeStatusId :: Int -> ResponseBuilder -> OrderStatusResponse
-changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
-
-changeTxnId :: Text -> ResponseBuilder -> OrderStatusResponse
-changeTxnId txnId builder = builder $ mempty {txn_idT = Just $ Last txnId}
-
-changeTxnUuid :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeTxnUuid txnUuid builder = builder $ mempty {txn_uuidT = fmap Last txnUuid}
-
-changeGatewayId :: Int -> ResponseBuilder -> OrderStatusResponse
-changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = Just $ Last gatewayId}
-
-changeGatewayRefId :: Text -> ResponseBuilder -> OrderStatusResponse
-changeGatewayRefId gatewayRefId builder = builder $ mempty {gateway_reference_idT = Just $ Last gatewayRefId}
-
-changeBankErrorCode :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeBankErrorCode bankErrorCode builder = builder $ mempty {bank_error_codeT = fmap Last bankErrorCode}
-
-changeBankErrorMessage :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeBankErrorMessage bankErrorMessage builder = builder $ mempty {bank_error_messageT = fmap Last bankErrorMessage}
-
-changeGatewayPayload :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeGatewayPayload gatewayPayload builder = builder $ mempty {gateway_payloadT = fmap Last gatewayPayload}
-
-changeTxnDetails :: TxnDetail' -> ResponseBuilder -> OrderStatusResponse
-changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last txnDetail}
-
-
--- addRiskCheckInfoToResponse
-
-changeRisk :: Maybe Risk -> ResponseBuilder -> OrderStatusResponse
-changeRisk risk builder = builder $ mempty {riskT = fmap Last risk}
-
-
--- addPaymentMethodInfo
-
-changeEmiTenureEmiBank :: Maybe Int -> Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeEmiTenureEmiBank emiTenure emiBank builder = builder $ mempty
-  {emi_tenureT = map Last emiTenure
-  , emi_bankT = map Last emiBank
-  }
-
-changeAuthType :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeAuthType authType builder = builder $ mempty {auth_typeT = fmap Last authType}
-
-changeEmiPaymentMethod :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeEmiPaymentMethod paymentMethod builder = builder $ mempty {payment_methodT = fmap Last paymentMethod}
-
-changePaymentMethodType :: Text -> ResponseBuilder -> OrderStatusResponse
-changePaymentMethodType paymentMethodType builder =
-  builder $ mempty {payment_method_typeT = Just $ Last paymentMethodType}
-
-changeCard :: Card -> ResponseBuilder -> OrderStatusResponse
-changeCard card builder = builder $ mempty {cardT = Just $ Last card}
-
-
--- addRefundDetails
-
-changeRefund :: Maybe [Refund'] -> ResponseBuilder -> OrderStatusResponse
-changeRefund mRefunds builder = builder $ mempty {refundsT = fmap Last mRefunds}
-
-
--- addChargeBacks
-changeChargeBacks :: Maybe [Chargeback'] -> ResponseBuilder -> OrderStatusResponse
-changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap Last mChargebacks}
-
--- End
-
-
-
--- For checking. TODO remove
-promotion1 :: Promotion'
-promotion1 = Promotion'
-  { id              = Nothing
-  , order_id        = Nothing
-  , rules           = Nothing
-  , created         = Nothing
-  , discount_amount = Just 1
-  , status          = Just "hello"
-  }
-
--- For checking. TODO remove
-promotion2 :: Promotion'
-promotion2 = Promotion'
-  { id              = Nothing
-  , order_id        = Nothing
-  , rules           = Nothing
-  , created         = Nothing
-  , discount_amount = Just 3
-  , status          = Just "world"
-  }
-
--- For checking. TODO remove
--- extract $ buildStatusResponse <<= changeMandate (Just mandate1) <<= changePromotion (Just promotion2) <<= changeAmount (Just 2)
-mandate1 = Mandate'
-  { mandate_token  = "token"
-  , mandate_status = Just "status"
-  , mandate_id     = "man_id"
-  }
 
 
 -- ----------------------------------------------------------------------------
@@ -1852,7 +1834,8 @@ getMandate ordRef = do
 
 -- ----------------------------------------------------------------------------
 -- function: getPaymentLink
--- TODO update
+-- done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1871,36 +1854,36 @@ getPaymentLink orderRef = do
 -}
 
 -- former getPaymentLink
-mkPaymentLinks
-  :: Maybe Text -- resellerId
-  -> Text       -- orderUuid (from OrderReference)
-  -> Flow Paymentlinks
-mkPaymentLinks resellId orderUuid = do
- -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
- -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
+-- mkPaymentLinks
+--   :: Maybe Text -- resellerId
+--   -> Text       -- orderUuid (from OrderReference)
+--   -> Flow Paymentlinks
+-- mkPaymentLinks resellId orderUuid = do
+--  -- maybeResellerAccount :: Maybe ResellerAccount <- DB.findOne ecDB (where_ := WHERE ["reseller_id" /\ String (unNull (account ^._resellerId) "")] :: WHERE ResellerAccount)
+--  -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
 
 
-  -- TODO I suppose this contradicts the common sence -- reseller is optional
-  -- TODO use ResellerAccount's repository
-  maybeResellerEndpoint <- do
-    conn <- getConn eulerDB
-    res  <- runDB conn $ do
-      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" resellId)
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (reseller_account eulerDBSchema)
-    case res of
-      Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
-     -- Right Nothing -> pure Nothing
-      Left err -> do
-        logError "Find ResellerAccount" $ toText $ P.show err
-        throwException err500
+--   -- TODO I suppose this contradicts the common sence -- reseller is optional
+--   -- TODO use ResellerAccount's repository
+--   maybeResellerEndpoint <- do
+--     conn <- getConn eulerDB
+--     res  <- runDB conn $ do
+--       let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" resellId)
+--       findRow
+--         $ B.select
+--         $ B.limit_ 1
+--         $ B.filter_ predicate
+--         $ B.all_ (reseller_account eulerDBSchema)
+--     case res of
+--       Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
+--      -- Right Nothing -> pure Nothing
+--       Left err -> do
+--         logError "Find ResellerAccount" $ toText $ P.show err
+--         throwException err500
 
-  -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
-  -- TODO I think the link doesn't make sense if orderUuid is empty
-  pure $ createPaymentLinks orderUuid maybeResellerEndpoint
+--   -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
+--   -- TODO I think the link doesn't make sense if orderUuid is empty
+--   pure $ createPaymentLinks orderUuid maybeResellerEndpoint
 
 -- Refactoring
 
@@ -2077,40 +2060,40 @@ addPromotionDetails orderRef orderStatus = do
 -}
 
 -- Became loadPromotions, decryptActivePromotion and changePromotion
-addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
-addPromotionDetails orderRef orderStatus = do
-  -- Order contains two id -like fields (better names?)
-  let orderId = fromMaybe "" $ getField @"id" orderRef
-      -- OrderReference's orderId was changed to Text type, Promotions's orderReferenceId is still Int type at PS.
-      -- readMaybe used to equal them in predicate. It is just workaround while Promotions not solved
-      orderId' = fromMaybe 0 $ readMaybe $ T.unpack orderId
-      ordId = fromMaybe "" $ getField @"orderId" orderRef
-  promotions <- do
-    conn <- getConn eulerDB
-    res  <- runDB conn $ do
-      let predicate Promotions{orderReferenceId} =
-            orderReferenceId ==. B.just_ (B.val_ orderId')
-      findRows
-        $ B.select
-        $ B.filter_ predicate
-        $ B.all_ (promotions eulerDBSchema)
-    case res of
-      Right proms -> pure proms
-      Left err -> do
-        logError "Find Promotions" $ toText $ P.show err
-        throwException err500
-   -- pure [] -- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
-  case (length promotions) of
-    0 -> pure orderStatus
-    _ -> do
-      promotion' <- pure $ find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
-      case promotion' of
-        Just promotionVal -> do
-          promotion  <- decryptPromotionRules ordId promotionVal
-          let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
-              ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
-          pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
-        Nothing -> pure orderStatus
+-- addPromotionDetails :: OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+-- addPromotionDetails orderRef orderStatus = do
+--   -- Order contains two id -like fields (better names?)
+--   let orderId = fromMaybe "" $ getField @"id" orderRef
+--       -- OrderReference's orderId was changed to Text type, Promotions's orderReferenceId is still Int type at PS.
+--       -- readMaybe used to equal them in predicate. It is just workaround while Promotions not solved
+--       orderId' = fromMaybe 0 $ readMaybe $ T.unpack orderId
+--       ordId = fromMaybe "" $ getField @"orderId" orderRef
+--   promotions <- do
+--     conn <- getConn eulerDB
+--     res  <- runDB conn $ do
+--       let predicate Promotions{orderReferenceId} =
+--             orderReferenceId ==. B.just_ (B.val_ orderId')
+--       findRows
+--         $ B.select
+--         $ B.filter_ predicate
+--         $ B.all_ (promotions eulerDBSchema)
+--     case res of
+--       Right proms -> pure proms
+--       Left err -> do
+--         logError "Find Promotions" $ toText $ P.show err
+--         throwException err500
+--    -- pure [] -- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
+--   case (length promotions) of
+--     0 -> pure orderStatus
+--     _ -> do
+--       promotion' <- pure $ find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
+--       case promotion' of
+--         Just promotionVal -> do
+--           promotion  <- decryptPromotionRules ordId promotionVal
+--           let amount  = (fromMaybe 0 $ getField @"amount" orderStatus) + (fromMaybe 0 $ getField @"discount_amount" promotion)
+--               ordS    = setField @"amount" (Just $ sanitizeAmount amount) orderStatus -- # _amount .~ (just $ sanitizeAmount amount)
+--           pure $ setField @"promotion" (Just promotion) ordS -- # _promotion .~ (just promotion)
+--         Nothing -> pure orderStatus
 
 
 -- refactoring

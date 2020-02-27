@@ -129,7 +129,8 @@ updateMandateCache order = case order ^. _mandate of
     D.MandateDisabled           -> pure ()
     D.MandateRequired maxAmount -> updateMandateCache' maxAmount
     D.MandateOptional maxAmount -> updateMandateCache' maxAmount
-    -- EHS: Need to do something with this.
+    -- EHS: Need to do something with this. Pass mandate from OrderCreateTemplate
+    -- and use in domain Order simple madate type (without maxAmount value)?
     D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
     D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
   where
@@ -205,18 +206,16 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
 readMayT :: Read a => Text -> Maybe a
 readMayT = TR.readMaybe . Text.unpack
 
-    -- from src/Engineering/Commons.purs
+-- from src/Engineering/Commons.purs
 -- In groovy empty string is `falsy` value
 -- added validator "notBlank" for "customer_id" field in OrderCreateRequest
-isTrueString :: Maybe Text -> Bool
-isTrueString val =
-  case val of
-    Just "" -> False
-    Just " " -> False
-    Just _ -> True
-    Nothing -> False
-
-
+-- isTrueString :: Maybe Text -> Bool
+-- isTrueString val =
+--   case val of
+--     Just "" -> False
+--     Just " " -> False
+--     Just _ -> True
+--     Nothing -> False
 
 createOrder'
   :: RP.RouteParameters
@@ -346,6 +345,7 @@ saveOrderMetadata routeParams orderPId metadata' = do
   orderMetadataDB <- Rep.saveOrderMetadataV2 orderMetadataDBVal
 
   -- EHS: this is extremely suspicious. Substituting id from DB by orderPid
+  -- Where this action in purescript version?
   pure $ orderMetadataDB & (_id .~ Just orderPId)
 
 -- EHS: previously mapUDFParams

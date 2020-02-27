@@ -103,10 +103,15 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
 
   -- EHS: magic constants
   -- EHS: versioning should be done using a service
-  let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
-  let srv = OCS.mkOrderCreateResponseService version
-  orderResp <- mkOrderResponse cfg order mAccnt mbReseller
-  OCS.tokenizeOrderCreateResponse srv (order' ^. _orderTokenNeeded) order orderResp
+  let version = RP.lookupRP @RP.Version routeParams
+  let thatVersion = (version >= Just "2018-07-01") && (order' ^. _orderTokenNeeded)
+  case thatVersion of
+    True  -> mkTokenizedOrderResponse cfg order mAccnt mbReseller
+    False -> mkOrderResponse          cfg order mAccnt mbReseller
+
+--  let srv = OCS.mkOrderCreateResponseService version
+--  orderResp <- mkOrderResponse cfg order mAccnt mbReseller
+--  OCS.tokenizeOrderCreateResponse srv (order' ^. _orderTokenNeeded) order orderResp
 
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
@@ -170,6 +175,22 @@ updateMandateCache order = case order ^. _mandate of
         , DB.merchantGatewayAccountId = Nothing
         , DB.metadata = Nothing
         }
+
+-- EHS: previously addOrderToken
+-- EHS: API type should not be used.
+acquireOrderToken :: D.OrderPId -> D.MerchantId -> Flow API.OrderTokenResp
+acquireOrderToken orderPId merchantId = do
+  -- EHS: magic constant
+  TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
+
+  -- EHS: check this
+  runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
+
+  pure $ API.OrderTokenResp
+    { API.client_auth_token        = Just token
+    , API.client_auth_token_expiry = Just expiry
+    }
+
 
 -- EHS: previously isMandateOrder
 -- EHS: bad function. Throws exception on invalid data.
@@ -393,3 +414,40 @@ mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
     url' = url <> "/merchant/pay/" <> orderUuid
 
 
+mkTokenizedOrderResponse
+  :: Config.Config
+  -> D.Order
+  -> MerchantAccount
+  -> Maybe DB.ResellerAccount
+  -> Flow API.OrderCreateResponse
+mkTokenizedOrderResponse cfg order@(D.Order {..}) mAcc mbResellerAcc = do
+  apiResp    <- mkOrderResponse cfg order mAcc mbResellerAcc
+  orderToken <- acquireOrderToken (order ^. _id) merchantId
+  let (r :: API.OrderCreateResponse) = apiResp
+        { API.status          = OEx.NEW
+        , API.status_id       = OEx.orderStatusToInt OEx.NEW
+        , API.juspay          = Just orderToken
+        , API.udf1            = (D.udf1  udf) <|> Just ""
+        , API.udf2            = (D.udf2  udf) <|> Just ""
+        , API.udf3            = (D.udf3  udf) <|> Just ""
+        , API.udf4            = (D.udf4  udf) <|> Just ""
+        , API.udf5            = (D.udf5  udf) <|> Just ""
+        , API.udf6            = (D.udf6  udf) <|> Just ""
+        , API.udf7            = (D.udf7  udf) <|> Just ""
+        , API.udf8            = (D.udf8  udf) <|> Just ""
+        , API.udf9            = (D.udf9  udf) <|> Just ""
+        , API.udf10           = (D.udf10 udf) <|> Just ""
+        , API.return_url      = returnUrl <|> Just ""
+        , API.refunded        = Just refundedEntirely
+        , API.product_id      = productId <|> Just ""
+        , API.merchant_id     = Just merchantId
+        , API.date_created    = Just dateCreated
+        , API.customer_phone  = customerPhone <|> Just ""
+        , API.customer_id     = customerId <|> Just ""
+        , API.customer_email  = customerEmail <|> Just ""
+        , API.currency        = (Just $ show currency) -- Is show valid here?
+        -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
+        , API.amount_refunded = Just 0.0
+        , API.amount          = Just (D.fromMoney amount) -- <|> Just 0.0
+        }
+  pure r

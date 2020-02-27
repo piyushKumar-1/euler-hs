@@ -38,7 +38,7 @@ spec =
       describe "Authentication API, server with DB" $ do
         it "Authentication works" $ withFlowRuntime Nothing $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          eres <- runFlow rt $ callServantAPI url $ protectedClient $
+          eres <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
               { signature_payload = "{ \"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
               , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
@@ -52,7 +52,7 @@ spec =
 
         it "If malformed signature should return 401" $ withFlowRuntime Nothing $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+          eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
               { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
               , signature         = ":::::malformed signature:::::"
@@ -66,7 +66,7 @@ spec =
 
         it "If malformed signature_payload should return 401" $ withFlowRuntime Nothing $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+          eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
               { signature_payload = ":::::malformed signature_payload::::::"
               , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
@@ -80,7 +80,7 @@ spec =
 
         it "If wrong merchant_key_id should return 401 without exposing details" $ withFlowRuntime Nothing $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+          eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
               { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
               , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
@@ -94,7 +94,7 @@ spec =
 
         it "If unable to fetch without exposing details" $ withFlowRuntime Nothing $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+          eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
               { signature_payload = "{\"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
               , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="
@@ -110,7 +110,7 @@ spec =
       describe "Authentication API, server with no DB" $
         it "Server returns 500 for valid request" $ withFlowRuntime Nothing $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          eerr <- runFlow rt $ callServantAPI url $ protectedClient $
+          eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
               { signature_payload = "{ \"merchant_id\": \"merchantId\", \"someField\": \"Something here\", \"someOtherField\": true}"
               , signature         = "o9AQmdfJgIxlcVVjdzhQuonzOKRczg6HZzOPaxtusUndI4yac4fLfN6WHVdHUtGYiqCo0NapVB2BWATTyGp2zSjwWYO1OopZiX88tQSFUzIQT6/OT0kZ4XHaj6UM5nPpW+xZGXsmB1mWMwVHgSsVgw5HGpPZoi365QvgV/6EchNlIGRGlCLmM1l67f6AOcHrZwSbrqbT+yd/HP6JJAMg83ffVfbdQKwqB8/j4IMfAoZO7e/MLHlGBvNlpDfRNryXLhljVD0EI8q5lejbYFMuQgwkXoU4w7WzBA9p+hXvw48mf/sDy7jLnTOc/q6Sn/W7R2hvXkFinMygV98bnao9kA=="

@@ -406,7 +406,6 @@ mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
         , API.amount = Just $ D.fromMoney amount
         , API.juspay = Nothing
         }
-  runIO $ print "mkOrderResponse"
   pure r
   where
   -- EHS: magic constants

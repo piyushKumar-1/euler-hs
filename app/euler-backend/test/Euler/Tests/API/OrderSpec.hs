@@ -416,9 +416,9 @@ spec =
 
       xit "OrderCreate. Authorization - invalid" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC definitelynotvalidbase64string=")
-                (Version "2017-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC definitelynotvalidbase64string=")
+              (Version "2017-07-01")
+              (UserAgent "Uagent")
 
         let check Errs.ECErrorResponse{code, response} =
               case A.decode response of
@@ -433,9 +433,9 @@ spec =
 
       it "OrderCreate. Old version. customer_id = Nothing" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2017-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2017-07-01")
+              (UserAgent "Uagent")
 
         resp <- runOrderCreate rt ordReq{customer_id = Nothing} rp
 
@@ -475,9 +475,9 @@ spec =
 
       it "OrderCreate. Old version. customer_id existing in db" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2017-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2017-07-01")
+              (UserAgent "Uagent")
 
         resp <- runOrderCreate rt ordReq{customer_id = Just "1"} rp
 
@@ -517,9 +517,9 @@ spec =
 
       it "OrderCreate. Old version. customer_id not existing in db" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2017-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2017-07-01")
+              (UserAgent "Uagent")
 
         resp <- runOrderCreate rt ordReq{customer_id = Just "notExists"} rp
 
@@ -560,9 +560,9 @@ spec =
 
       it "OrderCreate. New version. customer_id existing in db" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2018-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
 
         resp <- runOrderCreate rt ordReq{customer_id = Just "1"} rp
 
@@ -600,9 +600,9 @@ spec =
 
       it "OrderCreate. New version. customer_id not existing in db" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2018-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
 
         resp <- runOrderCreate rt ordReq{customer_id = Just "notExists"} rp
 
@@ -639,9 +639,9 @@ spec =
 
       it "OrderCreate. New version. customer_id = Nothing" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2018-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
 
         resp <- runOrderCreate rt ordReq{customer_id = Nothing} rp
 
@@ -695,19 +695,17 @@ spec =
 
       xit "Order with ordReqMandateFeatureFailData" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                (Version "2018-07-01")
-                (UserAgent "Uagent")
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
 
-        -- let check Errs.ECErrorResponse{code, response} =
-        --       case A.decode response of
-        --         Just Errs.ECErrorPayload{error_code} ->
-        --           code == 400 && error_code == Just "INVALID_MANDATE_MAX_AMOUNT"
-        --         Nothing -> False
+        let check Errs.ECErrorResponse{code, response} =
+              case A.decode response of
+                Just Errs.ECErrorPayload{error_code} ->
+                  code == 400 && error_code == Just "INVALID_MANDATE_MAX_AMOUNT"
+                Nothing -> False
 
-        -- runOrderCreate rt ordReqMandateFeatureFailData rp `shouldThrow` \e -> check $ traceShowId e
-
-        pure ()
+        runOrderCreate rt ordReqMandateFeatureFailData rp `shouldThrow` check
 
 ----------------------------------------------------------------------
 
@@ -771,9 +769,10 @@ spec =
 ----------------------------------------------------------------------
 
       it "Order with ordReqMandateFeatureTooBigMandateMaxAmount" $ \rt -> do
-        let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
 
 
         let check Errs.ECErrorResponse{code, response} =
@@ -786,7 +785,7 @@ spec =
 
 ----------------------------------------------------------------------
 
-      it "Order UDF cleaned" $ \rt -> do
+      xit "Order UDF cleaned" $ \rt -> do
           let rp = collectRPs
                 (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                 (Version "2018-07-01")
@@ -841,9 +840,9 @@ spec =
 
             shouldStartWithAnn "id" (T.unpack id) "ordeu_"
 
-----------------------------------------------------------------------
+-- ----------------------------------------------------------------------
 
-      it "Order with addresses. Valid customerId " $ \rt -> do
+      it "Order with addresses. Valid customerId" $ \rt -> do
           let rp = collectRPs
                 (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                 (Version "2018-07-01")
@@ -851,10 +850,9 @@ spec =
 
           resp <- runOrderCreate rt ordReqWithAddresses{customer_id = Just "1"} rp
 
-          print resp
-
           do
             let OrderAPI.OrderCreateResponse{..} = resp
+
             shouldBeAnn "status"         status          $ CREATED
             shouldBeAnn "status_id"      status_id       $ 1
             shouldBeAnn "order_id"       order_id        $ "orderWithAddr"
@@ -862,13 +860,6 @@ spec =
             shouldBeAnn "merchant_id"    merchant_id     $ Just "1"
             shouldBeAnn "currency"       currency        $ Just "INR"
             shouldBeAnn "amount"         amount          $ Just 100.0
-            shouldBeAnn "customer_phone" customer_phone  $ Just "555-555-555" --<
+            shouldBeAnn "customer_phone" customer_phone  $ Just "555-555-555"
 
             shouldStartWithAnn "id" (T.unpack id) "ordeu_"
-
-----------------------------------------------------------------------
-
-      -- it "OrderStatus" $ \rt -> do
-      --   eRes <- runFlow rt $ do
-      --     prepareDBConnections *> OrderStatus.processOrderStatusGET "orderId" "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI="
-      --   eRes `shouldBe` orderStatusResp

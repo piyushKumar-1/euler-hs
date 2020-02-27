@@ -150,12 +150,12 @@ spec = do
       describe "CallServantAPI tests" $ do
         it "Simple request (book)" $ do
           let url = BaseUrl Http "localhost" port ""
-          bookEither <- runFlowWithArt $ callServantAPI url getBook
+          bookEither <- runFlowWithArt $ callServantAPI Nothing url getBook
           bookEither `shouldSatisfy` isRight
 
         it "Simple request (user)" $ do
           let url = BaseUrl Http "localhost" port ""
-          userEither <- runFlowWithArt $ callServantAPI url getUser
+          userEither <- runFlowWithArt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isRight
 
 

@@ -9,7 +9,7 @@ import           Unsafe.Coerce
 import qualified Data.UUID as UUID (fromText)
 import qualified Control.Exception as E
 import           Servant.Server
-import           Servant.Client (BaseUrl(..), Scheme(..))
+import           Servant.Client (BaseUrl(..), Scheme(..), ClientError(..))
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
 import           EulerHS.Runtime (withFlowRuntime)
@@ -18,7 +18,8 @@ import           EulerHS.TestData.API.Client
 import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
 import           EulerHS.Testing.Types (FlowMockedValues'(..))
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
-
+import           EulerHS.Tests.Framework.Common (initRTWithManagers)
+import EulerHS.Types (HttpManagerNotFound(..))
 user :: Any
 user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
 
@@ -50,8 +51,7 @@ withServer action = do
         setPort port defaultSettings
   threadId          <- forkIO $ runSettings settings $ serve api server
   readMVar serverStartupLock
-  action
-  killThread threadId
+  finally action (killThread threadId)
 
 
 spec :: Spec
@@ -70,26 +70,49 @@ spec = do
       around_ withServer $ do
         describe "CallServantAPI tests with server" $ do
 
-          it "Simple request (book)" $ \rt -> do
+          it "Simple request (book) with default manager" $ \rt -> do
             let url = BaseUrl Http "localhost" port ""
-            bookEither <- runFlow rt $ callServantAPI url getBook
+            bookEither <- runFlow rt $ callServantAPI Nothing url getBook
             bookEither `shouldSatisfy` isRight
 
-          it "Simple request (user)" $ \rt -> do
+          it "Simple request (user) with default manager" $ \rt -> do
             let url = BaseUrl Http "localhost" port ""
-            userEither <- runFlow rt $ callServantAPI url getUser
+            userEither <- runFlow rt $ callServantAPI Nothing url getUser
             userEither `shouldSatisfy` isRight
+
+          it "Simple request (book) with manager1" $ \_ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Http "localhost" port ""
+            bookEither <- runFlow rt $ callServantAPI (Just "manager1") url getBook
+            bookEither `shouldSatisfy` isRight
+
+          it "Simple request (user) with manager2" $ \_ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Http "localhost" port ""
+            userEither <- runFlow rt $ callServantAPI (Just "manager2") url getUser
+            userEither `shouldSatisfy` isRight
+
+          it "Simple request with not existing manager" $ \_ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Http "localhost" port ""
+            let error = displayException (ConnectionError (toException $ HttpManagerNotFound "notexist"))
+            userEither <- runFlow rt $ callServantAPI (Just "notexist") url getUser
+            case userEither of
+              Left e -> displayException e `shouldBe` error
+              Right x -> fail "Success result not expected"
+
+
 
       describe "CallServantAPI tests without server" $ do
 
         it "Simple request (book)" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          bookEither <- runFlow rt $ callServantAPI url getBook
+          bookEither <- runFlow rt $ callServantAPI Nothing url getBook
           bookEither `shouldSatisfy` isLeft
 
         it "Simple request (user)" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          userEither <- runFlow rt $ callServantAPI url getUser
+          userEither <- runFlow rt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isLeft
 
       it "RunIO" $ \rt -> do

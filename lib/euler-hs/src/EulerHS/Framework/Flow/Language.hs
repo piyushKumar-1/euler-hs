@@ -69,11 +69,14 @@ type Description = Text
 
 type ForkGUID = Text
 
+type ManagerSelector = String
+
 -- | Flow language.
 data FlowMethod next where
   CallServantAPI
     :: T.JSONEx a
-    => BaseUrl
+    => Maybe ManagerSelector
+    -> BaseUrl
     -> T.EulerClient a
     -> (Either ClientError a -> next)
     -> FlowMethod next
@@ -175,7 +178,7 @@ data FlowMethod next where
     -> FlowMethod next
 
 instance Functor FlowMethod where
-  fmap f (CallServantAPI bUrl clientAct next) = CallServantAPI bUrl clientAct (f . next)
+  fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
 
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
 
@@ -242,10 +245,11 @@ type Flow = F FlowMethod
 
 callServantAPI
   :: T.JSONEx a
-  => BaseUrl                     -- ^ remote url 'BaseUrl'
+  => Maybe ManagerSelector       -- ^ name of the connection manager to be used
+  -> BaseUrl                     -- ^ remote url 'BaseUrl'
   -> T.EulerClient a             -- ^ servant client 'EulerClient'
   -> Flow (Either ClientError a) -- ^ result
-callServantAPI url cl = liftFC $ CallServantAPI url cl id
+callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
 
 -- | Takes remote url, servant client for this endpoint
 -- and returns either client error or result.
@@ -273,8 +277,12 @@ callServantAPI url cl = liftFC $ CallServantAPI url cl id
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
 
+callAPI' :: T.JSONEx a => Maybe ManagerSelector -> BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
+callAPI' = callServantAPI
+
 callAPI :: T.JSONEx a => BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
-callAPI = callServantAPI
+callAPI = callServantAPI Nothing
+
 
 evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id

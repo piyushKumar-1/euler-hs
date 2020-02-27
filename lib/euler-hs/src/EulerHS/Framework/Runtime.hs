@@ -31,8 +31,10 @@ import qualified EulerHS.Core.Types as T
 data FlowRuntime = FlowRuntime
   { _coreRuntime       :: R.CoreRuntime
   -- ^ Contains logger settings
-  , _httpClientManager :: Manager
-  -- ^ Http manager, used for external api calls
+  , _defaultHttpClientManager :: Manager
+  -- ^ Http default manager, used for external api calls
+  , _httpClientManagers :: Map String Manager
+  -- ^ Http managers, used for external api calls
   , _options           :: MVar (Map Text Text)
   -- ^ Typed key-value storage
   , _kvdbConnections   :: MVar (Map ByteString T.NativeKVDBConn)
@@ -50,21 +52,22 @@ data FlowRuntime = FlowRuntime
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
-  managerVar       <- newManager tlsManagerSettings
-  optionsVar       <- newMVar mempty
-  kvdbConnections  <- newMVar Map.empty
-  sqldbConnections <- newMVar Map.empty
-  pubSubController <- RD.newPubSubController [] []
+  defaultManagerVar <- newManager tlsManagerSettings
+  optionsVar        <- newMVar mempty
+  kvdbConnections   <- newMVar Map.empty
+  sqldbConnections  <- newMVar Map.empty
+  pubSubController  <- RD.newPubSubController [] []
 
   pure $ FlowRuntime
-    { _coreRuntime       = coreRt
-    , _httpClientManager = managerVar
-    , _options           = optionsVar
-    , _kvdbConnections   = kvdbConnections
-    , _runMode           = T.RegularMode
-    , _sqldbConnections  = sqldbConnections
-    , _pubSubController  = pubSubController
-    , _pubSubConnection  = Nothing
+    { _coreRuntime              = coreRt
+    , _defaultHttpClientManager = defaultManagerVar
+    , _httpClientManagers       = Map.empty
+    , _options                  = optionsVar
+    , _kvdbConnections          = kvdbConnections
+    , _runMode                  = T.RegularMode
+    , _sqldbConnections         = sqldbConnections
+    , _pubSubController         = pubSubController
+    , _pubSubConnection         = Nothing
     }
 
 

@@ -3,6 +3,8 @@ module EulerHS.Tests.Framework.Common where
 import qualified Data.Map as Map
 import qualified Data.Vector as V
 import           Data.Aeson
+import           Network.HTTP.Client (newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai.Handler.Warp
 import           Servant.Client
 import           Servant.Server
@@ -61,6 +63,17 @@ withServer action = do
   readMVar serverStartupLock
   action
   killThread threadId
+
+initRTWithManagers :: IO FlowRuntime
+initRTWithManagers = do
+  flowRt <- withFlowRuntime Nothing pure
+  m1 <- newManager tlsManagerSettings
+  m2 <- newManager tlsManagerSettings
+  let managersMap = Map.fromList
+        [ ("manager1", m1)
+        , ("manager2", m2)
+        ]
+  pure $ flowRt { _httpClientManagers = managersMap }
 
 initRegularRT :: IO FlowRuntime
 initRegularRT = do

@@ -58,14 +58,16 @@ disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI bUrl clientAct next) =
+interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
-
-      result <- catchAny
-        (S.runClientM (T.runEulerClient dbgLogger bUrl clientAct) (S.mkClientEnv _httpClientManager bUrl))
-        (pure . Left . S.ConnectionError)
-
-      pure result
+      let mbClientMngr = case mbMgrSel of
+            Nothing -> Right _defaultHttpClientManager
+            Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
+      case mbClientMngr of
+        Right mngr -> catchAny
+         (S.runClientM (T.runEulerClient dbgLogger bUrl clientAct) (S.mkClientEnv mngr bUrl))
+         (pure . Left . S.ConnectionError)
+        Left name -> pure $ Left $ S.ConnectionError $ toException $ T.HttpManagerNotFound name
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallServantAPI impl" :: String)

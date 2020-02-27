@@ -34,7 +34,7 @@ interpretFlowMethod mmv _ (L.RunIO ioAct next) = do
   v <- takeMockedVal @"mockedRunIO" mmv
   next <$> (pure $ unsafeCoerce v)
 
-interpretFlowMethod mmv rt (L.CallServantAPI bUrl clientAct next) = do
+interpretFlowMethod mmv rt (L.CallServantAPI mbMgrSel bUrl clientAct next) = do
   v <- takeMockedVal @"mockedCallServantAPI" mmv
   next <$> (pure $ unsafeCoerce v)
 

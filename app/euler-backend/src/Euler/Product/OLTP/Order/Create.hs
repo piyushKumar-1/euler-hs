@@ -92,7 +92,6 @@ doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount
 doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
   order         <- createOrder' routeParams order' mAccnt merchantPrefs
-
   _             <- updateOrderCache order
   _             <- updateMandateCache order -- maybe pass mandate from OrderCreateTemplate?
 
@@ -249,11 +248,13 @@ createOrder' routeParams order' mAccnt merchantPrefs = do
         <|> Just D.INR
 
   mbLoadedCustomer <- Rep.loadCustomer (order' ^. _customerId) (mAccnt ^. _id)
+
   let mbCustomer = fillCustomerContacts order' mbLoadedCustomer
 
   -- EHS: strange validation in the middle of logic.
   case (mbCustomer >>= (\c -> Just $ c ^. _customerId), (order' ^. _orderType) == D.MANDATE_REGISTER) of
       -- EHS: misleading error message. Should explicitly state that customerId has to be set on MANDATE_REGISTER
+      -- EHS: make Explicit pattern match
       (Nothing, True) -> throwException Errs.customerNotFound
       (mbCId, _)      -> pure ()
 
@@ -307,7 +308,7 @@ saveOrder
   orderTimestamp    <- getCurrentTimeUTC
 
 
-  let orderRefVal = fillUDFParams order' $ DB.defaultOrderReference
+  let orderRefVal :: DB.OrderReference = fillUDFParams order' $ DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = Just $ mAccnt ^. _merchantId
           , DB.amount             = Just $ D.fromMoney amount
@@ -405,6 +406,7 @@ mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
         , API.amount = Just $ D.fromMoney amount
         , API.juspay = Nothing
         }
+  runIO $ print "mkOrderResponse"
   pure r
   where
   -- EHS: magic constants

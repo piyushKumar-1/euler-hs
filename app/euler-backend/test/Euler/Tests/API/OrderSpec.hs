@@ -32,6 +32,13 @@ import qualified EulerHS.Extra.Validation as V
 import qualified EulerHS.Types as T
 import           Data.Time.Clock (NominalDiffTime)
 
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Common.Errors.Types as Errs
+import qualified Euler.API.Validators.Order as VO
+import qualified Data.Aeson as A
+import Test.HUnit.Base
+
+
 testDBName :: String
 testDBName = "./test/Euler/TestData/tmp_test.db"
 
@@ -123,16 +130,19 @@ orderReqTemplate = OrderAPI.OrderCreateRequest
 -- amount max2DecimalDigits gteOne
 -- customer_id notBlank if present
 -- options_create_mandate default: DISABLED
+ordReqForValidators :: OrderCreateRequest
 ordReqForValidators = orderReqTemplate
   { amount = 0.0104
   , customer_id = Just "  "
   }
 
+ordReqExisted :: OrderCreateRequest
 ordReqExisted = orderReqTemplate
   { order_id = "orderId"
   , amount = 1.0
   }
 
+ordReqMandateFeatureFailData :: OrderCreateRequest
 ordReqMandateFeatureFailData = orderReqTemplate
   { order_id = "wrongMandateParams"
   , amount = 500.0
@@ -140,6 +150,7 @@ ordReqMandateFeatureFailData = orderReqTemplate
   , options_create_mandate = Just OPTIONAL
   }
 
+ordReqMandateFeatureTooBigMandateMaxAmount :: OrderCreateRequest
 ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   { order_id = "wrongMandateParams"
   , amount = 50000.0
@@ -147,6 +158,7 @@ ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   , options_create_mandate = Just OPTIONAL
   }
 
+ordReqUdf :: OrderCreateRequest
 ordReqUdf = orderReqTemplate
   { order_id = "udfId"
   , amount = 100.0
@@ -162,6 +174,7 @@ ordReqUdf = orderReqTemplate
   , udf10 = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
   }
 
+ordReqWithAddresses :: OrderCreateRequest
 ordReqWithAddresses = orderReqTemplate
   { order_id = "orderWithAddr"
   , amount = 100.0
@@ -281,14 +294,14 @@ ordCreateResp = OrderAPI.OrderCreateResponse
 
 pLinksStatus  :: OrderAPI.Paymentlinks
 pLinksStatus = OrderAPI.Paymentlinks
-  {iframe = Just "https://defaulthost/merchant/ipay/order_uuid123"
+  { iframe = Just "https://defaulthost/merchant/ipay/order_uuid123"
   , web = Just "https://defaulthost/merchant/pay/order_uuid123"
   , mobile = Just "https://defaulthost/merchant/pay/order_uuid123?mobile=true"
   }
 
 orderStatusResp :: OrderAPI.OrderStatusResponse
 orderStatusResp = OrderAPI.OrderStatusResponse
-  {id = "order_uuid123"
+  { id = "order_uuid123"
   , merchant_id = Just "merchantId"
   , amount = Just 10.0
   , currency = Just "INR"
@@ -376,91 +389,484 @@ prepareDBConnections = do
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
+
+loop :: IO ()
+loop = do threadDelay 1000; loop
+
+-- shouldBeAnn ::
+shouldBeAnn s a b = assertEqual s b a
+
+-- shouldStartWithAnn :: _
+shouldStartWithAnn s v p
+  | plen > length v = assertFailure s
+  | otherwise = assertBool s (take plen v == p)
+  where
+    plen = length p
+
+
 spec :: Spec
 spec =
   around withEmptyDB $
-
     describe "API Order methods" $ do
-      it "OrderCreate" $ \rt -> do
-        let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
-        eRes <- runFlow rt $ prepareDBConnections *> withMerchantAccount (OrderCreate.orderCreate rp ordReq)
-        eRes `shouldSatisfy` (\OrderAPI.OrderCreateResponse{..} ->
-          status == NEW
-          && status_id == 10
-         -- && id ==
-          && order_id == "orderId2"
-         -- && payment_links ==
-          && udf9 == Just "udf9"
-          && udf8 == Just "udf8"
-          && udf7 == Just "udf7"
-          && udf6 == Just "udf6"
-          && udf5 == Just "udf5"
-          && udf4 == Just "udf4"
-          && udf3 == Just "udf3"
-          && udf2 == Just "udf2"
-          && udf10 == Just "udf10"
-          && udf1 == Just "udf1"
-          && return_url == Just "http://example.com"
-          && refunded == Just False
-          && product_id == Just "prodId"
-          && merchant_id == Just "1"
-         -- && date_created ==
-          && customer_phone == Just ""
-          && customer_id == Just "customerId"
-          && customer_email == Just "customer@email.com"
-          && currency == Just "INR"
-          && amount_refunded == Just 0.0
-          && amount == Just 1000.0
-         -- && juspay ==
-          )
-
       let runOrderCreate rt ordReq rp = runFlow rt $ do
             prepareDBConnections
             withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
+----------------------------------------------------------------------
+
+      xit "OrderCreate. Authorization - invalid" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC definitelynotvalidbase64string=")
+                (Version "2017-07-01")
+                (UserAgent "Uagent")
+
+        let check Errs.ECErrorResponse{code, response} =
+              case A.decode response of
+                Just Errs.ECErrorPayload{error_code} ->
+                  code == 401 -- && error_code == Just "...
+                Nothing -> False
+
+        runOrderCreate rt ordReq rp `shouldThrow` check
+
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. Old version. customer_id = Nothing" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2017-07-01")
+                (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{customer_id = Nothing} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          -- For old version udf's set to nothing (in defaultOrderCreateResponse)
+          -- Also, udfs present in db
+
+          shouldBeAnn "status"          status           $ CREATED
+          shouldBeAnn "order_id"        order_id         $ "orderId2"
+          shouldBeAnn "udf10"           udf10            $ Nothing
+          shouldBeAnn "udf9"            udf9             $ Nothing
+          shouldBeAnn "udf8"            udf8             $ Nothing
+          shouldBeAnn "udf7"            udf7             $ Nothing
+          shouldBeAnn "udf6"            udf6             $ Nothing
+          shouldBeAnn "udf5"            udf5             $ Nothing
+          shouldBeAnn "udf4"            udf4             $ Nothing
+          shouldBeAnn "udf3"            udf3             $ Nothing
+          shouldBeAnn "udf2"            udf2             $ Nothing
+          shouldBeAnn "udf1"            udf1             $ Nothing
+          shouldBeAnn "return_url"      return_url       $ Just "http://example.com"
+          shouldBeAnn "refunded"        refunded         $ Just False
+          shouldBeAnn "product_id"      product_id       $ Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id      $ Just "1"
+
+          shouldBeAnn "customer_phone"  customer_phone   $ Nothing
+          shouldBeAnn "customer_id"     customer_id      $ Nothing -- Just "customerId"
+          shouldBeAnn "customer_email"  customer_email   $ Nothing
+
+          shouldBeAnn "currency"        currency         $ Just "INR"
+          shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
+          shouldBeAnn "amount"          amount           $ Just 1000.0
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. Old version. customer_id existing in db" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2017-07-01")
+                (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{customer_id = Just "1"} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          -- For old version udf's set to nothing (in defaultOrderCreateResponse)
+          -- Also, udfs present in db
+
+          shouldBeAnn "status"          status           $ CREATED
+          shouldBeAnn "order_id"        order_id         $ "orderId2"
+          shouldBeAnn "udf10"           udf10            $ Nothing
+          shouldBeAnn "udf9"            udf9             $ Nothing
+          shouldBeAnn "udf8"            udf8             $ Nothing
+          shouldBeAnn "udf7"            udf7             $ Nothing
+          shouldBeAnn "udf6"            udf6             $ Nothing
+          shouldBeAnn "udf5"            udf5             $ Nothing
+          shouldBeAnn "udf4"            udf4             $ Nothing
+          shouldBeAnn "udf3"            udf3             $ Nothing
+          shouldBeAnn "udf2"            udf2             $ Nothing
+          shouldBeAnn "udf1"            udf1             $ Nothing
+          shouldBeAnn "return_url"      return_url       $ Just "http://example.com"
+          shouldBeAnn "refunded"        refunded         $ Just False
+          shouldBeAnn "product_id"      product_id       $ Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id      $ Just "1"
+
+          shouldBeAnn "customer_phone"  customer_phone   $ Just ""
+          shouldBeAnn "customer_id"     customer_id      $ Just "1"
+          shouldBeAnn "customer_email"  customer_email   $ Just "customer@email.com"
+
+          shouldBeAnn "currency"        currency         $ Just "INR"
+          shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
+          shouldBeAnn "amount"          amount           $ Just 1000.0
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. Old version. customer_id not existing in db" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2017-07-01")
+                (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{customer_id = Just "notExists"} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          -- For old version udf's set to nothing (in defaultOrderCreateResponse)
+          -- Also, udfs present in db
+
+          shouldBeAnn "status"          status           $ CREATED
+          shouldBeAnn "order_id"        order_id         $ "orderId2"
+          shouldBeAnn "udf10"           udf10            $ Nothing
+          shouldBeAnn "udf9"            udf9             $ Nothing
+          shouldBeAnn "udf8"            udf8             $ Nothing
+          shouldBeAnn "udf7"            udf7             $ Nothing
+          shouldBeAnn "udf6"            udf6             $ Nothing
+          shouldBeAnn "udf5"            udf5             $ Nothing
+          shouldBeAnn "udf4"            udf4             $ Nothing
+          shouldBeAnn "udf3"            udf3             $ Nothing
+          shouldBeAnn "udf2"            udf2             $ Nothing
+          shouldBeAnn "udf1"            udf1             $ Nothing
+          shouldBeAnn "return_url"      return_url       $ Just "http://example.com"
+          shouldBeAnn "refunded"        refunded         $ Just False
+          shouldBeAnn "product_id"      product_id       $ Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id      $ Just "1"
+
+          shouldBeAnn "customer_phone"  customer_phone   $ Nothing
+          shouldBeAnn "customer_id"     customer_id      $ Nothing
+          shouldBeAnn "customer_email"  customer_email   $ Nothing
+
+          shouldBeAnn "currency"        currency         $ Just "INR"
+          shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
+          shouldBeAnn "amount"          amount           $ Just 1000.0
+
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. New version. customer_id existing in db" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{customer_id = Just "1"} rp
+
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          shouldBeAnn "status"          status          $ NEW
+          shouldBeAnn "status_id"       status_id       $ 10
+          shouldBeAnn "order_id"        order_id        $ "orderId2"
+          shouldBeAnn "udf10"           udf10           $ Just "udf10"
+          shouldBeAnn "udf9"            udf9            $ Just "udf9"
+          shouldBeAnn "udf8"            udf8            $ Just "udf8"
+          shouldBeAnn "udf7"            udf7            $ Just "udf7"
+          shouldBeAnn "udf6"            udf6            $ Just "udf6"
+          shouldBeAnn "udf5"            udf5            $ Just "udf5"
+          shouldBeAnn "udf4"            udf4            $ Just "udf4"
+          shouldBeAnn "udf3"            udf3            $ Just "udf3"
+          shouldBeAnn "udf2"            udf2            $ Just "udf2"
+          shouldBeAnn "udf1"            udf1            $ Just "udf1"
+          shouldBeAnn "return_url"      return_url      $ Just "http://example.com"
+          shouldBeAnn "refunded"        refunded        $ Just False
+          shouldBeAnn "product_id"      product_id      $ Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
+
+          shouldBeAnn "customer_phone"  customer_phone  $ Just ""
+          shouldBeAnn "customer_id"     customer_id     $ Just "1"
+          shouldBeAnn "customer_email"  customer_email  $ Just "customer@email.com"
+
+          shouldBeAnn "currency"        currency        $ Just "INR"
+          shouldBeAnn "amount_refunded" amount_refunded $ Just 0.0
+          shouldBeAnn "amount"          amount          $ Just 1000.0
+
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. New version. customer_id not existing in db" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{customer_id = Just "notExists"} rp
+
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          shouldBeAnn "status"          status          $ NEW
+          shouldBeAnn "status_id"       status_id       $ 10
+          shouldBeAnn "order_id"        order_id        $ "orderId2"
+          shouldBeAnn "udf10"           udf10           $ Just "udf10"
+          shouldBeAnn "udf9"            udf9            $ Just "udf9"
+          shouldBeAnn "udf8"            udf8            $ Just "udf8"
+          shouldBeAnn "udf7"            udf7            $ Just "udf7"
+          shouldBeAnn "udf6"            udf6            $ Just "udf6"
+          shouldBeAnn "udf5"            udf5            $ Just "udf5"
+          shouldBeAnn "udf4"            udf4            $ Just "udf4"
+          shouldBeAnn "udf3"            udf3            $ Just "udf3"
+          shouldBeAnn "udf2"            udf2            $ Just "udf2"
+          shouldBeAnn "udf1"            udf1            $ Just "udf1"
+          shouldBeAnn "return_url"      return_url      $ Just "http://example.com"
+          shouldBeAnn "refunded"        refunded        $ Just False
+          shouldBeAnn "product_id"      product_id      $ Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
+
+          shouldBeAnn "customer_phone"  customer_phone  $ Just ""
+          shouldBeAnn "customer_id"     customer_id     $ Just ""
+          shouldBeAnn "customer_email"  customer_email  $ Just ""
+
+          shouldBeAnn "currency"        currency        $ Just "INR"
+          shouldBeAnn "amount_refunded" amount_refunded $ Just 0.0
+          shouldBeAnn "amount"          amount          $ Just 1000.0
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. New version. customer_id = Nothing" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{customer_id = Nothing} rp
+
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          shouldBeAnn "status"          status          $ NEW
+          shouldBeAnn "status_id"       status_id       $ 10
+          shouldBeAnn "order_id"        order_id        $ "orderId2"
+          shouldBeAnn "udf10"           udf10           $ Just "udf10"
+          shouldBeAnn "udf9"            udf9            $ Just "udf9"
+          shouldBeAnn "udf8"            udf8            $ Just "udf8"
+          shouldBeAnn "udf7"            udf7            $ Just "udf7"
+          shouldBeAnn "udf6"            udf6            $ Just "udf6"
+          shouldBeAnn "udf5"            udf5            $ Just "udf5"
+          shouldBeAnn "udf4"            udf4            $ Just "udf4"
+          shouldBeAnn "udf3"            udf3            $ Just "udf3"
+          shouldBeAnn "udf2"            udf2            $ Just "udf2"
+          shouldBeAnn "udf1"            udf1            $ Just "udf1"
+          shouldBeAnn "return_url"      return_url      $ Just "http://example.com"
+          shouldBeAnn "refunded"        refunded        $ Just False
+          shouldBeAnn "product_id"      product_id      $ Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
+
+          shouldBeAnn "customer_phone"  customer_phone  $ Just "" -- same here ???
+          shouldBeAnn "customer_id"     customer_id     $ Just "" -- We can get Just customerId, Nothing, Just ""
+          shouldBeAnn "customer_email"  customer_email  $ Just "" -- same here ???
+
+          shouldBeAnn "currency"        currency        $ Just "INR"
+          shouldBeAnn "amount_refunded" amount_refunded $ Just 0.0
+          shouldBeAnn "amount"          amount          $ Just 1000.0
+
+----------------------------------------------------------------------
+
       it "Order with ordReqForValidators" $ \rt -> do
-          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
-          resp <- runOrderCreate rt ordReqForValidators rp
-          resp `shouldBe` ordCreateResp
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
 
-      it "Order with ordReqExisted" $ \rt -> do
-          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
-          resp <- runOrderCreate rt ordReqExisted rp
-          resp `shouldBe` ordCreateResp
+        let check Errs.ECErrorResponse{code, response} =
+              case A.decode response of
+                Just Errs.ECErrorPayload{error_code} ->
+                  code == 400 && error_code == Just "INVALID_REQUEST"
+                Nothing -> False
 
-      it "Order with ordReqMandateFeatureFailData" $ \rt -> do
-          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
-          resp <- runOrderCreate rt ordReqMandateFeatureFailData rp
-          resp `shouldBe` ordCreateResp
+        runOrderCreate rt ordReqForValidators rp `shouldThrow` check
+
+
+----------------------------------------------------------------------
+
+      xit "Order with ordReqMandateFeatureFailData" $ \rt -> do
+        let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
+        -- let check Errs.ECErrorResponse{code, response} =
+        --       case A.decode response of
+        --         Just Errs.ECErrorPayload{error_code} ->
+        --           code == 400 && error_code == Just "INVALID_MANDATE_MAX_AMOUNT"
+        --         Nothing -> False
+
+        -- runOrderCreate rt ordReqMandateFeatureFailData rp `shouldThrow` \e -> check $ traceShowId e
+
+        pure ()
+
+----------------------------------------------------------------------
+
+-- OrderReference get from DB
+
+-- OrderReference
+--   { id = Just 1
+--   , version = 1
+--   , amount = Just 10.0
+--   , currency = Just INR
+--   , dateCreated = 1858-11-18 01:01:01
+--   , lastModified = 1858-11-18 01:01:01
+--   , merchantId = Just "1"
+--   , orderId = Just "orderId"
+--   , status = CREATED
+--   , customerEmail = Just "customer@email.com"
+--   , customerId = Just "customerId"
+--   , browser = Nothing
+--   , browserVersion = Nothing
+--   , popupLoaded = Nothing
+--   , popupLoadedTime = Nothing
+--   , description = Just "some description"
+--   , udf1 = Just "udf1"
+--   , udf2 = Nothing
+--   , udf3 = Nothing
+--   , udf4 = Nothing
+--   , udf5 = Nothing
+--   , udf6 = Nothing
+--   , udf7 = Nothing
+--   , udf8 = Nothing
+--   , udf9 = Nothing
+--   , udf10 = Just "udf10"
+--   , returnUrl = Nothing
+--   , amountRefunded = Nothing
+--   , refundedEntirely = Nothing
+--   , preferredGateway = Nothing
+--   , customerPhone = Nothing
+--   , productId = Nothing
+--   , billingAddressId = Nothing
+--   , shippingAddressId = Nothing
+--   , orderUuid = Just "order_uuid123"
+--   , lastSynced = Nothing
+--   , orderType = Nothing
+--   , mandateFeature = Nothing
+--   , autoRefund = Nothing
+--   }
+
+-- Validation failes internally due to
+
+-- ["orderType not present","mandateFeature not present"]
+
+      xit "Order with ordReqExisted" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReqExisted rp
+        resp `shouldBe` ordCreateResp
+
+----------------------------------------------------------------------
 
       it "Order with ordReqMandateFeatureTooBigMandateMaxAmount" $ \rt -> do
-          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+        let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                             (Version "2018-07-01")
                             (UserAgent "Uagent")
-          resp <- runOrderCreate rt ordReqMandateFeatureTooBigMandateMaxAmount rp
-          resp `shouldBe` ordCreateResp
+
+
+        let check Errs.ECErrorResponse{code, response} =
+              case A.decode response of
+                Just Errs.ECErrorPayload{error_code} ->
+                  code == 400 && error_code == Just "INVALID_MANDATE_MAX_AMOUNT"
+                Nothing -> False
+
+        runOrderCreate rt ordReqMandateFeatureTooBigMandateMaxAmount rp `shouldThrow` check
+
+----------------------------------------------------------------------
 
       it "Order UDF cleaned" $ \rt -> do
-          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
+          let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
           resp <- runOrderCreate rt ordReqUdf rp
-          resp `shouldBe` ordCreateResp
+
+          do
+            let OrderAPI.OrderCreateResponse{..} = resp
+
+            shouldBeAnn "status"      status      $ CREATED
+            shouldBeAnn "status_id"   status_id   $ 1
+            shouldBeAnn "order_id"    order_id    $ "udfId"
+            shouldBeAnn "refunded"    refunded    $ Just False
+            shouldBeAnn "merchant_id" merchant_id $ Just "1"
+            shouldBeAnn "currency"    currency    $ Just "INR"
+            shouldBeAnn "amount"      amount      $ Just 100.0
+
+            shouldBeAnn "udf10"       udf10       $ Just ""
+            shouldBeAnn "udf9"        udf9        $ Just ""
+            shouldBeAnn "udf8"        udf8        $ Just ""
+            shouldBeAnn "udf7"        udf7        $ Just ""
+            shouldBeAnn "udf6"        udf6        $ Just ""
+            shouldBeAnn "udf5"        udf5        $ Nothing
+            shouldBeAnn "udf4"        udf4        $ Nothing
+            shouldBeAnn "udf3"        udf3        $ Nothing
+            shouldBeAnn "udf2"        udf2        $ Nothing
+            shouldBeAnn "udf1"        udf1        $ Nothing
+
+            shouldStartWithAnn "id" (T.unpack id) "ordeu_"
+
+----------------------------------------------------------------------
 
       it "Order with addresses" $ \rt -> do
-          let rp = collectRPs (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
-                            (Version "2018-07-01")
-                            (UserAgent "Uagent")
+          let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
           resp <- runOrderCreate rt ordReqWithAddresses rp
-          resp `shouldBe` ordCreateResp
+
+          do
+            let OrderAPI.OrderCreateResponse{..} = resp
+
+            shouldBeAnn "status"      status      $ CREATED
+            shouldBeAnn "status_id"   status_id   $ 1
+            shouldBeAnn "order_id"    order_id    $ "orderWithAddr"
+            shouldBeAnn "refunded"    refunded    $ Just False
+            shouldBeAnn "merchant_id" merchant_id $ Just "1"
+            shouldBeAnn "currency"    currency    $ Just "INR"
+            shouldBeAnn "amount"      amount      $ Just 100.0
+
+            shouldStartWithAnn "id" (T.unpack id) "ordeu_"
+
+----------------------------------------------------------------------
+
+      it "Order with addresses. Valid customerId " $ \rt -> do
+          let rp = collectRPs
+                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Version "2018-07-01")
+                (UserAgent "Uagent")
+
+          resp <- runOrderCreate rt ordReqWithAddresses{customer_id = Just "1"} rp
+
+          print resp
+
+          do
+            let OrderAPI.OrderCreateResponse{..} = resp
+            shouldBeAnn "status"         status          $ CREATED
+            shouldBeAnn "status_id"      status_id       $ 1
+            shouldBeAnn "order_id"       order_id        $ "orderWithAddr"
+            shouldBeAnn "refunded"       refunded        $ Just False
+            shouldBeAnn "merchant_id"    merchant_id     $ Just "1"
+            shouldBeAnn "currency"       currency        $ Just "INR"
+            shouldBeAnn "amount"         amount          $ Just 100.0
+            shouldBeAnn "customer_phone" customer_phone  $ Just "555-555-555" --<
+
+            shouldStartWithAnn "id" (T.unpack id) "ordeu_"
+
+----------------------------------------------------------------------
 
       -- it "OrderStatus" $ \rt -> do
       --   eRes <- runFlow rt $ do

@@ -44,6 +44,7 @@ dependencies:
 - euler-hs
 - extra
 - hashable
+- HUnit
 - mtl
 - network
 - optparse-applicative

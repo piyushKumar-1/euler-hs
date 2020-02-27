@@ -21,6 +21,8 @@ import Euler.Common.Types.External.Mandate (MandateFeature)
 import qualified Database.Beam as B
 
 
+-- EHS :: ORDER OF FIELDS MATTERS!
+-- https://github.com/tathougies/beam/issues/372
 data OrderReferenceT f = OrderReference
   { id                :: B.C f (Maybe Int)
   , version           :: B.C f Int
@@ -39,6 +41,7 @@ data OrderReferenceT f = OrderReference
   , popupLoadedTime   :: B.C f (Maybe LocalTime)
   , description       :: B.C f (Maybe Text)
   , udf1              :: B.C f (Maybe Text)
+  , udf10             :: B.C f (Maybe Text)
   , udf2              :: B.C f (Maybe Text)
   , udf3              :: B.C f (Maybe Text)
   , udf4              :: B.C f (Maybe Text)
@@ -47,7 +50,6 @@ data OrderReferenceT f = OrderReference
   , udf7              :: B.C f (Maybe Text)
   , udf8              :: B.C f (Maybe Text)
   , udf9              :: B.C f (Maybe Text)
-  , udf10             :: B.C f (Maybe Text)
   , returnUrl         :: B.C f (Maybe Text)
   , amountRefunded    :: B.C f (Maybe Double)
   , refundedEntirely  :: B.C f (Maybe Bool)

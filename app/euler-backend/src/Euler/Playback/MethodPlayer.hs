@@ -76,7 +76,8 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
       sqldbConnectionsVar <- newMVar mempty
       let flowRt = FlowRuntime
             { _coreRuntime = coreRt
-            , _httpClientManager = httpManager
+            , _defaultHttpClientManager = httpManager
+            , _httpClientManagers       = mempty
             , _options = options
             , _kvdbConnections = kvdbConnectionsVar
             , _runMode = ReplayingMode playerRt

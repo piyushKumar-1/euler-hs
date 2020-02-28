@@ -70,25 +70,3 @@ orderReferenceToUDF oRef = CO.UDF
   <*> withField @"udf9" oRef pure
   <*> withField @"udf10" oRef pure
 
--- EHS: move validators to separate module.
--- Don't duplicate validators.
-notNegative :: Validator Int
-notNegative = mkValidator "Should not be negative." (>= 0)
-
-amountValidators :: Validator Double
-amountValidators =
-  parValidate
-    [ max2DecimalDigits
-    , gteOne
-    ]
-
---Will accept double values with upto two decimal places.
-max2DecimalDigits :: Validator Double
-max2DecimalDigits = mkValidator
-  "Will accept double values with upto two decimal places."
-  ((<=3) . length . dropWhile (/='.') . show)
-
-gteOne :: Validator Double
-gteOne = mkValidator
-  "Should be greater than or equal 1"
-  (>=1)

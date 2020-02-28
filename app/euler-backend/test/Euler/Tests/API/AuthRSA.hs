@@ -30,6 +30,7 @@ import           Test.Hspec
 
 import qualified WebService.Types                       as T
 import qualified WebService.Language                    as L
+import           Euler.API.RouteParameters
 
 spec :: Spec
 spec =
@@ -145,7 +146,7 @@ server :: FlowServer' API
 server = protected
 
 protected :: Auth.Signed SignaturePayloadExample -> FlowHandler Text
-protected = S.runFlow "sTestFlow" S.noReqBodyJSON . Auth.authenticateUsingRSAEncryption handler
+protected = S.runFlow "sTestFlow" emptyRPs S.noReqBodyJSON . Auth.authenticateUsingRSAEncryption handler
   where
     handler {-merchantAccount-}_ signaturePayloadExample = do
       pure $ Text.pack $ someField signaturePayloadExample

@@ -1,8 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
-<<<<<<< HEAD
-=======
 {-# LANGUAGE StandaloneDeriving #-}
->>>>>>> [WIP]
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Euler.Storage.Types.EulerDB

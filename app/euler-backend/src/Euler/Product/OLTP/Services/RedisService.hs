@@ -11,7 +11,6 @@ import           Servant.Server
 import           WebService.Language
 
 import Euler.Config.ServiceConfiguration (TokenExpiryData(..), ResourceType(..))
-import Euler.KVDB.Redis
 
 import qualified Data.Aeson           as A
 import qualified Data.ByteString.Lazy as BSL
@@ -34,7 +33,7 @@ tokenizeResource resourceId resourceType merchantId = do
   TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
   currentDate <- getCurrentDateInMillis
   redisData   <- pure $ getRedisData resourceType resourceId tokenMaxUsage expiryInSeconds currentDate
-  _ <- setCacheWithExpiry token' redisData expiryInSeconds
+  _ <- rSetex token' redisData expiryInSeconds
   --setCacheWithExpiry Constants.ecRedis token redisData (convertDuration $ Seconds $ toNumber expiryInSeconds)
   _           <- logInfo (resourceType <> "_token_cache") (token' <> (show redisData))
   expiry'     <- getCurrentDateStringWithSecOffset Constants.redis_token_expiry_default

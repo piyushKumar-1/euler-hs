@@ -22,8 +22,6 @@ import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 import           Servant.Server (errBody, err500, err400)
 import qualified EulerHS.Extra.Validation as V
 
--- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
-import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
 import           EulerHS.Language
 import           WebService.Language
 
@@ -121,7 +119,7 @@ updateOrderCache order = do
   let orderId    = order ^. _orderId
   let merchantId = order ^. _merchantId
   -- EHS: magic constant.
-  void $ KVDBExtra.setCacheWithExpiry (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
+  void $ rSetex (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
 -- EHS: previously setMandateInCache
 -- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
@@ -144,7 +142,7 @@ updateMandateCache order = case order ^. _mandate of
         let orderId    = order ^. _orderId
         mandate <- createMandate order ma
         -- EHS: magic constant
-        void $ KVDBExtra.setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
+        void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
     createMandate :: D.Order -> Double -> Flow DB.Mandate
     createMandate order maxAmount = do
@@ -209,7 +207,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- KVDBExtra.rGet $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 

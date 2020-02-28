@@ -40,7 +40,6 @@ import Database.Beam ((==.), (&&.), (<-.), (/=.))
 
 import qualified Euler.Storage.Types.SqliteTest as SQLITE
 import Euler.Common.Types.DefaultDate
-import Euler.KVDB.Redis
 
 withMacc :: forall req resp . (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp) -> RouteParameters -> req -> Flow resp
 withMacc f rp req = do
@@ -242,5 +241,5 @@ getWhitelistedIps mAcc = do
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
-        _   <- setCacheWithExpiry ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips (5 * 60 * 60)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        _   <- rSetex ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips (5 * 60 * 60)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

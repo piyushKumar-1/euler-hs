@@ -293,12 +293,12 @@ spec =
 
       around withEmptyDB $ do
 
-        it "Update" $ \rt -> do
+        xit "Update" $ \rt -> do
           let rp = collectRPs orderForUpdate auth oldVersion
           eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp updateRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
-        it "Cleanup" $ \rt -> do
+        xit "Cleanup" $ \rt -> do
           let rp = collectRPs orderForCleanup auth oldVersion
           eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp cleanupRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
@@ -307,12 +307,12 @@ spec =
 
       around withEmptyDB $ do
 
-        it "Update" $ \rt -> do
+        xit "Update" $ \rt -> do
           let rp = collectRPs orderForUpdate auth newVersion
           eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp updateRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
-        it "Cleanup" $ \rt -> do
+        xit "Cleanup" $ \rt -> do
           let rp = collectRPs orderForCleanup auth newVersion
           eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp cleanupRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse

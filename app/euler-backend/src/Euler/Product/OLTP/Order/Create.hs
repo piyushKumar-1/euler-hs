@@ -44,6 +44,7 @@ import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Common.Metric               as Metric
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Product.Domain.Order        as D
+import qualified Euler.Product.Domain              as D
 import           Euler.Product.Domain.MerchantAccount
 import           Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Product.Domain.Templates    as Ts
@@ -377,7 +378,7 @@ mkOrderResponse
   :: Config.Config
   -> D.Order
   -> MerchantAccount
-  -> Maybe DB.ResellerAccount
+  -> Maybe D.ResellerAccount
   -> Flow API.OrderCreateResponse
 mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
   let (r :: API.OrderCreateResponse) = API.defaultOrderCreateResponse
@@ -416,7 +417,7 @@ mkTokenizedOrderResponse
   :: Config.Config
   -> D.Order
   -> MerchantAccount
-  -> Maybe DB.ResellerAccount
+  -> Maybe D.ResellerAccount
   -> Flow API.OrderCreateResponse
 mkTokenizedOrderResponse cfg order@(D.Order {..}) mAcc mbResellerAcc = do
   apiResp    <- mkOrderResponse cfg order mAcc mbResellerAcc

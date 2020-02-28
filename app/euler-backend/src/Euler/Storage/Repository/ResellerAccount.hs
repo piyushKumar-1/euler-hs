@@ -5,11 +5,14 @@ module Euler.Storage.Repository.ResellerAccount
 
 import EulerHS.Prelude
 
-import           EulerHS.Extra.Validation
+import           EulerHS.Extra.Validation as V
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Validators.ResellerAccount
 
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Product.Domain.ResellerAccount as D
 import qualified Euler.Storage.Types                  as DB
 
 import           Database.Beam ((==.))
@@ -21,9 +24,10 @@ import           Euler.Lens
 
 -- EHS: previously handleReseller
 -- EHS: return domain type for Reseller instead of DB type
-loadReseller :: Maybe Text -> Flow (Maybe DB.ResellerAccount)
+loadReseller :: Maybe Text -> Flow (Maybe D.ResellerAccount)
 loadReseller Nothing = pure Nothing
-loadReseller (Just resellerId') = withDB eulerDB $ do
+loadReseller (Just resellerId') = do
+  mbResAcc <- withDB eulerDB $ do
     -- EHS: DB types should be qualified or explicitly named.
     let predicate DB.ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
     findRow
@@ -31,3 +35,12 @@ loadReseller (Just resellerId') = withDB eulerDB $ do
       $ B.limit_ 1
       $ B.filter_ predicate
       $ B.all_ (DB.reseller_account DB.eulerDBSchema)
+  case mbResAcc of
+    Nothing -> pure Nothing
+    Just racc -> case toDomResAcc racc of
+      V.Success v -> pure $ Just v
+      V.Failure e -> do
+        logError "Incorrect reseller account in DB"
+          $  " resellerId: " <> resellerId'
+          <> " error: " <> show e
+        throwException Errs.internalError

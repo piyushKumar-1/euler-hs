@@ -34,7 +34,6 @@ module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 -- import Euler.Storage.Types.OrderReference
 -- import Euler.Storage.Types.ResellerAccount
 --
--- import Euler.KVDB.Redis (rGet, setCacheWithExpiry)
 -- import Euler.Storage.Types.EulerDB
 --
 -- import qualified Prelude              as P (show, notElem)

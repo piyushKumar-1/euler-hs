@@ -15,13 +15,14 @@ import           Euler.API.Order (Chargeback' (..), Mandate' (..), OrderStatusQu
                                   OrderStatusResponse (..), Paymentlinks (..), Refund' (..),
                                   Risk (..), TxnDetail' (..))
 
-import           Euler.Common.Types.Mandate (PaymentMethodType (..))
-import           Euler.Common.Types.Order (MandateFeature (..), OrderStatus (..), OrderType (..))
+import           Euler.Common.Types.Currency
+import           Euler.Common.Types.External.Mandate (MandateFeature (..), PaymentMethodType (..))
+import           Euler.Common.Types.External.Order (OrderStatus (..))
+import           Euler.Common.Types.Order (OrderType (..))
 import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
 import qualified Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 
-import           Euler.Product.Domain.Order (OrderId (..))
 import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
 
 import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
@@ -83,10 +84,10 @@ spec =
 
 orderRef :: OrderReference
 orderRef = OrderReference
-  { id                = Just "orderRef_id"
+  { id                = Just 13
   , version           = 1
   , amount            = Just 20
-  , currency          = Just "USD"
+  , currency          = Just USD
   , dateCreated       = LocalTime (fromGregorian 2020 1 12) (TimeOfDay 2 13 0)
   , lastModified      = LocalTime (fromGregorian 2020 1 13) (TimeOfDay 12 14 0)
   , merchantId        = Just "merchantId"
@@ -115,8 +116,8 @@ orderRef = OrderReference
   , preferredGateway  = Just "preferredGateway"
   , customerPhone     = Just "911"
   , productId         = Just "productId"
-  , billingAddressId  = Just "billingAddressId"
-  , shippingAddressId = Just "shippingAddressId"
+  , billingAddressId  = Just 14
+  , shippingAddressId = Just 15
   , orderUuid         = Just "orderUuid"
   , lastSynced        = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 20 31 0)
   , orderType         = Just MANDATE_REGISTER
@@ -159,7 +160,7 @@ mMandate = Just Mandate'
 
 query :: OrderStatusQuery
 query = OrderStatusQuery
-  { orderId                 = OrderId "orderId"
+  { orderId                 = "orderId"
   , merchantId              = "merchantId"
   , resellerId              = Just "resellerId"
   , isAuthenticated         = True
@@ -179,7 +180,7 @@ txnDetailJust = Just TxnDetail
   , txdType                  = "AUTH"
   , dateCreated              = Just $ LocalTime (fromGregorian 2020 1 14) (TimeOfDay 3 30 0)
   , lastModified             = Just $ LocalTime (fromGregorian 2020 1 14) (TimeOfDay 4 40 0)
-  , successResponseId        = Just "successResponseId"
+  , successResponseId        = Just 12
   , txnMode                  = Just "PROD"
   , addToLocker              = Just False
   , merchantId               = Just "merchantId"

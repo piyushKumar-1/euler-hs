@@ -23,7 +23,7 @@ import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
 import qualified Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 
-import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
+import           Euler.Product.OLTP.Order.OrderStatusLegacy (makeOrderStatusResponse)
 
 import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
 import           Euler.Storage.Types.TxnCardInfo (TxnCardInfo, TxnCardInfoT (..))

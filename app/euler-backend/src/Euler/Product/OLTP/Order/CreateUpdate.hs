@@ -20,8 +20,10 @@ import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway
 import Euler.Common.Types.Order
 import Euler.Product.Domain.OrderMetadataV2
-import Euler.Product.OLTP.Order.OrderStatus (getOrderStatusWithoutAuth)
 import Euler.Product.OLTP.Services.RedisService
+import Euler.Common.Types.Currency
+import Euler.Product.OLTP.Order.OrderStatusLegacy (getOrderStatusWithoutAuth)
+
 
 import Euler.Storage.Types.Customer
 import Euler.Storage.Types.Mandate

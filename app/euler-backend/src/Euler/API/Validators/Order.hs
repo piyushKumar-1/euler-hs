@@ -124,9 +124,12 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
     parseMandate = do
           let maxAmountField = getField @"mandate_max_amount" sm
           mandate      <- extractMaybeWithDefault DISABLED $ getField @"options_create_mandate" sm
+          -- EHS: maxAmount should not be set by default
+          -- It should be present if mandate REQUIRED
+          -- Check behavior if mandate is OPTIONAL
           maxAmountStr <- extractMaybeWithDefault "0.0" maxAmountField
           maxAmount    <- V.decode maxAmountStr
-          V.guarded "mandate_max_amount should be set."          $ isJust maxAmountField
+          V.guarded "mandate_max_amount should be set."          $ mandate == DISABLED || isJust maxAmountField
           V.guarded "mandate_max_amount should not be negative." $ maxAmount >= 0
 
           pure $ case mandate of

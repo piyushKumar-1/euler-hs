@@ -53,30 +53,19 @@ mkOrderResponse cfg order@(D.Order {..}) _ mbResellerAcc = do
         , API.id            = orderUuid
         , API.order_id      = orderId
         , API.payment_links = API.Paymentlinks
-            -- EHS: magic constants
-            { API.web    = Just url'
-            , API.mobile = Just $ url' <> "?mobile=true"
-            , API.iframe = Just url'
+            { API.web    = Just webUrl
+            , API.mobile = Just mobileUrl
+            , API.iframe = Just iFrameUrl
             }
-        , API.return_url    = returnUrl
-        , API.refunded      = Just refundedEntirely
-        , API.product_id    = productId
-        , API.merchant_id   = Just merchantId
-        , API.date_created  = Just dateCreated
-        , API.customer_phone = customerPhone
-        , API.customer_id   = customerId
-        , API.customer_email = customerEmail
-        , API.currency      = Just $ show currency
-        , API.amount_refunded = amountRefunded
-        , API.amount = Just $ D.fromMoney amount
-        , API.juspay = Nothing
         }
   pure r
   where
   -- EHS: magic constants
     mbResellerEndpoint = mbResellerAcc >>= (^. _resellerApiEndpoint)
     url = maybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id mbResellerEndpoint
-    url' = url <> "/merchant/pay/" <> orderUuid
+    webUrl    = url <> "/merchant/pay/"  <> orderUuid
+    mobileUrl = url <> "/merchant/pay/"  <> orderUuid <>"?mobile=true"
+    iFrameUrl = url <> "/merchant/ipay/" <> orderUuid
 
 mkTokenizedOrderResponse
   :: Config.Config

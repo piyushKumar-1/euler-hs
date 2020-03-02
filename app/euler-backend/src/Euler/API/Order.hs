@@ -294,14 +294,26 @@ data OrderCreateResponse = OrderCreateResponse
   , amount          :: Maybe Double
   , juspay          :: Maybe OrderTokenResp
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
+
+orderCreateResponseOptions :: Options
+orderCreateResponseOptions = defaultOptions
+  { omitNothingFields = True
+  }
+
+instance ToJSON OrderCreateResponse where
+  toJSON     = genericToJSON orderCreateResponseOptions
+  toEncoding = genericToEncoding orderCreateResponseOptions
+
+instance FromJSON OrderCreateResponse where
+  parseJSON = genericParseJSON orderCreateResponseOptions
 
 defaultOrderCreateResponse :: OrderCreateResponse
 defaultOrderCreateResponse = OrderCreateResponse
   { status          = NEW -- :: OrderStatus
-  , status_id       = 10 -- :: Int
-  , id              = "id" -- :: Text
-  , order_id        = "order_id" -- :: Text
+  , status_id       = -1 -- :: Int
+  , id              = "" -- :: Text
+  , order_id        = "" -- :: Text
   , payment_links   = defaultPaymentlinks -- :: Paymentlinks
   , udf9            = Nothing -- :: Maybe Text
   , udf8            = Nothing -- :: Maybe Text

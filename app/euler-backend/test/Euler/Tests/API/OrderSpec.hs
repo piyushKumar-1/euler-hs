@@ -200,6 +200,7 @@ ordReqWithAddresses = orderReqTemplate
   , shipping_address_postal_code = Just "shipping_address_postal_code"
   , shipping_address_phone = Just "shipping_address_phone"
   , shipping_address_country_code_iso = Just "shipping_address_country_code_iso"
+  , options_get_client_auth_token     = Just True
   }
 
 ordReq :: OrderAPI.OrderCreateRequest
@@ -445,7 +446,9 @@ spec =
 
           -- For old version udf's set to nothing (in defaultOrderCreateResponse)
           -- Also, udfs present in db
-
+          -- https://docs.google.com/document/d/1uILu5D85e4GMyMJRyPzlI1Vtz6vW_pkgzPg6MEcUO00/edit
+          -- Answer for Q 17 :
+          -- Currently order create response( for non tokenized orders ) has a limited response which doesn’t include UDFs.
           shouldBeAnn "status"          status           $ CREATED
           shouldBeAnn "order_id"        order_id         $ "orderId2"
           shouldBeAnn "udf10"           udf10            $ Nothing
@@ -458,18 +461,18 @@ spec =
           shouldBeAnn "udf3"            udf3             $ Nothing
           shouldBeAnn "udf2"            udf2             $ Nothing
           shouldBeAnn "udf1"            udf1             $ Nothing
-          shouldBeAnn "return_url"      return_url       $ Just "http://example.com"
-          shouldBeAnn "refunded"        refunded         $ Just False
-          shouldBeAnn "product_id"      product_id       $ Just "prodId"
-          shouldBeAnn "merchant_id"     merchant_id      $ Just "1"
+          shouldBeAnn "return_url"      return_url       $ Nothing -- Just "http://example.com"
+          shouldBeAnn "refunded"        refunded         $ Nothing -- Just False
+          shouldBeAnn "product_id"      product_id       $ Nothing -- Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id      $ Nothing -- Just "1"
 
           shouldBeAnn "customer_phone"  customer_phone   $ Nothing
           shouldBeAnn "customer_id"     customer_id      $ Nothing -- Just "customerId"
           shouldBeAnn "customer_email"  customer_email   $ Nothing
 
-          shouldBeAnn "currency"        currency         $ Just "INR"
+          shouldBeAnn "currency"        currency         $ Nothing -- Just "INR"
           shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
-          shouldBeAnn "amount"          amount           $ Just 1000.0
+          shouldBeAnn "amount"          amount           $ Nothing -- Just 1000.0
 
 ----------------------------------------------------------------------
 
@@ -500,18 +503,18 @@ spec =
           shouldBeAnn "udf3"            udf3             $ Nothing
           shouldBeAnn "udf2"            udf2             $ Nothing
           shouldBeAnn "udf1"            udf1             $ Nothing
-          shouldBeAnn "return_url"      return_url       $ Just "http://example.com"
-          shouldBeAnn "refunded"        refunded         $ Just False
-          shouldBeAnn "product_id"      product_id       $ Just "prodId"
-          shouldBeAnn "merchant_id"     merchant_id      $ Just "1"
+          shouldBeAnn "return_url"      return_url       $ Nothing -- Just "http://example.com"
+          shouldBeAnn "refunded"        refunded         $ Nothing -- Just False
+          shouldBeAnn "product_id"      product_id       $ Nothing -- Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id      $ Nothing -- Just "1"
 
-          shouldBeAnn "customer_phone"  customer_phone   $ Just ""
-          shouldBeAnn "customer_id"     customer_id      $ Just "1"
-          shouldBeAnn "customer_email"  customer_email   $ Just "customer@email.com"
+          shouldBeAnn "customer_phone"  customer_phone   $ Nothing -- Just ""
+          shouldBeAnn "customer_id"     customer_id      $ Nothing -- Just "1"
+          shouldBeAnn "customer_email"  customer_email   $ Nothing -- Just "customer@email.com"
 
-          shouldBeAnn "currency"        currency         $ Just "INR"
+          shouldBeAnn "currency"        currency         $ Nothing -- Just "INR"
           shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
-          shouldBeAnn "amount"          amount           $ Just 1000.0
+          shouldBeAnn "amount"          amount           $ Nothing -- Just 1000.0
 
 ----------------------------------------------------------------------
 
@@ -542,18 +545,18 @@ spec =
           shouldBeAnn "udf3"            udf3             $ Nothing
           shouldBeAnn "udf2"            udf2             $ Nothing
           shouldBeAnn "udf1"            udf1             $ Nothing
-          shouldBeAnn "return_url"      return_url       $ Just "http://example.com"
-          shouldBeAnn "refunded"        refunded         $ Just False
-          shouldBeAnn "product_id"      product_id       $ Just "prodId"
-          shouldBeAnn "merchant_id"     merchant_id      $ Just "1"
+          shouldBeAnn "return_url"      return_url       $ Nothing -- Just "http://example.com"
+          shouldBeAnn "refunded"        refunded         $ Nothing -- Just False
+          shouldBeAnn "product_id"      product_id       $ Nothing -- Just "prodId"
+          shouldBeAnn "merchant_id"     merchant_id      $ Nothing -- Just "1"
 
           shouldBeAnn "customer_phone"  customer_phone   $ Nothing
           shouldBeAnn "customer_id"     customer_id      $ Nothing
           shouldBeAnn "customer_email"  customer_email   $ Nothing
 
-          shouldBeAnn "currency"        currency         $ Just "INR"
+          shouldBeAnn "currency"        currency         $ Nothing -- Just "INR"
           shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
-          shouldBeAnn "amount"          amount           $ Just 1000.0
+          shouldBeAnn "amount"          amount           $ Nothing -- Just 1000.0
 
 
 ----------------------------------------------------------------------
@@ -830,8 +833,8 @@ spec =
           do
             let OrderAPI.OrderCreateResponse{..} = resp
 
-            shouldBeAnn "status"      status      $ CREATED
-            shouldBeAnn "status_id"   status_id   $ 1
+            shouldBeAnn "status"      status      $ NEW
+            shouldBeAnn "status_id"   status_id   $ 10
             shouldBeAnn "order_id"    order_id    $ "orderWithAddr"
             shouldBeAnn "refunded"    refunded    $ Just False
             shouldBeAnn "merchant_id" merchant_id $ Just "1"
@@ -853,8 +856,8 @@ spec =
           do
             let OrderAPI.OrderCreateResponse{..} = resp
 
-            shouldBeAnn "status"         status          $ CREATED
-            shouldBeAnn "status_id"      status_id       $ 1
+            shouldBeAnn "status"         status          $ NEW
+            shouldBeAnn "status_id"      status_id       $ 10
             shouldBeAnn "order_id"       order_id        $ "orderWithAddr"
             shouldBeAnn "refunded"       refunded        $ Just False
             shouldBeAnn "merchant_id"    merchant_id     $ Just "1"

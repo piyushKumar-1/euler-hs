@@ -192,7 +192,7 @@ updateOrderRefAndInValidateCache order = do
   pure order
 
 -- from src/Types/Storage/EC/OrderAddress.purs
-updateOrderAddress :: Text -> OrderAddress -> Flow OrderAddress
+updateOrderAddress :: Int -> OrderAddress -> Flow OrderAddress
 updateOrderAddress addrId orderAddress = do --pure orderAddress --do
   withDB eulerDB $ do
     updateRows
@@ -266,11 +266,11 @@ updateResponse OrderReference{..} apiResp orderTokenResp = do
     , amount = amount <|> Just 0.0
     }
 
-addOrderToken :: Text -> OrderCreateRequest -> Text -> Flow  (Maybe OrderTokenResp)
+addOrderToken :: Int -> OrderCreateRequest -> Text -> Flow  (Maybe OrderTokenResp)
 addOrderToken orderId OrderCreateRequest{..} merchantId = do
   case options_get_client_auth_token of
     Just True -> do
-      TokenizedResource{token, expiry} <- tokenizeResource (SC.ResourceStr orderId) "ORDER" merchantId
+      TokenizedResource{token, expiry} <- tokenizeResource (SC.ResourceInt orderId) "ORDER" merchantId
 
       runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
 
@@ -387,7 +387,7 @@ createOrder' orderCreateReq routeParams mAccnt@MerchantAccount{..} isMandate = d
   --skipIfB (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId') (not isMandate)
   pure orderRef
 
-getBillingAddrId :: OrderCreateRequest -> MerchantAccount -> Flow  (Maybe Text)
+getBillingAddrId :: OrderCreateRequest -> MerchantAccount -> Flow  (Maybe Int)
 getBillingAddrId orderCreateReq mAccnt = do
   orderReq <- addCustomerInfoToRequest orderCreateReq mAccnt
   if (present orderReq)
@@ -418,7 +418,7 @@ getBillingAddrId orderCreateReq mAccnt = do
           <|> billing_address_phone
           <|> billing_address_country_code_iso
 
-getShippingAddrId ::  OrderCreateRequest -> Flow (Maybe Text)
+getShippingAddrId ::  OrderCreateRequest -> Flow (Maybe Int)
 getShippingAddrId orderCreateReq@OrderCreateRequest{..} =
   if (present orderCreateReq)
   then do
@@ -503,7 +503,7 @@ addCustomerInfoToRequest orderCreateReq mAccnt = do
 findMaybeByMerchantAccountAndCustId :: Text -> Int -> Flow (Maybe Customer)
 findMaybeByMerchantAccountAndCustId custId mId = pure Nothing -- (DB.findOne ecDB $ where_ := And ["merchant_account_id" ==? Int mId, Or ["id" ==? String custId, "object_reference_id" ==? String custId]] :: Where Customer)
 
-mkOrder :: MerchantAccount -> MerchantIframePreferences -> OrderCreateRequest -> Maybe Text -> Maybe Text -> Flow OrderReference
+mkOrder :: MerchantAccount -> MerchantIframePreferences -> OrderCreateRequest -> Maybe Int -> Maybe Int -> Flow OrderReference
 mkOrder account prefs req@OrderCreateRequest{..} billingAddrId shippingAddrId = do
   orderUuid      <- ("ordeu_" <> ) <$> getUUID32 -- pure "someUUID32" -- getUUID32 -- returns UUID with deleted '-' . From src/Utils/PrestoBackend.js
   currentDate    <- getCurrentTimeUTC --getCurrentDate -- UTC from src/Engineering/DB/Types.js
@@ -642,7 +642,7 @@ addCustomerInfo orderCreateReq account orderRef =
                 || (isNothing customer_email ))
 
 -- there we need sourceIP and userAgent from ReaderT config
-mkMetadata :: RP.RouteParameters -> OrderCreateRequest -> Text -> Flow OrderMetadataV2
+mkMetadata :: RP.RouteParameters -> OrderCreateRequest -> Int -> Flow OrderMetadataV2
 mkMetadata routeParams req orderId = do
   let sourceAddress' = RP.lookupRP @RP.SourceIP routeParams
   let userAgent' = RP.lookupRP @RP.UserAgent routeParams
@@ -669,13 +669,13 @@ validateOrderParams OrderCreateRequest {..} = if amount < 1
   then throwException $ err400 {errBody = "Invalid amount"}
   else pure ()
 
-getOrderId :: OrderReference -> Flow Text
+getOrderId :: OrderReference -> Flow Int
 getOrderId OrderReference{..} = case id of
     Just x -> pure x
     _ -> throwException err500 {errBody = "NO ORDER FOUND"} -- defaultThrowECException "NO_ORDER_FOUND" "NO ORDER FOUND"
 
 
-setMandateInCache :: OrderCreateRequest -> Text -> Text -> Text -> Flow ()
+setMandateInCache :: OrderCreateRequest -> Int -> Text -> Text -> Flow ()
 setMandateInCache req@OrderCreateRequest{..} orderIdPrimary orderId merchantId = do
   maxAmount  <- extractMandatory mandate_max_amount
   maxAmountNum  <- fromStringToNumber maxAmount
@@ -694,7 +694,7 @@ extractMandatory = maybe (throwException $ err500 {errBody = "Mandatory object n
 --                         Just val -> pure val
 --                         Nothing -> defaultThrowECException "OBJECT_NOT_FOUND" "OBJECT NOT FOUND"
 
-mkMandatedata :: Text -> OrderCreateRequest -> Text -> Double -> Flow Mandate
+mkMandatedata :: Text -> OrderCreateRequest -> Int -> Double -> Flow Mandate
 mkMandatedata merchantId OrderCreateRequest{..} orderId maxAmount = do
   mandateId <- getShortUUID
   currentDate <- getCurrentTimeUTC

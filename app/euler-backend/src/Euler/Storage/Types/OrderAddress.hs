@@ -11,7 +11,7 @@ import EulerHS.Prelude hiding (id, state)
 import qualified Database.Beam as B
 
 data OrderAddressT f = OrderAddress
-  { id             :: B.C f (Maybe Text)
+  { id             :: B.C f (Maybe Int)
   , version        :: B.C f Int
   , firstName      :: B.C f (Maybe Text)
   , lastName       :: B.C f (Maybe Text)
@@ -30,7 +30,7 @@ data OrderAddressT f = OrderAddress
 
 instance B.Table OrderAddressT where
   data PrimaryKey OrderAddressT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type OrderAddress = OrderAddressT Identity
@@ -63,9 +63,9 @@ orderAddressEMod = B.modifyTableFields
     }
 
 
-defaultOrderAddress :: Text -> OrderAddress
+defaultOrderAddress :: Int -> OrderAddress
 defaultOrderAddress oaId = OrderAddress
-  { id             = Just oaId -- :: Maybe Text
+  { id             = Just oaId -- :: Maybe Int
   , version        = 1 -- :: Int
   , firstName      = Nothing -- :: Maybe Text
   , lastName       = Nothing -- :: Maybe Text

@@ -18,7 +18,7 @@ import qualified Database.Beam as B
 
 
 data OrderMetadataV2T f = OrderMetadataV2
-  { id               :: B.C f (Maybe Text)
+  { id               :: B.C f (Maybe Int)
   , browser          :: B.C f (Maybe Text)
   , browserVersion   :: B.C f (Maybe Text)
   , dateCreated      :: B.C f LocalTime
@@ -27,7 +27,7 @@ data OrderMetadataV2T f = OrderMetadataV2
   , metadata         :: B.C f (Maybe Text)
   , mobile           :: B.C f (Maybe Bool)
   , operatingSystem  :: B.C f (Maybe Text)
-  , orderReferenceId :: B.C f Text
+  , orderReferenceId :: B.C f Int
   , ipAddress        :: B.C f (Maybe Text)
   , referer          :: B.C f (Maybe Text)
   , userAgent        :: B.C f (Maybe Text)
@@ -36,7 +36,7 @@ data OrderMetadataV2T f = OrderMetadataV2
 
 instance B.Table OrderMetadataV2T where
   data PrimaryKey OrderMetadataV2T f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type OrderMetadataV2 = OrderMetadataV2T Identity
@@ -68,9 +68,9 @@ orderMetadataV2EMod = B.modifyTableFields
     , userAgent = B.fieldNamed "user_agent"
     }
 
-defaultOrderMetadataV2 :: Maybe Text -> LocalTime -> Text -> OrderMetadataV2
+defaultOrderMetadataV2 :: Maybe Int -> LocalTime -> Int -> OrderMetadataV2
 defaultOrderMetadataV2 ordId date orderReferenceId = OrderMetadataV2
-  { id               = ordId   -- :: Maybe Text
+  { id               = ordId   -- :: Maybe Int
   , browser          = Nothing -- :: Maybe Text
   , browserVersion   = Nothing -- :: Maybe Text
   , dateCreated      = date -- :: LocalTime
@@ -79,7 +79,7 @@ defaultOrderMetadataV2 ordId date orderReferenceId = OrderMetadataV2
   , metadata         = Nothing -- :: Maybe Text
   , mobile           = Just False -- :: Maybe Bool
   , operatingSystem  = Nothing -- :: Maybe Text
-  , orderReferenceId = orderReferenceId -- :: Text
+  , orderReferenceId = orderReferenceId -- :: Int
   , ipAddress        = Nothing -- :: Maybe Text
   , referer          = Nothing -- :: Maybe Text
   , userAgent        = Nothing -- :: Maybe Text

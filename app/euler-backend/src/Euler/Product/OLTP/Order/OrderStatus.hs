@@ -1814,14 +1814,14 @@ addMandateDetails ordRef orderStatus =
 
 getMandate :: OrderReference -> Flow (Maybe Mandate')
 getMandate ordRef = do
-  let ordId = getField @"id" ordRef
+  let id = getField @"id" ordRef
       merchId = getField @"merchantId" ordRef
       orderType = getField @"orderType" ordRef
 
-  case (merchId, orderType) of
-    (Just merchantId, Just C.MANDATE_REGISTER) -> do
+  case (id, merchId, orderType) of
+    (Just id', Just merchantId, Just C.MANDATE_REGISTER) -> do
 
-      mandate <- loadMandate ordId merchantId
+      mandate <- loadMandate id' merchantId
       pure $ mapMandate <$> mandate
 
     _ -> pure Nothing
@@ -2102,16 +2102,13 @@ addPromotionDetails orderRef orderStatus = do
 loadPromotions :: OrderReference -> Flow (Text, [Promotions])
 loadPromotions orderRef = do
   -- Order contains two id -like fields (better names?)
-  let orderId = fromMaybe "" $ getField @"id" orderRef
-      -- OrderReference's orderId was changed to Text type, Promotions's orderReferenceId is still Int type at PS.
-      -- readMaybe used to equal them in predicate. It is just workaround while Promotions not solved
-      orderId' = fromMaybe 0 $ readMaybe $ T.unpack orderId
-      ordId = fromMaybe "" $ getField @"orderId" orderRef
+  let id = fromMaybe 0 $ getField @"id" orderRef
+      orderId = fromMaybe "" $ getField @"orderId" orderRef
   promotions <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
       let predicate Promotions{orderReferenceId} =
-            orderReferenceId ==. B.just_ (B.val_ orderId')
+            orderReferenceId ==. B.just_ (B.val_ id)
       findRows
         $ B.select
         $ B.filter_ predicate
@@ -2121,7 +2118,7 @@ loadPromotions orderRef = do
       Left err -> do
         logError "Find Promotions" $ toText $ P.show err
         throwException err500
-  pure (ordId, promotions)
+  pure (orderId, promotions)
 
 -- May it become pure after decryptPromotionRules be refactored
 decryptActivePromotion :: (Text, [Promotions]) -> Flow (Maybe Promotion')
@@ -2322,7 +2319,7 @@ getGatewayReferenceId txn ordRef = do
 getGatewayReferenceId :: TxnDetail -> OrderReference -> Flow Text
 getGatewayReferenceId txn ordRef = do
 
-  let ordRefId = fromMaybe "" (getField @"id" ordRef)
+  let ordRefId = fromMaybe 0 (getField @"id" ordRef)
   ordMeta <- withDB eulerDB $ do
         let predicate OrderMetadataV2 {orderReferenceId} =
               orderReferenceId ==. B.val_ ordRefId
@@ -2350,7 +2347,7 @@ getGatewayReferenceId txn ordRef = do
     Nothing -> checkGatewayRefIdForVodafone ordRef txn
 
 
-loadOrderMetadataV2 :: Text -> Flow (Maybe OrderMetadataV2)
+loadOrderMetadataV2 :: Int -> Flow (Maybe OrderMetadataV2)
 loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
   let predicate OrderMetadataV2 {orderReferenceId} =
         orderReferenceId ==. B.val_ ordRefId

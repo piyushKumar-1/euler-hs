@@ -24,7 +24,7 @@ import qualified Database.Beam as B
 -- EHS :: ORDER OF FIELDS MATTERS!
 -- https://github.com/tathougies/beam/issues/372
 data OrderReferenceT f = OrderReference
-  { id                :: B.C f (Maybe Text)
+  { id                :: B.C f (Maybe Int)
   , version           :: B.C f Int
   , amount            :: B.C f (Maybe Double)
   , currency          :: B.C f (Maybe Currency)
@@ -56,8 +56,8 @@ data OrderReferenceT f = OrderReference
   , preferredGateway  :: B.C f (Maybe Text)
   , customerPhone     :: B.C f (Maybe Text)
   , productId         :: B.C f (Maybe Text)
-  , billingAddressId  :: B.C f (Maybe Text)
-  , shippingAddressId :: B.C f (Maybe Text)
+  , billingAddressId  :: B.C f (Maybe Int)
+  , shippingAddressId :: B.C f (Maybe Int)
   , orderUuid         :: B.C f (Maybe Text)
   , lastSynced        :: B.C f (Maybe LocalTime)
   , orderType         :: B.C f (Maybe OrderType)
@@ -68,7 +68,7 @@ data OrderReferenceT f = OrderReference
 
 instance B.Table OrderReferenceT where
   data PrimaryKey OrderReferenceT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type OrderReference = OrderReferenceT Identity

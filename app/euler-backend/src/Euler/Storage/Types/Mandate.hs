@@ -36,7 +36,7 @@ data MandateT f = Mandate
   ,  paymentMethodId          :: B.C f (Maybe Text)
   ,  gateway                  :: B.C f (Maybe Gateway)      -- EHS: check this conversion on real DB
   ,  gatewayParams            :: B.C f (Maybe Text)
-  ,  authOrderId              :: B.C f (Maybe Text)
+  ,  authOrderId              :: B.C f (Maybe Int)
   ,  activatedAt              :: B.C f (Maybe LocalTime)
   ,  dateCreated              :: B.C f LocalTime
   ,  lastModified             :: B.C f LocalTime

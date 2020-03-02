@@ -20,11 +20,11 @@ import qualified Database.Beam as B
 import           Servant.Server (err500)
 
 
-loadMandate :: Maybe Text -> Text -> Flow (Maybe D.Mandate)
-loadMandate orderId merchId = do
+loadMandate :: Int -> Text -> Flow (Maybe D.Mandate)
+loadMandate id merchId = do
   conn <- getConn eulerDB
   let predicate S.Mandate {authOrderId, merchantId} =
-        authOrderId ==. B.val_ orderId &&. merchantId ==. B.val_ merchId
+        authOrderId ==. B.just_ (B.val_ id) &&. merchantId ==. B.val_ merchId
   res <- runDB conn $
     findRow
       $ B.select
@@ -37,7 +37,7 @@ loadMandate orderId merchId = do
           Success m -> pure m
           Failure e -> do
             logError "Incorrect mandate in DB"
-              $ "OrderReference id: " <> show orderId <> " merchantId " <> merchId <> " error: " <> show e
+              $ "OrderReference id: " <> show id <> " merchantId " <> merchId <> " error: " <> show e
             throwException internalError
     Left err -> do
       logError "Find Mandate" $ toText $ P.show err

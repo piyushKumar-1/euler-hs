@@ -34,7 +34,7 @@ data Mandate = Mandate
   ,  paymentMethodId          :: Maybe Text
   ,  gateway                  :: Maybe Gateway
   ,  gatewayParams            :: Maybe Text
-  ,  authOrderId              :: Maybe Text
+  ,  authOrderId              :: Maybe Int
   ,  activatedAt              :: Maybe LocalTime
   ,  dateCreated              :: LocalTime
   ,  lastModified             :: LocalTime

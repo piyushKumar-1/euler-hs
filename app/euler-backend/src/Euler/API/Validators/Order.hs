@@ -122,20 +122,17 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
 
   where
     parseMandate = do
+          let maxAmountField = getField @"mandate_max_amount" sm
           mandate      <- extractMaybeWithDefault DISABLED $ getField @"options_create_mandate" sm
-          -- EHS: 0.0 is not valid Max Ammount
-          -- EHS: Not sire 1.0 valid either
-          maxAmountStr <- extractMaybeWithDefault "1.0" $ getField @"mandate_max_amount"     sm
+          maxAmountStr <- extractMaybeWithDefault "0.0" maxAmountField
           maxAmount    <- V.decode maxAmountStr
+          V.guarded "mandate_max_amount should be set."          $ isJust maxAmountField
           V.guarded "mandate_max_amount should not be negative." $ maxAmount >= 0
 
           pure $ case mandate of
             DISABLED -> O.MandateDisabled
             REQUIRED -> O.MandateRequired maxAmount
             OPTIONAL -> O.MandateOptional maxAmount
-
-    -- -- Error on invalid madate fields is in `invalidMandateFields`.
-    -- -- EHS: add validator for `acquireOrderToken`.
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
 apiOrderCreateToBillingAddrHolderT req = Ts.AddressHolderTemplate

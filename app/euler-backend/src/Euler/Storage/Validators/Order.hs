@@ -14,9 +14,7 @@ import qualified Euler.Storage.Types.OrderReference  as S
 import qualified Euler.Product.Domain.Order as DO
 
 -- EHS: better naming
--- EHS: implement
 transSOrderToDOrder :: S.OrderReference -> V DO.Order
---transSOrderToDOrder so = error "Not implemented"
 transSOrderToDOrder so = DO.Order
   <$> withField @"id" so (extractJust >=> Vs.notNegative)
   <*> withField @"version" so pure
@@ -50,7 +48,7 @@ transSOrderToDOrder so = DO.Order
   <*> withField @"lastSynced" so pure
   <*> withField @"dateCreated" so pure
   <*> withField @"lastModified" so pure
---
+  
   where
     mkMandate MEx.DISABLED = CO.MandateDisabled
     mkMandate MEx.REQUIRED = CO.MandateReqUndefined      -- EHS: bug: we don't know what is max amount

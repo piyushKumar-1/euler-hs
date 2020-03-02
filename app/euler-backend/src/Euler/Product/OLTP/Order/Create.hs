@@ -26,7 +26,6 @@ import           EulerHS.Language
 import           WebService.Language
 
 
-import qualified Euler.Services.Version.OrderCreateResponse as OCS
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
 import qualified Euler.Storage.Types      as DB
@@ -48,48 +47,51 @@ import qualified Euler.Product.Domain              as D
 import           Euler.Product.Domain.MerchantAccount
 import           Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Product.Domain.Templates    as Ts
+import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
 import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
 import           Euler.Constant.Constants (defaultVersion)
 import           Euler.Lens
 
-
-
--- EHS: should not depend on API types. Rethink OrderCreateResponse.
--- EHS: move methods launchers with validations to separate module ?
 orderCreate
   :: RP.RouteParameters
   -> API.OrderCreateRequest
   -> MerchantAccount
   -> Flow API.OrderCreateResponse
-orderCreate rp req ma = do
+orderCreate routeParams req ma = do
+  let mbVersion     = RP.lookupRP @RP.Version routeParams
+  let mbTokenNeeded = req ^. _options_get_client_auth_token
+  let service       = OVS.mkOrderVersioningService mbVersion mbTokenNeeded
   case VO.transApiOrdCreateToOrdCreateT req of
     V.Failure err -> do
       logError "OrderCreateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
-    V.Success validatedOrder -> orderCreate'' rp validatedOrder ma
+    V.Success validatedOrder -> orderCreate'' routeParams service validatedOrder ma
 
+-- EHS: get rid of RouteParameters. The logic should not know anything about params.
 orderCreate''
   :: RP.RouteParameters
+  -> OVS.OrderVersioningService
   -> Ts.OrderCreateTemplate
   -> MerchantAccount
   -> Flow API.OrderCreateResponse
-orderCreate'' routeParams order' mAccnt = do
+orderCreate'' routeParams service order' mAccnt = do
 
-  -- EHS: effectful validation found.
   _               <- validateMandate order' (mAccnt ^. _merchantId)
-
-  -- EHS: loading merchant is a effectful pre-validation procedure.
-  --      Should be done on the validation layer.
   mbExistingOrder <- Rep.loadOrder (order' ^. _orderId) (mAccnt ^. _merchantId)
 
   case mbExistingOrder of
     -- EHS: should we throw exception or return a previous order?
     Just orderRef -> throwException $ Errs.orderAlreadyCreated (order' ^. _orderId)
-    Nothing       -> doOrderCreate routeParams order' mAccnt
+    Nothing       -> doOrderCreate routeParams service order' mAccnt
 
-doOrderCreate :: RP.RouteParameters -> Ts.OrderCreateTemplate -> MerchantAccount -> Flow API.OrderCreateResponse
-doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
+doOrderCreate
+  :: RP.RouteParameters
+  -> OVS.OrderVersioningService
+  -> Ts.OrderCreateTemplate
+  -> MerchantAccount
+  -> Flow API.OrderCreateResponse
+doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order' mAccnt@MerchantAccount{..} = do
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
   order         <- createOrder' routeParams order' mAccnt merchantPrefs
   _             <- updateOrderCache order
@@ -99,18 +101,7 @@ doOrderCreate routeParams order' mAccnt@MerchantAccount{..} = do
   -- EHS: config should be requested on the start of the logic and passed purely.
   cfg           <- runIO Config.getECRConfig
 
-  -- EHS: magic constants
-  -- EHS: versioning should be done using a service
-  let version = RP.lookupRP @RP.Version routeParams
-  let thatVersion = (version >= Just "2018-07-01") && (order' ^. _orderTokenNeeded)
-  case thatVersion of
-    True  -> mkTokenizedOrderResponse cfg order mAccnt mbReseller
-    False -> mkOrderResponse          cfg order mAccnt mbReseller
-
---  let srv = OCS.mkOrderCreateResponseService version
---  orderResp <- mkOrderResponse cfg order mAccnt mbReseller
---  OCS.tokenizeOrderCreateResponse srv (order' ^. _orderTokenNeeded) order orderResp
-
+  makeOrderResponse cfg order mAccnt mbReseller
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?
@@ -174,21 +165,6 @@ updateMandateCache order = case order ^. _mandate of
         , DB.metadata = Nothing
         }
 
--- EHS: previously addOrderToken
--- EHS: API type should not be used.
-acquireOrderToken :: D.OrderPId -> D.MerchantId -> Flow API.OrderTokenResp
-acquireOrderToken orderPId merchantId = do
-  -- EHS: magic constant
-  TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
-
-  -- EHS: check this
-  runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
-
-  pure $ API.OrderTokenResp
-    { API.client_auth_token        = Just token
-    , API.client_auth_token_expiry = Just expiry
-    }
-
 
 -- EHS: previously isMandateOrder
 -- EHS: bad function. Throws exception on invalid data.
@@ -224,17 +200,6 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
 
 readMayT :: Read a => Text -> Maybe a
 readMayT = TR.readMaybe . Text.unpack
-
--- from src/Engineering/Commons.purs
--- In groovy empty string is `falsy` value
--- added validator "notBlank" for "customer_id" field in OrderCreateRequest
--- isTrueString :: Maybe Text -> Bool
--- isTrueString val =
---   case val of
---     Just "" -> False
---     Just " " -> False
---     Just _ -> True
---     Nothing -> False
 
 createOrder'
   :: RP.RouteParameters
@@ -307,7 +272,6 @@ saveOrder
   -- EHS: is this time ok?
   orderTimestamp    <- getCurrentTimeUTC
 
-
   let orderRefVal :: DB.OrderReference = fillUDFParams order' $ DB.defaultOrderReference
           { DB.orderId            = Just orderId
           , DB.merchantId         = Just $ mAccnt ^. _merchantId
@@ -329,7 +293,6 @@ saveOrder
           , DB.orderType          = Just orderType
           , DB.mandateFeature     = Just $ D.toMandateEx mandate
           }
- -- let orderRefVal = fillUDFParams order' orderRefVal'
 
   Rep.saveOrder orderRefVal
 
@@ -361,20 +324,15 @@ saveOrderMetadata routeParams orderPId metadata' = do
         , DB.lastUpdated = orderMetadataTimestamp
         }
 
-  -- mbOrderMetadata :: Maybe DB.OrderMetadataV2 <- safeHead <$> withDB eulerDB
-  --   $ insertRowsReturningList
   orderMetadataDB <- Rep.saveOrderMetadataV2 orderMetadataDBVal
 
   -- EHS: this is extremely suspicious. Substituting id from DB by orderPid
   -- Where this action in purescript version?
   pure $ orderMetadataDB & (_id .~ Just orderPId)
 
--- EHS: previously mapUDFParams
 fillUDFParams :: Ts.OrderCreateTemplate -> DB.OrderReference -> DB.OrderReference
 fillUDFParams Ts.OrderCreateTemplate{udf} orderRef = smash udf orderRef
 
--- EHS: API type should not be used in the logic.
--- EHS: previously makeOrderResponse
 mkOrderResponse
   :: Config.Config
   -> D.Order
@@ -412,42 +370,3 @@ mkOrderResponse cfg (D.Order {..}) _ mbResellerAcc = do
     mbResellerEndpoint = mbResellerAcc >>= (^. _resellerApiEndpoint)
     url = maybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id mbResellerEndpoint
     url' = url <> "/merchant/pay/" <> orderUuid
-
-
-mkTokenizedOrderResponse
-  :: Config.Config
-  -> D.Order
-  -> MerchantAccount
-  -> Maybe D.ResellerAccount
-  -> Flow API.OrderCreateResponse
-mkTokenizedOrderResponse cfg order@(D.Order {..}) mAcc mbResellerAcc = do
-  apiResp    <- mkOrderResponse cfg order mAcc mbResellerAcc
-  orderToken <- acquireOrderToken (order ^. _id) merchantId
-  let (r :: API.OrderCreateResponse) = apiResp
-        { API.status          = OEx.NEW
-        , API.status_id       = OEx.orderStatusToInt OEx.NEW
-        , API.juspay          = Just orderToken
-        , API.udf1            = (D.udf1  udf) <|> Just ""
-        , API.udf2            = (D.udf2  udf) <|> Just ""
-        , API.udf3            = (D.udf3  udf) <|> Just ""
-        , API.udf4            = (D.udf4  udf) <|> Just ""
-        , API.udf5            = (D.udf5  udf) <|> Just ""
-        , API.udf6            = (D.udf6  udf) <|> Just ""
-        , API.udf7            = (D.udf7  udf) <|> Just ""
-        , API.udf8            = (D.udf8  udf) <|> Just ""
-        , API.udf9            = (D.udf9  udf) <|> Just ""
-        , API.udf10           = (D.udf10 udf) <|> Just ""
-        , API.return_url      = returnUrl <|> Just ""
-        , API.refunded        = Just refundedEntirely
-        , API.product_id      = productId <|> Just ""
-        , API.merchant_id     = Just merchantId
-        , API.date_created    = Just dateCreated
-        , API.customer_phone  = customerPhone <|> Just ""
-        , API.customer_id     = customerId <|> Just ""
-        , API.customer_email  = customerEmail <|> Just ""
-        , API.currency        = (Just $ show currency) -- Is show valid here?
-        -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
-        , API.amount_refunded = Just 0.0
-        , API.amount          = Just (D.fromMoney amount) -- <|> Just 0.0
-        }
-  pure r

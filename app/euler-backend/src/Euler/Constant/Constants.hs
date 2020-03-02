@@ -53,6 +53,7 @@ directWalletDebit = "DIRECT_WALLET_DEBIT"
 -- orderStatusCacheTTL :: Milliseconds
 -- orderStatusCacheTTL = convertDuration $ Minutes 45.0
 
+-- EHS: hardcoded currency
 invalidMandateMaxAmount :: IsString s => s
 invalidMandateMaxAmount = "maxAmount is mandatory and should be greater than Rs 0.00 and less than Rs "
 

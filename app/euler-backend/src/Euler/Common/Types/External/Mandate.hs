@@ -51,6 +51,40 @@ instance FromBackendRow MySQL MandateFeature where
 -- Temporary, split into separate types for API and DB
 -- and move into the appropriate namespaces.
 
--- EHS: incomplete type
-data MandateStatus = CREATED
+
+data MandateStatus
+  = CREATED
+  | ACTIVE
+  | PAUSED
+  | REVOKED
+  | FAILURE
+  | PENDING
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be MandateStatus where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance FromBackendRow Postgres MandateStatus where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow Sqlite MandateStatus where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow MySQL MandateStatus where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+
+data MandateType = MANDATE | EMANDATE
+  deriving (Show, Read, Eq, Ord, Generic, Data, Typeable, ToJSON, FromJSON)
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be MandateType where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance FromBackendRow Postgres MandateType where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow Sqlite MandateType where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow MySQL MandateType where
+  fromBackendRow = read . T.unpack <$> fromBackendRow

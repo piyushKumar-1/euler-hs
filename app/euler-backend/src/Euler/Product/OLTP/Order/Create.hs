@@ -163,6 +163,7 @@ updateMandateCache order = case order ^. _mandate of
         , DB.authTxnCardInfo = Nothing
         , DB.merchantGatewayAccountId = Nothing
         , DB.metadata = Nothing
+        , DB.mandateType = Nothing
         }
 
 

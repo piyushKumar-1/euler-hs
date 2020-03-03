@@ -74,6 +74,8 @@ doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do
   case orderStatus of
     C.OrderStatusSuccess -> do
       logError "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
+    C.OrderStatusAutoRefunded ->
+      logError "not_updating_auto_refunded_order" $ Text.pack ("Order: " <> P.show ( orderId) <> " has already been autoRefunded. Not updating any field.")
     _ ->  do
       let mNewAmount = getField @"amount" orderUpdateT
       let newUDF = orderUpdateT ^. _udf

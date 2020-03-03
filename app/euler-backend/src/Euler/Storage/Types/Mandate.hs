@@ -44,6 +44,7 @@ data MandateT f = Mandate
   ,  currency                 :: B.C f (Maybe Currency)     -- EHS: check this conversion on real DB
   ,  merchantGatewayAccountId :: B.C f (Maybe Int)
   ,  metadata                 :: B.C f (Maybe Text)
+  ,  mandateType              :: B.C f (Maybe M.MandateType)
   }
   deriving (Generic, B.Beamable)
 
@@ -88,6 +89,7 @@ mandateEMod = B.modifyTableFields
     , currency = B.fieldNamed "currency"
     , merchantGatewayAccountId = B.fieldNamed "merchant_gateway_account_id"
     , metadata = B.fieldNamed "metadata"
+    , mandateType = B.fieldNamed "mandate_type"
     }
 
 defaultMandate :: Mandate
@@ -114,4 +116,5 @@ defaultMandate = Mandate
   ,  currency                  = Nothing -- :: Maybe Text
   ,  merchantGatewayAccountId  = Nothing -- :: Maybe Int
   ,  metadata                  = Nothing -- :: Maybe Text
+  ,  mandateType               = Nothing
   }

@@ -36,6 +36,10 @@ data OrderStatus
   | COD_INITIATED
   | VOIDED
   | VOID_INITIATED
+  | CAPTURE_INITIATED
+  | CAPTURE_FAILED
+  | VOID_FAILED
+  | AUTO_REFUNDED
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
  -- :set -XUndecidableInstances
@@ -67,5 +71,8 @@ orderStatusToInt AUTHORIZING = 28
 orderStatusToInt AUTHORIZED = 30
 orderStatusToInt VOIDED = 31
 orderStatusToInt VOID_INITIATED = 32
--- orderStatusToInt AUTHORIZATION_FAILURE = -1
 orderStatusToInt COD_INITIATED = 29
+orderStatusToInt CAPTURE_INITIATED = 33
+orderStatusToInt CAPTURE_FAILED = 34
+orderStatusToInt VOID_FAILED = 35
+orderStatusToInt AUTO_REFUNDED = 36

@@ -58,6 +58,10 @@ data OrderStatus
   | OrderStatusCodInitiated
   | OrderStatusVoided
   | OrderStatusVoidInitiated
+  | OrderStatusCaptureInitiated
+  | OrderStatusCaptureFailed
+  | OrderStatusVoidFailed
+  | OrderStatusAutoRefunded
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
 toOrderStatusEx :: OrderStatus -> OEx.OrderStatus
@@ -75,6 +79,10 @@ toOrderStatusEx OrderStatusCreated               = OEx.CREATED
 toOrderStatusEx OrderStatusCodInitiated          = OEx.COD_INITIATED
 toOrderStatusEx OrderStatusVoided                = OEx.VOIDED
 toOrderStatusEx OrderStatusVoidInitiated         = OEx.VOID_INITIATED
+toOrderStatusEx OrderStatusCaptureInitiated      = OEx.CAPTURE_INITIATED
+toOrderStatusEx OrderStatusCaptureFailed         = OEx.CAPTURE_FAILED
+toOrderStatusEx OrderStatusVoidFailed            = OEx.VOID_FAILED
+toOrderStatusEx OrderStatusAutoRefunded          = OEx.AUTO_REFUNDED
 
 fromOrderStatusEx :: OEx.OrderStatus -> OrderStatus
 fromOrderStatusEx OEx.NEW                    = OrderStatusNew
@@ -91,6 +99,10 @@ fromOrderStatusEx OEx.CREATED                = OrderStatusCreated
 fromOrderStatusEx OEx.COD_INITIATED          = OrderStatusCodInitiated
 fromOrderStatusEx OEx.VOIDED                 = OrderStatusVoided
 fromOrderStatusEx OEx.VOID_INITIATED         = OrderStatusVoidInitiated
+fromOrderStatusEx OEx.CAPTURE_INITIATED      = OrderStatusCaptureInitiated
+fromOrderStatusEx OEx.CAPTURE_FAILED         = OrderStatusCaptureFailed
+fromOrderStatusEx OEx.VOID_FAILED            = OrderStatusVoidFailed
+fromOrderStatusEx OEx.AUTO_REFUNDED          = OrderStatusAutoRefunded
 
 
 toMandateEx :: OrderMandate -> MEx.MandateFeature

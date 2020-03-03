@@ -10,6 +10,7 @@ import Euler.Common.Types.Customer         as X
 import Euler.Common.Types.DefaultDate      as X
 import Euler.Common.Types.Gateway          as X
 import Euler.Common.Types.GatewayMetadata  as X
+import Euler.Common.Types.Mandate          as X
 import Euler.Common.Types.Merchant         as X
 import Euler.Common.Types.Money            as X
 import Euler.Common.Types.Order            as X

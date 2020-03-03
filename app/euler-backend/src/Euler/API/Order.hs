@@ -528,10 +528,18 @@ data Mandate' = Mandate'
   { mandate_token  :: Text
   , mandate_status :: Maybe Text
   , mandate_id     :: Text
+  , bank_details   :: Maybe EmandateDetail
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
+data EmandateDetail = EmandateDetail
+  { id :: Maybe Text
+  , bank_name :: Maybe Text
+  , ifsc :: Text
+  , account_number :: Text
+  , beneficiary_name :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs

@@ -25,6 +25,7 @@ import qualified Euler.Storage.Validators.MerchantAccount as Merchant
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy  as OrderCreateUpdateLegacy
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+import qualified Euler.Product.OLTP.Services.AuthenticationService as Auth
 
 import qualified WebService.Types as T
 import qualified WebService.Language as L
@@ -147,6 +148,14 @@ ordReqMandateFeatureFailData = orderReqTemplate
   { order_id = "wrongMandateParams"
   , amount = 500.0
   , mandate_max_amount = Nothing
+  , options_create_mandate = Just REQUIRED
+  }
+
+ordReqOptionalMandateFeatureFailData :: OrderCreateRequest
+ordReqOptionalMandateFeatureFailData = orderReqTemplate
+  { order_id = "wrongMandateParams"
+  , amount = 500.0
+  , mandate_max_amount = Nothing
   , options_create_mandate = Just OPTIONAL
   }
 
@@ -155,7 +164,7 @@ ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   { order_id = "wrongMandateParams"
   , amount = 50000.0
   , mandate_max_amount = Just "100500"
-  , options_create_mandate = Just OPTIONAL
+  , options_create_mandate = Just REQUIRED
   }
 
 ordReqUdf :: OrderCreateRequest
@@ -172,6 +181,7 @@ ordReqUdf = orderReqTemplate
   , udf8  = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
   , udf9  = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
   , udf10 = Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+  , options_get_client_auth_token     = Just True
   }
 
 ordReqWithAddresses :: OrderCreateRequest
@@ -411,23 +421,20 @@ spec =
     describe "API Order methods" $ do
       let runOrderCreate rt ordReq rp = runFlow rt $ do
             prepareDBConnections
-            withMerchantAccount (OrderCreate.orderCreate rp ordReq)
+            Auth.withMacc OrderCreate.orderCreate rp ordReq
+            --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
 ----------------------------------------------------------------------
 
-      xit "OrderCreate. Authorization - invalid" $ \rt -> do
+      it "OrderCreate. Authorization - invalid" $ \rt -> do
         let rp = collectRPs
               (Authorization "BASIC definitelynotvalidbase64string=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
+        let err = Errs.eulerAccessDenied "Invalid API key."
 
-        let check Errs.ECErrorResponse{code, response} =
-              case A.decode response of
-                Just Errs.ECErrorPayload{error_code} ->
-                  code == 401 -- && error_code == Just "...
-                Nothing -> False
-
-        runOrderCreate rt ordReq rp `shouldThrow` check
+        res <- try $ runOrderCreate rt ordReq rp
+        res `shouldBe` Left err
 
 
 ----------------------------------------------------------------------
@@ -696,19 +703,28 @@ spec =
 
 ----------------------------------------------------------------------
 
-      xit "Order with ordReqMandateFeatureFailData" $ \rt -> do
+      it "Order with ordReqMandateFeatureFailData" $ \rt -> do
         let rp = collectRPs
               (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
+        let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should be set."
+                                         , "options_create_mandate mandate_max_amount mandate_max_amount should be set."]
+        res <- try $ runOrderCreate rt ordReqMandateFeatureFailData rp
+        res `shouldBe` Left err
 
-        let check Errs.ECErrorResponse{code, response} =
-              case A.decode response of
-                Just Errs.ECErrorPayload{error_code} ->
-                  code == 400 && error_code == Just "INVALID_MANDATE_MAX_AMOUNT"
-                Nothing -> False
+----------------------------------------------------------------------
 
-        runOrderCreate rt ordReqMandateFeatureFailData rp `shouldThrow` check
+      xit "Order with ordReqOptionalMandateFeatureFailData" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should be set."
+                                         , "options_create_mandate mandate_max_amount mandate_max_amount should be set."]
+        res <- try $ runOrderCreate rt ordReqOptionalMandateFeatureFailData rp
+        res `shouldBe` Left err
+
 
 ----------------------------------------------------------------------
 
@@ -760,14 +776,14 @@ spec =
 
 -- ["orderType not present","mandateFeature not present"]
 
-      xit "Order with ordReqExisted" $ \rt -> do
+      it "Order with ordReqExisted" $ \rt -> do
         let rp = collectRPs
               (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
-
-        resp <- runOrderCreate rt ordReqExisted rp
-        resp `shouldBe` ordCreateResp
+        let err = Errs.orderAlreadyCreated "orderId"
+        resp <- try $ runOrderCreate rt ordReqExisted rp
+        resp `shouldBe` Left err
 
 ----------------------------------------------------------------------
 
@@ -788,7 +804,7 @@ spec =
 
 ----------------------------------------------------------------------
 
-      xit "Order UDF cleaned" $ \rt -> do
+      it "Order UDF cleaned" $ \rt -> do
           let rp = collectRPs
                 (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
                 (Version "2018-07-01")
@@ -799,24 +815,24 @@ spec =
           do
             let OrderAPI.OrderCreateResponse{..} = resp
 
-            shouldBeAnn "status"      status      $ CREATED
-            shouldBeAnn "status_id"   status_id   $ 1
+            shouldBeAnn "status"      status      $ NEW
+            shouldBeAnn "status_id"   status_id   $ 10
             shouldBeAnn "order_id"    order_id    $ "udfId"
             shouldBeAnn "refunded"    refunded    $ Just False
             shouldBeAnn "merchant_id" merchant_id $ Just "1"
             shouldBeAnn "currency"    currency    $ Just "INR"
             shouldBeAnn "amount"      amount      $ Just 100.0
 
-            shouldBeAnn "udf10"       udf10       $ Just ""
-            shouldBeAnn "udf9"        udf9        $ Just ""
-            shouldBeAnn "udf8"        udf8        $ Just ""
-            shouldBeAnn "udf7"        udf7        $ Just ""
-            shouldBeAnn "udf6"        udf6        $ Just ""
-            shouldBeAnn "udf5"        udf5        $ Nothing
-            shouldBeAnn "udf4"        udf4        $ Nothing
-            shouldBeAnn "udf3"        udf3        $ Nothing
-            shouldBeAnn "udf2"        udf2        $ Nothing
-            shouldBeAnn "udf1"        udf1        $ Nothing
+            shouldBeAnn "udf10"       udf10       $ Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+            shouldBeAnn "udf9"        udf9        $ Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+            shouldBeAnn "udf8"        udf8        $ Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+            shouldBeAnn "udf7"        udf7        $ Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+            shouldBeAnn "udf6"        udf6        $ Just "unfiltered~!#%^=+\\|:;,\"'()-.&/"
+            shouldBeAnn "udf5"        udf5        $ Just "filtered"
+            shouldBeAnn "udf4"        udf4        $ Just "filtered"
+            shouldBeAnn "udf3"        udf3        $ Just "filtered"
+            shouldBeAnn "udf2"        udf2        $ Just "filtered"
+            shouldBeAnn "udf1"        udf1        $ Just "filtered"
 
             shouldStartWithAnn "id" (T.unpack id) "ordeu_"
 

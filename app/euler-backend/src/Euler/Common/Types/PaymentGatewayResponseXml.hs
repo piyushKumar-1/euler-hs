@@ -8,6 +8,7 @@ module Euler.Common.Types.PaymentGatewayResponseXml
   , EValue(..)
   , PGRXml(..)
  -- , OpusPGResponse(..)
+  , lookupEntry
   )
   where
 
@@ -21,7 +22,7 @@ import qualified Data.Map.Strict         as Map
 import qualified Data.Text.Lazy          as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Text.Read
-import qualified Xmlbf                   as XML
+-- import qualified Xmlbf                   as XML
 
 
 readEither' :: Read a => TL.Text -> Either String a
@@ -42,8 +43,12 @@ instance ToXml PGRXml where
 
 
 
--- lookupEntry :: TL.Text -> PGRXml -> Maybe EValue
--- lookupEntry name m = Map.lookup name $ coerce m
+lookupEntry :: TL.Text -> PGRXml -> Maybe EValue
+lookupEntry name m = case m of
+  PGRLhm (LHM n) -> Map.lookup name $ coerce n
+  PGRMap (XmlMap n) -> Map.lookup name $ coerce n
+  PGRGhm (GroovyHM n) -> Map.lookup name $ coerce n
+
 
 -- not shure that this is used in current euler
 --data OpusPGResponse = OpusPGResponse

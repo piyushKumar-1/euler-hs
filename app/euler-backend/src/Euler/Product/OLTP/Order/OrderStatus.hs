@@ -22,11 +22,13 @@ import           WebService.Language
 
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString as BS
 import           Data.Char (toLower)
 import           Data.Either.Extra
 import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Encoding as T
 import           Data.Time
 import           Servant.Server
@@ -44,7 +46,9 @@ import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.Mandate as Mandate
 import           Euler.Common.Types.Merchant
-import           Euler.Common.Types.Order (OrderTokenExpiryData (..), defaultOrderTokenExpiryData)
+import           Euler.Common.Types.PaymentGatewayResponseXml
+import           Euler.Common.Types.Order (OrderId, OrderTokenExpiryData (..),
+                                           defaultOrderTokenExpiryData)
 import qualified Euler.Common.Types.Order as C
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund as Refund
@@ -52,45 +56,24 @@ import           Euler.Common.Types.TxnDetail
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
-import qualified Euler.Product.Domain.Order as DO (Order, OrderId(..))
+import qualified Euler.Product.Domain as D
 
 import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
-import           Euler.Storage.Types.Chargeback
-import           Euler.Storage.Types.Customer
-import           Euler.Storage.Types.Feature
-import           Euler.Storage.Types.Mandate
-import           Euler.Storage.Types.MerchantAccount
-import           Euler.Storage.Types.MerchantIframePreferences
-import           Euler.Storage.Types.MerchantKey
-import           Euler.Storage.Types.OrderMetadataV2
-import           Euler.Storage.Types.OrderReference
-import           Euler.Storage.Types.PaymentGatewayResponse
-import           Euler.Storage.Types.Promotions
-import           Euler.Storage.Types.Refund
-import           Euler.Storage.Types.ResellerAccount
-import           Euler.Storage.Types.RiskManagementAccount
-import           Euler.Storage.Types.SecondFactor
-import           Euler.Storage.Types.SecondFactorResponse
-import           Euler.Storage.Types.ServiceConfiguration
-import           Euler.Storage.Types.TxnCardInfo
-import           Euler.Storage.Types.TxnDetail
-import           Euler.Storage.Types.TxnRiskCheck
+import qualified Euler.Storage.Types as DB
 
-import           Euler.Storage.Types.EulerDB as EDB
+import           Euler.Storage.Repository
 
-import           Euler.Storage.Repository.Refund as RR
-import           Euler.Storage.Repository.Chargeback as RC
-import           Euler.Storage.Repository.ResellerAccount as RRA
-import           Euler.Storage.Repository.Mandate
+import           Euler.Storage.DBConfig
 
 import           Euler.Version.Services.OrderStatusResponse
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
-import           Euler.Storage.DBConfig
+import           Xmlbf
+import           Xmlbf.Xeno
 
 
 
@@ -132,9 +115,9 @@ type AuthToken = Text
 
 
 handleByOrderId
-  :: OrderId
-  -> RouteParameters
-  -> MerchantAccount
+  :: RouteParameters
+  -> Param.OrderId
+  -> D.MerchantAccount
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId orderId rps merchantAccount  = do
 
@@ -195,8 +178,8 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
           pure (mRisk, mTxnCard, mRefunds', mChargeback')
 
   mCardBrand <- case mTxnCard of
-    Nothing -> pure Nothing
-    Just (card :: TxnCardInfo) -> getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+    Nothing                    -> pure Nothing
+    Just (card :: DB.TxnCardInfo) -> getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
 
   returnUrl <- getReturnUrl orderRef
 
@@ -279,15 +262,15 @@ buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
 
 
 makeOrderStatusResponse
-  :: OrderReference
+  :: DB.OrderReference
   -> Paymentlinks
   -> Maybe Promotion'
   -> Maybe Mandate'
   -> OrderStatusQuery
-  -> Maybe TxnDetail
+  -> Maybe DB.TxnDetail
   -> Text
   -> Maybe Risk
-  -> Maybe TxnCardInfo
+  -> Maybe DB.TxnCardInfo
   -> Maybe Text
   -> Maybe [Refund']
   -> Maybe [Chargeback']
@@ -567,20 +550,20 @@ changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap L
 
 getOrderReference
   :: OrderStatusQuery
-  -> Flow OrderReference
+  -> Flow DB.OrderReference
 getOrderReference query = do
   let orderId' = getField @"orderId" query
   let merchantId' = getField @"merchantId" query
 
   conn <- getConn eulerDB
   res <- runDB conn $ do
-    let predicate OrderReference {orderId, merchantId} = (orderId ==. B.just_ (B.val_ orderId'))
+    let predicate DB.OrderReference {orderId, merchantId} = (orderId ==. B.just_ (B.val_ orderId'))
           &&. (merchantId ==. B.just_ (B.val_ merchantId'))
     findRow
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (order_reference eulerDBSchema)
+      $ B.all_ (DB.order_reference DB.eulerDBSchema)
   case res of
     Right (Just ordRef) -> pure ordRef
     Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
@@ -589,7 +572,7 @@ getOrderReference query = do
       throwException err500
 
 
-getTxnFromTxnUuid :: OrderReference -> Maybe Text -> Flow (Maybe TxnDetail)
+getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe DB.TxnDetail)
 getTxnFromTxnUuid order maybeTxnUuid =
   case maybeTxnUuid of
     Just txnUuid' -> do
@@ -597,7 +580,7 @@ getTxnFromTxnUuid order maybeTxnUuid =
       merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
 
       withDB eulerDB $ do
-        let predicate TxnDetail {orderId, merchantId, txnUuid} =
+        let predicate DB.TxnDetail {orderId, merchantId, txnUuid} =
               orderId ==. B.val_ orderId'
               &&. merchantId ==. B.just_ (B.val_ merchantId')
               &&. txnUuid ==. B.just_ (B.val_ txnUuid')
@@ -605,23 +588,23 @@ getTxnFromTxnUuid order maybeTxnUuid =
           $ B.select
           $ B.limit_ 1
           $ B.filter_ predicate
-          $ B.all_ (EDB.txn_detail eulerDBSchema)
+          $ B.all_ (DB.txn_detail DB.eulerDBSchema)
     Nothing -> pure Nothing
 
 
-getLastTxn :: OrderReference -> Flow (Maybe TxnDetail)
+getLastTxn :: DB.OrderReference -> Flow (Maybe DB.TxnDetail)
 getLastTxn orderRef = do
   orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
   merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
 
   txnDetails <- withDB eulerDB $ do
-    let predicate TxnDetail {orderId, merchantId} =
+    let predicate DB.TxnDetail {orderId, merchantId} =
           orderId ==. B.val_ orderId'
             &&. merchantId ==. B.just_ (B.val_ merchantId')
     findRows
       $ B.select
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_detail eulerDBSchema)
+      $ B.all_ (DB.txn_detail DB.eulerDBSchema)
 
   case txnDetails of
     [] -> do
@@ -632,7 +615,7 @@ getLastTxn orderRef = do
       maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
 
-getMandate :: OrderReference -> Flow (Maybe Mandate')
+getMandate :: DB.OrderReference -> Flow (Maybe Mandate')
 getMandate ordRef = do
   let id = getField @"id" ordRef
       merchId = getField @"merchantId" ordRef
@@ -669,17 +652,17 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     protocol = getField @"protocol" config
     host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
 
-getReturnUrl ::  OrderReference -> Flow Text
+getReturnUrl ::  DB.OrderReference -> Flow Text
 getReturnUrl orderRef = do
   conn <- getConn eulerDB
   merchantAccount <- do
     res <- runDB conn $ do
-      let predicate MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
+      let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
       findRow
         $ B.select
         $ B.limit_ 1
         $ B.filter_ predicate
-        $ B.all_ (merchant_account eulerDBSchema)
+        $ B.all_ (DB.merchant_account DB.eulerDBSchema)
     case res of
       Right mMAcc -> pure mMAcc
       Left err -> do
@@ -689,12 +672,12 @@ getReturnUrl orderRef = do
     Just merchantAcc -> do
           merchantIframePreferences <- do
             res <- runDB conn $ do
-              let predicate MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
+              let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
               findRow
                 $ B.select
                 $ B.limit_ 1
                 $ B.filter_ predicate
-                $ B.all_ (merchant_iframe_preferences eulerDBSchema)
+                $ B.all_ (DB.merchant_iframe_preferences DB.eulerDBSchema)
             case res of
               Right mMIP -> pure mMIP
               Left err -> do
@@ -708,19 +691,19 @@ getReturnUrl orderRef = do
     Nothing -> pure $ ""
 
 
-loadPromotions :: OrderReference -> Flow (Text, [Promotions])
+loadPromotions :: DB.OrderReference -> Flow (Text, [DB.Promotions])
 loadPromotions orderRef = do
   let id = fromMaybe 0 $ getField @"id" orderRef
       orderId = fromMaybe "" $ getField @"orderId" orderRef
   promotions <- do
     conn <- getConn eulerDB
     res  <- runDB conn $ do
-      let predicate Promotions{orderReferenceId} =
+      let predicate DB.Promotions{orderReferenceId} =
             orderReferenceId ==. B.just_ (B.val_ id)
       findRows
         $ B.select
         $ B.filter_ predicate
-        $ B.all_ (promotions eulerDBSchema)
+        $ B.all_ (DB.promotions DB.eulerDBSchema)
     case res of
       Right proms -> pure proms
       Left err -> do
@@ -728,22 +711,22 @@ loadPromotions orderRef = do
         throwException err500
   pure (orderId, promotions)
 
-decryptActivePromotion :: (Text, [Promotions]) -> Flow (Maybe Promotion')
+decryptActivePromotion :: (Text, [DB.Promotions]) -> Flow (Maybe Promotion')
 decryptActivePromotion (_,[]) = pure Nothing
 decryptActivePromotion (ordId, promotions) = do
   let mPromotion = find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
   traverse (decryptPromotionRules ordId) mPromotion
 
-decryptPromotionRules :: Text -> Promotions -> Flow Promotion'
+decryptPromotionRules :: Text -> DB.Promotions -> Flow Promotion'
 decryptPromotionRules ordId promotions = pure defaultPromotion'
 
-getPromotion :: OrderReference -> Flow (Maybe Promotion')
+getPromotion :: DB.OrderReference -> Flow (Maybe Promotion')
 getPromotion orderRef = do
   proms <- loadPromotions orderRef
   decryptActivePromotion  proms
 
 
-mapTxnDetail :: TxnDetail -> TxnDetail'
+mapTxnDetail :: DB.TxnDetail -> TxnDetail'
 mapTxnDetail txn = TxnDetail'
   { txn_id = getField @"txnId" txn
   , order_id = getField @"orderId" txn
@@ -783,18 +766,18 @@ mapTxnDetail txn = TxnDetail'
   }
 
 
-loadOrderMetadataV2 :: Int -> Flow (Maybe OrderMetadataV2)
+loadOrderMetadataV2 :: Int -> Flow (Maybe DB.OrderMetadataV2)
 loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
-  let predicate OrderMetadataV2 {orderReferenceId} =
+  let predicate DB.OrderMetadataV2 {orderReferenceId} =
         orderReferenceId ==. B.val_ ordRefId
   findRow
     $ B.select
     $ B.limit_ 1
     $ B.filter_ predicate
-    $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
+    $ B.all_ (DB.order_metadata_v2 DB.eulerDBSchema)
 
 
-getGatewayReferenceId2 :: Text -> OrderReference -> Flow Text
+getGatewayReferenceId2 :: Text -> DB.OrderReference -> Flow Text
 getGatewayReferenceId2 gateway ordRef = do
   let checkGateway = checkGatewayRefIdForVodafone2 ordRef gateway
 
@@ -804,7 +787,7 @@ getGatewayReferenceId2 gateway ordRef = do
       ordMeta <- loadOrderMetadataV2 refId
 
       case ordMeta of
-        Just (ordM :: OrderMetadataV2) ->
+        Just (ordM :: DB.OrderMetadataV2) ->
           case blankToNothing (getField @"metadata" ordM) of
             Nothing -> checkGateway
             Just md -> do
@@ -819,19 +802,19 @@ getGatewayReferenceId2 gateway ordRef = do
                     Nothing -> checkGateway
 
 
-checkGatewayRefIdForVodafone2 :: OrderReference -> Text -> Flow Text
+checkGatewayRefIdForVodafone2 :: DB.OrderReference -> Text -> Flow Text
 checkGatewayRefIdForVodafone2 ordRef gateway = do
   merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500)
 
   meybeFeature <- withDB eulerDB $ do
-    let predicate Feature {name, merchantId} =
+    let predicate DB.Feature {name, merchantId} =
           name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
           &&. merchantId ==. B.just_ (B.val_ merchantId')
     findRow
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.feature eulerDBSchema)
+      $ B.all_ (DB.feature DB.eulerDBSchema)
 
   case meybeFeature of
     Just feature ->
@@ -845,29 +828,29 @@ checkGatewayRefIdForVodafone2 ordRef gateway = do
 
 
 
-loadTxnRiskCheck :: Text -> Flow (Maybe TxnRiskCheck)
+loadTxnRiskCheck :: Text -> Flow (Maybe DB.TxnRiskCheck)
 loadTxnRiskCheck txnId =
   withDB eulerDB $ do
-    let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
+    let predicate DB.TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
     findRow
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_risk_check eulerDBSchema)
+      $ B.all_ (DB.txn_risk_check DB.eulerDBSchema)
 
 
-loadRiskManagementAccount :: Int -> Flow (Maybe RiskManagementAccount)
+loadRiskManagementAccount :: Int -> Flow (Maybe DB.RiskManagementAccount)
 loadRiskManagementAccount riskMAId =
   withDB eulerDB $ do
-    let predicate RiskManagementAccount {id} = id ==. B.val_ riskMAId
+    let predicate DB.RiskManagementAccount {id} = id ==. B.val_ riskMAId
     findRow
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.risk_management_account eulerDBSchema)
+      $ B.all_ (DB.risk_management_account DB.eulerDBSchema)
 
 
-makeRisk' :: Maybe Text -> TxnRiskCheck -> Risk'
+makeRisk' :: Maybe Text -> DB.TxnRiskCheck -> Risk'
 makeRisk' provider trc = Risk'
   { provider = provider
   , status = getField @"status" trc
@@ -937,18 +920,18 @@ getRisk txnId = do
     Nothing -> pure Nothing
 
 
-loadTxnCardInfo :: Text -> Flow (Maybe TxnCardInfo)
+loadTxnCardInfo :: Text -> Flow (Maybe DB.TxnCardInfo)
 loadTxnCardInfo txnId =
   withDB eulerDB $ do
-    let predicate TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+    let predicate DB.TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
     findRow
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_card_info eulerDBSchema)
+      $ B.all_ (DB.txn_card_info DB.eulerDBSchema)
 
 
-getCardDetails :: TxnCardInfo -> TxnDetail -> Bool -> Card
+getCardDetails :: DB.TxnCardInfo -> DB.TxnDetail -> Bool -> Card
 getCardDetails card txn shouldSendCardIsin = Card
   { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
   , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
@@ -982,3 +965,192 @@ chargebackDetails txnId txn = do
 
 sanitizeAmount x = x
 sanitizeNullAmount = fmap sanitizeAmount
+
+
+
+updatePaymentMethodAndType :: DB.TxnDetail -> DB.TxnCardInfo -> OrderStatusResponse -> Flow OrderStatusResponse
+updatePaymentMethodAndType txn card ordStatus = do
+  case (getField @"cardType" card) of
+    Just "NB" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "NB"
+        } :: OrderStatusResponse)
+    Just "WALLET" -> do
+      payerVpa <- case getField @"paymentMethod" card of
+        Nothing -> pure Nothing
+        Just "GOOGLEPAY" -> getPayerVpa $ getField @"successResponseId" txn
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "WALLET"
+        , payer_vpa = payerVpa
+        } :: OrderStatusResponse)
+
+    Just "UPI" -> do
+      let ord  = setField @"payment_method" (Just "UPI") ordStatus
+          ordS = setField @"payment_method_type" (Just "UPI") ord
+          paymentSource = if (fromMaybe "null" $ getField @"paymentSource" card) == "null"
+            then Just ""
+            else whenNothing (getField @"paymentSource" card) (Just "null")
+          sourceObj = fromMaybe "" $ getField @"sourceObject" txn
+      if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect" then pure (setField @"payer_vpa" paymentSource ordS)
+        else addPayerVpaToResponse txn ordS paymentSource
+
+    Just "PAYLATER" ->
+      pure (ordStatus
+        { payment_method = Just "JUSPAY"
+        , payment_method_type =Just "PAYLATER"
+        } :: OrderStatusResponse)
+    Just "CARD" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "CARD"
+        } :: OrderStatusResponse)
+    Just "REWARD" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "REWARD"
+        } :: OrderStatusResponse)
+    Just "ATM_CARD" ->
+      pure (ordStatus
+        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
+        , payment_method_type = Just "CARD"
+        } :: OrderStatusResponse)
+    Just _ -> checkPaymentMethodType card ordStatus
+    Nothing -> checkPaymentMethodType card ordStatus
+
+  where
+    checkPaymentMethodType card' ordStatus' = case (getField @"paymentMethodType" card') of
+      Just Mandate.CASH -> pure (ordStatus'
+        { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
+        , payment_method_type = Just "CASH"
+        } :: OrderStatusResponse)
+      Just Mandate.CONSUMER_FINANCE ->
+          pure (ordStatus'
+            { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
+            , payment_method_type = Just "CONSUMER_FINANCE"
+            } :: OrderStatusResponse)
+      _ -> pure ordStatus'
+
+
+-- ----------------------------------------------------------------------------
+-- function: getPayerVpa
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
+getPayerVpa ::forall st rt e. Newtype st (TState e) =>
+               TxnDetail -> TxnCardInfo -> BackendFlow st _ (NullOrUndefined Foreign)
+getPayerVpa txn txnCardInfo = do
+  if((txnCardInfo ^.. _paymentMethod $ "") == "GOOGLEPAY") then do
+      -- EPS: pgr <- DB.findOne ecDB (where_ := WHERE ["id" /\ String (unNull (txn ^. _successResponseId) "")])
+      pgr <- sequence $ findMaybePGRById <$> (unNullOrUndefined (txn ^. _successResponseId))
+      case join pgr of
+        Just (PaymentGatewayResponse pg) -> do
+          pgResponse  <- O.getResponseXml (unNull pg.responseXml "")
+          payervpa <- lookupRespXml' pgResponse "payerVpa" ""
+          if (payervpa == "") then pure nothing else pure $ just $ toForeign payervpa
+        Nothing -> pure nothing
+    else pure nothing
+-}
+
+getPayerVpa :: Maybe Int -> Flow (Maybe Text)
+getPayerVpa mSuccessResponseId = do
+  mPaymentGatewayResp <- loadPGR mSuccessResponseId
+  pure $ findPayerVpa =<< getField @"responseXml" =<< mPaymentGatewayResp
+
+
+
+-- former getResponseXml and lookupRespXml'
+-- Need review!!
+findPayerVpa :: Text -> Maybe Text
+findPayerVpa xmlVal = do
+  let pgrXml = runParser fromXml =<< (fromRawXml $ T.encodeUtf8 xmlVal)
+  let value = either (const Nothing) (lookupEntry "payerVpa") pgrXml
+  case value of
+    Just (EText payerVpa) -> Just $ TL.toStrict payerVpa
+    Just _ -> Nothing
+    Nothing -> Nothing
+
+
+
+-- ----------------------------------------------------------------------------
+-- function:
+-- TODO update
+-- ----------------------------------------------------------------------------
+
+{-PS
+-- EPS: In direct UPI flow, in case of AXIS_UPI, we've added one more lookup for customerVpa as gateway is sending payer vpa in customerVpa field. For other upi gateways also we've to add loopup based on their response.
+--EPS: TODO-- Once all the upi gateways are migrated to euler from euler-upi, Remove payerVpa lookup and keep gateway specific loopup key for payer vpa param.
+
+addPayerVpaToResponse :: forall st rt e. Newtype st (TState e)
+  =>  TxnDetail
+  -> OrderStatusResponse
+  -> NullOrUndefined Foreign
+  -> BackendFlow st _ OrderStatusResponse
+addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
+  let ord' = (ordStatusResp # _payer_app_name .~ paymentSource)
+  pgr <- sequence $ findMaybePGRById <$> (unNullOrUndefined $ txnDetail ^. _successResponseId)
+  case join pgr of
+    Just (PaymentGatewayResponse pg) -> do
+      pgResponse  <- O.getResponseXml (unNull pg.responseXml "")
+      payervpa <- case txnDetail ^.. _gateway $ "" of
+                    "AXIS_UPI"    -> lookupRespXml' pgResponse "payerVpa" =<< lookupRespXml' pgResponse "customerVpa" ""
+                    "HDFC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
+                    "INDUS_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+                    "KOTAK_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+                    "SBI_UPI"     -> lookupRespXml' pgResponse "payerVpa" ""
+                    "ICICI_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+                    "HSBC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
+                    "VIJAYA_UPI"  -> lookupRespXml' pgResponse "payerVpa" ""
+                    "YESBANK_UPI" -> lookupRespXml' pgResponse "payerVpa" ""
+                    "PAYTM_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+                    "PAYU"        -> lookupRespXml' pgResponse "field3" ""
+                    "RAZORPAY"    -> lookupRespXml' pgResponse "vpa" ""
+                    "PAYTM_V2"    -> lookupRespXml' pgResponse "VPA" ""
+                    "GOCASHFREE"  -> lookupRespXml' pgResponse "payersVPA" ""
+                    _             -> pure ""
+      if (payervpa == "") then pure ord' else pure (ord' # _payer_vpa .~ just (toForeign payervpa))
+    Nothing -> pure ord'
+
+-}
+
+addPayerVpaToResponse :: DB.TxnDetail -> OrderStatusResponse -> Maybe Text -> Flow OrderStatusResponse
+addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
+  let ordStatus = setField @"payer_app_name" paymentSource ordStatusResp
+  respId <- whenNothing (getField @"successResponseId" txnDetail)  (throwException err500)
+
+  mPaymentGatewayResp <- withDB eulerDB $ do
+    let predicate DB.PaymentGatewayResponse {id} =
+          id ==. B.just_ (B.val_ $ show respId)
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (DB.payment_gateway_response DB.eulerDBSchema)
+
+  case mPaymentGatewayResp of
+    Just paymentGateway -> do
+      pure ordStatus
+      -- EHS: TODO:
+      -- pgResponse  <- O.getResponseXml $ fromMaybe T.empty $ getField @"responseXml" paymentGateway
+      -- payervpa <- case (fromMaybe T.empty $ getField @"gateway" txnDetail) of
+      --               "AXIS_UPI"    -> lookupRespXml' pgResponse "payerVpa" =<< lookupRespXml' pgResponse "customerVpa" ""
+      --               "HDFC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "INDUS_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "KOTAK_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "SBI_UPI"     -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "ICICI_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "HSBC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "VIJAYA_UPI"  -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "YESBANK_UPI" -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "PAYTM_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
+      --               "PAYU"        -> lookupRespXml' pgResponse "field3" ""
+      --               "RAZORPAY"    -> lookupRespXml' pgResponse "vpa" ""
+      --               "PAYTM_V2"    -> lookupRespXml' pgResponse "VPA" ""
+      --               "GOCASHFREE"  -> lookupRespXml' pgResponse "payersVPA" ""
+      --               _             -> pure ""
+      -- case payervpa of
+      --   "" -> pure ordStatus
+      --   _ -> pure $ setField @"payer_vpa" (Just payervpa) ordStatus
+    Nothing -> pure ordStatus

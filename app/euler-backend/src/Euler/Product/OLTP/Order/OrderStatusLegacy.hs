@@ -31,8 +31,11 @@ import qualified Data.Map.Strict as Map
 import           Data.Semigroup as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import           Data.Time
 import           Servant.Server
+import           Xmlbf
+import           Xmlbf.Xeno
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters (..), lookupRP)
@@ -48,45 +51,21 @@ import           Euler.Common.Types.Merchant
 import           Euler.Common.Types.Order (OrderId, OrderTokenExpiryData (..),
                                            defaultOrderTokenExpiryData)
 import qualified Euler.Common.Types.Order as C
+import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnDetId, TxnStatus (..), txnStatusToInt)
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
-import qualified Euler.Product.Domain.MerchantAccount as DM
-import qualified Euler.Product.Domain.Order as DO (Order)
+import qualified Euler.Product.Domain as D
 
 import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
 
-import           Euler.Storage.Types.Chargeback
-import           Euler.Storage.Types.Customer
-import           Euler.Storage.Types.Feature
-import           Euler.Storage.Types.Mandate
-import qualified Euler.Storage.Types.MerchantAccount as SM
-import           Euler.Storage.Types.MerchantIframePreferences
-import           Euler.Storage.Types.MerchantKey
-import           Euler.Storage.Types.OrderMetadataV2
-import           Euler.Storage.Types.OrderReference
-import           Euler.Storage.Types.PaymentGatewayResponse
-import           Euler.Storage.Types.Promotions
-import           Euler.Storage.Types.Refund
-import           Euler.Storage.Types.ResellerAccount
-import           Euler.Storage.Types.RiskManagementAccount
-import           Euler.Storage.Types.SecondFactor
-import           Euler.Storage.Types.SecondFactorResponse
-import           Euler.Storage.Types.ServiceConfiguration
-import           Euler.Storage.Types.TxnCardInfo
-import           Euler.Storage.Types.TxnDetail
-import           Euler.Storage.Types.TxnRiskCheck
+import           Euler.Storage.Types as DB
 
-import           Euler.Storage.Types.EulerDB as EDB
-
-import           Euler.Storage.Repository.Chargeback as RC
-import           Euler.Storage.Repository.Mandate
-import           Euler.Storage.Repository.Refund as RR
-import           Euler.Storage.Repository.ResellerAccount as RRA
+import           Euler.Storage.Repository
 
 import           Euler.Services.Version.OrderStatusResponse
 
@@ -99,10 +78,12 @@ import           Euler.Storage.DBConfig
 -- Legenda EHS
 -- porting statistics:
 -- to port '-- TODO port' - 21
--- to update '-- TODO update' - 19
--- completed '-- done' - 33
--- refactored '-- refactored' - 7
+-- to update '-- TODO update' - 17
+-- completed '-- done' - 35
 -- total number of functions = 73
+--
+-- refactored '-- refactored' - 8
+--
 -- EPS -- comments from PureScript version
 -- EHS and sometimes without EHS - our comments after porting
 
@@ -139,7 +120,7 @@ data FlowError = FlowError -- do we have something similar?
 handleByOrderId
   :: RouteParameters
   -> Param.OrderId
-  -> DM.MerchantAccount
+  -> D.MerchantAccount
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
 
@@ -830,7 +811,7 @@ getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeO
 getOrderStatusWithoutAuth
   :: OrderStatusRequest -- EHS: remove after fix checkAndAddOrderToken
   -> Text {-RouteParameters-}
-  -> SM.MerchantAccount
+  -> DB.MerchantAccount
   -> Bool
   -> (Maybe OrderCreateRequest)
   -> (Maybe OrderReference)
@@ -1328,7 +1309,7 @@ addToCache req isAuthenticated mAccnt routeParam ordStatusResp = do
 addToCache ::
      OrderStatusRequest
   -> Bool
-  -> DM.MerchantAccount
+  -> D.MerchantAccount
   -> RouteParameters
   -> OrderStatusResponse
   -> Flow ()
@@ -1560,7 +1541,7 @@ getTxnFromTxnUuid order maybeTxnUuid =
           $ B.select
           $ B.limit_ 1
           $ B.filter_ predicate
-          $ B.all_ (EDB.txn_detail eulerDBSchema)
+          $ B.all_ (DB.txn_detail eulerDBSchema)
       -- DB.findOne ecDB $ where_ := WHERE
       --   [ "order_id" /\ String orderId
       --   , "merchant_id" /\ String merchantId
@@ -1627,7 +1608,7 @@ getLastTxn orderRef = do
     findRows
       $ B.select
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_detail eulerDBSchema)
+      $ B.all_ (DB.txn_detail eulerDBSchema)
 
   case txnDetails of
     [] -> do
@@ -1977,7 +1958,7 @@ getReturnUrl orderRef somebool = do
   conn <- getConn eulerDB
   merchantAccount <- do
     res <- runDB conn $ do
-      let predicate SM.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
+      let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
       findRow
         $ B.select
         $ B.limit_ 1
@@ -2041,7 +2022,7 @@ getChargedTxn orderRef = do
     findRows
       $ B.select
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_detail eulerDBSchema)
+      $ B.all_ (DB.txn_detail eulerDBSchema)
 
   case txnDetails of
     [] -> pure Nothing
@@ -2341,7 +2322,7 @@ getGatewayReferenceId txn ordRef = do
           $ B.select
           $ B.limit_ 1
           $ B.filter_ predicate
-          $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
+          $ B.all_ (DB.order_metadata_v2 eulerDBSchema)
 
 
   case ordMeta of
@@ -2369,7 +2350,7 @@ loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
     $ B.select
     $ B.limit_ 1
     $ B.filter_ predicate
-    $ B.all_ (EDB.order_metadata_v2 eulerDBSchema)
+    $ B.all_ (DB.order_metadata_v2 eulerDBSchema)
 
 
 -- EHS: partly refactored getGatewayReferenceId
@@ -2415,7 +2396,7 @@ checkGatewayRefIdForVodafone ordRef txn = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.feature eulerDBSchema)
+      $ B.all_ (DB.feature eulerDBSchema)
 
 
   case meybeFeature of
@@ -2441,7 +2422,7 @@ checkGatewayRefIdForVodafone2 ordRef gateway = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.feature eulerDBSchema)
+      $ B.all_ (DB.feature eulerDBSchema)
 
 
   case meybeFeature of
@@ -2511,7 +2492,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_risk_check eulerDBSchema)
+      $ B.all_ (DB.txn_risk_check eulerDBSchema)
 
 -- loadRiskManagementAccount
   case txnRiskCheck of
@@ -2524,7 +2505,7 @@ addRiskCheckInfoToResponse txn orderStatus = do
           $ B.select
           $ B.limit_ 1
           $ B.filter_ predicate
-          $ B.all_ (EDB.risk_management_account eulerDBSchema)
+          $ B.all_ (DB.risk_management_account eulerDBSchema)
 
 -- makeRisk'
       let risk = Risk'
@@ -2577,7 +2558,7 @@ loadTxnRiskCheck txnId =
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_risk_check eulerDBSchema)
+      $ B.all_ (DB.txn_risk_check eulerDBSchema)
 
 
 loadRiskManagementAccount :: Int -> Flow (Maybe RiskManagementAccount)
@@ -2588,7 +2569,7 @@ loadRiskManagementAccount riskMAId =
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.risk_management_account eulerDBSchema)
+      $ B.all_ (DB.risk_management_account eulerDBSchema)
 
 
 makeRisk' :: Maybe Text -> TxnRiskCheck -> Risk'
@@ -2731,7 +2712,7 @@ addPaymentMethodInfo sendCardIsin txn ordStatus = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_card_info eulerDBSchema)
+      $ B.all_ (DB.txn_card_info eulerDBSchema)
 
   -- EHS: let enableSendingCardIsin = fromMaybe False (getField @"enableSendingCardIsin" mAccnt)
   case txnCard of
@@ -2757,7 +2738,7 @@ loadTxnCardInfo txnId =
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.txn_card_info eulerDBSchema)
+      $ B.all_ (DB.txn_card_info eulerDBSchema)
 
 
 
@@ -2833,7 +2814,7 @@ findMaybeSFRBySfId second_factor_id = withDB eulerDB $ do
     $ B.select
     $ B.limit_ 1
     $ B.filter_ predicate
-    $ B.all_ (EDB.second_factor_response eulerDBSchema)
+    $ B.all_ (DB.second_factor_response eulerDBSchema)
 
 -- -----------------------------------------------------------------------------
 -- Function: findMaybeSecondFactorByTxnDetailId
@@ -2855,7 +2836,7 @@ findMaybeSecondFactorByTxnDetailId txnDetail_id = withDB eulerDB $ do
     $ B.select
     $ B.limit_ 1
     $ B.filter_ predicate
-    $ B.all_ (EDB.second_factor eulerDBSchema)
+    $ B.all_ (DB.second_factor eulerDBSchema)
 
 
 -- ----------------------------------------------------------------------------
@@ -3025,7 +3006,8 @@ getCardDetails card txn shouldSendCardIsin = Card
 
 -- ----------------------------------------------------------------------------
 -- function: getPayerVpa
--- TODO update
+-- ported
+-- refatored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3044,35 +3026,26 @@ getPayerVpa txn txnCardInfo = do
     else pure nothing
 -}
 
-getPayerVpa :: TxnDetail -> TxnCardInfo -> Flow (Maybe Text)
-getPayerVpa txn txnCardInfo = do
-  if (fromMaybe T.empty (getField @"paymentMethod" txnCardInfo) == "GOOGLEPAY") then do
-      respId <- whenNothing (getField @"successResponseId" txn)  (throwException err500)
+getPayerVpa :: Maybe Int -> Flow (Maybe Text)
+getPayerVpa mSuccessResponseId = do
+  mPaymentGatewayResp <- loadPGR mSuccessResponseId
+  pure $ findPayerVpa =<< getField @"responseXml" =<< mPaymentGatewayResp
 
-      mPaymentGatewayResp <- withDB eulerDB $ do
-        let predicate PaymentGatewayResponse {id} =
-              id ==. B.just_ (B.val_ $ show respId)
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
 
-      case mPaymentGatewayResp of
-        Just paymentGateway -> do
-          pure Nothing
-          -- EHS: TODO:
-          -- pgResponse  <- O.getResponseXml (fromMaybe T.empty $ getField @"responseXml" paymentGateway)
-          -- payervpa <- lookupRespXml' pgResponse "payerVpa" ""
-          -- case payervpa of
-          --   "" -> pure Nothing
-          --   _ -> pure $ Just payervpa
-        Nothing -> pure Nothing
-    else pure Nothing
+-- former getResponseXml and lookupRespXml'
+-- Need review!!
+findPayerVpa :: Text -> Maybe Text
+findPayerVpa xmlVal = do
+  let pgrXml = runParser fromXml =<< (fromRawXml $ T.encodeUtf8 xmlVal)
+  let value = either (const Nothing) (lookupEntry "payerVpa") pgrXml
+  case value of
+    Just (EText payerVpa) -> Just $ TL.toStrict payerVpa
+    Just _                -> Nothing
+    Nothing               -> Nothing
 
 -- ----------------------------------------------------------------------------
 -- function: updatePaymentMethodAndType
--- TODO update
+-- ported
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3148,7 +3121,9 @@ updatePaymentMethodAndType txn card ordStatus = do
         , payment_method_type = Just "NB"
         } :: OrderStatusResponse)
     Just "WALLET" -> do
-      payerVpa <- getPayerVpa txn card
+      payerVpa <- case getField @"paymentMethod" card of
+        Nothing          -> pure Nothing
+        Just "GOOGLEPAY" -> getPayerVpa $ getField @"successResponseId" txn
       pure (ordStatus
         { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
         , payment_method_type = Just "WALLET"
@@ -3159,7 +3134,7 @@ updatePaymentMethodAndType txn card ordStatus = do
       let ord  = setField @"payment_method" (Just "UPI") ordStatus
           ordS = setField @"payment_method_type" (Just "UPI") ord
           paymentSource = if (fromMaybe "null" $ getField @"paymentSource" card) == "null"
-            then Just "" -- just $ nullValue unit
+            then Just ""
             else whenNothing (getField @"paymentSource" card) (Just "null")
           sourceObj = fromMaybe "" $ getField @"sourceObject" txn
       if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect" then pure (setField @"payer_vpa" paymentSource ordS)
@@ -3236,7 +3211,7 @@ addRefundDetails txn ordStatus = undefined :: Flow OrderStatusResponse
 --         findRows
 --           $ B.select
 --           $ B.filter_ predicate
---           $ B.all_ (EDB.refund eulerDBSchema)
+--           $ B.all_ (DB.refund eulerDBSchema)
 
 --       case refunds of
 --         [] -> pure ordStatus
@@ -3610,7 +3585,7 @@ addGatewayResponse txn shouldSendFullGatewayResponse orderStatus = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
+      $ B.all_ (DB.payment_gateway_response eulerDBSchema)
 
   case mPaymentGatewayResp of
     Just pgr -> do
@@ -3654,7 +3629,7 @@ loadPaymentGatewayResponse txn sendFullGatewayResponse = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
+      $ B.all_ (DB.payment_gateway_response eulerDBSchema)
 
 
 makeMerchantPaymentGatewayResponse :: Maybe Text -> MerchantPaymentGatewayResponse' -> MerchantPaymentGatewayResponse
@@ -4310,7 +4285,7 @@ getTokenExpiryData = do
         $ B.select
         $ B.limit_ 1
         $ B.filter_ predicate
-        $ B.all_ (EDB.service_configuration eulerDBSchema)
+        $ B.all_ (DB.service_configuration eulerDBSchema)
 
   case mServiceConfiguration of
     (Just serviceConfiguration) -> do
@@ -4444,7 +4419,7 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
-      $ B.all_ (EDB.payment_gateway_response eulerDBSchema)
+      $ B.all_ (DB.payment_gateway_response eulerDBSchema)
 
   case mPaymentGatewayResp of
     Just paymentGateway -> do

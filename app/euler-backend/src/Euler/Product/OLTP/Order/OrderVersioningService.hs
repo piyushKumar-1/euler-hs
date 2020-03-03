@@ -62,7 +62,7 @@ mkOrderResponse cfg order@(D.Order {..}) _ mbResellerAcc = do
   where
   -- EHS: magic constants
     mbResellerEndpoint = mbResellerAcc >>= (^. _resellerApiEndpoint)
-    url = maybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) EHP.id mbResellerEndpoint
+    url = fromMaybe (cfg ^. _protocol <> "://" <>  cfg ^. _host) mbResellerEndpoint
     webUrl    = url <> "/merchant/pay/"  <> orderUuid
     mobileUrl = url <> "/merchant/pay/"  <> orderUuid <>"?mobile=true"
     iFrameUrl = url <> "/merchant/ipay/" <> orderUuid

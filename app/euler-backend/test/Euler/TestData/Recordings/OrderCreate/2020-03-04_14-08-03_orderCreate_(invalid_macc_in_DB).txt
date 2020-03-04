@@ -1,0 +1,293 @@
+{
+    "methodRecording": {
+        "mrJsonResponse": "ServerError {errHTTPCode = 500, errReasonPhrase = \"\", errBody = \"{\\n    \\\"userMessage\\\": \\\"Internal Server Error\\\",\\n    \\\"error\\\": true,\\n    \\\"error_message\\\": \\\"Internal Server Error\\\"\\n}\", errHeaders = []}",
+        "mrSessionId": "SomeSessionId",
+        "mrMethodConfigs": {
+            "mcRawBody": "",
+            "mcMethodUrl": "",
+            "mcQueryParams": {},
+            "mcRawHeaders": {},
+            "mcUserAgent": "",
+            "mcSourceIP": "",
+            "mcRouteParams": {
+                "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUM=",
+                "SourceIP": "127.0.0.1",
+                "Version": "2018-07-01",
+                "UserAgent": "PostmanRuntime/7.22.0"
+            }
+        },
+        "mrParameters": {},
+        "mrEntries": {
+            "recording": [
+                {
+                    "_entryName": "GetSqlDBConnectionEntry",
+                    "_entryIndex": 0,
+                    "_entryPayload": {
+                        "dBConfig": {
+                            "tag": "SQLitePoolConf",
+                            "contents": [
+                                "sqlite",
+                                "./app/euler-backend/test/Euler/TestData/test.db",
+                                {
+                                    "resourcesPerStripe": 50,
+                                    "stripes": 1,
+                                    "keepAlive": 10
+                                }
+                            ]
+                        },
+                        "getConnResult": {
+                            "Right": []
+                        }
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "RunDBEntry",
+                    "_entryIndex": 1,
+                    "_entryPayload": {
+                        "jsonResult": {
+                            "Right": {
+                                "status": "ACTIVE",
+                                "lastUpdated": "2014-01-10T14:28:17",
+                                "apiKey": "F82F812AAF254D7A9AC814B78A4B941C",
+                                "dateCreated": "2014-01-10T14:28:17",
+                                "version": 1,
+                                "scope": "MERCHANT",
+                                "id": 2,
+                                "merchantAccountId": 2
+                            }
+                        }
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "GetSqlDBConnectionEntry",
+                    "_entryIndex": 2,
+                    "_entryPayload": {
+                        "dBConfig": {
+                            "tag": "SQLitePoolConf",
+                            "contents": [
+                                "sqlite",
+                                "./app/euler-backend/test/Euler/TestData/test.db",
+                                {
+                                    "resourcesPerStripe": 50,
+                                    "stripes": 1,
+                                    "keepAlive": 10
+                                }
+                            ]
+                        },
+                        "getConnResult": {
+                            "Right": []
+                        }
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "RunDBEntry",
+                    "_entryIndex": 3,
+                    "_entryPayload": {
+                        "jsonResult": {
+                            "Right": {
+                                "whitelabelEnabled": null,
+                                "paymentResponseHashKey": null,
+                                "enableSendingCardIsin": null,
+                                "gatewayDecidedByHealthEnabled": null,
+                                "officeLine2": null,
+                                "inlineCheckoutHtml": null,
+                                "fingerprintOnTokenize": null,
+                                "inlineCheckoutEnabled": null,
+                                "secondaryMerchantAccountId": null,
+                                "webHookCustomHeaders": null,
+                                "hdfcTestMode": null,
+                                "txnIdCustomPrefix": null,
+                                "webHookPassword": null,
+                                "hdfcVerified": null,
+                                "iciciVerified": null,
+                                "enableRefundsInDashboard": null,
+                                "payuSalt": null,
+                                "apiKey": "7BAD089A1F604F0DA249B667A5B1D33D",
+                                "merchantId": null,
+                                "state": null,
+                                "expressCheckoutEnabled": null,
+                                "landmark": null,
+                                "axisSecureSecret": null,
+                                "mobileVersion": null,
+                                "gatewayPriority": null,
+                                "ebsVerified": null,
+                                "axisAccessCode": null,
+                                "citiTestMode": null,
+                                "enableRecapture": null,
+                                "officeLine3": null,
+                                "mustUseGivenOrderIdForTxn": null,
+                                "enableReauthorization": null,
+                                "axisVerified": null,
+                                "enableSaveCardBeforeAuth": null,
+                                "contactPerson": null,
+                                "webHookUsername": null,
+                                "merchantName": "merchant2",
+                                "ccavenueSecretKey": null,
+                                "ebsBackendGateway": null,
+                                "ebsAccountId": null,
+                                "payuTestMode": null,
+                                "webHookurl": null,
+                                "payuMerchantKey": null,
+                                "domain": null,
+                                "enabledInstantRefund": null,
+                                "adminContactEmail": null,
+                                "contactPersonSecondaryEmail": null,
+                                "zip": null,
+                                "website": null,
+                                "payuVerified": null,
+                                "showSurchargeBreakupScreen": null,
+                                "paypalSecret": null,
+                                "hdfcIvrMerchantId": null,
+                                "otpEnabled": null,
+                                "hdfcMerchantId": null,
+                                "iciciKey": null,
+                                "amexPassword": null,
+                                "enableUnauthenticatedCardAdd": null,
+                                "merchantLegalName": null,
+                                "iciciMerchantId": null,
+                                "shouldAddSurcharge": null,
+                                "ebsHash": null,
+                                "hdfcMerchantCode": null,
+                                "settlementAccountId": null,
+                                "iciciSecondFactorId": null,
+                                "enable3DsecureHelpMail": null,
+                                "contactPersonPrimary": null,
+                                "citiVerified": null,
+                                "enableExternalRiskCheck": null,
+                                "returnUrl": null,
+                                "bankAccountNumber": null,
+                                "enableAutomaticRetry": null,
+                                "dateCreated": null,
+                                "userId": 2,
+                                "axisMerchantId": null,
+                                "telephone": null,
+                                "gatewayPriorityLogic": null,
+                                "contactPersonSecondary": null,
+                                "amexVerified": null,
+                                "useCodeForGatewayPriority": true,
+                                "officeLine1": null,
+                                "prefixMerchantIdForCardKey": null,
+                                "orderNotificationEmail": null,
+                                "city": null,
+                                "amexUsername": null,
+                                "version": 1,
+                                "enableOrderNotification": null,
+                                "mandatory2FA": null,
+                                "hdfcIvrVerified": null,
+                                "ccavenueVerified": null,
+                                "enablePaymentResponseHash": null,
+                                "realModeOnly": null,
+                                "id": 2,
+                                "enableSendingLastFourDigits": null,
+                                "citiMerchantCode": null,
+                                "amexAccessCode": null,
+                                "autoRefundConflictTransactions": null,
+                                "mobile": null,
+                                "ccavenueAccountId": null,
+                                "fetchCardsFromPayu": null,
+                                "amexSecureSecret": null,
+                                "citiKey": null,
+                                "ccavenueBackendGateway": null,
+                                "cardEncodingKey": null,
+                                "orderFieldsInSettlementReport": null,
+                                "hdfcIvrPassword": null,
+                                "includeSurchargeAmountForRefund": null,
+                                "creditBalance": null,
+                                "lastModified": null,
+                                "alternativeEmail": null,
+                                "resellerId": null,
+                                "enableTxnFilter": null,
+                                "timezone": null,
+                                "aboutBusiness": null,
+                                "conflictStatusEmail": null,
+                                "enableReauthentication": null,
+                                "enableConflictStatusNotification": null,
+                                "hdfcPassword": null,
+                                "amexMerchantId": null,
+                                "reverseTokenEnabled": null,
+                                "paypalClientId": null,
+                                "enableUnauthenticatedOrderStatusApi": null,
+                                "contactPersonEmail": null,
+                                "webHookapiversion": null,
+                                "lockerId": null
+                            }
+                        }
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "LogMessageEntry",
+                    "_entryIndex": 4,
+                    "_entryPayload": {
+                        "tag": "\"DB MerchantAccount Validation\"",
+                        "msg": "[\"merchantId not present\"]",
+                        "level": "Error"
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "ThrowExceptionEntry",
+                    "_entryIndex": 5,
+                    "_entryPayload": {
+                        "exMessage": "ErrorResponse {code = 500, response = ErrorPayload {error = True, error_message = \"Internal Server Error\", userMessage = \"Internal Server Error\"}}"
+                    },
+                    "_entryReplayMode": "Normal"
+                }
+            ],
+            "forkedRecordings": {}
+        },
+        "mrJsonRequest": {
+            "shipping_address_country": null,
+            "order_id": "1583330883546",
+            "udf3": null,
+            "shipping_address_country_code_iso": null,
+            "amount": 1.1,
+            "udf8": null,
+            "options_create_mandate": "REQUIRED",
+            "udf5": null,
+            "billing_address_city": "Bengaluru",
+            "billing_address_postal_code": null,
+            "billing_address_state": null,
+            "gateway_id": "8",
+            "udf2": null,
+            "billing_address_country": null,
+            "shipping_address_phone": null,
+            "shipping_address_line2": null,
+            "billing_address_line3": null,
+            "shipping_address_state": null,
+            "udf4": null,
+            "shipping_address_postal_code": null,
+            "customer_id": "cst_8mygkoq6jbsearii",
+            "udf10": null,
+            "auto_refund": null,
+            "shipping_address_last_name": null,
+            "udf1": "udf1value",
+            "mandate_max_amount": "100",
+            "billing_address_line2": null,
+            "billing_address_phone": null,
+            "product_id": null,
+            "shipping_address_line3": null,
+            "options_get_client_auth_token": true,
+            "customer_email": "kiran.kumar@gmail.com",
+            "currency": "INR",
+            "billing_address_last_name": null,
+            "billing_address_first_name": "Parth",
+            "customer_phone": "7076607677",
+            "billing_address_line1": null,
+            "billing_address_country_code_iso": null,
+            "metaData": "{\"MIGS:gateway_reference_id\":\"SI\",\"PAYU:gateway_reference_id\":\"PAYU_TEST_SI\"}",
+            "udf7": "udf7value",
+            "shipping_address_city": "Mumbai",
+            "shipping_address_line1": null,
+            "shipping_address_first_name": "Parth",
+            "udf9": null,
+            "return_url": "http://juspay.in/",
+            "description": "some description",
+            "udf6": null
+        }
+    },
+    "methodName": "orderCreate"
+}

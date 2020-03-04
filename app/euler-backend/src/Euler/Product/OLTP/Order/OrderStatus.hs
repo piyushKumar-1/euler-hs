@@ -978,12 +978,12 @@ updatePaymentMethodAndType txn card ordStatus = do
         } :: OrderStatusResponse)
     Just "WALLET" -> do
       payerVpa <- case getField @"paymentMethod" card of
-        Nothing -> pure Nothing
+        Nothing -> pure ""
         Just "GOOGLEPAY" -> getPayerVpa $ getField @"successResponseId" txn
       pure (ordStatus
         { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
         , payment_method_type = Just "WALLET"
-        , payer_vpa = payerVpa
+        , payer_vpa = Just payerVpa
         } :: OrderStatusResponse)
 
     Just "UPI" -> do
@@ -999,7 +999,7 @@ updatePaymentMethodAndType txn card ordStatus = do
     Just "PAYLATER" ->
       pure (ordStatus
         { payment_method = Just "JUSPAY"
-        , payment_method_type =Just "PAYLATER"
+        , payment_method_type = Just "PAYLATER"
         } :: OrderStatusResponse)
     Just "CARD" ->
       pure (ordStatus
@@ -1054,66 +1054,25 @@ getPayerVpa txn txnCardInfo = do
     else pure nothing
 -}
 
-getPayerVpa :: Maybe Int -> Flow (Maybe Text)
+getPayerVpa :: Maybe Int -> Flow Text
 getPayerVpa mSuccessResponseId = do
   mPaymentGatewayResp <- loadPGR mSuccessResponseId
-  pure $ findPayerVpa =<< getField @"responseXml" =<< mPaymentGatewayResp
+  let mXml = getField @"responseXml" =<< mPaymentGatewayResp
+  pure $ maybe "" (findEntry "payerVpa" "") mXml
 
 
 
 -- former getResponseXml and lookupRespXml'
 -- Need review!!
-findPayerVpa :: Text -> Maybe Text
-findPayerVpa xmlVal = do
+findEntry :: Text -> Text -> Text -> Text
+findEntry entry defaultEntry xmlVal = do
   let pgrXml = runParser fromXml =<< (fromRawXml $ T.encodeUtf8 xmlVal)
-  let value = either (const Nothing) (lookupEntry "payerVpa") pgrXml
+  let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
   case value of
-    Just (EText payerVpa) -> Just $ TL.toStrict payerVpa
-    Just _ -> Nothing
-    Nothing -> Nothing
+    Just (EText val) -> TL.toStrict val
+    Just _ -> defaultEntry
+    Nothing -> defaultEntry
 
-
-
--- ----------------------------------------------------------------------------
--- function:
--- TODO update
--- ----------------------------------------------------------------------------
-
-{-PS
--- EPS: In direct UPI flow, in case of AXIS_UPI, we've added one more lookup for customerVpa as gateway is sending payer vpa in customerVpa field. For other upi gateways also we've to add loopup based on their response.
---EPS: TODO-- Once all the upi gateways are migrated to euler from euler-upi, Remove payerVpa lookup and keep gateway specific loopup key for payer vpa param.
-
-addPayerVpaToResponse :: forall st rt e. Newtype st (TState e)
-  =>  TxnDetail
-  -> OrderStatusResponse
-  -> NullOrUndefined Foreign
-  -> BackendFlow st _ OrderStatusResponse
-addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
-  let ord' = (ordStatusResp # _payer_app_name .~ paymentSource)
-  pgr <- sequence $ findMaybePGRById <$> (unNullOrUndefined $ txnDetail ^. _successResponseId)
-  case join pgr of
-    Just (PaymentGatewayResponse pg) -> do
-      pgResponse  <- O.getResponseXml (unNull pg.responseXml "")
-      payervpa <- case txnDetail ^.. _gateway $ "" of
-                    "AXIS_UPI"    -> lookupRespXml' pgResponse "payerVpa" =<< lookupRespXml' pgResponse "customerVpa" ""
-                    "HDFC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
-                    "INDUS_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-                    "KOTAK_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-                    "SBI_UPI"     -> lookupRespXml' pgResponse "payerVpa" ""
-                    "ICICI_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-                    "HSBC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
-                    "VIJAYA_UPI"  -> lookupRespXml' pgResponse "payerVpa" ""
-                    "YESBANK_UPI" -> lookupRespXml' pgResponse "payerVpa" ""
-                    "PAYTM_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-                    "PAYU"        -> lookupRespXml' pgResponse "field3" ""
-                    "RAZORPAY"    -> lookupRespXml' pgResponse "vpa" ""
-                    "PAYTM_V2"    -> lookupRespXml' pgResponse "VPA" ""
-                    "GOCASHFREE"  -> lookupRespXml' pgResponse "payersVPA" ""
-                    _             -> pure ""
-      if (payervpa == "") then pure ord' else pure (ord' # _payer_vpa .~ just (toForeign payervpa))
-    Nothing -> pure ord'
-
--}
 
 addPayerVpaToResponse :: DB.TxnDetail -> OrderStatusResponse -> Maybe Text -> Flow OrderStatusResponse
 addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
@@ -1131,26 +1090,26 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
 
   case mPaymentGatewayResp of
     Just paymentGateway -> do
-      pure ordStatus
-      -- EHS: TODO:
-      -- pgResponse  <- O.getResponseXml $ fromMaybe T.empty $ getField @"responseXml" paymentGateway
-      -- payervpa <- case (fromMaybe T.empty $ getField @"gateway" txnDetail) of
-      --               "AXIS_UPI"    -> lookupRespXml' pgResponse "payerVpa" =<< lookupRespXml' pgResponse "customerVpa" ""
-      --               "HDFC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "INDUS_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "KOTAK_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "SBI_UPI"     -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "ICICI_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "HSBC_UPI"    -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "VIJAYA_UPI"  -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "YESBANK_UPI" -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "PAYTM_UPI"   -> lookupRespXml' pgResponse "payerVpa" ""
-      --               "PAYU"        -> lookupRespXml' pgResponse "field3" ""
-      --               "RAZORPAY"    -> lookupRespXml' pgResponse "vpa" ""
-      --               "PAYTM_V2"    -> lookupRespXml' pgResponse "VPA" ""
-      --               "GOCASHFREE"  -> lookupRespXml' pgResponse "payersVPA" ""
-      --               _             -> pure ""
-      -- case payervpa of
-      --   "" -> pure ordStatus
-      --   _ -> pure $ setField @"payer_vpa" (Just payervpa) ordStatus
+      let mXML = getField @"responseXml" paymentGateway
+      let gateway = fromMaybe T.empty $ getField @"gateway" txnDetail
+      let payervpa = case (gateway, mXML) of
+            (_, Nothing)  -> T.empty
+            ("AXIS_UPI", Just xml)    -> findEntry "payerVpa" (findEntry "customerVpa" "" xml) xml
+            ("HDFC_UPI", Just xml)    -> findEntry "payerVpa" "" xml
+            ("INDUS_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+            ("KOTAK_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+            ("SBI_UPI", Just xml)     -> findEntry "payerVpa" "" xml
+            ("ICICI_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+            ("HSBC_UPI", Just xml)    -> findEntry "payerVpa" "" xml
+            ("VIJAYA_UPI", Just xml)  -> findEntry "payerVpa" "" xml
+            ("YESBANK_UPI", Just xml) -> findEntry "payerVpa" "" xml
+            ("PAYTM_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+            ("PAYU", Just xml)        -> findEntry "field3" "" xml
+            ("RAZORPAY", Just xml)    -> findEntry "vpa" "" xml
+            ("PAYTM_V2", Just xml)    -> findEntry "VPA" "" xml
+            ("GOCASHFREE", Just xml)  -> findEntry "payersVPA" "" xml
+            _             -> T.empty
+      case payervpa of
+        "" -> pure ordStatus
+        _ -> pure $ setField @"payer_vpa" (Just payervpa) ordStatus
     Nothing -> pure ordStatus

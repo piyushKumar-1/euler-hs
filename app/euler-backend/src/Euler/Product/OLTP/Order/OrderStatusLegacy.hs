@@ -27,6 +27,7 @@ import qualified Data.ByteString.Lazy as BSL
 import           Data.Char (toLower)
 import           Data.Either.Extra
 import           Data.Generics.Product.Fields
+import           Euler.Common.Types.PaymentGatewayResponseXml
 import qualified Data.Map.Strict as Map
 import           Data.Semigroup as S
 import qualified Data.Text as T
@@ -34,8 +35,6 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
 import           Data.Time
 import           Servant.Server
-import           Xmlbf
-import           Xmlbf.Xeno
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters (..), lookupRP)
@@ -82,7 +81,7 @@ import           Euler.Storage.DBConfig
 -- completed '-- done' - 36
 -- total number of functions = 73
 --
--- refactored '-- refactored' - 8
+-- refactored '-- refactored' - 9
 --
 -- EPS -- comments from PureScript version
 -- EHS and sometimes without EHS - our comments after porting
@@ -3024,7 +3023,16 @@ getPayerVpa txn txnCardInfo = do
           if (payervpa == "") then pure nothing else pure $ just $ toForeign payervpa
         Nothing -> pure nothing
     else pure nothing
+
+lookupRespXml' :: forall st r e rt. Newtype st (TState e) =>(Array _) -> String -> String -> BackendFlow st rt String
+lookupRespXml' xml str1 defaultValue = do
+  str1 <- pure $ find (\val -> (str1 == (fromMaybe "" (val.string !! 0)))) xml
+  case str1 of
+    Just val -> if isNotString $ fromMaybe defaultValue (val.string !! 1) then pure $ defaultValue else pure $ fromMaybe defaultValue (val.string !! 1)
+    Nothing -> pure $ defaultValue
 -}
+
+
 
 getPayerVpa :: Maybe Int -> Flow Text
 getPayerVpa mSuccessResponseId = do
@@ -3032,17 +3040,6 @@ getPayerVpa mSuccessResponseId = do
   let mXml = getField @"responseXml" =<< mPaymentGatewayResp
   pure $ maybe "" (findEntry "payerVpa" "") mXml
 
-
--- former getResponseXml and lookupRespXml'
--- Need review!!
-findEntry :: Text -> Text -> Text -> Text
-findEntry entry defaultEntry xmlVal = do
-  let pgrXml = runParser fromXml =<< (fromRawXml $ T.encodeUtf8 xmlVal)
-  let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
-  case value of
-    Just (EText val) -> TL.toStrict val
-    Just _ -> defaultEntry
-    Nothing -> defaultEntry
 
 -- ----------------------------------------------------------------------------
 -- function: updatePaymentMethodAndType
@@ -3132,14 +3129,23 @@ updatePaymentMethodAndType txn card ordStatus = do
         } :: OrderStatusResponse)
 
     Just "UPI" -> do
-      let ord  = setField @"payment_method" (Just "UPI") ordStatus
-          ordS = setField @"payment_method_type" (Just "UPI") ord
+      let ordS1  = setField @"payment_method" (Just "UPI") ordStatus
+          ordS2 = setField @"payment_method_type" (Just "UPI") ordS1
           paymentSource = if (fromMaybe "null" $ getField @"paymentSource" card) == "null"
             then Just ""
             else whenNothing (getField @"paymentSource" card) (Just "null")
           sourceObj = fromMaybe "" $ getField @"sourceObject" txn
-      if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect" then pure (setField @"payer_vpa" paymentSource ordS)
-        else addPayerVpaToResponse txn ordS paymentSource
+      if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect"
+        then pure (setField @"payer_vpa" paymentSource ordS2)
+
+        else do
+          let ordS3 = setField @"payer_app_name" paymentSource ordS2
+          let respId = getField @"successResponseId" txn
+          let gateway = fromMaybe T.empty $ getField @"gateway" txn
+          payervpa <- getPayerVpaByGateway respId gateway
+          case payervpa of
+            "" -> pure ordS3
+            _ -> pure $ setField @"payer_vpa" (Just payervpa) ordS3
 
     Just "PAYLATER" ->
       pure (ordStatus
@@ -4370,6 +4376,7 @@ xmlToJsonPgrAccumulater strmap xml = do
 -- ----------------------------------------------------------------------------
 -- function:
 -- done
+-- refatored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -4408,45 +4415,73 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
 
 -}
 
-addPayerVpaToResponse :: DB.TxnDetail -> OrderStatusResponse -> Maybe Text -> Flow OrderStatusResponse
-addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
-  let ordStatus = setField @"payer_app_name" paymentSource ordStatusResp
-  respId <- whenNothing (getField @"successResponseId" txnDetail)  (throwException err500)
+-- addPayerVpaToResponse :: DB.TxnDetail -> OrderStatusResponse -> Maybe Text -> Flow OrderStatusResponse
+-- addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
+--   let ordStatus = setField @"payer_app_name" paymentSource ordStatusResp
+--   respId <- whenNothing (getField @"successResponseId" txnDetail)  (throwException err500)
 
-  mPaymentGatewayResp <- withDB eulerDB $ do
-    let predicate DB.PaymentGatewayResponse {id} =
-          id ==. B.just_ (B.val_ $ show respId)
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.payment_gateway_response DB.eulerDBSchema)
+--   mPaymentGatewayResp <- withDB eulerDB $ do
+--     let predicate DB.PaymentGatewayResponse {id} =
+--           id ==. B.just_ (B.val_ $ show respId)
+--     findRow
+--       $ B.select
+--       $ B.limit_ 1
+--       $ B.filter_ predicate
+--       $ B.all_ (DB.payment_gateway_response DB.eulerDBSchema)
 
-  case mPaymentGatewayResp of
-    Just paymentGateway -> do
-      let mXML = getField @"responseXml" paymentGateway
-      let gateway = fromMaybe T.empty $ getField @"gateway" txnDetail
-      let payervpa = case (gateway, mXML) of
-            (_, Nothing)  -> T.empty
-            ("AXIS_UPI", Just xml)    -> findEntry "payerVpa" (findEntry "customerVpa" "" xml) xml
-            ("HDFC_UPI", Just xml)    -> findEntry "payerVpa" "" xml
-            ("INDUS_UPI", Just xml)   -> findEntry "payerVpa" "" xml
-            ("KOTAK_UPI", Just xml)   -> findEntry "payerVpa" "" xml
-            ("SBI_UPI", Just xml)     -> findEntry "payerVpa" "" xml
-            ("ICICI_UPI", Just xml)   -> findEntry "payerVpa" "" xml
-            ("HSBC_UPI", Just xml)    -> findEntry "payerVpa" "" xml
-            ("VIJAYA_UPI", Just xml)  -> findEntry "payerVpa" "" xml
-            ("YESBANK_UPI", Just xml) -> findEntry "payerVpa" "" xml
-            ("PAYTM_UPI", Just xml)   -> findEntry "payerVpa" "" xml
-            ("PAYU", Just xml)        -> findEntry "field3" "" xml
-            ("RAZORPAY", Just xml)    -> findEntry "vpa" "" xml
-            ("PAYTM_V2", Just xml)    -> findEntry "VPA" "" xml
-            ("GOCASHFREE", Just xml)  -> findEntry "payersVPA" "" xml
-            _             -> T.empty
-      case payervpa of
-        "" -> pure ordStatus
-        _ -> pure $ setField @"payer_vpa" (Just payervpa) ordStatus
-    Nothing -> pure ordStatus
+--   case mPaymentGatewayResp of
+--     Just paymentGateway -> do
+--       let mXML = getField @"responseXml" paymentGateway
+--       let gateway = fromMaybe T.empty $ getField @"gateway" txnDetail
+--       let payervpa = case (gateway, mXML) of
+--             (_, Nothing)  -> T.empty
+--             ("AXIS_UPI", Just xml)    -> findEntry "payerVpa" (findEntry "customerVpa" "" xml) xml
+--             ("HDFC_UPI", Just xml)    -> findEntry "payerVpa" "" xml
+--             ("INDUS_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+--             ("KOTAK_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+--             ("SBI_UPI", Just xml)     -> findEntry "payerVpa" "" xml
+--             ("ICICI_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+--             ("HSBC_UPI", Just xml)    -> findEntry "payerVpa" "" xml
+--             ("VIJAYA_UPI", Just xml)  -> findEntry "payerVpa" "" xml
+--             ("YESBANK_UPI", Just xml) -> findEntry "payerVpa" "" xml
+--             ("PAYTM_UPI", Just xml)   -> findEntry "payerVpa" "" xml
+--             ("PAYU", Just xml)        -> findEntry "field3" "" xml
+--             ("RAZORPAY", Just xml)    -> findEntry "vpa" "" xml
+--             ("PAYTM_V2", Just xml)    -> findEntry "VPA" "" xml
+--             ("GOCASHFREE", Just xml)  -> findEntry "payersVPA" "" xml
+--             _             -> T.empty
+--       case payervpa of
+--         "" -> pure ordStatus
+--         _ -> pure $ setField @"payer_vpa" (Just payervpa) ordStatus
+--     Nothing -> pure ordStatus
+
+-- EHS: refactored
+getPayerVpaByGateway :: Maybe Int -> Text -> Flow Text
+getPayerVpaByGateway respId gateway = do
+  mPgr <- loadPGR respId
+  case mPgr of
+    Nothing -> pure T.empty
+    Just pgr -> pure $ findPayerVpaByGateway gateway (getField @"responseXml" pgr)
+
+findPayerVpaByGateway :: Text -> Maybe Text -> Text
+findPayerVpaByGateway _ Nothing = T.empty
+findPayerVpaByGateway gateway (Just xml) =
+  case gateway of
+    "AXIS_UPI"    -> findEntry "payerVpa" (findEntry "customerVpa" "" xml) xml
+    "HDFC_UPI"    -> findEntry "payerVpa" "" xml
+    "INDUS_UPI"   -> findEntry "payerVpa" "" xml
+    "KOTAK_UPI"   -> findEntry "payerVpa" "" xml
+    "SBI_UPI"     -> findEntry "payerVpa" "" xml
+    "ICICI_UPI"   -> findEntry "payerVpa" "" xml
+    "HSBC_UPI"    -> findEntry "payerVpa" "" xml
+    "VIJAYA_UPI"  -> findEntry "payerVpa" "" xml
+    "YESBANK_UPI" -> findEntry "payerVpa" "" xml
+    "PAYTM_UPI"   -> findEntry "payerVpa" "" xml
+    "PAYU"        -> findEntry "field3" "" xml
+    "RAZORPAY"    -> findEntry "vpa" "" xml
+    "PAYTM_V2"    -> findEntry "VPA" "" xml
+    "GOCASHFREE"  -> findEntry "payersVPA" "" xml
+    _             -> T.empty
 
 -- EHS: OLD STUFF
 

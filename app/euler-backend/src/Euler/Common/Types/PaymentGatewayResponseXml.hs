@@ -8,19 +8,21 @@ module Euler.Common.Types.PaymentGatewayResponseXml
   , EValue(..)
   , PGRXml(..)
  -- , OpusPGResponse(..)
-  , lookupEntry
+  , findEntry
   )
   where
 
 import EulerHS.Prelude
 
 import Xmlbf
+import Xmlbf.Xeno
 import Data.Coerce
 
 import qualified Data.Binary.Builder     as BB
 import qualified Data.Map.Strict         as Map
 import qualified Data.Text.Lazy          as TL
 import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Text.Encoding as TE
 import qualified Text.Read
 -- import qualified Xmlbf                   as XML
 
@@ -48,6 +50,17 @@ lookupEntry name m = case m of
   PGRLhm (LHM n) -> Map.lookup name $ coerce n
   PGRMap (XmlMap n) -> Map.lookup name $ coerce n
   PGRGhm (GroovyHM n) -> Map.lookup name $ coerce n
+
+-- former getResponseXml and lookupRespXml'
+-- Need review!!
+findEntry :: Text -> Text -> Text -> Text
+findEntry entry defaultEntry xmlVal = do
+  let pgrXml = runParser fromXml =<< (fromRawXml $ TE.encodeUtf8 xmlVal)
+  let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
+  case value of
+    Just (EText val) -> TL.toStrict val
+    Just _ -> defaultEntry
+    Nothing -> defaultEntry
 
 
 -- not shure that this is used in current euler

@@ -181,6 +181,11 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   returnUrl <- getReturnUrl orderRef
 
+  paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
+    (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
+    _ -> pure (Nothing, Nothing, Nothing, Nothing)
+
+
   pure $ runExcept $ makeOrderStatusResponse
     orderRef
     links
@@ -195,6 +200,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     mRefunds'
     mChargeback'
     returnUrl
+    paymentMethodsAndTypes
 
 
 
@@ -273,6 +279,7 @@ makeOrderStatusResponse
   -> Maybe [Refund']
   -> Maybe [Chargeback']
   -> Text
+  -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -> Except Text OrderStatusResponse
 makeOrderStatusResponse
   ordRef
@@ -288,6 +295,7 @@ makeOrderStatusResponse
   mRefunds
   mChargebacks
   returnUrl
+  paymentMethodsAndTypes
   = do
 
   ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef
@@ -314,6 +322,9 @@ makeOrderStatusResponse
 
       maybeTxnCard f = maybe emptyBuilder f mTxnCard
       maybeTxn f = maybe emptyBuilder f mTxn
+      maybeTxnAndTxnCard f = case (mTxn, mTxnCard) of
+        (Just txn, Just txnCard) -> f txn txnCard
+        _ -> emptyBuilder
 
 
   pure $ extract $ buildStatusResponse
@@ -326,25 +337,22 @@ makeOrderStatusResponse
 
       -- TODO: add addSecondFactorResponseAndTxnFlowInfo here
 
-    <<= maybeTxn (\txn -> maybeTxnCard (\txnCard ->
-      if isBlankMaybe (getField @"cardIsin" txnCard)
+    <<= maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
         then changeCard (getCardDetails txnCard txn sendCardIsin)
-        else emptyBuilder))
+        else emptyBuilder)
 
-    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
-      if isBlankMaybe (getField @"cardIsin" txnCard)
+    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
         then changePaymentMethodType "CARD"
-        else emptyBuilder))
+        else emptyBuilder)
 
-    <<= maybeTxn (const $ maybeTxnCard (\txnCard ->
-      if isBlankMaybe (getField @"cardIsin" txnCard)
+    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
         then changeEmiPaymentMethod paymentMethod
-        else emptyBuilder))
+        else emptyBuilder)
 
-    <<= maybeTxn (const $ maybeTxnCard (\txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just "")))
-    <<= maybeTxn (\txn -> maybeTxnCard (const $ if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder))
+    <<= maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just ""))
+    <<= maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
 
-    -- TODO: add updatePaymentMethodAndType here
+    <<= maybeTxnAndTxnCard (\_ _ -> changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes)
 
     <<= changeRisk mRisk
 
@@ -544,6 +552,20 @@ changeRefund mRefunds builder = builder $ mempty {refundsT = fmap Last mRefunds}
 
 changeChargeBacks :: Maybe [Chargeback'] -> ResponseBuilder -> OrderStatusResponse
 changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap Last mChargebacks}
+
+
+changePaymentMethodAndTypeAndVpa :: (Maybe Text, Maybe Text, Maybe Text, Maybe Text) -> ResponseBuilder -> OrderStatusResponse
+changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa, mPayerAppName) builder =
+  builder $ mempty
+    { payment_methodT = fmap Last mPaymentMethod
+    , payment_method_typeT = fmap Last mPaymentMethodType
+    , payer_vpaT = fmap Last mPayerVpa
+    , payer_app_nameT = fmap Last mPayerAppName
+    }
+
+
+
+
 
 
 getOrderReference
@@ -965,80 +987,106 @@ sanitizeAmount x = x
 sanitizeNullAmount = fmap sanitizeAmount
 
 
-
-updatePaymentMethodAndType :: DB.TxnDetail -> DB.TxnCardInfo -> OrderStatusResponse -> Flow OrderStatusResponse
-updatePaymentMethodAndType txn card ordStatus = do
+getPaymentMethodAndType
+  :: DB.TxnDetail
+  -> DB.TxnCardInfo
+  -> Flow (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+  -- ^ Result is (payment_method, payment_method_type, payer_vpa, payer_app_name)
+  -- when Nothing do not change a field
+getPaymentMethodAndType txn card = do
   case (getField @"cardType" card) of
-    Just "NB" ->
-      pure (ordStatus
-        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
-        , payment_method_type = Just "NB"
-        } :: OrderStatusResponse)
+    Just "NB" -> pure
+      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      , Just "NB"
+      , Nothing
+      , Nothing
+      )
     Just "WALLET" -> do
       payerVpa <- case getField @"paymentMethod" card of
         Nothing -> pure ""
         Just "GOOGLEPAY" -> getPayerVpa $ getField @"successResponseId" txn
         Just _ -> pure ""
-      pure (ordStatus
-        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
-        , payment_method_type = Just "WALLET"
-        , payer_vpa = Just payerVpa
-        } :: OrderStatusResponse)
+      pure
+        ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+        , Just "WALLET"
+        , Just payerVpa
+        , Nothing
+        )
 
     Just "UPI" -> do
-      let ordS1  = setField @"payment_method" (Just "UPI") ordStatus
-          ordS2 = setField @"payment_method_type" (Just "UPI") ordS1
+      let payment_method = Just "UPI"
+          payment_method_type = Just "UPI"
           paymentSource = if (fromMaybe "null" $ getField @"paymentSource" card) == "null"
             then Just ""
             else whenNothing (getField @"paymentSource" card) (Just "null")
           sourceObj = fromMaybe "" $ getField @"sourceObject" txn
       if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect"
-        then pure (setField @"payer_vpa" paymentSource ordS2)
-
+        then pure
+          ( payment_method
+          , payment_method_type
+          , paymentSource
+          , Nothing
+          )
         else do
-          let ordS3 = setField @"payer_app_name" paymentSource ordS2
           let respId = getField @"successResponseId" txn
           let gateway = fromMaybe T.empty $ getField @"gateway" txn
           payervpa <- getPayerVpaByGateway respId gateway
           case payervpa of
-            "" -> pure ordS3
-            _ -> pure $ setField @"payer_vpa" (Just payervpa) ordS3
+            "" -> pure
+              ( payment_method
+              , payment_method_type
+              , paymentSource
+              , paymentSource
+              )
+            _ -> pure
+              ( payment_method
+              , payment_method_type
+              , Just payervpa
+              , paymentSource
+              )
 
-    Just "PAYLATER" ->
-      pure (ordStatus
-        { payment_method = Just "JUSPAY"
-        , payment_method_type = Just "PAYLATER"
-        } :: OrderStatusResponse)
-    Just "CARD" ->
-      pure (ordStatus
-        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
-        , payment_method_type = Just "CARD"
-        } :: OrderStatusResponse)
-    Just "REWARD" ->
-      pure (ordStatus
-        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
-        , payment_method_type = Just "REWARD"
-        } :: OrderStatusResponse)
-    Just "ATM_CARD" ->
-      pure (ordStatus
-        { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
-        , payment_method_type = Just "CARD"
-        } :: OrderStatusResponse)
-    Just _ -> checkPaymentMethodType card ordStatus
-    Nothing -> checkPaymentMethodType card ordStatus
+    Just "PAYLATER" -> pure
+        ( Just "JUSPAY"
+        , Just "PAYLATER"
+        , Nothing
+        , Nothing
+        )
+    Just "CARD" -> pure
+      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      , Just "CARD"
+      , Nothing
+      , Nothing
+      )
+    Just "REWARD" -> pure
+      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      , Just "REWARD"
+      , Nothing
+      , Nothing
+      )
+    Just "ATM_CARD" -> pure
+      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      , Just "CARD"
+      , Nothing
+      , Nothing
+      )
+    Just _ -> checkPaymentMethodType card
+    Nothing -> checkPaymentMethodType card
 
   where
-    checkPaymentMethodType card' ordStatus' = case (getField @"paymentMethodType" card') of
-      Just Mandate.CASH -> pure (ordStatus'
-        { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
-        , payment_method_type = Just "CASH"
-        } :: OrderStatusResponse)
-      Just Mandate.CONSUMER_FINANCE ->
-          pure (ordStatus'
-            { payment_method = whenNothing (getField @"paymentMethod" card') (Just T.empty)
-            , payment_method_type = Just "CONSUMER_FINANCE"
-            } :: OrderStatusResponse)
-      _ -> pure ordStatus'
+    checkPaymentMethodType card' = case (getField @"paymentMethodType" card') of
+      Just Mandate.CASH -> pure
+        ( whenNothing (getField @"paymentMethod" card') (Just T.empty)
+        , Just "CASH"
+        , Nothing
+        , Nothing
+        )
+      Just Mandate.CONSUMER_FINANCE -> pure
+        ( whenNothing (getField @"paymentMethod" card') (Just T.empty)
+        , Just "CONSUMER_FINANCE"
+        , Nothing
+        , Nothing
+        )
+      _ -> pure (Nothing, Nothing, Nothing, Nothing)
 
 getPayerVpa :: Maybe Int -> Flow Text
 getPayerVpa mSuccessResponseId = do

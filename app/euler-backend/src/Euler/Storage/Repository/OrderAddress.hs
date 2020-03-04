@@ -2,6 +2,7 @@ module Euler.Storage.Repository.OrderAddress
   ( createAddress
   , updateAddress
   , fillBillingAddressHolder
+  , loadAddress
   )
   where
 
@@ -97,3 +98,12 @@ fillBillingAddressHolder (Just customer) (Ts.AddressHolderTemplate {..})
   = Ts.AddressHolderTemplate
       (firstName <|> (customer ^. _firstName))
       (lastName <|> (customer ^. _lastName))
+
+loadAddress :: C.AddressId -> Flow (Maybe DB.OrderAddress)
+loadAddress addrId = withDB eulerDB $ do
+  let predicate DB.OrderAddress {id} = id ==. B.just_ (B.val_ addrId)
+  findRow
+    $ B.select
+    $ B.limit_ 1
+    $ B.filter_ predicate
+    $ B.all_ (DB.order_address DB.eulerDBSchema)

@@ -19,7 +19,9 @@ import Euler.API.RouteParameters
 
 import qualified Euler.API.Order                        as OrderAPI
 import           Euler.API.Order                        (OrderCreateRequest(..))
+import           Euler.Storage.Types
 import qualified Euler.Storage.DBConfig                 as DB
+import qualified Euler.Storage.Repository               as Rep
 import qualified Euler.Storage.Types.MerchantAccount    as Merchant
 import qualified Euler.Storage.Validators.MerchantAccount as Merchant
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
@@ -32,12 +34,16 @@ import qualified WebService.Language as L
 import qualified EulerHS.Extra.Validation as V
 import qualified EulerHS.Types as T
 import           Data.Time.Clock (NominalDiffTime)
+import           Data.Generics.Product.Fields
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Errors.Types as Errs
 import qualified Euler.API.Validators.Order as VO
 import qualified Data.Aeson as A
 import Test.HUnit.Base
+
+import Euler.Lens
+
 
 
 testDBName :: String
@@ -143,12 +149,49 @@ ordReqExisted = orderReqTemplate
   , amount = 1.0
   }
 
+-- mandate_max_amount not set
 ordReqMandateFeatureFailData :: OrderCreateRequest
 ordReqMandateFeatureFailData = orderReqTemplate
   { order_id = "wrongMandateParams"
   , amount = 500.0
   , mandate_max_amount = Nothing
   , options_create_mandate = Just REQUIRED
+  }
+
+-- customer_id not set
+ordReqMandateFeatureFailData2 :: OrderCreateRequest
+ordReqMandateFeatureFailData2 = orderReqTemplate
+  { order_id = "wrongMandateParams2"
+  , amount = 500.0
+  , mandate_max_amount = Just "600"
+  , options_create_mandate = Just REQUIRED
+  }
+
+-- mandate_max_amount = 0
+ordReqMandateFeatureFailData3 :: OrderCreateRequest
+ordReqMandateFeatureFailData3 = orderReqTemplate
+  { order_id = "wrongMandateParams3"
+  , amount = 500.0
+  , mandate_max_amount = Just "0"
+  , options_create_mandate = Just REQUIRED
+  }
+
+-- mandate_max_amount < 0
+ordReqMandateFeatureFailData4 :: OrderCreateRequest
+ordReqMandateFeatureFailData4 = orderReqTemplate
+  { order_id = "wrongMandateParams4"
+  , amount = 500.0
+  , mandate_max_amount = Just "-100"
+  , options_create_mandate = Just REQUIRED
+  }
+
+ordReqMandateFeatureFailData5 :: OrderCreateRequest
+ordReqMandateFeatureFailData5 = orderReqTemplate
+  { order_id = "wrongMandateParams5"
+  , amount = 500.0
+  , mandate_max_amount = Just "600"
+  , options_create_mandate = Just REQUIRED
+  , customer_id = Just "404"
   }
 
 ordReqOptionalMandateFeatureFailData :: OrderCreateRequest
@@ -424,6 +467,17 @@ spec =
             Auth.withMacc OrderCreate.orderCreate rp ordReq
             --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
+      let getAddressesAfterCreate rt ordReq rp = runFlow rt $ do
+            prepareDBConnections
+            resp <- Auth.withMacc OrderCreate.orderCreate rp ordReq
+            let oid = getField @"order_id" resp -- resp ^.  _order_id
+            let mid = fromMaybe "" $ getField @"merchant_id" resp -- resp ^. _merchant_id
+            mOrd <- Rep.loadOrder oid mid
+            let billAddrId = fromMaybe (-1) $ (^. _billingAddressId) =<< mOrd
+            let shipAddrId = fromMaybe (-1) $ (^. _shippingAddressId) =<< mOrd
+            billingAddr <- Rep.loadAddress billAddrId
+            shippingAdr <- Rep.loadAddress shipAddrId
+            pure (resp, billingAddr, shippingAdr)
 ----------------------------------------------------------------------
 
       it "OrderCreate. Authorization - invalid" $ \rt -> do
@@ -565,6 +619,69 @@ spec =
           shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
           shouldBeAnn "amount"          amount           $ Nothing -- Just 1000.0
 
+----------------------------------------------------------------------
+
+      it "OrderCreate. Old version with tokenize enabled" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2017-07-01")
+              (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{options_get_client_auth_token = Just True} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          juspay `shouldSatisfy` isNothing
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. Old version with tokenize disabled" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2017-07-01")
+              (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{options_get_client_auth_token = Nothing} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          juspay `shouldSatisfy` isNothing
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. New version with tokenize enabled" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{options_get_client_auth_token = Just True} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          juspay `shouldSatisfy` isJust
+
+----------------------------------------------------------------------
+
+      it "OrderCreate. New version with tokenize disabled" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+
+        resp <- runOrderCreate rt ordReq{options_get_client_auth_token = Nothing} rp
+
+        -- Do no threat this as a source of truth. Just fixing current behavior
+        do
+          let OrderAPI.OrderCreateResponse{..} = resp
+
+          juspay `shouldSatisfy` isNothing
 
 ----------------------------------------------------------------------
 
@@ -703,7 +820,7 @@ spec =
 
 ----------------------------------------------------------------------
 
-      it "Order with ordReqMandateFeatureFailData" $ \rt -> do
+      it "Order with ordReqMandateFeatureFailData (mandate_max_amount not set)" $ \rt -> do
         let rp = collectRPs
               (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
               (Version "2018-07-01")
@@ -711,6 +828,51 @@ spec =
         let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should be set."
                                          , "options_create_mandate mandate_max_amount mandate_max_amount should be set."]
         res <- try $ runOrderCreate rt ordReqMandateFeatureFailData rp
+        res `shouldBe` Left err
+
+----------------------------------------------------------------------
+
+      it "Order with ordReqMandateFeatureFailData2 (customer_id not set)" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        let err = Errs.customerNotFound
+        res <- try $ runOrderCreate rt ordReqMandateFeatureFailData2 rp
+        res `shouldBe` Left err
+
+----------------------------------------------------------------------
+
+      it "Order with ordReqMandateFeatureFailData3 (mandate_max_amount = 0)" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        let err = Errs.invalidMandateMaxAmount 100001.0
+        res <- try $ runOrderCreate rt ordReqMandateFeatureFailData3 rp
+        res `shouldBe` Left err
+
+----------------------------------------------------------------------
+
+      it "Order with ordReqMandateFeatureFailData4 (mandate_max_amount < 0)" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
+                                         , "options_create_mandate mandate_max_amount mandate_max_amount should not be negative."]
+        res <- try $ runOrderCreate rt ordReqMandateFeatureFailData4 rp
+        res `shouldBe` Left err
+
+----------------------------------------------------------------------
+
+      it "Order with ordReqMandateFeatureFailData5 (customer not found)" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        let err = Errs.customerNotFound
+        res <- try $ runOrderCreate rt ordReqMandateFeatureFailData5 rp
         res `shouldBe` Left err
 
 ----------------------------------------------------------------------
@@ -844,7 +1006,7 @@ spec =
                 (Version "2018-07-01")
                 (UserAgent "Uagent")
 
-          resp <- runOrderCreate rt ordReqWithAddresses rp
+          (resp,bil,ship) <- getAddressesAfterCreate rt ordReqWithAddresses rp
 
           do
             let OrderAPI.OrderCreateResponse{..} = resp
@@ -856,6 +1018,31 @@ spec =
             shouldBeAnn "merchant_id" merchant_id $ Just "1"
             shouldBeAnn "currency"    currency    $ Just "INR"
             shouldBeAnn "amount"      amount      $ Just 100.0
+
+            shouldBeAnn "billing_address_first_name" (( ^. _firstName) =<< bil) $ Just "billing_address_first_name"
+            shouldBeAnn "billing_address_last_name" (( ^. _lastName) =<< bil) $ Just "billing_address_last_name"
+            shouldBeAnn "billing_address_line1" (( ^. _line1) =<< bil) $ Just "billing_address_line1"
+            shouldBeAnn "billing_address_line2" (( ^. _line2) =<< bil) $ Just "billing_address_line2"
+            shouldBeAnn "billing_address_line3" (( ^. _line3) =<< bil) $ Just "billing_address_line3"
+            shouldBeAnn "billing_address_city" (( ^. _city) =<< bil) $ Just "billing_address_city"
+            shouldBeAnn "billing_address_state" (( ^. _state) =<< bil) $ Just "billing_address_state"
+            shouldBeAnn "billing_address_country" (( ^. _country) =<< bil) $ Just "billing_address_country"
+            shouldBeAnn "billing_address_postal_code" (( ^. _postalCode) =<< bil) $ Just "billing_address_postal_code"
+            shouldBeAnn "billing_address_phone" (( ^. _phone) =<< bil) $ Just "billing_address_phone"
+            shouldBeAnn "billing_address_country_code_iso" (( ^. _countryCodeIso) =<< bil) $ Just "billing_address_country_code_iso"
+
+            shouldBeAnn "shipping_address_first_name" (( ^. _firstName) =<< ship) $ Just "shipping_address_first_name"
+            shouldBeAnn "shipping_address_last_name" (( ^. _lastName) =<< ship) $ Just "shipping_address_last_name"
+            shouldBeAnn "shipping_address_line1" (( ^. _line1) =<< ship) $ Just "shipping_address_line1"
+            shouldBeAnn "shipping_address_line2" (( ^. _line2) =<< ship) $ Just "shipping_address_line2"
+            shouldBeAnn "shipping_address_line3" (( ^. _line3) =<< ship) $ Just "shipping_address_line3"
+            shouldBeAnn "shipping_address_city" (( ^. _city) =<< ship) $ Just "shipping_address_city"
+            shouldBeAnn "shipping_address_state" (( ^. _state) =<< ship) $ Just "shipping_address_state"
+            shouldBeAnn "shipping_address_country" (( ^. _country) =<< ship) $ Just "shipping_address_country"
+            shouldBeAnn "shipping_address_postal_code" (( ^. _postalCode) =<< ship) $ Just "shipping_address_postal_code"
+            shouldBeAnn "shipping_address_phone" (( ^. _phone) =<< ship) $ Just "shipping_address_phone"
+            shouldBeAnn "shipping_address_country_code_iso" (( ^. _countryCodeIso) =<< ship) $ Just "shipping_address_country_code_iso"
+
 
             shouldStartWithAnn "id" (T.unpack id) "ordeu_"
 

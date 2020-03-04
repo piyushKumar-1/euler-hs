@@ -9,6 +9,7 @@ module Euler.Common.Types.PaymentGatewayResponseXml
   , PGRXml(..)
  -- , OpusPGResponse(..)
   , findEntry
+  , decodeXml
   )
   where
 
@@ -24,7 +25,6 @@ import qualified Data.Text.Lazy          as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Text.Encoding as TE
 import qualified Text.Read
--- import qualified Xmlbf                   as XML
 
 
 readEither' :: Read a => TL.Text -> Either String a
@@ -51,11 +51,14 @@ lookupEntry name m = case m of
   PGRMap (XmlMap n) -> Map.lookup name $ coerce n
   PGRGhm (GroovyHM n) -> Map.lookup name $ coerce n
 
+decodeXml :: ByteString -> Either String PGRXml
+decodeXml bs = runParser fromXml =<< (fromRawXml bs)
+
 -- former getResponseXml and lookupRespXml'
 -- Need review!!
 findEntry :: Text -> Text -> Text -> Text
 findEntry entry defaultEntry xmlVal = do
-  let pgrXml = runParser fromXml =<< (fromRawXml $ TE.encodeUtf8 xmlVal)
+  let pgrXml = decodeXml $ TE.encodeUtf8 xmlVal
   let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
   case value of
     Just (EText val) -> TL.toStrict val

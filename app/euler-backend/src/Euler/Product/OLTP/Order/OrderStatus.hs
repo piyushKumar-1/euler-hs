@@ -978,6 +978,7 @@ updatePaymentMethodAndType txn card ordStatus = do
       payerVpa <- case getField @"paymentMethod" card of
         Nothing -> pure ""
         Just "GOOGLEPAY" -> getPayerVpa $ getField @"successResponseId" txn
+        Just _ -> pure ""
       pure (ordStatus
         { payment_method = whenNothing (getField @"cardIssuerBankName"card) (Just T.empty)
         , payment_method_type = Just "WALLET"

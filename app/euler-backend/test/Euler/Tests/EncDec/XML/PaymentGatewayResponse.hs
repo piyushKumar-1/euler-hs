@@ -18,6 +18,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy  as BSL
 import qualified Data.Map.Strict       as Map
 import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Text as T
 
 import Euler.Common.Types.PaymentGatewayResponseXml
 
@@ -27,9 +28,16 @@ spec =
   describe "PaymentGatewayResponseXml encoding decoding" $ do
 
     it "LHS (linked-hash-map) decoding from raw bytestring" $  do
-      let ns = fromRawXml $ BC.pack rawLinkedHashMapXML
-      let res = runParser fromXml =<< ns
+      let res = decodeXml $ BC.pack rawLinkedHashMapXML
       res `shouldBe` (Right testLHM)
+
+    it "LHS (linked-hash-map) find entry: SUCCESS" $  do
+      let res = findEntry "SomeTextEntry" "" (T.pack rawLinkedHashMapXML)
+      res `shouldBe` "TextValue"
+
+    it "LHS (linked-hash-map) find entry: FAIL" $  do
+      let res = findEntry "SomeTextEntryWrong" "default" (T.pack rawLinkedHashMapXML)
+      res `shouldBe` "default"
 
     it "LHS (linked-hash-map) encode/decode" $  do
       let nodes = toXml testLHM
@@ -41,15 +49,21 @@ spec =
       resFromDecodedNodes `shouldBe` (Right testLHM)
 
     it "LHS (linked-hash-map) with complex string value" $ do
-      let ns = fromRawXml $ BC.pack rawLinkedHashMapXML2
-      let res = runParser fromXml =<< ns
-      res `shouldBe` (Right $ LHM $ Map.fromList $ coerce
+      let res = decodeXml $ BC.pack rawLinkedHashMapXML2
+      res `shouldBe` (Right $ PGRLhm $ LHM $ Map.fromList $ coerce
         [Entry ("soap:Envelope", EText (TLE.decodeUtf8 $ BSL.fromStrict $ BC.pack rawXML2TextValue))])
 
     it "groovy hash map from raw string" $ do
-      let ns = fromRawXml $ BC.pack groovyHMS
-      let res = runParser fromXml =<< ns
+      let res = decodeXml $ BC.pack groovyHMS
       res `shouldBe` (Right $ testGroovyHM)
+
+    it "groovy hash map: find entry: SUCCESS" $  do
+      let res = findEntry "checksum" "" (T.pack groovyHMS)
+      res `shouldBe` "b43ac9dcfb502b3e8e0a5578e40e18d0db8dbf19d88f419146aa12ca1771d47a"
+
+    it "groovy hash map: find entry: FAIL" $  do
+      let res = findEntry "SomeTextEntryWrong" "default" (T.pack groovyHMS)
+      res `shouldBe` "default"
 
     it "groovy hash map enc/dec" $ do
       let nodes = toXml testGroovyHM
@@ -61,16 +75,24 @@ spec =
       resFromDecodedNodes `shouldBe` (Right testGroovyHM)
 
     it "PRGXml from raw string" $ do
-      let groovyXML = runParser fromXml =<< (fromRawXml $ BC.pack groovyHMS)
-      let lhmXML = runParser fromXml =<< (fromRawXml $ BC.pack rawLinkedHashMapXML)
-      let mapXML = runParser fromXml =<< (fromRawXml $ BC.pack rawXmlMapXML)
-      groovyXML `shouldBe` (Right $ PGRGhm testGroovyHM)
-      lhmXML `shouldBe` (Right $ PGRLhm testLHM)
-      mapXML `shouldBe` (Right $ PGRMap testXmlMap)
+      let groovyXML = decodeXml $ BC.pack groovyHMS
+      let lhmXML = decodeXml $ BC.pack rawLinkedHashMapXML
+      let mapXML = decodeXml $ BC.pack rawXmlMapXML
+      groovyXML `shouldBe` (Right testGroovyHM)
+      lhmXML `shouldBe` (Right testLHM)
+      mapXML `shouldBe` (Right testXmlMap)
+
+    it "XmlMap hash map: find entry: SUCCESS" $  do
+      let res = findEntry "SomeTextEntry" "" (T.pack rawXmlMapXML)
+      res `shouldBe` "TextValue"
+
+    it "XmlMap hash map: find entry: FAIL" $  do
+      let res = findEntry "SomeTextEntryWrong" "default" (T.pack rawXmlMapXML)
+      res `shouldBe` "default"
 
 
-testLHM :: LHM
-testLHM = LHM $ Map.fromList $ coerce [ Entry ("SomeTextEntry", EText "TextValue")
+testLHM :: PGRXml
+testLHM = PGRLhm $ LHM $ Map.fromList $ coerce [ Entry ("SomeTextEntry", EText "TextValue")
               , Entry ("SomeBoolEntry", EBool True)
               , Entry ("SomeIntEntry", EInt 5)
               ]
@@ -138,8 +160,8 @@ rawXML2TextValue = [r|
       </soap:Body>
     |]
 
-testGroovyHM :: GroovyHM
-testGroovyHM = GroovyHM (Map.fromList
+testGroovyHM :: PGRXml
+testGroovyHM = PGRGhm $ GroovyHM (Map.fromList
   [("checksum",EText "b43ac9dcfb502b3e8e0a5578e40e18d0db8dbf19d88f419146aa12ca1771d47a")
   ,("customResponse",EText "{}")
   ,("payload",EGroovyHM (GroovyHM (Map.fromList [("amount",EText "1.00")
@@ -232,8 +254,8 @@ groovyHMS = [r|<org.codehaus.groovy.grails.web.json.JSONObject>
   </myHashMap>
 </org.codehaus.groovy.grails.web.json.JSONObject>|]
 
-testXmlMap :: XmlMap
-testXmlMap = XmlMap $ Map.fromList $ coerce [ Entry ("SomeTextEntry", EText "TextValue")
+testXmlMap :: PGRXml
+testXmlMap = PGRMap $ XmlMap $ Map.fromList $ coerce [ Entry ("SomeTextEntry", EText "TextValue")
               , Entry ("SomeBoolEntry", EBool True)
               , Entry ("SomeIntEntry", EInt 5)
               ]

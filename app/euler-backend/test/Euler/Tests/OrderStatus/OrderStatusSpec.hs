@@ -49,6 +49,7 @@ spec =
               mCardBrand
               mRefunds
               mChargeback
+              returnUrlGoogle
         statusResp `shouldBe` Right orderStatusResponse1
       it "Success with txnDetailNothing, promotionJust" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
@@ -64,6 +65,7 @@ spec =
               mCardBrand
               mRefunds
               mChargeback
+              returnUrlGoogle
         statusResp `shouldBe` Right orderStatusResponse2
       it "Success with txnDetailJust, promotionNothing" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
@@ -79,6 +81,7 @@ spec =
               mCardBrand
               mRefunds
               mChargeback
+              returnUrlGoogle
         statusResp `shouldBe` Right orderStatusResponse3
 
 
@@ -124,6 +127,9 @@ orderRef = OrderReference
   , mandateFeature    = Just OPTIONAL
   , autoRefund        = Just True
   }
+
+returnUrlGoogle :: Text
+returnUrlGoogle = "http://google.ru"
 
 paymentlinks :: Paymentlinks
 paymentlinks = Paymentlinks
@@ -316,7 +322,7 @@ orderStatusResponse1 = OrderStatusResponse
   , currency = Just "USD"
   , order_id = Just "orderId"
   , date_created = "2020-01-12 02:13:00"
-  , return_url = Just "returnUrl"
+  , return_url = Just "http://google.ru"
   , product_id = "productId"
   , customer_email = Just "email@email.ru"
   , customer_phone = Just "911"
@@ -476,7 +482,7 @@ orderStatusResponse2 = OrderStatusResponse
   , currency = Just "USD"
   , order_id = Just "orderId"
   , date_created = "2020-01-12 02:13:00"
-  , return_url = Just "returnUrl"
+  , return_url = Just "http://google.ru"
   , product_id = "productId"
   , customer_email = Just "email@email.ru"
   , customer_phone = Just "911"
@@ -607,7 +613,7 @@ orderStatusResponse3 = OrderStatusResponse
   , currency = Just "USD"
   , order_id = Just "orderId"
   , date_created = "2020-01-12 02:13:00"
-  , return_url = Just "returnUrl"
+  , return_url = Just "http://google.ru"
   , product_id = "productId"
   , customer_email = Just "email@email.ru"
   , customer_phone = Just "911"

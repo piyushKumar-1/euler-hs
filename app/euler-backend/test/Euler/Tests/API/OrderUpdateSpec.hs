@@ -26,7 +26,7 @@ import qualified Euler.Common.Errors.PredefinedErrors   as Errs
 import qualified Euler.Storage.DBConfig                 as DB
 import qualified Euler.Storage.Types.MerchantAccount    as Merchant
 import qualified Euler.Product.OLTP.Services.AuthenticationService as Auth
-import qualified Euler.Product.OLTP.Order.Update        as OrderUpdate
+import qualified Euler.Product.OLTP.Order.Update        as OU
 
 
 import qualified WebService.Types as T
@@ -125,13 +125,6 @@ newVersion = Version "2018-10-25"
 auth :: Authorization
 auth = Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI="
 
-runOrderUpdateWithValidation rp req mAcc = do
-  let validReq = VO.apiOrderUpdToOrderUpdT req
-  case validReq of
-    V.Failure err -> do
-      logError "OrderUpdateRequest validation" $ show err
-      throwException $ Errs.mkValidationError err
-    V.Success validatedOrder -> OrderUpdate.orderUpdate rp validatedOrder mAcc
 
 -- update all address, udf fields and amount
 updateRequest :: OrderUpdateRequest
@@ -295,12 +288,12 @@ spec =
 
         xit "Update" $ \rt -> do
           let rp = collectRPs orderForUpdate auth oldVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp updateRequest
+          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp updateRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
         xit "Cleanup" $ \rt -> do
           let rp = collectRPs orderForCleanup auth oldVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp cleanupRequest
+          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp cleanupRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
     describe "New version" $ do
@@ -309,10 +302,10 @@ spec =
 
         xit "Update" $ \rt -> do
           let rp = collectRPs orderForUpdate auth newVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp updateRequest
+          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp updateRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
         xit "Cleanup" $ \rt -> do
           let rp = collectRPs orderForCleanup auth newVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc runOrderUpdateWithValidation rp cleanupRequest
+          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp cleanupRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse

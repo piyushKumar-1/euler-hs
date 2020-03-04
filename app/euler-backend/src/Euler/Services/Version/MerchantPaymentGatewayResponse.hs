@@ -1,7 +1,6 @@
 module Euler.Services.Version.MerchantPaymentGatewayResponse
-  ( MerchantPGRService
+  ( MerchantPGRService(..)
   , mkMerchantPGRService
-  , transformMPGR
   )
   where
 
@@ -16,35 +15,26 @@ import Euler.Common.Types.Gateway
 -- change to newtype?
 type Version = Text
 
-transformMPGR :: MerchantPGRService -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-transformMPGR MerchantPGRService{..}
-  = setOffer
-  . setOfferAvailed
-  . setOfferType
-  . setOfferFailureReason
-  . setDiscountAmount
-  . setAuthIdCodeAndRRN
+transformMPGR' :: Version -> GatewayId -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
+transformMPGR' v gwId
+  = setOffer' v
+  . setOfferAvailed' v
+  . setOfferType' v
+  . setOfferFailureReason' v
+  . setDiscountAmount' v
+  . setAuthIdCodeAndRRN' v gwId
 
 
 
 data MerchantPGRService = MerchantPGRService
-  { setOffer :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-  , setOfferAvailed :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-  , setOfferType :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-  , setOfferFailureReason :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-  , setDiscountAmount :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
-  , setAuthIdCodeAndRRN :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
+  { transformMPGR :: MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
   }
 
 mkMerchantPGRService :: Version -> GatewayId -> MerchantPGRService
 mkMerchantPGRService version gwId = MerchantPGRService
-  { setOffer = setOffer' version
-  , setOfferAvailed = setOfferAvailed' version
-  , setOfferType = setOfferType' version
-  , setOfferFailureReason = setOfferFailureReason' version
-  , setDiscountAmount = setDiscountAmount' version
-  , setAuthIdCodeAndRRN = setAuthIdCodeAndRRN' version gwId
+  { transformMPGR = transformMPGR' version gwId
   }
+
 
 setOffer' :: Version -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
 setOffer' version
@@ -72,7 +62,6 @@ setDiscountAmount' version
   | otherwise = id
 
 setAuthIdCodeAndRRN' :: Version -> GatewayId -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
--- setAuthIdCodeAndRRN' = undefined
 setAuthIdCodeAndRRN' version gwId mpgr
   | (version < "2017-10-26"  || version == "")
     && Just gwId == gatewayIdFromGateway PAYU =

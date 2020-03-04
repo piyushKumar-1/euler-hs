@@ -13,41 +13,31 @@ import qualified Euler.API.RouteParameters as RP
 import qualified Euler.Product.Domain      as D
 
 
-getOrderStatusResponse :: OrderStatusService
-  -> Text
+getOrderStatusResponse' :: Text
   -> D.MerchantAccount
   -> Bool
   -> RP.RouteParameters
   ->Flow API.OrderStatusResponse
-getOrderStatusResponse srv orderId mAcc isAuth rp = do
-  let ordStatReq = getEmptyOrderStatusRequest srv orderId
-  ordStatusResp <- getOrdStatusResp srv ordStatReq mAcc isAuth rp
-  addOrderStatusResponseToCache srv ordStatReq isAuth mAcc rp ordStatusResp
+getOrderStatusResponse' orderId mAcc isAuth rp = do
+  let ordStatReq = getEmptyOrderStatusRequest' orderId
+  ordStatusResp <- getOrdStatusResp' ordStatReq mAcc isAuth rp
+  addOrderStatusResponseToCache' ordStatReq isAuth mAcc rp ordStatusResp
   pure ordStatusResp
 
 data OrderStatusService = OrderStatusService
-  { getOrdStatusResp :: API.OrderStatusRequest -- default with current order orderId
-                        --  getOrderStatusRequest
-                        --  from src/Types/Communication/OLTP/OrderStatus.purs
-                     -> D.MerchantAccount
-                     -> Bool -- true
-                     -> RP.RouteParameters
-                     -> Flow API.OrderStatusResponse
-  , addOrderStatusResponseToCache :: API.OrderStatusRequest
-                                  -> Bool
-                                  -> D.MerchantAccount
-                                  -> RP.RouteParameters
-                                  -> API.OrderStatusResponse
-                                  -> Flow ()
-  , getEmptyOrderStatusRequest :: Text -> API.OrderStatusRequest
+  { getOrderStatusResponse :: Text
+                           -> D.MerchantAccount
+                           -> Bool
+                           -> RP.RouteParameters
+                           ->Flow API.OrderStatusResponse
   }
+
 
 defaultOrderStatusService :: OrderStatusService
 defaultOrderStatusService = OrderStatusService
-  { getOrdStatusResp = getOrdStatusResp'
-  , addOrderStatusResponseToCache = addOrderStatusResponseToCache'
-  , getEmptyOrderStatusRequest = getEmptyOrderStatusRequest'
+  { getOrderStatusResponse = getOrderStatusResponse'
   }
+
 
 
 --  getOrderStatusRequest

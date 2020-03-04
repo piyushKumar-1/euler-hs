@@ -4,8 +4,10 @@
 module Euler.Product.OLTP.Order.Update where
 
 import EulerHS.Prelude hiding (id, get)
-import EulerHS.Language
-import WebService.Language
+
+import           EulerHS.Language
+import qualified EulerHS.Extra.Validation as V
+import           WebService.Language
 
 import           Data.Generics.Product.Fields
 import           Data.Generics.Product.Subtype
@@ -19,7 +21,8 @@ import Euler.Product.OLTP.Services.RedisService
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
-import qualified Euler.API.Order as API (OrderStatusResponse, defaultOrderStatusResponse)
+import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
+import qualified Euler.API.Validators.Order as VO
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
@@ -44,8 +47,25 @@ import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
 
 -- EHS: we did not check amount like in orderCreate it's ok?
 
-orderUpdate :: RP.RouteParameters -> Ts.OrderUpdateTemplate -> D.MerchantAccount -> Flow API.OrderStatusResponse
-orderUpdate  routeParams orderUpdateT mAccnt = do
+runOrderUpdate :: RP.RouteParameters
+  -> API.OrderUpdateRequest
+  -> D.MerchantAccount
+  -> Flow API.OrderStatusResponse
+runOrderUpdate routeParams req mAcc = do
+  let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
+  let service = VSrv.mkOrderStatusService version
+  case VO.apiOrderUpdToOrderUpdT req of
+    V.Failure err -> do
+      logError "OrderUpdateRequest validation" $ show err
+      throwException $ Errs.mkValidationError err
+    V.Success validatedOrder -> orderUpdate routeParams service validatedOrder mAcc
+
+orderUpdate :: RP.RouteParameters
+            -> VSrv.OrderStatusService
+            -> Ts.OrderUpdateTemplate
+            -> D.MerchantAccount
+            -> Flow API.OrderStatusResponse
+orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdateT mAccnt = do
   let merchantId' = getField @"merchantId" mAccnt
   orderId' <- maybe
     (throwException Errs.orderIdNotFoundInPath)
@@ -61,10 +81,8 @@ orderUpdate  routeParams orderUpdateT mAccnt = do
         mAccnt
         True
         routeParams
-      let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
       let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
-      pure $ VSrv.transformOrderStatus
-        (VSrv.mkOrderStatusService version gatewayId) resp'
+      pure $ transformOrderStatus gatewayId resp'
     Nothing -> throwException $ Errs.orderDoesNotExist orderId'
   logInfo "order update response: " $ show resp
   pure API.defaultOrderStatusResponse --resp

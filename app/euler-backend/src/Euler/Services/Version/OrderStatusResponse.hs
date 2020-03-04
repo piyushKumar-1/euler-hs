@@ -1,7 +1,6 @@
 module Euler.Services.Version.OrderStatusResponse
-  ( OrderStatusService
+  ( OrderStatusService(..)
   , mkOrderStatusService
-  , transformOrderStatus
   )
   where
 
@@ -28,56 +27,48 @@ type OrderPId = Int
 -- -- Euler.Common.Types.Merchant
 type MerchantId = Text
 
-transformOrderStatus :: OrderStatusService -> OrderStatusResponse -> OrderStatusResponse
-transformOrderStatus OrderStatusService{..}
-  = setRefunds
-  . setPaymentGatewayResponse
-  . setChargebacks
-  . setTxnDetail
-  . setGatewayReferenceId
+transformOrderStatus' :: Version  -> C.GatewayId -> OrderStatusResponse -> OrderStatusResponse
+transformOrderStatus' version gwId
+  = setRefunds' (mkRefundService version)
+  . setPaymentGatewayResponse' (mkMerchantPGRService version gwId)
+  . setChargebacks' version
+  . setTxnDetail' version
+  . setGatewayReferenceId' version
 
-tokenizeOrderStatusResponse :: OrderStatusService -> C.OrderPId -> C.MerchantId -> OrderStatusResponse -> Flow OrderStatusResponse
-tokenizeOrderStatusResponse OrderStatusService{..}  orderPId merchantId orderStatusResp = do
-  token <- getToken tokenService orderPId merchantId
-  pure $ updateResponse token orderStatusResp
+tokenizeOrderStatusResponse' :: Version -> C.OrderPId -> C.MerchantId -> OrderStatusResponse -> Flow OrderStatusResponse
+tokenizeOrderStatusResponse' version orderPId merchantId orderStatusResp = do
+  token <- getToken (mkOrderTokenRespService version) orderPId merchantId
+  pure $ updateResponse' version token orderStatusResp
 
 data OrderStatusService = OrderStatusService
-  { setRefunds :: OrderStatusResponse -> OrderStatusResponse
-  , setPaymentGatewayResponse :: OrderStatusResponse -> OrderStatusResponse
-  , setChargebacks :: OrderStatusResponse -> OrderStatusResponse
-  , setTxnDetail :: OrderStatusResponse -> OrderStatusResponse
-  , setGatewayReferenceId :: OrderStatusResponse -> OrderStatusResponse
-  , tokenService :: OrderTokenRespService
-  , updateResponse :: Maybe OrderTokenResp -> OrderStatusResponse -> OrderStatusResponse
+  { transformOrderStatus :: C.GatewayId -> OrderStatusResponse -> OrderStatusResponse
+  , tokenizeOrderStatusResponse :: C.OrderPId -> C.MerchantId -> OrderStatusResponse -> Flow OrderStatusResponse
   }
 
-mkOrderStatusService :: Version -> C.GatewayId -> OrderStatusService
-mkOrderStatusService version gwId = OrderStatusService
-  { setRefunds = setRefunds' (mkRefundService version)
-  , setPaymentGatewayResponse = setPaymentGatewayResponse' (mkMerchantPGRService version gwId)
-  , setChargebacks = setChargebacks' version
-  , setTxnDetail = setTxnDetail' version
-  , setGatewayReferenceId = setGatewayReferenceId' version
-  , tokenService = mkOrderTokenRespService version
-  , updateResponse = updateResponse' version
+
+mkOrderStatusService :: Version -> OrderStatusService
+mkOrderStatusService version = OrderStatusService
+  { transformOrderStatus = transformOrderStatus' version
+  , tokenizeOrderStatusResponse = tokenizeOrderStatusResponse' version
   }
+
 
 updateResponse' version
   | version >= "2018-07-01" = setField @"juspay"
   | otherwise = \ _ orderStatusResp  -> orderStatusResp
 
 setRefunds' :: RefundService -> OrderStatusResponse -> OrderStatusResponse
-setRefunds' rh orderStatus
+setRefunds' RefundService{transformRefunds} orderStatus
   | length newRefundStatuses > 0 = setField @"refunds" (Just newRefundStatuses) orderStatus
   | otherwise = orderStatus
   where
-    newRefundStatuses = transformRefunds rh
+    newRefundStatuses = transformRefunds
      $ fromMaybe [] $ getField @"refunds" orderStatus
 
 setPaymentGatewayResponse' :: MerchantPGRService -> OrderStatusResponse -> OrderStatusResponse
-setPaymentGatewayResponse' mpgrh otderStatus = setField @"payment_gateway_response" mpgr otderStatus
+setPaymentGatewayResponse' MerchantPGRService{..} otderStatus = setField @"payment_gateway_response" mpgr otderStatus
   where
-    mpgr = transformMPGR mpgrh <$> getField @"payment_gateway_response" otderStatus
+    mpgr = transformMPGR <$> getField @"payment_gateway_response" otderStatus
 
 setChargebacks' :: Version -> OrderStatusResponse -> OrderStatusResponse
 setChargebacks' version

@@ -1,7 +1,6 @@
 module Euler.Services.Version.Refund
-  ( RefundService
+  ( RefundService(..)
   , mkRefundService
-  , transformRefunds
   )
   where
 
@@ -17,33 +16,26 @@ import Euler.Common.Types.Refund as Refund
 -- change to newtype?
 type Version = Text
 
-transformRefund :: RefundService -> Refund' -> Refund'
-transformRefund RefundService{..}
-  = setInitiatedBy
-  . setType
-  . setSource
-  . setStatus
+transformRefund :: Version -> Refund' -> Refund'
+transformRefund version
+  = setInitiatedBy' version
+  . setType' version
+  . setSource' version
+  . setStatus' version
 
-transformRefunds :: RefundService -> [Refund'] -> [Refund']
-transformRefunds rh@RefundService{..} rfs = transformRefund rh <$> filterRefunds rfs
+transformRefunds' :: Version -> [Refund'] -> [Refund']
+transformRefunds' version rfs = transformRefund version <$> filterRefunds' version rfs
 
 data RefundService = RefundService
-  { setInitiatedBy :: Refund' -> Refund'
-  , setType        :: Refund' -> Refund'
-  , setSource      :: Refund' -> Refund'
-  , setStatus      :: Refund' -> Refund'
-  , filterRefunds  :: [Refund'] -> [Refund']
+  { transformRefunds :: [Refund'] -> [Refund']
   }
 
 
 mkRefundService :: Version -> RefundService
 mkRefundService version = RefundService
-  { setInitiatedBy = setInitiatedBy' version
-  , setType = setType' version
-  , setSource = setSource' version
-  , setStatus = setStatus' version
-  , filterRefunds = filterRefunds' version
+  { transformRefunds = transformRefunds' version
   }
+
 
 setInitiatedBy' :: Version -> Refund' -> Refund'
 setInitiatedBy' version

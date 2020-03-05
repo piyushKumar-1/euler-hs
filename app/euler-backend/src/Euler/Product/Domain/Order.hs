@@ -4,6 +4,7 @@ module Euler.Product.Domain.Order where
 
 import EulerHS.Prelude
 import Data.Time
+import Euler.Common.Types.External.Mandate (MandateFeature)
 import Euler.Common.Types.Merchant(MerchantId)
 import Euler.Common.Types.Money
 import Euler.Common.Types.Order (OrderStatus, OrderMandate, UDF, OrderType, OrderId, OrderPId)
@@ -44,7 +45,7 @@ data Order = Order
 
   , productId         :: Maybe Text
 
-  , mandate           :: OrderMandate         -- EHS: not a domain field        -- ^ Default: MandateDisabled
+  , mandate           :: MandateFeature --OrderMandate         -- EHS: not a domain field        -- ^ Default: MandateDisabled
 
   , lastSynced        :: Maybe LocalTime          -- EHS: Not a domain fields
   , dateCreated       :: LocalTime          -- EHS: Not a domain fields

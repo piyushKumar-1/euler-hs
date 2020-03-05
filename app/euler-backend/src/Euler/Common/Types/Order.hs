@@ -105,13 +105,13 @@ toMandateEx :: OrderMandate -> MEx.MandateFeature
 toMandateEx  MandateDisabled    = MEx.DISABLED
 toMandateEx (MandateRequired _) = MEx.REQUIRED
 toMandateEx (MandateOptional _) = MEx.OPTIONAL
-toMandateEx MandateReqUndefined = MEx.REQUIRED
-toMandateEx MandateOptUndefined = MEx.OPTIONAL
+--toMandateEx MandateReqUndefined = MEx.REQUIRED
+--toMandateEx MandateOptUndefined = MEx.OPTIONAL
 
-fromMandateEx :: MEx.MandateFeature -> OrderMandate
-fromMandateEx MEx.DISABLED = MandateDisabled
-fromMandateEx MEx.REQUIRED = MandateReqUndefined
-fromMandateEx MEx.OPTIONAL = MandateOptUndefined
+--fromMandateEx :: MEx.MandateFeature -> OrderMandate
+--fromMandateEx MEx.DISABLED = MandateDisabled
+--fromMandateEx MEx.REQUIRED = MandateReqUndefined
+--fromMandateEx MEx.OPTIONAL = MandateOptUndefined
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data ClientAuthTokenData = ClientAuthTokenData
@@ -159,14 +159,14 @@ data OrderMandate
   = MandateDisabled
   | MandateRequired MandateMaxAmount
   | MandateOptional MandateMaxAmount
-  | MandateReqUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
-  | MandateOptUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
+ -- | MandateReqUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
+ -- | MandateOptUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 
 getOrderType :: OrderMandate -> OrderType
 getOrderType (MandateRequired _)   = MANDATE_REGISTER
-getOrderType MandateReqUndefined   = MANDATE_REGISTER
+--getOrderType MandateReqUndefined   = MANDATE_REGISTER
 getOrderType _                     = ORDER_PAYMENT
 
 

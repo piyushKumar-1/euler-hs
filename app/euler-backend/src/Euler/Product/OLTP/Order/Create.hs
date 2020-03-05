@@ -84,7 +84,7 @@ doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
   order         <- createOrder' routeParams order' mAccnt merchantPrefs
   _             <- updateOrderCache order
-  _             <- updateMandateCache order -- maybe pass mandate from OrderCreateTemplate?
+  _             <- updateMandateCache order $ order' ^. _mandate
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.
@@ -107,22 +107,19 @@ updateOrderCache order = do
 --      It's not clear whether this a valid behaviour (seems not).
 -- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
 --      Why this cache exist? What it does?
-updateMandateCache :: D.Order -> Flow ()
-updateMandateCache order = case order ^. _mandate of
-    D.MandateDisabled           -> pure ()
-    D.MandateRequired maxAmount -> updateMandateCache' maxAmount
-    D.MandateOptional maxAmount -> updateMandateCache' maxAmount
-    -- EHS: Need to do something with this. Pass mandate from OrderCreateTemplate
-    -- and use in domain Order simple madate type (without maxAmount value)?
-    D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
-    D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
+updateMandateCache :: D.Order -> D.OrderMandate -> Flow ()
+updateMandateCache order mandate = case mandate of
+  D.MandateDisabled           -> pure ()
+  D.MandateRequired maxAmount -> updateMandateCache' maxAmount
+  D.MandateOptional maxAmount -> updateMandateCache' maxAmount
+
   where
     updateMandateCache' ma = do
-        let merchantId = order ^. _merchantId
-        let orderId    = order ^. _orderId
-        mandate <- createMandate order ma
-        -- EHS: magic constant
-        void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
+      let merchantId = order ^. _merchantId
+      let orderId    = order ^. _orderId
+      mandate' <- createMandate order ma
+      -- EHS: magic constant
+      void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
 
     createMandate :: D.Order -> Double -> Flow DB.Mandate
     createMandate order' maxAmount = do
@@ -164,9 +161,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
     D.MandateDisabled           -> pure ()
     D.MandateRequired maxAmount -> validateMaxAmount maxAmount
     D.MandateOptional maxAmount -> validateMaxAmount maxAmount
-    -- EHS: Need to do something with this.
-    D.MandateReqUndefined       -> error "MandateReqUndefined not handled."
-    D.MandateOptUndefined       -> error "MandateReqUndefined not handled."
+
   where
     validateMaxAmount maxAmount = do
 

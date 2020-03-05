@@ -10,8 +10,8 @@ import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Types.TxnDetail (TxnDetailId)
 import           Euler.Product.Domain.Money
 import qualified Euler.Product.Domain.Refund as D
-import           Euler.Storage.Types.EulerDB as EDB
-import qualified Euler.Storage.Types.Refund as S
+
+import qualified Euler.Storage.Types as DB
 
 import qualified Data.Text as T
 import           Database.Beam ((==.))
@@ -22,12 +22,12 @@ import qualified Database.Beam as B
 findRefunds :: TxnDetailId -> Flow [D.Refund]
 findRefunds txnId = do
   rs <- withDB eulerDB $ do
-    let predicate S.Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
+    let predicate DB.Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
     findRows
       $ B.select
       $ B.filter_ predicate
       -- TODO: $ B.orderBy_ (B.asc_ . ???dateCreated???)
-      $ B.all_ (EDB.refund eulerDBSchema)
+      $ B.all_ (DB.refund DB.eulerDBSchema)
   case (traverse transformRefund rs) of
     Success rs' -> pure rs'
     Failure e -> do
@@ -36,7 +36,7 @@ findRefunds txnId = do
       throwException internalError
 
 
-transformRefund :: S.Refund -> V D.Refund
+transformRefund :: DB.Refund -> V D.Refund
 transformRefund r = D.Refund
   <$> (D.RefundId <$> withField @"id" r (extractJust >=> textNotEmpty))
   <*> (mkMoney <$> withField @"amount" r amountValidators)

@@ -11,7 +11,6 @@ import           Database.Beam.Backend.SQL
 import           Database.Beam.Postgres
 import           Database.Beam.Sqlite
 import           Database.Beam.MySQL
-import           Web.FormUrlEncoded
 import           Web.Internal.HttpApiData
 
 import qualified Data.Text as T (pack, unpack)

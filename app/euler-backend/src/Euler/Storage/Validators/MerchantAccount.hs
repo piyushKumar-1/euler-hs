@@ -4,7 +4,6 @@ module Euler.Storage.Validators.MerchantAccount where
 
 import EulerHS.Prelude
 import EulerHS.Extra.Validation
-import qualified Data.Text as T
 
 import           Euler.Common.Validators
 

@@ -211,6 +211,7 @@ sockAddrToSourceIP sAddr =
       $ show8tuple $ hostAddress6ToTuple h
     SockAddrUnix s        -> SourceIP
       $ toText s
+    SockAddrCan _         -> SourceIP "" -- SockAddrCan - deprecated: This will be removed in network-3.0
   where
     show4tuple (a,b,c,d) =
       show a <> separator4 <>

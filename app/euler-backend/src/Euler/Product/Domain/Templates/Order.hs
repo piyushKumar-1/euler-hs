@@ -6,14 +6,11 @@ module Euler.Product.Domain.Templates.Order where
 import           EulerHS.Prelude
 
 import           Euler.Common.Types.Currency (Currency)
-import           Euler.Common.Types.Customer (CustomerId)
-import           Euler.Common.Types.Order     (OrderMandate (..), OrderStatus (..), OrderType (..), UDF)
-import           Euler.Common.Types.Promotion
+import           Euler.Common.Types.Order     (OrderMandate (..), OrderType (..), UDF)
 import           Euler.Common.Types.Gateway (GatewayId)
 import           Euler.Common.Types.Money (Money)
 
 import           Euler.Product.Domain.Templates.Address
-import           Euler.Product.Domain.Templates.Customer
 
 
 data OrderUpdateTemplate = OrderUpdateTemplate

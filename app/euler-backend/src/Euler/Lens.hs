@@ -3,8 +3,6 @@
 
 module Euler.Lens where
 
-import EulerHS.Prelude
-import Data.Generics.Product.Fields
 import Euler.GenericLensTH
 
 import Euler.Storage.Types.AuthenticationAccount as STAuthenticationAccount

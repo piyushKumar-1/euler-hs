@@ -4,22 +4,15 @@
 module Euler.Product.OLTP.Order.Create where
 
 import EulerHS.Prelude hiding (id, get)
-import qualified EulerHS.Prelude as EHP
 
-import qualified Prelude              as P (show, notElem)
-import qualified Data.Aeson           as A
 import qualified Data.Text            as Text
 import qualified Text.Read            as TR
-import           Data.Generics.Product.Fields
 import           Data.Generics.Product.Subtype
-import           Data.List (lookup, span)
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import           Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
+
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
 -- Map to Servant in handlers.
-import           Servant.Server (errBody, err500, err400)
+import           Servant.Server (errBody, err400)
 import qualified EulerHS.Extra.Validation as V
 
 import           EulerHS.Language
@@ -40,17 +33,13 @@ import qualified Euler.API.Validators.Order as VO
 import qualified Euler.Common.Types                as D
 import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Common.Types.External.Order as OEx
-import qualified Euler.Common.Metric               as Metric
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Product.Domain.Order        as D
 import qualified Euler.Product.Domain              as D
 import           Euler.Product.Domain.MerchantAccount
-import           Euler.Product.OLTP.Services.RedisService
 import qualified Euler.Product.Domain.Templates    as Ts
 import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
 import qualified Euler.Config.Config               as Config
-import qualified Euler.Config.ServiceConfiguration as SC
-import           Euler.Constant.Constants (defaultVersion)
 import           Euler.Lens
 
 orderCreate
@@ -64,7 +53,7 @@ orderCreate routeParams req ma = do
   let service       = OVS.mkOrderVersioningService mbVersion mbTokenNeeded
   case VO.transApiOrdCreateToOrdCreateT req of
     V.Failure err -> do
-      logError "OrderCreateRequest validation" $ show err
+      logError @String "OrderCreateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
     V.Success validatedOrder -> orderCreate'' routeParams service validatedOrder ma
 
@@ -82,7 +71,7 @@ orderCreate'' routeParams service order' mAccnt = do
 
   case mbExistingOrder of
     -- EHS: should we throw exception or return a previous order?
-    Just orderRef -> throwException $ Errs.orderAlreadyCreated (order' ^. _orderId)
+    Just _        -> throwException $ Errs.orderAlreadyCreated (order' ^. _orderId)
     Nothing       -> doOrderCreate routeParams service order' mAccnt
 
 doOrderCreate
@@ -136,18 +125,18 @@ updateMandateCache order = case order ^. _mandate of
         void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
     createMandate :: D.Order -> Double -> Flow DB.Mandate
-    createMandate order maxAmount = do
+    createMandate order' maxAmount = do
       mandateId   <- getShortUUID
       currentDate <- getCurrentTimeUTC
       token       <- getUUID32
       pure $ DB.Mandate
         { DB.id = Nothing
-        , DB.merchantId = order ^. _merchantId
-        , DB.currency = Just $ order ^. _currency
+        , DB.merchantId = order' ^. _merchantId
+        , DB.currency = Just $ order' ^. _currency
         , DB.endDate = Nothing
         , DB.startDate = Nothing
         , DB.maxAmount = Just maxAmount
-        , DB.merchantCustomerId = order ^. _customerId
+        , DB.merchantCustomerId = order' ^. _customerId
         , DB.paymentMethod = Nothing
         , DB.paymentMethodType = Nothing
         , DB.paymentMethodId = Nothing
@@ -156,7 +145,7 @@ updateMandateCache order = case order ^. _mandate of
         , DB.token = token
         , DB.mandateId = mandateId
         , DB.status = MEx.CREATED
-        , DB.authOrderId = Just $ order ^. _id
+        , DB.authOrderId = Just $ order' ^. _id
         , DB.activatedAt = Nothing
         , DB.dateCreated = currentDate
         , DB.lastModified = currentDate

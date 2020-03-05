@@ -13,11 +13,8 @@ import qualified Data.HashMap.Strict          as HM
 import qualified Data.Map.Strict              as Map
 import qualified Data.Text                    as T
 import qualified Data.Text.Encoding           as T
-import qualified Prelude                      as P
 
 import           Euler.Common.Types.Currency  (Currency)
-import           Euler.Common.Types.Customer  (CustomerId)
-import           Euler.Common.Types.Money     (Money)
 import           Euler.Common.Types.External.Order     (OrderStatus (..))
 import           Euler.Common.Types.External.Mandate   (MandateFeature (..))
 import           Euler.Common.Types.Promotion

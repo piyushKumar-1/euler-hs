@@ -75,8 +75,8 @@ txnRiskCheckEMod = B.modifyTableFields
     , paymentStatusUpdated = B.fieldNamed "payment_status_updated"
     }
 
-defaultTxnRiskCheck :: Maybe Text -> Text -> TxnRiskCheck
-defaultTxnRiskCheck mId txnId = TxnRiskCheck
+defaultTxnRiskCheck ::  TxnRiskCheck
+defaultTxnRiskCheck = TxnRiskCheck
   { id = mempty
   , completeResponse = mempty
   , dateCreated = defaultDate

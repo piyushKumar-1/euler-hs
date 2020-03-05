@@ -15,6 +15,7 @@ import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Data.Aeson as A (Result(..), fromJSON)
+import qualified Database.Redis as RD
 import qualified Control.Exception.Safe as CES (catches, Handler(..))
 
 import Euler.API.RouteParameters
@@ -23,7 +24,6 @@ import Euler.Playback.Types
 import qualified Euler.Common.Errors.ErrorsMapping as EMap
 import qualified Euler.Product.OLTP.Services.AuthenticationService as AS (withMacc)
 import qualified Euler.Product.OLTP.Order.Create                   as OrderCreate
-import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy       as OrderCreateUpdateLegacy
 
 -- EHS: Player should know nothing about methods. Should not depend on APIs
 runMethodPlayer
@@ -37,20 +37,20 @@ runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.o
 runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 
-getMethod :: ( FromJSON resp) => (t1 -> Flow resp) -> () -> t1 -> Flow resp
-getMethod f _ p = f p
+--getMethod :: ( FromJSON resp) => (t1 -> Flow resp) -> () -> t1 -> Flow resp
+--getMethod f _ p = f p
 
-testFlow2 ::  RouteParameters -> Flow Text
-testFlow2  _ = do
-  void $ runSysCmd "echo hello"
-  forkFlow "f1" $ logInfo tag "hellofrom forked flow"
-  res <- runIO $ do
-    putTextLn "text from runio"
-    pure ("text from runio" :: Text)
-  pure res
-  where
-    tag :: String
-    tag = "from f1"
+--testFlow2 ::  RouteParameters -> Flow Text
+--testFlow2  _ = do
+--  void $ runSysCmd "echo hello"
+--  forkFlow "f1" $ logInfo tag "hellofrom forked flow"
+--  res <- runIO $ do
+--    putTextLn "text from runio"
+--    pure ("text from runio" :: Text)
+--  pure res
+--  where
+--    tag :: String
+--    tag = "from f1"
 
 withMethodPlayer
   :: (FromJSON req, FromJSON resp, ToJSON resp, Eq resp, Show resp)
@@ -83,6 +83,7 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
       httpManager <- newManager tlsManagerSettings
       kvdbConnectionsVar <- newMVar mempty
       sqldbConnectionsVar <- newMVar mempty
+      pubSubController  <- RD.newPubSubController [] []
       let flowRt = FlowRuntime
             { _coreRuntime = coreRt
             , _defaultHttpClientManager = httpManager
@@ -91,6 +92,8 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
             , _kvdbConnections = kvdbConnectionsVar
             , _runMode = ReplayingMode playerRt
             , _sqldbConnections = sqldbConnectionsVar
+            , _pubSubController         = pubSubController
+            , _pubSubConnection         = Nothing
             }
       let method = methodF (coerce mcRouteParams) req  -- mr.parameters
       eResult :: Either SomeException resp <- try $ runFlow flowRt method `CES.catches` EMap.handlers

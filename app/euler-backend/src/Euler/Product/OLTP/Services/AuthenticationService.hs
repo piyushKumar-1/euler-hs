@@ -6,12 +6,9 @@ module Euler.Product.OLTP.Services.AuthenticationService where
 import EulerHS.Prelude hiding (id)
 import Euler.Lens
 import EulerHS.Language
-import EulerHS.Types hiding (error)
 
 import qualified EulerHS.Extra.Validation as V
 
-import Data.Generics.Product
-import Data.Generics.Product.Fields
 import Data.List (intersect)
 import Servant.Server
 
@@ -32,14 +29,9 @@ import qualified Data.ByteString.Base64 as BH
 import qualified Data.Text as T
 
 import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime as R
-import qualified EulerHS.Types as T
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (<-.), (/=.))
+import Database.Beam ((==.), (&&.))
 
-import qualified Euler.Storage.Types.SqliteTest as SQLITE
-import Euler.Common.Types.DefaultDate
 
 withMacc :: forall req resp . (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp) -> RouteParameters -> req -> Flow resp
 withMacc f rp req = do
@@ -65,7 +57,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
   Just apiKeyStr -> do
     case extractApiKey apiKeyStr of
       Left err -> do
-        logError "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
+        logError @String "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
         throwException $ eulerAccessDenied "Invalid API key."
       Right apiKey' -> do
         mk <- do
@@ -96,14 +88,14 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         let eValidMerchant = MV.transSMaccToDomMacc merchantAccount
         case eValidMerchant of
           V.Failure e -> do
-            logError "DB MerchantAccount Validation" $ show e
+            logError @String "DB MerchantAccount Validation" $ show e
             throwException internalError
           V.Success validMAcc -> do
             authScope <- getAuthScope routeParams
             _ <- if authScope == MERCHANT then ipAddressFilters validMAcc (lookupRP @XForwardedFor routeParams) else pure True
             pure validMAcc
   Nothing -> do
-    logError "authenticateRequestWithouthErr" "No authorization found in header"
+    logError @String "authenticateRequestWithouthErr" "No authorization found in header"
     throwException $ eulerAccessDenied "API key not present in Authorization header"
  -- where getApiKeyFromHeader routeParams = do
  --         ((split (Pattern ":") <<< decodeBase64) <$> ((split (Pattern " ") <$> (lookup "Authorization" routeParams)) >>= last))
@@ -121,80 +113,80 @@ getAuthScope routeParams = pure $ case (lookupRP @XAuthScope routeParams) of
   Nothing -> MERCHANT
 -- ##############
 
+--poolConfig :: PoolConfig
+--poolConfig = T.PoolConfig
+--  { stripes = 1
+--  , keepAlive = 10
+--  , resourcesPerStripe = 50
+--  }
+--
+--mySQLCfg :: MySQLConfig
+--mySQLCfg = MySQLConfig
+--  { connectHost     = "localhost"
+--  , connectPort     = 3306
+--  , connectUser     = "cloud"
+--  , connectPassword = "scape"
+--  , connectDatabase = "jdb"
+--  , connectOptions  = [CharsetName "utf8"]
+--  , connectPath     = ""
+--  , connectSSL      = Nothing
+--  }
+--
+--mysqlDBC = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
+--
+--sqLiteConfig = mkSQLitePoolConfig "testDB" "/home/vg/work/haskell/euler-hs/app/euler-backend/test/Euler/TestData/test.db" poolConfig
 
-poolConfig = T.PoolConfig
-  { stripes = 1
-  , keepAlive = 10
-  , resourcesPerStripe = 50
-  }
+--connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+--connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
+--  Left e     -> error $ T.pack $  P.show e
+--  Right conn -> pure conn
 
-mySQLCfg :: MySQLConfig
-mySQLCfg = MySQLConfig
-  { connectHost     = "localhost"
-  , connectPort     = 3306
-  , connectUser     = "cloud"
-  , connectPassword = "scape"
-  , connectDatabase = "jdb"
-  , connectOptions  = [CharsetName "utf8"]
-  , connectPath     = ""
-  , connectSSL      = Nothing
-  }
+--connSQLITEorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+--connSQLITEorFail cfg = L.initSqlDBConnection cfg >>= \case
+--  Left e     -> error $ T.pack $  P.show e
+--  Right conn -> pure conn
 
-mysqlDBC = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
+--inSQLITEconn :: Flow ()
+--inSQLITEconn= do
+--  connection <- connSQLITEorFail $ sqLiteConfig
+--  pure ()
 
-sqLiteConfig = mkSQLitePoolConfig "testDB" "/home/vg/work/haskell/euler-hs/app/euler-backend/test/Euler/TestData/test.db" poolConfig
+--inConn :: Flow ()
+--inConn = do
+--  connection <- connMySQLorFail $ mysqlDBC
+--  pure ()
 
-connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ T.pack $  P.show e
-  Right conn -> pure conn
-
-connSQLITEorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connSQLITEorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ T.pack $  P.show e
-  Right conn -> pure conn
-
-inSQLITEconn :: Flow ()
-inSQLITEconn= do
-  connection <- connSQLITEorFail $ sqLiteConfig
-  pure ()
-
-inConn :: Flow ()
-inConn = do
-  connection <- connMySQLorFail $ mysqlDBC
-  pure ()
-
-getConn :: DBConfig beM -> Flow (SqlConn beM)
-getConn cfg = do
-  conn <- getSqlDBConnection cfg
-  case conn of
-    Right c -> pure c
-    Left err -> do
-      logError "SqlDB" $ toText $ P.show err
-      throwException err500 {errBody = "getConn"}
+--getConn :: DBConfig beM -> Flow (SqlConn beM)
+--getConn cfg = do
+--  conn <- getSqlDBConnection cfg
+--  case conn of
+--    Right c -> pure c
+--    Left err -> do
+--      logError "SqlDB" $ toText $ P.show err
+--      throwException err500 {errBody = "getConn"}
 
 
 
-getMACC :: Int -> Flow DBM.MerchantAccount
-getMACC mid = do
-  inConn
-  conn <- getConn mysqlDBC
-  let (k :: Text) = "lllllllllllllllllllllllllll"
-  res <- L.runDB conn $ do
-    let predicate DBM.MerchantAccount {id} = id ==. B.just_ (B.val_ mid)
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (merchant_account eulerDBSchema)
-  case res of
-    Right (Just ma) -> pure ma
-    Right (Nothing) -> do
-      runIO $ putTextLn "Nothing"
-      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just  k)
-    Left err -> do
-      runIO $ putStrLn  $ P.show err
-      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just k)
+--getMACC :: Int -> Flow DBM.MerchantAccount
+--getMACC mid = do
+--  inConn
+--  conn <- getConn mysqlDBC
+--  let (k :: Text) = "lllllllllllllllllllllllllll"
+--  res <- L.runDB conn $ do
+--    let predicate DBM.MerchantAccount {id} = id ==. B.just_ (B.val_ mid)
+--    L.findRow
+--      $ B.select
+--      $ B.limit_ 1
+--      $ B.filter_ predicate
+--      $ B.all_ (merchant_account eulerDBSchema)
+--  case res of
+--    Right (Just ma) -> pure ma
+--    Right (Nothing) -> do
+--      runIO $ putTextLn "Nothing"
+--      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just  k)
+--    Left err -> do
+--      runIO $ putStrLn  $ P.show err
+--      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just k)
 
 -- #############
 --getAuthScope :: RouteParameters -> Flow KeyScope
@@ -211,16 +203,16 @@ ipAddressFilters mAcc mForward =  do
   whitelistedIps <- getWhitelistedIps mAcc
   case whitelistedIps of
     Just ips -> do
-      _ <- logInfo "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
+      _ <- logInfo @String "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
       case (mForward) of
         Just forward -> do
           reqIPs <- pure $ T.strip <$> (filter (not . T.null) $ T.split (==',') forward)
           if (length $ intersect reqIPs ips) > 0
             then do
-              _ <- logInfo "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
+              _ <- logInfo @String "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
               pure True
             else do
-            _ <- logInfo "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
+            _ <- logInfo @String "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
             throwException err403 {errBody = "Bad origin."}
         Nothing -> pure True
     Nothing -> pure True
@@ -241,5 +233,6 @@ getWhitelistedIps mAcc = do
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
-        _   <- rSetex ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips (5 * 60 * 60)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        let fiveHours :: Integer = 5 * 60 * 60
+        _   <- rSetex ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips fiveHours-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

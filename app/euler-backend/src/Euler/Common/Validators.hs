@@ -7,9 +7,8 @@ import EulerHS.Extra.Validation as V
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 import qualified Data.Text as T
-import           Data.Char (isDigit, digitToInt)
+import           Data.Char (isDigit)
 import           Data.Attoparsec.Text
-import           GHC.Records (getField)
 
 -- EHS: rework imports, rework dependencies.
 import Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
@@ -18,12 +17,7 @@ import Euler.Common.Types.Transaction (AuthType(..))
 import Euler.Product.Domain.UPIPayment (UPITxnType)
 import Euler.Product.Domain.Card (CardType)
 import Euler.Product.Domain.UPIPayment as UPI
-import qualified Euler.Product.Domain.Customer as DC
-import qualified Euler.API.Card as AC
-import qualified Euler.API.Customer as AC
-import qualified Euler.API.Transaction as AT
 import qualified Euler.Product.Domain.Card as DC
-import qualified Euler.Common.Types.Transaction as AT
 
 toInt :: Transformer Text Int
 toInt = V.decode
@@ -175,7 +169,7 @@ customerIdValidators =
 
 
 maskCardNumber' :: Text -> Bool
-maskCardNumber' number = case parseOnly parser number of
+maskCardNumber' number' = case parseOnly parser number' of
   Left _ -> False
   Right (digitsFirst, charX, digitLast) ->
     and [(digitsFirst == 6 && charX == 6) || (digitsFirst == 4 && charX == 8), digitLast == 4]

@@ -6,7 +6,6 @@ module Euler.Storage.Validators.ResellerAccount
 import EulerHS.Prelude
 import EulerHS.Extra.Validation
 
-import qualified Euler.Common.Validators              as Vs
 import qualified Euler.Product.Domain.ResellerAccount as DR
 import qualified Euler.Storage.Types.ResellerAccount  as SR
 

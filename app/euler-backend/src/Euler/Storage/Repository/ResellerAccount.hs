@@ -17,7 +17,6 @@ import qualified Euler.Storage.Types                  as DB
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
-import           Euler.Lens
 
 
 
@@ -40,7 +39,7 @@ loadReseller (Just resellerId') = do
     Just racc -> case toDomResAcc racc of
       V.Success v -> pure $ Just v
       V.Failure e -> do
-        logError "Incorrect reseller account in DB"
+        logError @String "Incorrect reseller account in DB"
           $  " resellerId: " <> resellerId'
           <> " error: " <> show e
         throwException Errs.internalError

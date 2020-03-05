@@ -5,6 +5,7 @@ module Euler.Tests.API.CardSpec where
 import           EulerHS.Prelude
 
 import           Euler.API.Validators.Card
+import           Euler.Common.Validators
 import qualified Euler.Product.Domain.Card as DC
 import           EulerHS.Extra.Validation
 
@@ -27,7 +28,7 @@ spec =
 
       it "textNotEmpty fail" $ do
         let val = withValue textNotEmpty ""
-        val `shouldBe` Left [" Can't be empty."]
+        val `shouldBe` Left [" Can't be empty"]
 
       it "textSizeFrom1To128 success" $ do
         let val = withValue textSizeFrom1To128 "123"

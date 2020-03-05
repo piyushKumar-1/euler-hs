@@ -9,12 +9,8 @@ import Database.Beam.Backend.SQL
 import Database.Beam.Postgres
 import Database.Beam.Sqlite
 import Database.Beam.MySQL
-import Web.FormUrlEncoded
-import Web.Internal.HttpApiData
 
-import qualified Data.Text as T (pack, unpack)
-import qualified Prelude as P (show)
-import qualified Text.Read as TR (readEither)
+import qualified Data.Text as T (unpack)
 
 -- EHS: Type for API and DB.
 -- Temporary, split into separate types for API and DB

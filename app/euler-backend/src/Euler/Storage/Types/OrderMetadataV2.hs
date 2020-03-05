@@ -40,7 +40,7 @@ instance B.Table OrderMetadataV2T where
   primaryKey = Id . id
 
 type OrderMetadataV2 = OrderMetadataV2T Identity
-type Id = B.PrimaryKey OrderMetadataV2T Identity
+-- type Id = B.PrimaryKey OrderMetadataV2T Identity
 
 deriving instance Show OrderMetadataV2
 deriving instance Eq OrderMetadataV2

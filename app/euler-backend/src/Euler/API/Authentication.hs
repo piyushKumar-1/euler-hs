@@ -7,7 +7,6 @@ import EulerHS.Prelude
 import           Data.Generics.Product.Fields
 import qualified Data.ByteString.Base64               as B64
 import qualified Database.Beam                        as B
-import qualified Database.Beam.Backend.SQL            as B
 import qualified Database.Beam.Sqlite                 as B
 import           Database.Beam ((==.), (&&.))
 import qualified Data.Aeson                           as A

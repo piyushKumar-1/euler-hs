@@ -5,7 +5,6 @@ module Euler.Product.Domain.Card where
 
 import EulerHS.Prelude
 
-import Data.Time
 import Data.Data
 
 

@@ -12,11 +12,9 @@ import Euler.Storage.DBConfig (ecDB)
 import Euler.Storage.Types.EulerDB
 import Euler.Storage.Types.ServiceConfiguration
 
-import qualified Data.Map                  as Map
 import qualified Database.Beam             as B
-import qualified Database.Beam.Backend.SQL as B
 
-import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
+import Database.Beam ((==.))
 
 -- EHS: rework this logic.
 

@@ -12,7 +12,6 @@ module Euler.Storage.Types.Chargeback
 
 import           EulerHS.Prelude hiding (id)
 import           Data.Time
-import           Euler.Common.Types.DefaultDate
 import qualified Database.Beam as B
 
 data ChargebackT f = Chargeback

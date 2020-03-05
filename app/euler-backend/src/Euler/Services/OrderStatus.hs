@@ -1,7 +1,6 @@
 module Euler.Services.OrderStatus
   ( OrderStatusService(..)
   , defaultOrderStatusService
-  , getOrderStatusResponse
   )
   where
 
@@ -21,7 +20,7 @@ getOrderStatusResponse' :: Text
 getOrderStatusResponse' orderId mAcc isAuth rp = do
   let ordStatReq = getEmptyOrderStatusRequest' orderId
   ordStatusResp <- getOrdStatusResp' ordStatReq mAcc isAuth rp
-  addOrderStatusResponseToCache' ordStatReq isAuth mAcc rp ordStatusResp
+  void $ addOrderStatusResponseToCache' ordStatReq isAuth mAcc rp ordStatusResp
   pure ordStatusResp
 
 data OrderStatusService = OrderStatusService

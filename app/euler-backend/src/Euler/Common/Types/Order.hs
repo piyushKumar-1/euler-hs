@@ -10,12 +10,8 @@ import Database.Beam.Postgres
 import Database.Beam.Sqlite
 import Database.Beam.MySQL
 import Web.FormUrlEncoded
-import Web.Internal.HttpApiData
 
-import qualified Data.Set as Set
-import qualified Data.Text as T (pack, unpack, filter)
-import qualified Prelude as P (show)
-import qualified Text.Read as TR (readEither)
+import qualified Data.Text as T (unpack)
 
 import qualified Euler.Common.Types.External.Order   as OEx
 import qualified Euler.Common.Types.External.Mandate as MEx

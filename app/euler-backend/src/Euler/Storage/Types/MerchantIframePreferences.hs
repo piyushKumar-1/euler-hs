@@ -12,7 +12,6 @@ module Euler.Storage.Types.MerchantIframePreferences
   ) where
 
 import EulerHS.Prelude hiding (id)
-import Data.Time
 import qualified Database.Beam as B
 import Euler.Common.Types.Currency (Currency)
 

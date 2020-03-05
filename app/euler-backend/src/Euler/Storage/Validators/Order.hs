@@ -9,7 +9,6 @@ import           Euler.Common.Types.Money     (mkMoney)
 import qualified Euler.Common.Validators as Vs
 import qualified Euler.Common.Types.Order as CO
 import qualified Euler.Common.Types.External.Mandate as MEx
-import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Storage.Types.OrderReference  as S
 import qualified Euler.Product.Domain.Order as DO
 
@@ -48,7 +47,7 @@ transSOrderToDOrder so = DO.Order
   <*> withField @"lastSynced" so pure
   <*> withField @"dateCreated" so pure
   <*> withField @"lastModified" so pure
-  
+
   where
     mkMandate MEx.DISABLED = CO.MandateDisabled
     mkMandate MEx.REQUIRED = CO.MandateReqUndefined      -- EHS: bug: we don't know what is max amount

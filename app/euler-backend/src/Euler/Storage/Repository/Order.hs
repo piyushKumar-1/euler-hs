@@ -8,7 +8,6 @@ module Euler.Storage.Repository.Order
 import EulerHS.Prelude
 
 import           Euler.Storage.DBConfig
-import           EulerHS.Extra.Validation
 import           EulerHS.Language
 import           WebService.Language
 import qualified EulerHS.Extra.Validation as V
@@ -42,7 +41,7 @@ loadOrder orderId' merchantId' = do
         case SV.transSOrderToDOrder ordRef of
           V.Success order -> pure $ Just order
           V.Failure e -> do
-            logError "Incorrect order in DB"
+            logError @String "Incorrect order in DB"
               $  " orderId: "    <> orderId'
               <> " merchantId: " <> merchantId'
               <> " error: "      <> show e
@@ -59,8 +58,8 @@ saveOrder orderRefVal = do
   -- EHS: should we skip the validation and just return the orderRefVal updated with the id from insertion?
   case SV.transSOrderToDOrder orderRef of
     V.Success order -> pure order
-    V.Failure e -> do
-      logError "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
+    V.Failure _ -> do
+      logError @String "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException Errs.internalError
 
 updateOrder :: Int -> C.UDF -> Maybe C.Money -> Maybe C.AddressId -> Maybe C.AddressId -> Flow ()

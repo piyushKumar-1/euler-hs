@@ -26,7 +26,7 @@ module Euler.Encryption
   , module HMAC
   ) where
 
-import EulerHS.Prelude hiding (Key)
+import EulerHS.Prelude hiding (Key, keys)
 
 import           Basement.Block(Block(..))
 import           Data.ByteArray (ByteArray, ByteArrayAccess)

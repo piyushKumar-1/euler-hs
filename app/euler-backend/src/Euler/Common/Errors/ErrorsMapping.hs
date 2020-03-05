@@ -3,7 +3,7 @@ where
 
 import EulerHS.Prelude
 
-import qualified Control.Exception.Safe   as CES (catches, Handler(..), throwIO)
+import qualified Control.Exception.Safe   as CES (Handler(..), throwIO)
 import qualified Data.Aeson.Encode.Pretty as A   (encodePretty)
 import qualified Servant as SE
 
@@ -14,7 +14,7 @@ handlers :: [CES.Handler IO a]
 handlers = [ CES.Handler (\ (ex :: ET.ErrorResponse)   -> CES.throwIO $ handleErrorResponse   ex)
            , CES.Handler (\ (ex :: ET.ECErrorResponse) -> CES.throwIO $ handleECErrorResponse ex)
            , CES.Handler (\ (ex :: SE.ServerError)     -> CES.throwIO ex)
-           , CES.Handler (\ (ex :: SomeException)      -> CES.throwIO SE.err500)
+           , CES.Handler (\ (_ :: SomeException)      -> CES.throwIO SE.err500)
            ]
 
 

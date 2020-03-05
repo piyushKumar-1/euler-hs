@@ -8,10 +8,10 @@ module Euler.Storage.DBConfig
 import EulerHS.Prelude hiding (id, show)
 import EulerHS.Language
 import EulerHS.Language as L
-import EulerHS.Types hiding (error)
+import EulerHS.Types
 import qualified EulerHS.Types as T
 import Data.Text as T
-import qualified Prelude as P (show, id)
+import qualified Prelude as P (show)
 import Servant.Server
 
 
@@ -19,6 +19,7 @@ ecDB = sqL -- mysqlDBC --
 
 eulerDB = sqL -- mysqlDBC --
 
+poolConfig :: PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
@@ -49,7 +50,7 @@ connSQLITEorFail cfg = L.initSqlDBConnection cfg >>= \case
 
 inSQLITEconn :: Flow ()
 inSQLITEconn= do
-  connection <- connSQLITEorFail $ sqL
+  _ <- connSQLITEorFail $ sqL
   pure ()
 
 getConn :: T.DBConfig beM -> Flow (T.SqlConn beM)
@@ -58,5 +59,5 @@ getConn cfg = do
   case conn of
     Right c -> pure c
     Left err -> do
-      logError "SqlDB" $ toText $ P.show err
+      logError @String "SqlDB" $ toText $ P.show err
       throwException err500

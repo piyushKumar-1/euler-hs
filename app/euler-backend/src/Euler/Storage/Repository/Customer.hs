@@ -4,14 +4,12 @@ module Euler.Storage.Repository.Customer
   where
 
 
-import EulerHS.Prelude
+import EulerHS.Prelude hiding(id)
 
-import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
 
-import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
@@ -19,7 +17,6 @@ import qualified Euler.Storage.Types                  as DB
 
 import           Database.Beam ((==.), (||.), (&&.))
 import qualified Database.Beam as B
-import           Euler.Lens
 
 
 loadCustomer :: Maybe C.CustomerId -> D.MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)

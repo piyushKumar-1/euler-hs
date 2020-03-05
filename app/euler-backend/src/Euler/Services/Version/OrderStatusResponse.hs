@@ -21,11 +21,6 @@ import Euler.Services.Version.Refund
 -- change to newtype?
 type Version = Text
 
--- -- Euler.Product.Domain.Order
-type OrderPId = Int
-
--- -- Euler.Common.Types.Merchant
-type MerchantId = Text
 
 transformOrderStatus' :: Version  -> C.GatewayId -> OrderStatusResponse -> OrderStatusResponse
 transformOrderStatus' version gwId
@@ -52,7 +47,7 @@ mkOrderStatusService version = OrderStatusService
   , tokenizeOrderStatusResponse = tokenizeOrderStatusResponse' version
   }
 
-
+updateResponse' :: Version -> Maybe OrderTokenResp -> OrderStatusResponse -> OrderStatusResponse
 updateResponse' version
   | version >= "2018-07-01" = setField @"juspay"
   | otherwise = \ _ orderStatusResp  -> orderStatusResp

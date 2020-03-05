@@ -113,6 +113,7 @@ dependencies:
 - beam-mysql
 - beam-migrate
 - template-haskell
+- hedis
 
 library:
   source-dirs:

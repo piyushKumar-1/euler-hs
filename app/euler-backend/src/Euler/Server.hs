@@ -7,20 +7,13 @@ module Euler.Server where
 
 import           EulerHS.Prelude
 
-import           Network.Socket (SockAddr(..), hostAddressToTuple, hostAddress6ToTuple)
-import           Numeric (showHex)
+import           Network.Socket (SockAddr(..))
 import           Servant
-import           Servant.API.RemoteHost
-import           Servant.API.Raw
-import           Text.Show (showString)
 import           Data.Coerce (coerce)
-import           Data.Time
-import qualified EulerHS.Extra.Validation as V
 
 import Euler.API.RouteParameters
 
 import qualified Data.Aeson as A
-import qualified Data.Map as Map
 import qualified Data.Text  as Text
 
 import qualified EulerHS.Interpreters                   as R
@@ -34,7 +27,6 @@ import qualified Euler.API.Transaction                  as ApiTxn
 
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
-import qualified Euler.API.Validators.Order             as VO
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 import qualified Data.ByteString.Lazy                   as BSL
@@ -49,16 +41,11 @@ import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
 import qualified Euler.Common.Errors.ErrorsMapping as EMap
-import qualified Euler.Storage.Types.MerchantAccount    as Merchant
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
-import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy  as OrderCreateUpdateLegacy
-import qualified Euler.Storage.Types.MerchantAccount    as MACC
 import qualified Euler.Product.OLTP.Services.AuthenticationService as AS
-import qualified Control.Exception.Safe as CES (catches, Handler(..))
+import qualified Control.Exception.Safe as CES (catches)
 
-import qualified Euler.Storage.Types.SqliteTest as SQLITE
-import qualified Euler.Storage.DBConfig as DB
 
 type EulerAPI
   = "test" :> Get '[PlainText] Text
@@ -102,10 +89,6 @@ type EulerAPI
   :<|> "metrics"
       :> Get '[OctetStream] ByteString
 
-  :<|> "getMA"
-      :> Capture "mid" Int
-      :> Get '[JSON] MACC.MerchantAccount
-
   :<|> "remoteip"
       :> Header "User-Agent" Text
       :> RemoteHost
@@ -139,7 +122,6 @@ eulerServer' =
 
     paymentStatus :<|>
     metrics       :<|>
-    getMA         :<|>
     remoteip      :<|>
     emptyServer
 
@@ -245,7 +227,7 @@ getMethod f _ p = f p
 test :: FlowHandler Text
 test = do
   liftIO $ putStrLn ("Test method called." :: String)
-  runFlow "testFlow2" emptyRPs noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
+  _ <- runFlow "testFlow2" emptyRPs noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
   pure "Test."
 
 txns :: ApiTxn.Transaction -> FlowHandler ApiTxn.TransactionResponse
@@ -340,9 +322,6 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
 orderUpdate :: Text -> ApiOrder.OrderUpdateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do
   res <- do
-    liftIO $ putStrLn ("orderUpdateStart" :: String)
-    start <- liftIO getCurrentTime
-
     error "OrderUpdate not implemented"
     -- r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdateLegacy.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
     -- end <- liftIO getCurrentTime
@@ -368,14 +347,6 @@ paymentStatus _ _ _ _ = throwError err500
 
 metrics :: FlowHandler ByteString
 metrics = BSL.toStrict <$> P.exportMetricsAsText
-
-getMA :: Int -> FlowHandler MACC.MerchantAccount
-getMA mid = do
-  res <- do
-    liftIO $ putStrLn ("MACC START" :: String)
-    r <- runFlow "getMA" emptyRPs noReqBodyJSON $ AS.getMACC mid
-    pure r
-  pure res
 
 remoteip :: Maybe Text -> SockAddr -> FlowHandler Text
 remoteip uagent remIp =

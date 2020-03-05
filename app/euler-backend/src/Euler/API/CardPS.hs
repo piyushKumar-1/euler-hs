@@ -4,7 +4,7 @@ module Euler.API.CardPS where
 
 import EulerHS.Prelude
 
-import Data.Aeson
+
 import Web.FormUrlEncoded
 
 

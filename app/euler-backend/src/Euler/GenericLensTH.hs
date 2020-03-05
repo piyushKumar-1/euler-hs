@@ -63,7 +63,7 @@ makeGenericLenses name = do
             ]
 
 
-    lookedUpNames <- traverse ((\name -> fmap (name, ) $ lookupValueName $ prepareName name)) fieldNames
+    lookedUpNames <- traverse ((\name' -> fmap (name', ) $ lookupValueName $ prepareName name')) fieldNames
     let uniqNames = fmap fst $ filter (isNothing . snd) lookedUpNames
 
     -- let duplNames = fmap fst $ filter (isJust    . snd) lookedUpNames

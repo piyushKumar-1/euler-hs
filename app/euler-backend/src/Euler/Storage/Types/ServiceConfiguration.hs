@@ -5,7 +5,7 @@
 
 module Euler.Storage.Types.ServiceConfiguration
   ( ServiceConfigurationT(..)
-  , ServiceConfiguration(..)
+  , ServiceConfiguration
   , ServiceConfigurationId
   , serviceConfigurationEMod
   ) where

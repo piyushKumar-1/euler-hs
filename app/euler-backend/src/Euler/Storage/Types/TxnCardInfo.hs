@@ -15,7 +15,6 @@ import EulerHS.Prelude hiding (id)
 
 import Euler.Common.Types.Transaction (PaymentMethodType)
 import Data.Time
-import Euler.Common.Types.DefaultDate (defaultDate)
 import qualified Database.Beam as B
 
 

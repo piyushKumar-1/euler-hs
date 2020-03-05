@@ -6,16 +6,13 @@ module Euler.Storage.Repository.OrderAddress
   )
   where
 
-import EulerHS.Prelude
+import EulerHS.Prelude hiding (id, state)
 
-import           EulerHS.Extra.Validation
 import           EulerHS.Language
-import qualified EulerHS.Extra.Validation as V
 
 import           Euler.Constant.Constants (defaultVersion)
 import           Euler.Storage.DBConfig
 
-import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Storage.Types                  as DB

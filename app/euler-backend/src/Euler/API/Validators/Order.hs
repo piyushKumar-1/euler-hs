@@ -4,15 +4,10 @@ module Euler.API.Validators.Order where
 
 import EulerHS.Prelude
 import EulerHS.Extra.Validation as V
-import qualified Data.Map  as Map
-import qualified Data.Text as T
 import GHC.Records (getField)
 
 -- EHS: it's better to use top level modules and qualified access.
-import           Euler.Common.Types.Currency  (Currency(..))
-import           Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
 import           Euler.Common.Types.External.Mandate as MEx
-import           Euler.Common.Types.External.Order as OEx
 import           Euler.Common.Types.Order     (UDF(..))
 import qualified Euler.Common.Types.Order     as O
 import           Euler.Common.Types.Money     (mkMoney)

@@ -18,7 +18,7 @@ import qualified Data.Map             as Map
 import qualified Data.Text.Encoding   as TE
 
 import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Constant.Constants  as Constants (redis_token_expiry_default, token_max_usage_default, ecRedis)
+import qualified Euler.Constant.Constants  as Constants (redis_token_expiry_default, token_max_usage_default)
 
 data TokenizedResource = TokenizedResource
   { token  :: Text
@@ -60,7 +60,7 @@ getTokenExpiryData resourceType merchantId = do
         Just tokenExpiryData -> pure tokenExpiryData -- $  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
         Nothing -> case Map.lookup "default" val of
           Just tokenExpiryData -> pure tokenExpiryData -- $  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
-          Nothing -> (logError "getTokenExpiryData" "Could not find default service config") *>  throwException err500 {errBody = "getTokenExpiryData"} -- defaultThrowECException "INTERNAL_SERVER_ERROR" "Could not find default service config"
+          Nothing -> (logError @String "getTokenExpiryData" "Could not find default service config") *>  throwException err500 {errBody = "getTokenExpiryData"} -- defaultThrowECException "INTERNAL_SERVER_ERROR" "Could not find default service config"
     Nothing -> pure $ TokenExpiryData {expiryInSeconds = Constants.redis_token_expiry_default ,tokenMaxUsage = Constants.token_max_usage_default}
 
 -- src/Utils/Utils.purs
@@ -78,11 +78,11 @@ invalidateCardListForMerchantCustomer merchantId customerId =
 
 invalidateOrderStatusCache :: Text -> Text -> Flow ()
 invalidateOrderStatusCache orderId merchantId = do
-  logInfo "invalidateOrderStatusCacheStart" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
+  logInfo @String "invalidateOrderStatusCacheStart" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
   void $ rDel
         [ "euler_ostatus_" <> merchantId <> "_" <> orderId
         , "euler_ostatus_unauth_" <> merchantId <> "_" <> orderId
         , "ostatus_" <> merchantId <> "_" <> orderId
         , "ostatus_unauth_" <> merchantId <> "_" <> orderId
         ]
-  logInfo "invalidateOrderStatusCacheEnd" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
+  logInfo @String "invalidateOrderStatusCacheEnd" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId

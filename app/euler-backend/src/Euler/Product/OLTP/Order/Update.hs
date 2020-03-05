@@ -7,12 +7,9 @@ import EulerHS.Prelude hiding (id, get)
 
 import           EulerHS.Language
 import qualified EulerHS.Extra.Validation as V
-import           WebService.Language
 
 import           Data.Generics.Product.Fields
-import           Data.Generics.Product.Subtype
 
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Prelude  as P (show)
 
@@ -34,10 +31,7 @@ import qualified Euler.Services.Version.OrderStatusResponse as VSrv
 import qualified Euler.Storage.Repository as Rep
 
 import Euler.Lens
--- Beam
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (||.), (<-.), (/=.))
+
 
 -- EHS: since original update function consumed orderCreate type - fields "amount" and "order_id"
 -- was mandatory. But what if we dont whant to update amount? Also we dont need order_id field
@@ -56,7 +50,7 @@ runOrderUpdate routeParams req mAcc = do
   let service = VSrv.mkOrderStatusService version
   case VO.apiOrderUpdToOrderUpdT req of
     V.Failure err -> do
-      logError "OrderUpdateRequest validation" $ show err
+      logError @String "OrderUpdateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
     V.Success validatedOrder -> orderUpdate routeParams service validatedOrder mAcc
 
@@ -84,16 +78,16 @@ orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdat
       let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
       pure $ transformOrderStatus gatewayId resp'
     Nothing -> throwException $ Errs.orderDoesNotExist orderId'
-  logInfo "order update response: " $ show resp
+  logInfo @String "order update response: " $ show resp
   pure API.defaultOrderStatusResponse --resp
 
 doOrderUpdate :: Ts.OrderUpdateTemplate -> D.Order -> D.MerchantAccount -> Flow ()
 doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do
   case orderStatus of
     C.OrderStatusSuccess -> do
-      logError "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
+      logError @String "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
     C.OrderStatusAutoRefunded ->
-      logError "not_updating_auto_refunded_order" $ Text.pack ("Order: " <> P.show ( orderId) <> " has already been autoRefunded. Not updating any field.")
+      logError @String "not_updating_auto_refunded_order" $ Text.pack ("Order: " <> P.show ( orderId) <> " has already been autoRefunded. Not updating any field.")
     _ ->  do
       let mNewAmount = getField @"amount" orderUpdateT
       let newUDF = orderUpdateT ^. _udf

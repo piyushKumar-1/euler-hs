@@ -5,17 +5,14 @@ module Euler.Storage.Repository.OrderMetadataV2
 
 import EulerHS.Prelude
 
-import           EulerHS.Extra.Validation
 import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Storage.DBConfig
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Euler.Common.Types                   as C
 import qualified Euler.Storage.Types                  as DB
 
-import           Database.Beam ((==.))
 import qualified Database.Beam as B
 import           Euler.Lens
 

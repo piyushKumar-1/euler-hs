@@ -5,7 +5,6 @@ module Euler.Storage.Repository.MerchantIframePreferences
 
 import EulerHS.Prelude
 
-import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
@@ -16,7 +15,7 @@ import qualified Euler.Storage.Types                  as DB
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
-import           Euler.Lens
+
 
 -- EHS: should be MerchantIframePreferences converted to domain type?
 -- EHS: should we validate MerchantIframePreferences?
@@ -34,5 +33,5 @@ loadMerchantPrefs merchantId' = do
   case res of
     Just mIPrefs -> pure mIPrefs
     Nothing -> do
-      logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
+      logError @Text "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
       throwException Errs.internalError    -- EHS: error should be specified.

@@ -5,11 +5,9 @@ module Euler.API.Validators.Customer where
 import EulerHS.Prelude
 
 import           EulerHS.Extra.Validation as V
-import           Data.Char (isDigit)
 
 import           Euler.Common.Validators
 
-import qualified Data.Text as T
 import qualified Euler.Product.Domain.Customer as DC
 import qualified Euler.API.Customer as AC
 

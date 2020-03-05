@@ -77,8 +77,8 @@ import           Euler.Storage.DBConfig
 -- Legenda EHS
 -- porting statistics:
 -- to port '-- TODO port' - 21
--- to update '-- TODO update' - 16
--- completed '-- done' - 36
+-- to update '-- TODO update' - 15
+-- completed '-- done' - 37
 -- total number of functions = 73
 --
 -- refactored '-- refactored' - 10
@@ -283,7 +283,11 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
     _ -> pure (Nothing, Nothing, Nothing, Nothing)
 
-
+  txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
+    (Just txn, Just txnCard) -> do
+      txnDetail_id <- whenNothing (getField @"id" txn) (throwException err500)
+      getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
+    (Nothing, Nothing) -> pure (Nothing, Nothing)
 
   pure $ runExcept $ makeOrderStatusResponse
     orderRef
@@ -300,6 +304,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     mChargeback'
     returnUrl
     paymentMethodsAndTypes
+    txnFlowInfoAndMerchantSFR
 
 
 ---------------------------------------------------------------------------------------------------
@@ -390,6 +395,7 @@ makeOrderStatusResponse
   -> Maybe [Chargeback']
   -> Text
   -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+  -> (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
   -- EHS: After OrderReference be validated, it makeOrderStatusResponse will return OrderStatusResponse only
   -> Except Text OrderStatusResponse
 makeOrderStatusResponse
@@ -407,6 +413,7 @@ makeOrderStatusResponse
   mChargebacks
   returnUrl
   paymentMethodsAndTypes
+  (txnFlowInfo, merchantSFR)
   = do
 
   -- Validation
@@ -455,8 +462,10 @@ makeOrderStatusResponse
     <<= changeRefund mRefunds
     -- addRefundDetails
 
-      -- EHS: TODO: add addSecondFactorResponseAndTxnFlowInfo here
+    <<= changeMerchantSecondFactorResponse merchantSFR
+    <<= changeTxnFlowInfo txnFlowInfo
       -- addSecondFactorResponseAndTxnFlowInfo
+
 
     <<= maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
         then changeCard (getCardDetails txnCard txn sendCardIsin)
@@ -716,6 +725,17 @@ changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa,
     , payer_vpaT = fmap Last mPayerVpa
     , payer_app_nameT = fmap Last mPayerAppName
     }
+
+changeTxnFlowInfo :: Maybe TxnFlowInfo -> ResponseBuilder -> OrderStatusResponse
+changeTxnFlowInfo mkTxnFlowInfo builder = builder $ mempty {txn_flow_infoT = fmap Last mkTxnFlowInfo}
+
+changeMerchantSecondFactorResponse
+  :: Maybe MerchantSecondFactorResponse
+  -> ResponseBuilder
+  -> OrderStatusResponse
+changeMerchantSecondFactorResponse mMerchantSFR builder =
+  builder $ mempty {second_factor_responseT = map Last mMerchantSFR}
+
 
 -- End
 
@@ -2764,7 +2784,8 @@ loadTxnCardInfo txnId =
 
 -- ----------------------------------------------------------------------------
 -- function: addSecondFactorResponseAndTxnFlowInfo
--- TODO update
+-- done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2793,26 +2814,56 @@ addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
 -}
 
 addSecondFactorResponseAndTxnFlowInfo :: TxnDetail -> TxnCardInfo -> OrderStatusResponse -> Flow OrderStatusResponse
-addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = do
+addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = undefined
+--   if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
+--     txnDetId <- whenNothing (getField @"id" txn) (throwException err500)
+--     maybeSf <- findMaybeSecondFactorByTxnDetailId txnDetId
+--     case maybeSf of
+--       Just sf -> do
+--         (authReqParams :: ViesGatewayAuthReqParams) <- undefined :: Flow ViesGatewayAuthReqParams
+--         -- EHS: TODO:
+--         --   parseAndDecodeJson (fromMaybe "{}" $ getField @"gatewayAuthReqParams" sf) "INTERNAL_SERVER_ERROR" "INTERNAL_SERVER_ERROR"
+--         -- let orderStatus' = orderStatus{ txn_flow_info = just $ mkTxnFlowInfo authReqParams }
+--         -- maybeSfr <- findMaybeSFRBySfId (sf .^. _id)
+--         -- case maybeSfr of
+--         --   Just sfr -> do
+--         --     let newSf = mkMerchantSecondFactorResponse sfr
+--         --     pure $ orderStatus' # _second_factor_response .~ (just newSf)
+--         --   _ -> do
+--         --     pure $ orderStatus' -- SFR not available.
+--         pure orderStatus
+--       Nothing ->  pure orderStatus -- NO Sf present
+--     else pure orderStatus --NON VIES Txn
+
+-- refactored addSecondFactorResponseAndTxnFlowInfo
+getTxnFlowInfoAndMerchantSFR
+  :: Text
+  -> DB.TxnCardInfo
+  -> Flow (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
+getTxnFlowInfoAndMerchantSFR txnDetId card = do
+
   if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
-    txnDetId <- whenNothing (getField @"id" txn) (throwException err500)
-    maybeSf <- findMaybeSecondFactorByTxnDetailId txnDetId
-    case maybeSf of
+
+    mSecondFactor <- findSecondFactor txnDetId
+
+    case mSecondFactor of
+      Nothing ->  pure (Nothing, Nothing)
       Just sf -> do
-        (authReqParams :: ViesGatewayAuthReqParams) <- undefined :: Flow ViesGatewayAuthReqParams
-        -- EHS: TODO:
-        --   parseAndDecodeJson (fromMaybe "{}" $ getField @"gatewayAuthReqParams" sf) "INTERNAL_SERVER_ERROR" "INTERNAL_SERVER_ERROR"
-        -- let orderStatus' = orderStatus{ txn_flow_info = just $ mkTxnFlowInfo authReqParams }
-        -- maybeSfr <- findMaybeSFRBySfId (sf .^. _id)
-        -- case maybeSfr of
-        --   Just sfr -> do
-        --     let newSf = mkMerchantSecondFactorResponse sfr
-        --     pure $ orderStatus' # _second_factor_response .~ (just newSf)
-        --   _ -> do
-        --     pure $ orderStatus' -- SFR not available.
-        pure orderStatus
-      Nothing ->  pure orderStatus -- NO Sf present
-    else pure orderStatus --NON VIES Txn
+        authReqParams <- do
+          let authReqParams = fromMaybe "{}" $ getField  @"gatewayAuthReqParams" sf
+          let vies = (decode $ BSL.fromStrict $ T.encodeUtf8 authReqParams)
+          case vies of
+            Just v -> pure v
+            Nothing -> throwException err500
+              {errBody = "AuthReqParams decoding failed"}
+
+        let txnFlowInfo = mkTxnFlowInfo authReqParams
+
+        mSecondFactorResponse <- findSecondFactorResponse $ D.sfId $ getField @"id" sf
+
+        let mMerchantSFR = mkMerchantSecondFactorResponse <$> mSecondFactorResponse
+        pure (Just txnFlowInfo, mMerchantSFR)
+    else pure (Nothing, Nothing)
 
 -- -----------------------------------------------------------------------------
 -- Function: findMaybeSFRBySfId
@@ -2874,13 +2925,14 @@ mkTxnFlowInfo params =  TxnFlowInfo
   }
 -}
 
-mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
-mkTxnFlowInfo params = TxnFlowInfo
-  {  flow_type = maybe T.empty show $ getField @"flow" params
-  ,  status = fromMaybe T.empty $ getField @"flowStatus" params
-  ,  error_code = fromMaybe T.empty $ getField @"errorCode" params
-  ,  error_message = fromMaybe T.empty $ getField @"errorMessage" params
-  }
+-- Moved to Order API module
+-- mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
+-- mkTxnFlowInfo params = TxnFlowInfo
+--   {  flow_type = maybe T.empty show $ getField @"flow" params
+--   ,  status = fromMaybe T.empty $ getField @"flowStatus" params
+--   ,  error_code = fromMaybe T.empty $ getField @"errorCode" params
+--   ,  error_message = fromMaybe T.empty $ getField @"errorMessage" params
+--   }
 
 
 -- ----------------------------------------------------------------------------
@@ -2898,13 +2950,14 @@ mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
   }
 -}
 
-mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
-mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
-  { cavv = fromMaybe T.empty $ getField @"cavv" sfr
-  , eci = getField @"eci" sfr
-  , xid = getField @"xid" sfr
-  , pares_status = getField @"status" sfr
-  }
+-- Moved to Order API module
+-- mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
+-- mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
+--   { cavv = fromMaybe T.empty $ getField @"cavv" sfr
+--   , eci = getField @"eci" sfr
+--   , xid = getField @"xid" sfr
+--   , pares_status = getField @"status" sfr
+--   }
 
 
 -- ----------------------------------------------------------------------------

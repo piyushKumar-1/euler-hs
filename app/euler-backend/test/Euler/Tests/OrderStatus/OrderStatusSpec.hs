@@ -11,9 +11,10 @@ import qualified Data.Text as T
 import           Data.Time
 import           Test.Hspec
 
-import           Euler.API.Order (Chargeback' (..), Mandate' (..), OrderStatusQuery (..),
+import           Euler.API.Order (Chargeback' (..), Mandate' (..),
+                                  MerchantSecondFactorResponse (..), OrderStatusQuery (..),
                                   OrderStatusResponse (..), Paymentlinks (..), Refund' (..),
-                                  Risk (..), TxnDetail' (..))
+                                  Risk (..), TxnDetail' (..), TxnFlowInfo (..))
 
 import           Euler.Common.Types.Currency
 import           Euler.Common.Types.External.Mandate (MandateFeature (..), PaymentMethodType (..))
@@ -23,7 +24,7 @@ import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
 import qualified Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 
-import           Euler.Product.OLTP.Order.OrderStatusLegacy (makeOrderStatusResponse)
+import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
 
 import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
 import           Euler.Storage.Types.TxnCardInfo (TxnCardInfo, TxnCardInfoT (..))
@@ -50,7 +51,10 @@ spec =
               mRefunds
               mChargeback
               returnUrlGoogle
+              (payMethod, payMethodType, payerVpa, payerAppName)
+              (txnFlowInfo, merchantSFR)
         statusResp `shouldBe` Right orderStatusResponse1
+
       it "Success with txnDetailNothing, promotionJust" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
               orderRef
@@ -66,7 +70,10 @@ spec =
               mRefunds
               mChargeback
               returnUrlGoogle
+              (payMethod, payMethodType, payerVpa, payerAppName)
+              (txnFlowInfo, merchantSFR)
         statusResp `shouldBe` Right orderStatusResponse2
+
       it "Success with txnDetailJust, promotionNothing" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
               orderRef
@@ -82,6 +89,8 @@ spec =
               mRefunds
               mChargeback
               returnUrlGoogle
+              (payMethod, payMethodType, payerVpa, payerAppName)
+              (txnFlowInfo, merchantSFR)
         statusResp `shouldBe` Right orderStatusResponse3
 
 
@@ -127,6 +136,34 @@ orderRef = OrderReference
   , mandateFeature    = Just OPTIONAL
   , autoRefund        = Just True
   }
+
+merchantSFR :: Maybe MerchantSecondFactorResponse
+merchantSFR = Just $ MerchantSecondFactorResponse
+  {  cavv         = "cavv"
+  ,  eci          = "eci"
+  ,  xid          = "xid"
+  ,  pares_status = "pares_status"
+  }
+
+txnFlowInfo :: Maybe TxnFlowInfo
+txnFlowInfo = Just $ TxnFlowInfo
+  { flow_type = "flow_type"
+  , status = "status"
+  , error_code = "error_code"
+  , error_message = "error_message"
+  }
+
+payMethod :: Maybe Text
+payMethod = Just "payment_method"
+
+payMethodType :: Maybe Text
+payMethodType = Just "payment_method_type"
+
+payerVpa :: Maybe Text
+payerVpa = Just "payer_vpa"
+
+payerAppName :: Maybe Text
+payerAppName = Just "payer_app_name"
 
 returnUrlGoogle :: Text
 returnUrlGoogle = "http://google.ru"
@@ -341,10 +378,10 @@ orderStatusResponse1 = OrderStatusResponse
   , txn_id = Just "txnId"
   , status_id = 20
   , status = "STARTED"
-  , payment_method_type = Nothing
+  , payment_method_type = Just "payment_method_type"
   , auth_type = Just "authType"
   , card = Nothing
-  , payment_method = Nothing
+  , payment_method = Just "payment_method"
   , refunded = Just False
   , amount_refunded = Just 0.0
   , chargebacks = Just
@@ -460,11 +497,11 @@ orderStatusResponse1 = OrderStatusResponse
     , emi_bank = Just "emiBank"
     , emi_tenure = Just 3
     , gateway_reference_id = Just "JUSPAY:gateway_reference_id"
-    , payer_vpa = Nothing
-    , payer_app_name = Nothing
+    , payer_vpa = Just "payer_vpa"
+    , payer_app_name = Just "payer_app_name"
     , juspay = Nothing
-    , second_factor_response = Nothing
-    , txn_flow_info = Nothing
+    , second_factor_response = merchantSFR
+    , txn_flow_info = txnFlowInfo
     }
 
 defaultPaymentlinks :: Paymentlinks
@@ -601,8 +638,8 @@ orderStatusResponse2 = OrderStatusResponse
     , payer_vpa = Nothing
     , payer_app_name = Nothing
     , juspay = Nothing
-    , second_factor_response = Nothing
-    , txn_flow_info = Nothing
+    , second_factor_response = merchantSFR
+    , txn_flow_info = txnFlowInfo
     }
 
 orderStatusResponse3 :: OrderStatusResponse
@@ -632,10 +669,10 @@ orderStatusResponse3 = OrderStatusResponse
   , txn_id = Just "txnId"
   , status_id = 20
   , status = "STARTED"
-  , payment_method_type = Nothing
+  , payment_method_type = Just "payment_method_type"
   , auth_type = Just "authType"
   , card = Nothing
-  , payment_method = Nothing
+  , payment_method = Just "payment_method"
   , refunded = Just False
   , amount_refunded = Just 0.0
   , chargebacks = Just
@@ -742,9 +779,9 @@ orderStatusResponse3 = OrderStatusResponse
     , emi_bank = Just "emiBank"
     , emi_tenure = Just 3
     , gateway_reference_id = Just "JUSPAY:gateway_reference_id"
-    , payer_vpa = Nothing
-    , payer_app_name = Nothing
+    , payer_vpa = Just "payer_vpa"
+    , payer_app_name = Just "payer_app_name"
     , juspay = Nothing
-    , second_factor_response = Nothing
-    , txn_flow_info = Nothing
+    , second_factor_response = merchantSFR
+    , txn_flow_info = txnFlowInfo
     }

@@ -185,6 +185,11 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
     _ -> pure (Nothing, Nothing, Nothing, Nothing)
 
+  txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
+    (Just txn, Just txnCard) -> do
+      txnDetail_id <- whenNothing (getField @"id" txn) (throwException err500)
+      getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
+    (Nothing, Nothing) -> pure (Nothing, Nothing)
 
   pure $ runExcept $ makeOrderStatusResponse
     orderRef
@@ -201,6 +206,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     mChargeback'
     returnUrl
     paymentMethodsAndTypes
+    txnFlowInfoAndMerchantSFR
 
 
 
@@ -280,6 +286,7 @@ makeOrderStatusResponse
   -> Maybe [Chargeback']
   -> Text
   -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+  -> (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
   -> Except Text OrderStatusResponse
 makeOrderStatusResponse
   ordRef
@@ -296,6 +303,7 @@ makeOrderStatusResponse
   mChargebacks
   returnUrl
   paymentMethodsAndTypes
+  (txnFlowInfo, merchantSFR)
   = do
 
   ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef
@@ -335,7 +343,11 @@ makeOrderStatusResponse
 
     <<= changeRefund mRefunds
 
-      -- TODO: add addSecondFactorResponseAndTxnFlowInfo here
+
+    <<= changeMerchantSecondFactorResponse merchantSFR
+
+    <<= changeTxnFlowInfo txnFlowInfo
+      -- addSecondFactorResponseAndTxnFlowInfo
 
     <<= maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
         then changeCard (getCardDetails txnCard txn sendCardIsin)
@@ -563,8 +575,15 @@ changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa,
     , payer_app_nameT = fmap Last mPayerAppName
     }
 
+changeTxnFlowInfo :: Maybe TxnFlowInfo -> ResponseBuilder -> OrderStatusResponse
+changeTxnFlowInfo mkTxnFlowInfo builder = builder $ mempty {txn_flow_infoT = fmap Last mkTxnFlowInfo}
 
-
+changeMerchantSecondFactorResponse
+  :: Maybe MerchantSecondFactorResponse
+  -> ResponseBuilder
+  -> OrderStatusResponse
+changeMerchantSecondFactorResponse mMerchantSFR builder =
+  builder $ mempty {second_factor_responseT = map Last mMerchantSFR}
 
 
 
@@ -1120,3 +1139,39 @@ findPayerVpaByGateway gateway (Just xml) =
     "PAYTM_V2"    -> findEntry "VPA" "" xml
     "GOCASHFREE"  -> findEntry "payersVPA" "" xml
     _             -> T.empty
+
+
+getTxnFlowInfoAndMerchantSFR
+  :: Text
+  -> DB.TxnCardInfo
+  -> Flow (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
+getTxnFlowInfoAndMerchantSFR txnDetId card = do
+
+  if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
+
+    mSecondFactor <- findSecondFactor txnDetId
+
+    case mSecondFactor of
+      Nothing ->  pure (Nothing, Nothing)
+      Just sf -> do
+        authReqParams <- do
+          let authReqParams = fromMaybe "{}" $ getField  @"gatewayAuthReqParams" sf
+          let vies = (decode $ BSL.fromStrict $ T.encodeUtf8 authReqParams)
+          case vies of
+            Just v -> pure v
+            Nothing -> throwException err500
+              {errBody = "AuthReqParams decoding failed"}
+
+        let txnFlowInfo = mkTxnFlowInfo authReqParams
+
+        mSecondFactorResponse <- findSecondFactorResponse $ D.sfId $ getField @"id" sf
+
+        let mMerchantSFR = mkMerchantSecondFactorResponse <$> mSecondFactorResponse
+        pure (Just txnFlowInfo, mMerchantSFR)
+    else pure (Nothing, Nothing) --NON VIES Txn
+
+
+
+
+
+

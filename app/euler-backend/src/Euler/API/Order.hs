@@ -18,13 +18,23 @@ import           Data.Semigroup
 import           Generics.Deriving.Semigroup (gsappenddefault)
 
 
-import           Euler.Product.Domain.Order
-
-import           Euler.Common.Types.Order (MandateFeature, OrderStatus (..))
-import           Euler.Common.Types.Currency  (Currency)
-import           Euler.Common.Types.External.Order     (OrderStatus (..))
-import           Euler.Common.Types.External.Mandate   (MandateFeature (..))
+import           Euler.Common.Types.External.Mandate (MandateFeature)
+import           Euler.Common.Types.Order (OrderId)
 import           Euler.Common.Types.Promotion
+import           Euler.Common.Types.Refund
+import           Euler.API.Types
+
+-- import           Euler.Storage.Types.Mandate
+
+import           Euler.Product.Domain as D
+-- import qualified Prelude as P
+
+import           Euler.Common.Types.Currency (Currency)
+-- import           Euler.Common.Types.Customer (CustomerId)
+-- import           Euler.Common.Types.External.Mandate (MandateFeature (..))
+import           Euler.Common.Types.External.Order (OrderStatus (..))
+import           Euler.Common.Types.Money
+-- import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund as Refund
 
 
@@ -887,7 +897,13 @@ data MerchantSecondFactorResponse = MerchantSecondFactorResponse
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
+mkMerchantSecondFactorResponse :: D.SecondFactorResponse -> MerchantSecondFactorResponse
+mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
+  { cavv = fromMaybe T.empty $ getField @"cavv" sfr
+  , eci = getField @"eci" sfr
+  , xid = getField @"xid" sfr
+  , pares_status = getField @"status" sfr
+  }
 
 -- from src/Types/Storage/EC/Feature.purs
 {-
@@ -904,6 +920,14 @@ type FeatureAll a =
   }
 -}
 
+
+mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
+mkTxnFlowInfo params = TxnFlowInfo
+  {  flow_type = maybe T.empty show $ getField @"flow" params
+  ,  status = fromMaybe T.empty $ getField @"flowStatus" params
+  ,  error_code = fromMaybe T.empty $ getField @"errorCode" params
+  ,  error_message = fromMaybe T.empty $ getField @"errorMessage" params
+  }
 
 -- The only amount, address and UDF fields can be updated.
 data OrderUpdateRequest = OrderUpdateRequest

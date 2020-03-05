@@ -755,7 +755,7 @@ spec =
           shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
 
           shouldBeAnn "customer_phone"  customer_phone  $ Just ""
-          shouldBeAnn "customer_id"     customer_id     $ Just ""
+          shouldBeAnn "customer_id"     customer_id     $ Nothing
           shouldBeAnn "customer_email"  customer_email  $ Just ""
 
           shouldBeAnn "currency"        currency        $ Just "INR"
@@ -794,7 +794,7 @@ spec =
           shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
 
           shouldBeAnn "customer_phone"  customer_phone  $ Just "" -- same here ???
-          shouldBeAnn "customer_id"     customer_id     $ Just "" -- We can get Just customerId, Nothing, Just ""
+          shouldBeAnn "customer_id"     customer_id     $ Nothing -- We can get Just customerId, Nothing, Just ""
           shouldBeAnn "customer_email"  customer_email  $ Just "" -- same here ???
 
           shouldBeAnn "currency"        currency        $ Just "INR"

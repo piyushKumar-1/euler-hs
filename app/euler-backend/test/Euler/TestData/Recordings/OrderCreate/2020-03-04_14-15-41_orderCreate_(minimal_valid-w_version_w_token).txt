@@ -10,7 +10,6 @@
             "udf5": "",
             "udf2": "",
             "udf4": "",
-            "customer_id": "",
             "udf10": "",
             "payment_links": {
                 "iframe": "http://localhost:8081/merchant/ipay/ordeu_93d95ed4de8144878d1a070146f3d6e9",

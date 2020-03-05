@@ -39,6 +39,7 @@ module EulerHS.Framework.Flow.Language
   -- *** Other
   , callServantAPI
   , callAPI
+  , callAPI'
   , runIO
   , generateGUID
   , runSysCmd
@@ -54,11 +55,7 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as BSL
 import           Servant.Client (ClientError, BaseUrl)
-import           Type.Reflection
 import           Servant.Server (err500)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)

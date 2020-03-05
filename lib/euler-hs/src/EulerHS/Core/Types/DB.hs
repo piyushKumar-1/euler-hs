@@ -31,7 +31,6 @@ module EulerHS.Core.Types.DB
   , mkMySQLConfig
   , mkMySQLPoolConfig
   -- ** Helpers
-  , nativeToBem
   , withTransaction
   ) where
 

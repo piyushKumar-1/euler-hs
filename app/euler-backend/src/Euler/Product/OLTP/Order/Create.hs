@@ -21,8 +21,9 @@ import           WebService.Language
 
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
-import qualified Euler.Storage.Types      as DB
-import qualified Euler.Storage.Repository as Rep
+import qualified Euler.Storage.Types        as DB
+import qualified Euler.Storage.KVRepository as Rep
+import qualified Euler.Storage.Repository   as Rep
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
@@ -82,9 +83,9 @@ doOrderCreate
   -> Flow API.OrderCreateResponse
 doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order' mAccnt@MerchantAccount{..} = do
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
-  order         <- createOrder' routeParams order' mAccnt merchantPrefs
-  _             <- updateOrderCache order
-  _             <- updateMandateCache order $ order' ^. _mandate
+  (dbOrder, order) <- createOrder' routeParams order' mAccnt merchantPrefs
+  _                <- Rep.updateOrderCache (order ^. _orderId) (order ^. _merchantId) dbOrder
+  _                <- Rep.updateMandateCache order $ order' ^. _mandate
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
   -- EHS: config should be requested on the start of the logic and passed purely.
@@ -92,65 +93,8 @@ doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order
 
   makeOrderResponse cfg order mAccnt mbReseller
 
--- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
---      Why this cache exist? What it does?
-updateOrderCache :: D.Order -> Flow ()
-updateOrderCache order = do
-  let orderId    = order ^. _orderId
-  let merchantId = order ^. _merchantId
-  -- EHS: magic constant.
-  void $ rSetex (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
--- EHS: previously setMandateInCache
--- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
---      In the previous code, we're expecting max amount to be set even if mandate is DISABLED.
---      It's not clear whether this a valid behaviour (seems not).
--- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
---      Why this cache exist? What it does?
-updateMandateCache :: D.Order -> D.OrderMandate -> Flow ()
-updateMandateCache order mandate = case mandate of
-  D.MandateRequired maxAmount        -> updateMandateCache' maxAmount
-  D.MandateOptional (Just maxAmount) -> updateMandateCache' maxAmount
-  _                                  -> pure ()
 
-  where
-    updateMandateCache' ma = do
-      let merchantId = order ^. _merchantId
-      let orderId    = order ^. _orderId
-      mandate' <- createMandate order ma
-      -- EHS: magic constant
-      void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
-
-    createMandate :: D.Order -> Double -> Flow DB.Mandate
-    createMandate order' maxAmount = do
-      mandateId   <- getShortUUID
-      currentDate <- getCurrentTimeUTC
-      token       <- getUUID32
-      pure $ DB.Mandate
-        { DB.id = Nothing
-        , DB.merchantId = order' ^. _merchantId
-        , DB.currency = Just $ order' ^. _currency
-        , DB.endDate = Nothing
-        , DB.startDate = Nothing
-        , DB.maxAmount = Just maxAmount
-        , DB.merchantCustomerId = order' ^. _customerId
-        , DB.paymentMethod = Nothing
-        , DB.paymentMethodType = Nothing
-        , DB.paymentMethodId = Nothing
-        , DB.gateway = Nothing
-        , DB.gatewayParams = Nothing
-        , DB.token = token
-        , DB.mandateId = mandateId
-        , DB.status = MEx.CREATED
-        , DB.authOrderId = Just $ order' ^. _id
-        , DB.activatedAt = Nothing
-        , DB.dateCreated = currentDate
-        , DB.lastModified = currentDate
-        , DB.authTxnCardInfo = Nothing
-        , DB.merchantGatewayAccountId = Nothing
-        , DB.metadata = Nothing
-        , DB.mandateType = Nothing
-        }
 
 
 -- EHS: previously isMandateOrder
@@ -194,7 +138,7 @@ createOrder'
   -> Ts.OrderCreateTemplate
   -> MerchantAccount
   -> DB.MerchantIframePreferences
-  -> Flow D.Order
+  -> Flow (DB.OrderReference, D.Order)
 createOrder' routeParams order' mAccnt merchantPrefs = do
   let currency' = (order' ^. _currency)
         <|> DB.defaultCurrency merchantPrefs
@@ -216,10 +160,10 @@ createOrder' routeParams order' mAccnt merchantPrefs = do
   -- EHS: not sure why we don't load customer info for shipping addr as we did for billing addr.
   mbShippingAddrId          <- Rep.createAddress (order' ^. _shippingAddr) (order' ^. _shippingAddrHolder)
 
-  order <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId mbCustomer
+  (dbOrder, order) <- saveOrder order' mAccnt currency' mbBillingAddrId mbShippingAddrId mbCustomer
   _     <- saveOrderMetadata routeParams (order ^. _id) (order' ^. _metadata)
 
-  pure order
+  pure (dbOrder, order)
 
 fillCustomerContacts
   :: Ts.OrderCreateTemplate
@@ -244,7 +188,7 @@ saveOrder
   -> Maybe Int
   -> Maybe Int
   -> Maybe Ts.CustomerTemplate
-  -> Flow D.Order
+  -> Flow (DB.OrderReference, D.Order)
 saveOrder
   (order'@Ts.OrderCreateTemplate {..})
   mAccnt

@@ -47,8 +47,9 @@ loadOrder orderId' merchantId' = do
               <> " error: "      <> show e
             throwException Errs.internalError
 
-
-saveOrder :: DB.OrderReference -> Flow D.Order
+-- For compatibility with other backends, we should return types that we use together through Redis
+-- If the returned data is not expected to be saved to the Redis, then only domain type should be returned.
+saveOrder :: DB.OrderReference -> Flow (DB.OrderReference, D.Order)
 saveOrder orderRefVal = do
   orderRef <- unsafeInsertRow (Errs.mkDBError "Inserting order reference failed.") eulerDB
     $ B.insert (DB.order_reference DB.eulerDBSchema)
@@ -57,7 +58,7 @@ saveOrder orderRefVal = do
   -- EHS: should not happen, ideally.
   -- EHS: should we skip the validation and just return the orderRefVal updated with the id from insertion?
   case SV.transSOrderToDOrder orderRef of
-    V.Success order -> pure order
+    V.Success order -> pure (orderRef, order)
     V.Failure _ -> do
       logError @String "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException Errs.internalError

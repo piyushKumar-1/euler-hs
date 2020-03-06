@@ -53,6 +53,7 @@ import Euler.API.Authentication as APIAuthentication
 import Euler.API.Card as APICard
 import Euler.API.CardPS as APICardPS
 import Euler.API.Customer as APICustomer
+import Euler.API.MerchantPaymentGatewayResponse as APIMerchantPGR
 import Euler.API.Order as APIOrder
 import Euler.API.Payment as APIPayment
 import Euler.API.Transaction as APITransaction
@@ -149,8 +150,8 @@ makeGenericLenses ''APICustomer.TokenData
 makeGenericLenses ''APIOrder.Card
 makeGenericLenses ''APIOrder.Chargeback'
 makeGenericLenses ''APIOrder.Mandate'
-makeGenericLenses ''APIOrder.MerchantPaymentGatewayResponse
-makeGenericLenses ''APIOrder.MerchantPaymentGatewayResponse'
+makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse
+makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse'
 makeGenericLenses ''APIOrder.OrderCreateRequest
 makeGenericLenses ''APIOrder.OrderCreateResponse
 makeGenericLenses ''APIOrder.OrderStatusRequest

@@ -1111,7 +1111,9 @@ getPayerVpa :: Maybe Int -> Flow Text
 getPayerVpa mSuccessResponseId = do
   mPaymentGatewayResp <- loadPGR mSuccessResponseId
   let mXml = getField @"responseXml" =<< mPaymentGatewayResp
-  pure $ maybe "" (findEntry "payerVpa" "") mXml
+  pure $ case mXml of
+    Nothing -> T.empty
+    Just xml -> findEntry "payerVpa" "" $ decodeXml $ TE.encodeUtf8 xml
 
 getPayerVpaByGateway :: Maybe Int -> Text -> Flow Text
 getPayerVpaByGateway respId gateway = do
@@ -1124,22 +1126,23 @@ findPayerVpaByGateway :: Text -> Maybe Text -> Text
 findPayerVpaByGateway _ Nothing = T.empty
 findPayerVpaByGateway gateway (Just xml) =
   case gateway of
-    "AXIS_UPI"    -> findEntry "payerVpa" (findEntry "customerVpa" "" xml) xml
-    "HDFC_UPI"    -> findEntry "payerVpa" "" xml
-    "INDUS_UPI"   -> findEntry "payerVpa" "" xml
-    "KOTAK_UPI"   -> findEntry "payerVpa" "" xml
-    "SBI_UPI"     -> findEntry "payerVpa" "" xml
-    "ICICI_UPI"   -> findEntry "payerVpa" "" xml
-    "HSBC_UPI"    -> findEntry "payerVpa" "" xml
-    "VIJAYA_UPI"  -> findEntry "payerVpa" "" xml
-    "YESBANK_UPI" -> findEntry "payerVpa" "" xml
-    "PAYTM_UPI"   -> findEntry "payerVpa" "" xml
-    "PAYU"        -> findEntry "field3" "" xml
-    "RAZORPAY"    -> findEntry "vpa" "" xml
-    "PAYTM_V2"    -> findEntry "VPA" "" xml
-    "GOCASHFREE"  -> findEntry "payersVPA" "" xml
+    "AXIS_UPI"    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
+    "HDFC_UPI"    -> findEntry "payerVpa" "" pgrXml
+    "INDUS_UPI"   -> findEntry "payerVpa" "" pgrXml
+    "KOTAK_UPI"   -> findEntry "payerVpa" "" pgrXml
+    "SBI_UPI"     -> findEntry "payerVpa" "" pgrXml
+    "ICICI_UPI"   -> findEntry "payerVpa" "" pgrXml
+    "HSBC_UPI"    -> findEntry "payerVpa" "" pgrXml
+    "VIJAYA_UPI"  -> findEntry "payerVpa" "" pgrXml
+    "YESBANK_UPI" -> findEntry "payerVpa" "" pgrXml
+    "PAYTM_UPI"   -> findEntry "payerVpa" "" pgrXml
+    "PAYU"        -> findEntry "field3" "" pgrXml
+    "RAZORPAY"    -> findEntry "vpa" "" pgrXml
+    "PAYTM_V2"    -> findEntry "VPA" "" pgrXml
+    "GOCASHFREE"  -> findEntry "payersVPA" "" pgrXml
     _             -> T.empty
-
+  where
+    pgrXml = decodeXml $ TE.encodeUtf8 xml
 
 getTxnFlowInfoAndMerchantSFR
   :: Text
@@ -1169,9 +1172,3 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
         let mMerchantSFR = mkMerchantSecondFactorResponse <$> mSecondFactorResponse
         pure (Just txnFlowInfo, mMerchantSFR)
     else pure (Nothing, Nothing) --NON VIES Txn
-
-
-
-
-
-

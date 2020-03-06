@@ -22,6 +22,9 @@ import           Euler.Common.Types.External.Mandate (MandateFeature)
 import           Euler.Common.Types.Order (OrderId)
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund
+
+import           Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse,
+                                                           MerchantPaymentGatewayResponse')
 import           Euler.API.Types
 
 -- import           Euler.Storage.Types.Mandate
@@ -855,39 +858,8 @@ data TxnDetail' = TxnDetail'
 }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
-data MerchantPaymentGatewayResponse' = MerchantPaymentGatewayResponse'
-  {  resp_code            :: Maybe Text
-  ,  rrn                  :: Maybe Text
-  ,  created              :: Maybe Text
-  ,  epg_txn_id           :: Maybe Text
-  ,  resp_message         :: Maybe Text
-  ,  auth_id_code         :: Maybe Text
-  ,  txn_id               :: Maybe Text
-  ,  offer                :: Maybe Text
-  ,  offer_type           :: Maybe Text
-  ,  offer_availed        :: Maybe Text -- Foreign
-  ,  discount_amount      :: Maybe Text -- Foreign
-  ,  offer_failure_reason :: Maybe Text
-  ,  gateway_response     :: Maybe Text -- Foreign
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- from src/Types/Communication/OLTP/OrderStatus.purs
-data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
-  {   resp_code            :: Maybe Text -- Foreign
-   ,  rrn                  :: Maybe Text -- Foreign
-   ,  created              :: Maybe Text -- Foreign
-   ,  epg_txn_id           :: Maybe Text -- Foreign
-   ,  resp_message         :: Maybe Text -- Foreign
-   ,  auth_id_code         :: Maybe Text -- Foreign
-   ,  txn_id               :: Maybe Text -- Foreign
-   ,  offer                :: Maybe Text
-   ,  offer_type           :: Maybe Text
-   ,  offer_availed        :: Maybe Text -- Foreign
-   ,  discount_amount      :: Maybe Text -- Foreign
-   ,  offer_failure_reason :: Maybe Text
-   ,  gateway_response     :: Maybe Text -- Foreign
-   }
-   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
 
 data MerchantSecondFactorResponse = MerchantSecondFactorResponse
   {  cavv         :: Text -- Foreign with comment (nullable, so keeping it as Foreign to send it as null with key)

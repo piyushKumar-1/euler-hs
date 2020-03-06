@@ -4,7 +4,11 @@ module Euler.API.Transaction where
 
 import EulerHS.Prelude
 
-import           Euler.Common.Types.Transaction (AuthType, PaymentMethodType)
+import Data.Time
+import Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse)
+import Euler.API.Order (PaymentInfo, Refund')
+import Euler.Common.Types.Transaction (AuthType, PaymentMethodType)
+import Euler.Common.Types.TxnDetail
 
 -- TODO: what is this?
 -- foreign import modifyRequestBody :: Foreign -> Foreign

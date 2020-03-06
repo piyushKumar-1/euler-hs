@@ -8,7 +8,7 @@ import EulerHS.Prelude
 
 import           Data.Generics.Product.Fields
 
-import Euler.API.Order (MerchantPaymentGatewayResponse(..))
+import Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse(..))
 import Euler.Common.Types.Gateway
 
 -- move to common types?

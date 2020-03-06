@@ -32,11 +32,11 @@ spec =
       res `shouldBe` (Right testLHM)
 
     it "LHS (linked-hash-map) find entry: SUCCESS" $  do
-      let res = findEntry "SomeTextEntry" "" (T.pack rawLinkedHashMapXML)
+      let res = findEntry "SomeTextEntry" "" (decodeXml $ BC.pack rawLinkedHashMapXML)
       res `shouldBe` "TextValue"
 
     it "LHS (linked-hash-map) find entry: FAIL" $  do
-      let res = findEntry "SomeTextEntryWrong" "default" (T.pack rawLinkedHashMapXML)
+      let res = findEntry "SomeTextEntryWrong" "default" (decodeXml $ BC.pack rawLinkedHashMapXML)
       res `shouldBe` "default"
 
     it "LHS (linked-hash-map) encode/decode" $  do
@@ -58,11 +58,11 @@ spec =
       res `shouldBe` (Right $ testGroovyHM)
 
     it "groovy hash map: find entry: SUCCESS" $  do
-      let res = findEntry "checksum" "" (T.pack groovyHMS)
+      let res = findEntry "checksum" "" (decodeXml $ BC.pack groovyHMS)
       res `shouldBe` "b43ac9dcfb502b3e8e0a5578e40e18d0db8dbf19d88f419146aa12ca1771d47a"
 
     it "groovy hash map: find entry: FAIL" $  do
-      let res = findEntry "SomeTextEntryWrong" "default" (T.pack groovyHMS)
+      let res = findEntry "SomeTextEntryWrong" "default" (decodeXml $ BC.pack groovyHMS)
       res `shouldBe` "default"
 
     it "groovy hash map enc/dec" $ do
@@ -83,11 +83,11 @@ spec =
       mapXML `shouldBe` (Right testXmlMap)
 
     it "XmlMap hash map: find entry: SUCCESS" $  do
-      let res = findEntry "SomeTextEntry" "" (T.pack rawXmlMapXML)
+      let res = findEntry "SomeTextEntry" "" (decodeXml $ BC.pack rawXmlMapXML)
       res `shouldBe` "TextValue"
 
     it "XmlMap hash map: find entry: FAIL" $  do
-      let res = findEntry "SomeTextEntryWrong" "default" (T.pack rawXmlMapXML)
+      let res = findEntry "SomeTextEntryWrong" "default" (decodeXml $ BC.pack rawXmlMapXML)
       res `shouldBe` "default"
 
 

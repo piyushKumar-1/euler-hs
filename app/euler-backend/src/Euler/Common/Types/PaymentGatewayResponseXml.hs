@@ -1,4 +1,5 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE TupleSections  #-}
 
 module Euler.Common.Types.PaymentGatewayResponseXml
   ( LHM (..)
@@ -8,23 +9,51 @@ module Euler.Common.Types.PaymentGatewayResponseXml
   , EValue(..)
   , PGRXml(..)
  -- , OpusPGResponse(..)
-  , findEntry
   , decodeXml
+  , findEntry
+  , getMapFromPGRXml
   )
   where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import Xmlbf
-import Xmlbf.Xeno
-import Data.Coerce
+import           Data.Coerce
+import           Xmlbf
+import           Xmlbf.Xeno
 
-import qualified Data.Binary.Builder     as BB
-import qualified Data.Map.Strict         as Map
-import qualified Data.Text.Lazy          as TL
-import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.Binary.Builder as BB
+import qualified Data.Map.Strict as Map
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Text.Read
+
+
+decodeXml :: ByteString -> Either String PGRXml
+decodeXml bs = runParser fromXml =<< (fromRawXml bs)
+
+-- former getResponseXml
+getMapFromPGRXml :: Either String PGRXml -> Map.Map TL.Text EValue
+getMapFromPGRXml = either (const Map.empty) fromPGRXml
+
+fromPGRXml :: PGRXml -> Map.Map TL.Text EValue
+fromPGRXml = \case
+  PGRLhm (LHM n) -> n
+  PGRMap (XmlMap n) -> n
+  PGRGhm (GroovyHM n) -> n
+
+-- former  lookupRespXml'
+-- Need review!!
+findEntry :: Text -> Text -> Either String PGRXml -> Text
+findEntry entry defaultEntry pgrXml = do
+  let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
+  case value of
+    Just (EText val) -> TL.toStrict val
+    Just _           -> defaultEntry
+    Nothing          -> defaultEntry
+
+lookupEntry :: TL.Text -> PGRXml -> Maybe EValue
+lookupEntry name = Map.lookup name . coerce . fromPGRXml
 
 
 readEither' :: Read a => TL.Text -> Either String a
@@ -45,25 +74,7 @@ instance ToXml PGRXml where
 
 
 
-lookupEntry :: TL.Text -> PGRXml -> Maybe EValue
-lookupEntry name m = case m of
-  PGRLhm (LHM n) -> Map.lookup name $ coerce n
-  PGRMap (XmlMap n) -> Map.lookup name $ coerce n
-  PGRGhm (GroovyHM n) -> Map.lookup name $ coerce n
 
-decodeXml :: ByteString -> Either String PGRXml
-decodeXml bs = runParser fromXml =<< (fromRawXml bs)
-
--- former getResponseXml and lookupRespXml'
--- Need review!!
-findEntry :: Text -> Text -> Text -> Text
-findEntry entry defaultEntry xmlVal = do
-  let pgrXml = decodeXml $ TE.encodeUtf8 xmlVal
-  let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
-  case value of
-    Just (EText val) -> TL.toStrict val
-    Just _ -> defaultEntry
-    Nothing -> defaultEntry
 
 
 -- not shure that this is used in current euler
@@ -126,7 +137,7 @@ data EValue = EText TL.Text
             | EInt Int
             | EBool Bool
             | EGroovyHM GroovyHM
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 newtype Entry = Entry (TL.Text, EValue)
   deriving (Eq, Show, Generic)
@@ -217,9 +228,9 @@ instance ToXml XmlMap where
     element "map" mempty $ concat $
       toXml <$> coerce @_ @[Entry] (Map.toList m)
 
-
+-- EHS: Check JSON derivings  is proper
 data GroovyHM = GroovyHM ( Map.Map TL.Text EValue)
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 instance FromXml GroovyHM where
   fromXml = pElement "org.codehaus.groovy.grails.web.json.JSONObject" ghmParser

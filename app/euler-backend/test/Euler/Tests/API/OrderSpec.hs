@@ -194,14 +194,6 @@ ordReqMandateFeatureFailData5 = orderReqTemplate
   , customer_id = Just "404"
   }
 
-ordReqOptionalMandateFeatureFailData :: OrderCreateRequest
-ordReqOptionalMandateFeatureFailData = orderReqTemplate
-  { order_id = "wrongMandateParams"
-  , amount = 500.0
-  , mandate_max_amount = Nothing
-  , options_create_mandate = Just OPTIONAL
-  }
-
 ordReqMandateFeatureTooBigMandateMaxAmount :: OrderCreateRequest
 ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   { order_id = "wrongMandateParams"
@@ -209,6 +201,42 @@ ordReqMandateFeatureTooBigMandateMaxAmount = orderReqTemplate
   , mandate_max_amount = Just "100500"
   , options_create_mandate = Just REQUIRED
   }
+
+----- Optional mandate
+
+ordReqOptionalMandateWOmaxAmount :: OrderCreateRequest
+ordReqOptionalMandateWOmaxAmount = orderReqTemplate
+  { order_id = "optionalMandateWOmaxAmount"
+  , amount = 500.0
+  , mandate_max_amount = Nothing
+  , options_create_mandate = Just OPTIONAL
+  }
+
+ordReqOptionalMandateWNegativeMaxAmount :: OrderCreateRequest
+ordReqOptionalMandateWNegativeMaxAmount = orderReqTemplate
+  { order_id = "optionalMandateWNegativeMaxAmount"
+  , amount = 500.0
+  , mandate_max_amount = Just "-100"
+  , options_create_mandate = Just OPTIONAL
+  }
+
+ordReqOptionalMandateWGoodMaxAmount :: OrderCreateRequest
+ordReqOptionalMandateWGoodMaxAmount = orderReqTemplate
+  { order_id = "optionalMandateWGoodMaxAmount"
+  , amount = 500.0
+  , mandate_max_amount = Just "600"
+  , options_create_mandate = Just OPTIONAL
+  }
+
+ordReqOptionalMandateWTooBigMaxAmount :: OrderCreateRequest
+ordReqOptionalMandateWTooBigMaxAmount = orderReqTemplate
+  { order_id = "optionalMandateWTooBigMaxAmount"
+  , amount = 500.0
+  , mandate_max_amount = Just "100500"
+  , options_create_mandate = Just OPTIONAL
+  }
+-----
+
 
 ordReqUdf :: OrderCreateRequest
 ordReqUdf = orderReqTemplate
@@ -877,15 +905,41 @@ spec =
 
 ----------------------------------------------------------------------
 
-      xit "Order with ordReqOptionalMandateFeatureFailData" $ \rt -> do
+      it "Order with ordReqOptionalMandateWNegativeMaxAmount" $ \rt -> do
         let rp = collectRPs
               (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
-        let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should be set."
-                                         , "options_create_mandate mandate_max_amount mandate_max_amount should be set."]
-        res <- try $ runOrderCreate rt ordReqOptionalMandateFeatureFailData rp
+        let err = Errs.mkValidationError ["options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
+                                         , "options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
+                                         ]
+        res <- try $ runOrderCreate rt ordReqOptionalMandateWNegativeMaxAmount rp
         res `shouldBe` Left err
+
+      it "Order with ordReqOptionalMandateWTooBigMaxAmount" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        let err = Errs.invalidMandateMaxAmount 100001.0
+        res <- try $ runOrderCreate rt ordReqOptionalMandateWTooBigMaxAmount rp
+        res `shouldBe` Left err
+
+      it "Order with ordReqOptionalMandateWOmaxAmount" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        res <- try @_ @SomeException $ runOrderCreate rt ordReqOptionalMandateWOmaxAmount rp
+        res `shouldSatisfy` isRight
+
+      it "Order with ordReqOptionalMandateWGoodMaxAmount" $ \rt -> do
+        let rp = collectRPs
+              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Version "2018-07-01")
+              (UserAgent "Uagent")
+        res <- try @_ @SomeException $ runOrderCreate rt ordReqOptionalMandateWGoodMaxAmount rp
+        res `shouldSatisfy` isRight
 
 
 ----------------------------------------------------------------------

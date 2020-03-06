@@ -109,9 +109,9 @@ updateOrderCache order = do
 --      Why this cache exist? What it does?
 updateMandateCache :: D.Order -> D.OrderMandate -> Flow ()
 updateMandateCache order mandate = case mandate of
-  D.MandateDisabled           -> pure ()
-  D.MandateRequired maxAmount -> updateMandateCache' maxAmount
-  D.MandateOptional maxAmount -> updateMandateCache' maxAmount
+  D.MandateRequired maxAmount        -> updateMandateCache' maxAmount
+  D.MandateOptional (Just maxAmount) -> updateMandateCache' maxAmount
+  _                                  -> pure ()
 
   where
     updateMandateCache' ma = do
@@ -158,9 +158,12 @@ updateMandateCache order mandate = case mandate of
 validateMandate :: Ts.OrderCreateTemplate -> D.MerchantId -> Flow ()
 validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
   case mandate of
-    D.MandateDisabled           -> pure ()
-    D.MandateRequired maxAmount -> validateMaxAmount maxAmount
-    D.MandateOptional maxAmount -> validateMaxAmount maxAmount
+    D.MandateRequired maxAmount        -> validateMaxAmount maxAmount
+    D.MandateOptional (Just maxAmount) -> validateMaxAmount maxAmount
+    _                                  -> pure ()
+  --  D.MandateDisabled           -> pure ()
+  --  D.MandateRequired maxAmount -> validateMaxAmount maxAmount
+  --  D.MandateOptional maxAmount -> validateMaxAmount maxAmount
 
   where
     validateMaxAmount maxAmount = do
@@ -171,7 +174,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       mbMaxAmLimitStr <- rGet $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
-
+-- EHS: maxAmount <= 0 verified on validation
       when (maxAmount <= 0.0 || maxAmount > maxAmLimit)
         $ throwException
         $ Errs.invalidMandateMaxAmount maxAmLimit
@@ -206,7 +209,7 @@ createOrder' routeParams order' mAccnt merchantPrefs = do
       -- EHS: misleading error message. Should explicitly state that customerId has to be set on MANDATE_REGISTER
       -- EHS: make Explicit pattern match
       (Nothing, True) -> throwException Errs.customerNotFound
-      (mbCId, _)      -> pure ()
+      _               -> pure ()
 
   let billingAddrHolder     = Rep.fillBillingAddressHolder mbCustomer (order' ^. _billingAddrHolder)
   mbBillingAddrId           <- Rep.createAddress (order' ^. _billingAddr) billingAddrHolder

@@ -158,9 +158,7 @@ type MandateMaxAmount = Double
 data OrderMandate
   = MandateDisabled
   | MandateRequired MandateMaxAmount
-  | MandateOptional MandateMaxAmount
- -- | MandateReqUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
- -- | MandateOptUndefined               -- EHS: these two options exist because the flaw of DB table design (lack of max amount)
+  | MandateOptional (Maybe MandateMaxAmount)
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
 
 

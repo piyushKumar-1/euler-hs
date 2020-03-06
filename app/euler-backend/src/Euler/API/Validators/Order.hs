@@ -122,15 +122,18 @@ transApiOrdCreateToOrdCreateT sm = Ts.OrderCreateTemplate
           -- EHS: maxAmount should not be set by default
           -- It should be present if mandate REQUIRED
           -- Check behavior if mandate is OPTIONAL
-          maxAmountStr <- extractMaybeWithDefault "0.0" maxAmountField
-          maxAmount    <- V.decode maxAmountStr
-          V.guarded "mandate_max_amount should be set."          $ mandate == DISABLED || isJust maxAmountField
-          V.guarded "mandate_max_amount should not be negative." $ maxAmount >= 0
-
-          pure $ case mandate of
-            DISABLED -> O.MandateDisabled
-            REQUIRED -> O.MandateRequired maxAmount
-            OPTIONAL -> O.MandateOptional maxAmount
+          case mandate of
+            DISABLED -> pure O.MandateDisabled
+            OPTIONAL -> do
+              mMaxAmount <- maybe (pure Nothing) (fmap Just . V.decode) maxAmountField
+              V.guarded "mandate_max_amount should not be negative." $ maybe True (>=0) mMaxAmount
+              pure $ O.MandateOptional mMaxAmount
+            REQUIRED -> do
+              V.guarded "mandate_max_amount should be set." $ isJust maxAmountField
+              maxAmountStr <- extractJust maxAmountField
+              maxAmount <- V.decode maxAmountStr
+              V.guarded "mandate_max_amount should not be negative." $ maxAmount >= 0
+              pure $ O.MandateRequired maxAmount
 
 apiOrderCreateToBillingAddrHolderT :: API.OrderCreateRequest -> V Ts.AddressHolderTemplate
 apiOrderCreateToBillingAddrHolderT req = Ts.AddressHolderTemplate

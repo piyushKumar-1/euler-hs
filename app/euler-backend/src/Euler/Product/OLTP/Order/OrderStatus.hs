@@ -345,7 +345,6 @@ makeOrderStatusResponse
 
 
     <<= changeMerchantSecondFactorResponse merchantSFR
-
     <<= changeTxnFlowInfo txnFlowInfo
       -- addSecondFactorResponseAndTxnFlowInfo
 

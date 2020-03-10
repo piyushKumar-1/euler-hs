@@ -22,19 +22,19 @@ import           Euler.Storage.Types.TxnDetail
 
 
 data MerchantPaymentGatewayResponse' = MerchantPaymentGatewayResponse'
-  {  resp_code            :: Maybe Text
-  ,  rrn                  :: Maybe Text
-  ,  created              :: Maybe Text
-  ,  epg_txn_id           :: Maybe Text
-  ,  resp_message         :: Maybe Text
-  ,  auth_id_code         :: Maybe Text
-  ,  txn_id               :: Maybe Text
-  ,  offer                :: Maybe Text
-  ,  offer_type           :: Maybe Text
-  ,  offer_availed        :: Maybe Text -- Foreign
-  ,  discount_amount      :: Maybe Text -- Foreign
-  ,  offer_failure_reason :: Maybe Text
-  ,  gateway_response     :: Maybe Text -- Foreign
+  { resp_code            :: Maybe Text
+  , rrn                  :: Maybe Text
+  , created              :: Maybe Text
+  , epg_txn_id           :: Maybe Text
+  , resp_message         :: Maybe Text
+  , auth_id_code         :: Maybe Text
+  , txn_id               :: Maybe Text
+  , offer                :: Maybe Text
+  , offer_type           :: Maybe Text
+  , offer_availed        :: Maybe Text -- Foreign
+  , discount_amount      :: Maybe Text -- Foreign
+  , offer_failure_reason :: Maybe Text
+  , gateway_response     :: Maybe Text -- Foreign
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -140,7 +140,7 @@ lookupXML
 lookupXML xml key defaultValue = maybe defaultValue P.id $
   (<|>)
   (previewValue $ matchKeyfn_1 xml key)
-  (previewValue $ getRecordValues $ matchKeyfn_2 xml key)
+  (previewValue $ listToMaybe $ getRecordValues $ matchKeyfn_2 xml key) -- EHS: check if 'preview _1' == 'listToMaybe'
 
 
 -- previewValue
@@ -175,9 +175,9 @@ matchKeyfn_2 xml key = LMap.lookup (TL.fromStrict key) xml
   -- find (\val → val.string == key) xml
 
 
-getRecordValues :: Maybe EValue -> Maybe EValue
-getRecordValues (Just (EGroovyHM (GroovyHM m))) = listToMaybe $ Map.elems m
-getRecordValues _ = Nothing
+getRecordValues :: Maybe EValue -> [EValue]
+getRecordValues (Just (EGroovyHM (GroovyHM m))) = Map.elems m
+getRecordValues _ = []
 
 -- exports.getRecordValues = function(rec) {
 --   var i = [];
@@ -209,618 +209,647 @@ lookupXMLKeys xmls key_1 key_2 defaultValue =
   where
         chooseOne a b = if a == defaultValue then b else a
 
+justEmpty, justNa :: Maybe Text
+justEmpty = Just T.empty
+justNa = Just "NA"
+
+onlyAlphaNumeric :: Text -> Text
+onlyAlphaNumeric = undefined
+-- exports["onlyAlphaNumeric"] = function(str) {
+--   return str.replace(/[^a-z0-9]/gi, '');
+-- }
+
+-- from Config.Constants
+decisionCodeToMessageMap :: Text -> Text
+decisionCodeToMessageMap "Y:" = "Executed the transaction"
+decisionCodeToMessageMap "N:" = "Dropped the transaction"
+decisionCodeToMessageMap "C:" = "Checksum is incorrect, so rectify and send"
+decisionCodeToMessageMap "E:" = "Error thrown"
+decisionCodeToMessageMap "ND" = "Delay in processing transaction"
+decisionCodeToMessageMap "R:" = "Transaction not found or already reversed"
+decisionCodeToMessageMap "NP" = "Card not permitted for that merchant"
+decisionCodeToMessageMap "NR" = "Record not available in the table"
+decisionCodeToMessageMap "I1" = "Card No not available"
+decisionCodeToMessageMap "I2" = "Exp date not available"
+decisionCodeToMessageMap "I4" = "CVV not available"
+decisionCodeToMessageMap "U:" = "Unique Constraint Violation, same Duplicate Trace Number used"
+decisionCodeToMessageMap "Y1" = "The transaction has been already cancelled"
+decisionCodeToMessageMap  _   = ""
+
 
 
 -- EPS: ** PGR Key Mapping Configs **
 
 zaakpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-zaakpay txn pgr = undefined
-  -- { txnId       = Value (txn ^. _txnId # just)
-  -- , rrn         = Value justEmpty
-  -- , epgTxnId    = XmlKeys "pgTransId" "txnId" "null"
-  -- , authId      = Value justNa
-  -- , respCode    = FromKeyOrObj  "responseCode"                          (pgr ^.  _respCode)     "null" -- extra check
-  -- , respMessage = FromKeysOrObj "responseMessage" "responseDescription" (pgr ^.  _respMessage)  "null" -- EPS: extra check
-  -- }
+zaakpay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKeys "pgTransId" "txnId" "null"
+  , authId      = Value justNa
+  , respCode    = FromKeyOrObj  "responseCode" (getField @"respCode" pgr) "null" -- EPS: extra check
+  , respMessage = FromKeysOrObj "responseMessage" "responseDescription" (getField @"respMessage" pgr)  "null" -- EPS: extra check
+  }
 
 atom :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-atom txn pgr = undefined
---   -- { txnId       :: Value (txn ^. _txnId # just)
-  -- -- , rrn         :: XmlKeys "bank_txn"  "BID"       "null"
-  -- -- , epgTxnId    :: XmlKeys "mmp_txn"   "atomtxnId" "null"
-  -- -- , authId      :: XmlKey  "auth_code" "null"
-  -- -- , respCode    :: Value (pgr ^.  _respCode)
-  -- -- , respMessage :: Value (pgr ^.  _respMessage)
-  -- }
+atom txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKeys "bank_txn" "BID" "null"
+  , epgTxnId    = XmlKeys "mmp_txn" "atomtxnId" "null"
+  , authId      = XmlKey  "auth_code" "null"
+  , respCode    = Value $ getField @"respCode" pgr
+  , respMessage = Value $ getField @"respMessage" pgr
+  }
 
 
 paylater :: TxnDetail -> MerchantPaymentGatewayResponseTemp
-paylater txn = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : Value justNa
-  -- , authId      : Value justNa
-  -- , respCode    : Value justNa
-  -- , respMessage : Value justNa
-  -- }
+paylater txn = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = Value justNa
+  , authId      = Value justNa
+  , respCode    = Value justNa
+  , respMessage = Value justNa
+  }
 
 mobikwik :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-mobikwik txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKeys "refid" "refId" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : FromKeyOrObj "statuscode"    (pgr ^.  _respCode)    "null" -- EPS extra check
-  -- , respMessage : FromKeyOrObj "statusmessage" (pgr ^.  _respMessage) "null" -- EPS extra check
-  -- }
+mobikwik txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKeys "refid" "refId" "null"
+  , authId      = Value justNa
+  , respCode    = FromKeyOrObj "statuscode" (getField @"respCode" pgr) "null" -- EPS extra check
+  , respMessage = FromKeyOrObj "statusmessage" (getField @"respMessage" pgr) "null" -- EPS extra check
+  }
 
-ebs_v3 :: TxnDetail -> MerchantPaymentGatewayResponseTemp
-ebs_v3 pgr = undefined
-  -- { txnId       : Value (pgr ^.  _txnId)
-  -- , rrn         : XmlKeys "PaymentID"     "paymentId"     "null"
-  -- , epgTxnId    : XmlKeys "TransactionID" "transactionId" "null"
-  -- , authId      : Value justEmpty
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+ebs_v3 :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+ebs_v3 pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ getField @"txnId" pgr
+  , rrn         = XmlKeys "PaymentID" "paymentId" "null"
+  , epgTxnId    = XmlKeys "TransactionID" "transactionId" "null"
+  , authId      = Value justEmpty
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
-ebs :: TxnDetail -> MerchantPaymentGatewayResponseTemp
-ebs pgr = undefined
-  -- { txnId       : Value (pgr ^.  _txnId)
-  -- , rrn         : XmlKey "vpc_TransactionId" "null"
-  -- , epgTxnId    : XmlKey "vpc_PaymentId"     "null"
-  -- , authId      : Value justEmpty
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+ebs :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+ebs pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value (getField @"txnId" pgr)
+  , rrn         = XmlKey "vpc_TransactionId" "null"
+  , epgTxnId    = XmlKey "vpc_PaymentId" "null"
+  , authId      = Value justEmpty
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
-paytm_v2 :: TxnDetail -> MerchantPaymentGatewayResponseTemp
-paytm_v2 pgr = undefined
-  -- { txnId       : Value (pgr ^. _txnId)
-  -- , rrn         : XmlKey  "BANKTXNID" ""
-  -- , epgTxnId    : XmlKeys "TXNID" "TxnId" ""
-  -- , authId      : Value justEmpty
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+paytm_v2 :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+paytm_v2 pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value (getField @"txnId" pgr)
+  , rrn         = XmlKey  "BANKTXNID" ""
+  , epgTxnId    = XmlKeys "TXNID" "TxnId" ""
+  , authId      = Value justEmpty
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 tpsl :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-tpsl txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "clnt_txn_ref" ""
-  -- , epgTxnId    : XmlKey "tpsl_txn_id"  ""
-  -- , authId      : Value  justEmpty
-  -- , respCode    : FromKeyOrObj "txn_status" (pgr ^. _respCode)    ""
-  -- , respMessage : FromKeyOrObj "txn_msg"    (pgr ^. _respMessage) ""
-  -- }
+tpsl txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "clnt_txn_ref" ""
+  , epgTxnId    = XmlKey "tpsl_txn_id" ""
+  , authId      = Value  justEmpty
+  , respCode    = FromKeyOrObj "txn_status" (getField @"respCode" pgr) ""
+  , respMessage = FromKeyOrObj "txn_msg" (getField @"respMessage" pgr) ""
+  }
 
 amex :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-amex txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "vpc_ReceiptNo"        "null"
-  -- , epgTxnId    : XmlKey "vpc_TransactionNo"    "null"
-  -- , authId      : XmlKey "vpc_AuthorizeId"      "null"
-  -- , respCode    : FromKeyOrObj "vpc_TxnResponseCode" (pgr ^.  _respCode)    "null" -- EPS: extra check
-  -- , respMessage : FromKeyOrObj "vpc_Message"         (pgr ^.  _respMessage) "null" -- EPS: extra check
-  -- }
+amex txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "vpc_ReceiptNo" "null"
+  , epgTxnId    = XmlKey "vpc_TransactionNo" "null"
+  , authId      = XmlKey "vpc_AuthorizeId" "null"
+  , respCode    = FromKeyOrObj "vpc_TxnResponseCode" (getField @"respCode" pgr)    "null" -- EPS: extra check
+  , respMessage = FromKeyOrObj "vpc_Message"         (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
 
 dummy :: MerchantPaymentGatewayResponseTemp
-dummy = undefined
-  -- { txnId       : XmlKey "txnId"       "null"
-  -- , rrn         : XmlKeys "RRN"  "rrn" "null"
-  -- , epgTxnId    : XmlKey "epgTxnId"    "null"
-  -- , authId      : XmlKey "authIdCode"  "null"
-  -- , respCode    : XmlKey "respCode"    "null"
-  -- , respMessage : XmlKey "respMessage" "null"
-  -- }
+dummy = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKey "txnId"       "null"
+  , rrn         = XmlKeys "RRN"  "rrn" "null"
+  , epgTxnId    = XmlKey "epgTxnId"    "null"
+  , authId      = XmlKey "authIdCode"  "null"
+  , respCode    = XmlKey "respCode"    "null"
+  , respMessage = XmlKey "respMessage" "null"
+  }
 
 hdfc_ebs_vas :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-hdfc_ebs_vas txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : Value justNa
-  -- , authId      : Value justNa
-  -- -- , respCode    : FromKeyOrObj  "ResponseCode"            (pgr ^.  _respCode)    "null" -- EPS:  extra check
-  -- -- , respMessage : FromKeysOrObj "ResponseMessage" "Error" (pgr ^.  _respMessage) ""     -- EPS:  extra check
-  -- }
+hdfc_ebs_vas txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = Value justNa
+  , authId      = Value justNa
+  , respCode    = FromKeyOrObj  "ResponseCode" (getField @"respCode" pgr) "null" -- EPS:  extra check
+  , respMessage = FromKeysOrObj "ResponseMessage" "Error" (getField @"respMessage" pgr) ""     -- EPS:  extra check
+  }
 
 stripe
   :: TxnDetail
   -> PaymentGatewayResponse
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
-stripe txn pgr xmls = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "id" "null"
-  -- , epgTxnId    : XmlKey "id" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value respCode
-  -- , respMessage : FromKeyOrObj "failureMessage" (pgr ^.  _respMessage) "null" -- EPS: extra check
-  -- }
-  -- where
-  --       status      = lookupXML xmls "status" "null"
-  --       failureCode = lookupXML xmls "failureCode" "null"
-  --       respCode    = just $ if status == "failed" then failureCode else status
+stripe txn pgr xmls = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "id" "null"
+  , epgTxnId    = XmlKey "id" "null"
+  , authId      = Value justNa
+  , respCode    = Value respCode
+  , respMessage = FromKeyOrObj "failureMessage" (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
+  where
+        status      = lookupXML xmls "status" "null"
+        failureCode = lookupXML xmls "failureCode" "null"
+        respCode    = Just $ if status == "failed" then failureCode else status
 
 
 ipg :: TxnDetail -> Map.Map TL.Text EValue -> MerchantPaymentGatewayResponseTemp
-ipg txn xmls = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "ipgTransactionId" "null"
-  -- , authId      : Value justNa
-  -- -- , respCode    : Value $ ipgRespCodeAndMessage xmls "fail_rc"     "approval_code" (lookupXML xmls "ApprovalCode"     "null")
-  -- -- , respMessage : Value $ ipgRespCodeAndMessage xmls "fail_reason" "status"        (lookupXML xmls "TransactionState" "null")
-  -- }
-  -- where
-        -- ipgRespCodeAndMessage xmls keys_1 key_2 df = lookupXMLKeys xmls keys_1 key_2 df # just
+ipg txn xmls = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "ipgTransactionId" "null"
+  , authId      = Value justNa
+  , respCode    = Value
+      $ ipgRespCodeAndMessage xmls "fail_rc" "approval_code"
+      $ lookupXML xmls "ApprovalCode" "null"
+  , respMessage = Value
+      $ ipgRespCodeAndMessage xmls "fail_reason" "status"
+      $ lookupXML xmls "TransactionState" "null"
+  }
+  where
+    ipgRespCodeAndMessage xmls keys_1 key_2 df = Just $ lookupXMLKeys xmls keys_1 key_2 df
 
 axisnb :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-axisnb txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "BID" ""
-  -- , authId      : Value justNa
-  -- , respCode    : Fn (view _axisRespCode) pgr
-  -- , respMessage : Fn (view _axisRespMessage) pgr
-  -- }
+axisnb txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "BID" ""
+  , authId      = Value justNa
+  , respCode    = Value $ getField @"axisRespCode" pgr
+  , respMessage = Value $ getField @"axisRespMessage" pgr
+  }
 
 zestmoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-zestmoney txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : Value justNa
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+zestmoney txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = Value justNa
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 ccavenue_v2
   :: TxnDetail
   -> PaymentGatewayResponse
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
-ccavenue_v2 txn pgr xmls = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKeys "bank_ref_no" "order_bank_ref_no" "null"
-  -- , epgTxnId    : XmlKeys "tracking_id" "reference_no"      "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : FromObjOrkey (pgr ^. _respMessage) "order_status" "null" -- extra check
-  -- }
+ccavenue_v2 txn pgr xmls = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKeys "bank_ref_no" "order_bank_ref_no" "null"
+  , epgTxnId    = XmlKeys "tracking_id" "reference_no"      "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = FromObjOrkey (getField @"respMessage" pgr) "order_status" "null" -- extra check
+  }
 
 cybersource :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-cybersource txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKeys "requestID" "RequestID" "null"
-  -- , authId      : XmlKeys "ccAuthReply_authorizationCode" "AuthorizationCode" "NA"
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+cybersource txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKeys "requestID" "RequestID" "null"
+  , authId      = XmlKeys "ccAuthReply_authorizationCode" "AuthorizationCode" "NA"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 paypal :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-paypal txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "paymentId"  ""
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+paypal txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "paymentId" ""
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 olapostpaid :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-olapostpaid txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKeys "transactionId" "globalMerchantId" ""
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^.  _respCode)
-  -- , respMessage : Value (pgr ^.  _respMessage)
-  -- }
+olapostpaid txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKeys "transactionId" "globalMerchantId" ""
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 blazepay
   :: TxnDetail
   -> PaymentGatewayResponse
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
-blazepay txn pgr xmls = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKeys "issuerRefNo" "RRN"     "null"
-  -- , epgTxnId    : XmlKeys "pgTxnNo"     "pgTxnId" "null"
-  -- , authId      : XmlKey "authIdCode"             "null"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : FromObjOrkey (pgr ^. _respMessage) "respMsg" "null" -- EPS: extra check
-  -- }
+blazepay txn pgr xmls = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKeys "issuerRefNo" "RRN" "null"
+  , epgTxnId    = XmlKeys "pgTxnNo" "pgTxnId" "null"
+  , authId      = XmlKey "authIdCode" "null"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = FromObjOrkey (getField @"respMessage" pgr) "respMsg" "null" -- EPS: extra check
+  }
 
 simpl :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-simpl txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "id"  ""
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+simpl txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "id" ""
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 gocashfree :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-gocashfree txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "referenceId"  ""
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+gocashfree txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "referenceId"  ""
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 
 razorpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-razorpay txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKeys "razorpay_payment_id" "id" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (unNull (pgr ^. _respCode) "null" # just)
-  -- , respMessage : Value (unNull (pgr ^. _respMessage) "null" # just)
-  -- }
+razorpay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKeys "razorpay_payment_id" "id" "null"
+  , authId      = Value justNa
+  , respCode    = Value $ Just $ fromMaybe "null" (getField @"respCode" pgr)
+  , respMessage = Value $ Just $ fromMaybe "null" (getField @"respMessage" pgr)
+  }
 
 olmoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-olmoney txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "transactionId"  "NA"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+olmoney txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn -- EHS: eps has not Just
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "transactionId" "NA"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 mpesa :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-mpesa txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKeys "mcompgtransid" "mcomPgTransID" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+mpesa txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKeys "mcompgtransid" "mcomPgTransID" "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 sbibuddy :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-sbibuddy txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "transactionId"  "NA"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+sbibuddy txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "transactionId"  "NA"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 citrus :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-citrus txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "issuerRefNo"    "null"
-  -- , epgTxnId    : XmlKey "pgTxnNo"        "null"
-  -- , authId      : XmlKey "authIdCode"     "null"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+citrus txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "issuerRefNo" "null"
+  , epgTxnId    = XmlKey "pgTxnNo" "null"
+  , authId      = XmlKey "authIdCode" "null"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 axis :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-axis pgr = undefined
-  -- { txnId       : XmlKey "vpc_MerchTxnRef"      "null"
-  -- , rrn         : XmlKey "vpc_ReceiptNo"        "null"
-  -- , epgTxnId    : XmlKey "vpc_TransactionNo"    "null"
-  -- , authId      : XmlKey "vpc_AuthorizeId"      "null"
-  -- -- , respCode    : FromKeyOrObj "vpc_TxnResponseCode" (pgr ^. _respCode)    "null" -- EPS: extra check
-  -- -- , respMessage : FromKeyOrObj "vpc_Message"         (pgr ^. _respMessage) "null" -- EPS: extra check
-  -- }
+axis pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKey "vpc_MerchTxnRef" "null"
+  , rrn         = XmlKey "vpc_ReceiptNo" "null"
+  , epgTxnId    = XmlKey "vpc_TransactionNo" "null"
+  , authId      = XmlKey "vpc_AuthorizeId" "null"
+  , respCode    = FromKeyOrObj "vpc_TxnResponseCode" (getField @"respCode" pgr) "null" -- EPS: extra check
+  , respMessage = FromKeyOrObj "vpc_Message" (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
 
 migs :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-migs pgr = undefined
-  -- { txnId       : XmlKey "vpc_MerchTxnRef"      "null"
-  -- , rrn         : XmlKey "vpc_ReceiptNo"        "null"
-  -- , epgTxnId    : XmlKey "vpc_TransactionNo"    "null"
-  -- , authId      : XmlKey "vpc_AuthorizeId"      "null"
-  -- , respCode    : FromKeyOrObj "vpc_TxnResponseCode" (pgr ^. _respCode)    "null" -- EPS: extra check
-  -- , respMessage : FromKeyOrObj "vpc_Message"         (pgr ^. _respMessage) "null" -- EPS: extra check
-  -- }
+migs pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKey "vpc_MerchTxnRef" "null"
+  , rrn         = XmlKey "vpc_ReceiptNo" "null"
+  , epgTxnId    = XmlKey "vpc_TransactionNo" "null"
+  , authId      = XmlKey "vpc_AuthorizeId" "null"
+  , respCode    = FromKeyOrObj "vpc_TxnResponseCode" (getField @"respCode" pgr) "null" -- EPS: extra check
+  , respMessage = FromKeyOrObj "vpc_Message" (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
 
 hdfc :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-hdfc pgr = undefined
-  -- { txnId       : XmlKey "trackid"    "null"
-  -- , rrn         : XmlKey "ref"        "null"
-  -- , epgTxnId    : XmlKey "paymentid"  "null"
-  -- , authId      : XmlKey "auth"       "null"
-  -- , respCode    : FromKeyOrObj "result" (pgr ^. _respCode)    "null" -- EPS: extra check
-  -- , respMessage : FromKeyOrObj "result" (pgr ^. _respMessage) "null" -- EPS: extra check
-  -- }
+hdfc pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKey "trackid" "null"
+  , rrn         = XmlKey "ref" "null"
+  , epgTxnId    = XmlKey "paymentid" "null"
+  , authId      = XmlKey "auth" "null"
+  , respCode    = FromKeyOrObj "result" (getField @"respCode" pgr) "null" -- EPS: extra check
+  , respMessage = FromKeyOrObj "result" (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
 
 icici :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-icici pgr = undefined
-  -- { txnId       : XmlKey "txnId"        "null"
-  -- , rrn         : XmlKey "RRN"          "null"
-  -- , epgTxnId    : XmlKey "epgTxnId"     "null"
-  -- , authId      : XmlKey "authIdCode"   "null"
-  -- , respCode    : FromKeyOrObj "respCode"    (pgr ^. _respCode)    "null" -- EPS: extra check
-  -- , respMessage : FromKeyOrObj "respMessage" (pgr ^. _respMessage) "null" -- EPS: extra check
-  -- }
+icici pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKey "txnId"        "null"
+  , rrn         = XmlKey "RRN"          "null"
+  , epgTxnId    = XmlKey "epgTxnId"     "null"
+  , authId      = XmlKey "authIdCode"   "null"
+  , respCode    = FromKeyOrObj "respCode"    (getField @"respCode" pgr)    "null" -- EPS: extra check
+  , respMessage = FromKeyOrObj "respMessage" (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
 
 icicinb :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-icicinb txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "BID" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : FromKeyOrObj "PAID" (pgr ^. _respCode) "null"
-  -- , respMessage : Fn (unNull (pgr ^. _respMessage) >>> just) ""
-  -- }
+icicinb txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "BID" "null"
+  , authId      = Value justNa
+  , respCode    = FromKeyOrObj "PAID" (getField @"respCode" pgr) "null"
+  , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
+  }
 
 olamoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-olamoney txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "transactionId" "NA"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+olamoney txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "transactionId" "NA"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 paytm :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-paytm pgr = undefined
-  -- { txnId       : Value (pgr ^. _txnId)
-  -- , rrn         : XmlKeys "TXNID" "TxnId" "null"
-  -- , epgTxnId    : XmlKeys "TXNID" "TxnId" "null"
-  -- , authId      : Value justEmpty
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+paytm pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value (getField @"txnId" pgr)
+  , rrn         = XmlKeys "TXNID" "TxnId" "null"
+  , epgTxnId    = XmlKeys "TXNID" "TxnId" "null"
+  , authId      = Value justEmpty
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 payu :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-payu pgr = undefined
-  -- { txnId       : Value (pgr ^. _txnId)
-  -- , rrn         : XmlKey "bank_ref_num" "null"
-  -- , epgTxnId    : XmlKey "mihpayid"     "null"
-  -- , authId      : XmlKey "field2"       "NA"
-  -- , respCode    : Fn (unNull (pgr ^. _respCode)    >>> just) "null"
-  -- , respMessage : Fn (unNull (pgr ^. _respMessage) >>> just) "null"
-  -- }
+payu pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value (getField @"txnId" pgr)
+  , rrn         = XmlKey "bank_ref_num" "null"
+  , epgTxnId    = XmlKey "mihpayid"     "null"
+  , authId      = XmlKey "field2"       "NA"
+  , respCode    = Value $ whenNothing (getField @"respCode" pgr)    (Just "null")
+  , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "null")
+  }
 
 freecharge :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-freecharge txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "txnId" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : FromKeysOrObj "status"       "errorCode" (pgr ^. _respCode)    "null" -- EPS: extra check
-  -- , respMessage : FromKeysOrObj "errorMessage" "status"    (pgr ^. _respMessage) "null" -- EPS: extra check
-  -- }
+freecharge txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "txnId" "null"
+  , authId      = Value justNa
+  , respCode    = FromKeysOrObj "status"       "errorCode" (getField @"respCode" pgr)    "null" -- EPS: extra check
+  , respMessage = FromKeysOrObj "errorMessage" "status"    (getField @"respMessage" pgr) "null" -- EPS: extra check
+  }
 
 billdesk :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-billdesk txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "TxnReferenceNo"  "null"
-  -- , epgTxnId    : XmlKey "TxnReferenceNo"  "null"
-  -- , authId      : XmlKey "BankReferenceNo" "NA"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+billdesk txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "TxnReferenceNo"  "null"
+  , epgTxnId    = XmlKey "TxnReferenceNo"  "null"
+  , authId      = XmlKey "BankReferenceNo" "NA"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 kotak :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-kotak txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "RetRefNo" "NA"
-  -- , epgTxnId    : XmlKey "RetRefNo" "NA"
-  -- , authId      : XmlKey "AuthCode" "NA"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+kotak txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "RetRefNo" "NA"
+  , epgTxnId    = XmlKey "RetRefNo" "NA"
+  , authId      = XmlKey "AuthCode" "NA"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 jiomoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-jiomoney txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "jm_tran_ref_no" "NA"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+jiomoney txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "jm_tran_ref_no" "NA"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 amazonpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-amazonpay txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKeys "amazonOrderId" "transactionId" "NA"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+amazonpay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKeys "amazonOrderId" "transactionId" "NA"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 airtelmoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-airtelmoney txn pgr = undefined
-  -- { txnId       : Fn (view _txnId >>> onlyAlphaNumeric >>> just) txn
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKeys "TRAN_ID" "FDC_TXN_ID" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+airtelmoney txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ onlyAlphaNumeric $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKeys "TRAN_ID" "FDC_TXN_ID" "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 phonepe :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-phonepe txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "providerReferenceId" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+phonepe txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "providerReferenceId" "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 epaylater :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-epaylater txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKeys "eplOrderId" "id" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+epaylater txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKeys "eplOrderId" "id" "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 sodexo :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-sodexo txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "retrievalReferenceNumber" "null"
-  -- , epgTxnId    : XmlKey "transactionId" "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+sodexo txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "retrievalReferenceNumber" "null"
+  , epgTxnId    = XmlKey "transactionId" "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 fssatmpinv2 :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-fssatmpinv2 txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "ref"    "null"
-  -- , epgTxnId    : XmlKey "tranid" "null"
-  -- , authId      : XmlKey "auth"   "null"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+fssatmpinv2 txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "ref"    "null"
+  , epgTxnId    = XmlKey "tranid" "null"
+  , authId      = XmlKey "auth"   "null"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 fssatmpin :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-fssatmpin txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "ref"    "null"
-  -- , epgTxnId    : XmlKey "tranid" "null"
-  -- , authId      : XmlKey "auth"   "null"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+fssatmpin txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "ref"    "null"
+  , epgTxnId    = XmlKey "tranid" "null"
+  , authId      = XmlKey "auth"   "null"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 linepay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-linepay txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : XmlKey "transactionId" ""
-  -- , epgTxnId    : XmlKey "transactionId" ""
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+linepay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = XmlKey "transactionId" ""
+  , epgTxnId    = XmlKey "transactionId" ""
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 citi
   :: TxnDetail
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
-citi txn xmls = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : Value justEmpty
-  -- , authId      : Fn (fromMaybe "" >>> just) (result !! 7)
-  -- , respCode    : Fn (just) decisionCode
-  -- , respMessage : Fn (decisionCodeToMessageMap >>> just) decisionCode
-  -- }
-  -- where
-  -- :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp"null")
-  --       result       = undefined S.split (S.Pattern "|") (lookupXML xmls "CitiToMall" "null")
-  -- :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-  --       decisionCode = undefined fromMaybe "" (result !! 6)
+citi txn xmls = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = Value justEmpty
+  , authId      = Value $ whenNothing (listToMaybe $ drop 6 result) (Just "")
+  , respCode    = Value $ Just decisionCode
+  , respMessage = Value $ Just $ decisionCodeToMessageMap decisionCode
+  }
+  where
+    result       = T.splitOn "|" (lookupXML xmls "CitiToMall" "null")
+    decisionCode = fromMaybe "" (listToMaybe $ drop 5 result)
 
 cash :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-cash txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : Value justNa
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+cash txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = Value justNa
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 axisupi :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-axisupi txn pgr = undefined
-  -- { txnId       : XmlKeys "merchantRequestId" "transactionRef" (txn ^. _txnId)
-  -- , rrn         : XmlKey  "custRef" "null"
-  -- , epgTxnId    : XmlKeys "gatewayTransactionId" "upiRequestId" "null"
-  -- , authId      : Value   justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+axisupi txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKeys "merchantRequestId" "transactionRef" (getField @"txnId" txn)
+  , rrn         = XmlKey  "custRef" "null"
+  , epgTxnId    = XmlKeys "gatewayTransactionId" "upiRequestId" "null"
+  , authId      = Value   justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 otherGateways :: PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-otherGateways pgr = undefined
-  -- { txnId       : Value (pgr ^. _txnId)
-  -- , rrn         : XmlKeys "rrn"        "RRN"        "null"
-  -- , epgTxnId    : XmlKeys "epgTxnId"   "EpgTxnId"   "null"
-  -- , authId      : XmlKeys "authIdCode" "AuthIdCode" "null"
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+otherGateways pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value (getField @"txnId" pgr)
+  , rrn         = XmlKeys "rrn"        "RRN"        "null"
+  , epgTxnId    = XmlKeys "epgTxnId"   "EpgTxnId"   "null"
+  , authId      = XmlKeys "authIdCode" "AuthIdCode" "null"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 eulerUpiGWs :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-eulerUpiGWs txn pgr = undefined
-  -- { txnId       : XmlKey "transactionRef" (txn ^. _txnId)
-  -- , rrn         : XmlKey "custRef"        "null"
-  -- , epgTxnId    : XmlKey "upiRequestId"   "null"
-  -- , authId      : Value justNa
-  -- , respCode    : Value (pgr ^. _respCode)
-  -- , respMessage : Value (pgr ^. _respMessage)
-  -- }
+eulerUpiGWs txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = XmlKey "transactionRef" (getField @"txnId" txn)
+  , rrn         = XmlKey "custRef"        "null"
+  , epgTxnId    = XmlKey "upiRequestId"   "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 fsspay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-fsspay txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "tranid" ""
-  -- , authId      : XmlKey "auth" ""
-  -- , respCode    : Value (unNull (pgr ^. _respCode) "" # just)
-  -- , respMessage : Value (unNull (pgr ^. _respMessage) "" # just)
-  -- }
+fsspay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "tranid" ""
+  , authId      = XmlKey "auth" ""
+  , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
+  , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
+  }
 
 lazypay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-lazypay txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKeys "pgTxnNo" "transactionId" ""
-  -- , authId      : XmlKey  "authIdCode" "NA"
-  -- , respCode    : Value (unNull (pgr ^. _respCode) "" # just)
-  -- , respMessage : Value (unNull (pgr ^. _respMessage) "" # just)
-  -- }
+lazypay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKeys "pgTxnNo" "transactionId" ""
+  , authId      = XmlKey  "authIdCode" "NA"
+  , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
+  , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
+  }
 
 pinelabs :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-pinelabs txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justEmpty
-  -- , epgTxnId    : XmlKey "ppc_UniqueMerchantTxnID" ""
-  -- , authId      : Value justNa
-  -- , respCode    : FromKeyOrObj "ppc_TxnResponseCode" (pgr ^. _respCode)       "null"
-  -- , respMessage : FromObjOrkey (pgr ^. _respMessage) "ppc_TxnResponseMessage" "null"
-  -- }
+pinelabs txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "ppc_UniqueMerchantTxnID" ""
+  , authId      = Value justNa
+  , respCode    = FromKeyOrObj "ppc_TxnResponseCode" (getField @"respCode" pgr)       "null"
+  , respMessage = FromObjOrkey (getField @"respMessage" pgr) "ppc_TxnResponseMessage" "null"
+  }
 
 airpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-airpay txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "APTRANSACTIONID" ""
-  -- , authId      : Value justNa
-  -- , respCode    : FromKeyOrObj "TRANSACTIONSTATUS" (pgr ^. _respCode)    ""
-  -- , respMessage : FromKeyOrObj "MESSAGE"           (pgr ^. _respMessage) ""
-  -- }
+airpay txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "APTRANSACTIONID" ""
+  , authId      = Value justNa
+  , respCode    = FromKeyOrObj "TRANSACTIONSTATUS" (getField @"respCode" pgr)    ""
+  , respMessage = FromKeyOrObj "MESSAGE"           (getField @"respMessage" pgr) ""
+  }
 
 freechargev2 :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-freechargev2 txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "txnId" ""
-  -- , authId      : XmlKey "authCode" "NA"
-  -- , respCode    : Value (unNull (pgr ^. _respCode) "" # just)
-  -- , respMessage : Value (unNull (pgr ^. _respMessage) "" # just)
-  -- }
+freechargev2 txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "txnId" ""
+  , authId      = XmlKey "authCode" "NA"
+  , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
+  , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
+  }
 
 hdfcnb :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
-hdfcnb txn pgr = undefined
-  -- { txnId       : Value (txn ^. _txnId # just)
-  -- , rrn         : Value justNa
-  -- , epgTxnId    : XmlKey "BankRefNo" ""
-  -- , authId      : Value justNa
-  -- , respCode    : Value (unNull (pgr ^. _respCode) "" # just)
-  -- , respMessage : Value (unNull (pgr ^. _respMessage) "" # just)
-  -- }
+hdfcnb txn pgr = MerchantPaymentGatewayResponseTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justNa
+  , epgTxnId    = XmlKey "BankRefNo" ""
+  , authId      = Value justNa
+  , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
+  , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
+  }
 
 
 

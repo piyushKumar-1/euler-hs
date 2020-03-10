@@ -4008,7 +4008,7 @@ casematch
   -> PaymentGatewayResponse
   -> MerchantPaymentGatewayResponse'
   -> Text
-  -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponse'
 casematch txn pgr merchPGR gateway xmls = undefined
 -- casematch txn pgr merchPGR gateway xmls = match gateway

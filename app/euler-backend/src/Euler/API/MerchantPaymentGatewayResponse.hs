@@ -3,13 +3,15 @@
 
 module Euler.API.MerchantPaymentGatewayResponse where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude as P
 
 import           Data.Aeson
 import qualified Data.Map.Strict as Map
+import qualified Data.Map.Lazy as LMap
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
+import           Data.Generics.Product.Fields
 
 import           Euler.API.Types
 import           Euler.Common.Types.PaymentGatewayResponseXml
@@ -57,21 +59,20 @@ defaultMerchantPaymentGatewayResponse' = MerchantPaymentGatewayResponse'
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
-  {   resp_code            :: Maybe Text -- Foreign
-   ,  rrn                  :: Maybe Text -- Foreign
-   ,  created              :: Maybe Text -- Foreign
-   ,  epg_txn_id           :: Maybe Text -- Foreign
-   ,  resp_message         :: Maybe Text -- Foreign
-   ,  auth_id_code         :: Maybe Text -- Foreign
-   ,  txn_id               :: Maybe Text -- Foreign
-   ,  offer                :: Maybe Text
-   ,  offer_type           :: Maybe Text
-   ,  offer_availed        :: Maybe Text -- Foreign
-   ,  discount_amount      :: Maybe Text -- Foreign
-   ,  offer_failure_reason :: Maybe Text
-   ,  gateway_response     :: Maybe Text -- Foreign
-   }
-   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  { resp_code            :: Maybe Text -- Foreign
+  , rrn                  :: Maybe Text -- Foreign
+  , created              :: Maybe Text -- Foreign
+  , epg_txn_id           :: Maybe Text -- Foreign
+  , resp_message         :: Maybe Text -- Foreign
+  , auth_id_code         :: Maybe Text -- Foreign
+  , txn_id               :: Maybe Text -- Foreign
+  , offer                :: Maybe Text
+  , offer_type           :: Maybe Text
+  , offer_availed        :: Maybe Text -- Foreign
+  , discount_amount      :: Maybe Text -- Foreign
+  , offer_failure_reason :: Maybe Text
+  , gateway_response     :: Maybe Text -- Foreign
+  }  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- EPS
 -- | Type for PGR_Key_Mapping
@@ -81,17 +82,15 @@ data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
 -- |    Xmlkeys key1 key2 defaultValue
 -- |    Value   (just value)
 
-data PGRField = PGRField
+data PGRField
+  = FromKeysOrObj Text Text (Maybe Text) Text
+  | FromObjOrkeys (Maybe Text) Text Text Text
+  | XmlKeys Text Text Text
+  | FromKeyOrObj Text (Maybe Text) Text
+  | FromObjOrkey (Maybe Text) Text Text
+  | XmlKey Text Text
+  | Value (Maybe Text)
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- data PGRField a b =
-  -- Fn (a → b) a
-  -- | FromKeysOrObj String                   String                   (NullOrUndefined String) String
-  -- | FromObjOrkeys (NullOrUndefined String) String                   String                   String
-  -- | XmlKeys                                String                   String                   String
-  -- | FromKeyOrObj  String                   (NullOrUndefined String)                          String
-  -- | FromObjOrkey  (NullOrUndefined String) String                                            String
-  -- | XmlKey                                 String                                            String
-  -- | Value b
 
 data MerchantPaymentGatewayResponseTemp = MerchantPaymentGatewayResponseTemp
   { txnId       :: PGRField
@@ -105,57 +104,110 @@ data MerchantPaymentGatewayResponseTemp = MerchantPaymentGatewayResponseTemp
 
 executePGR
   :: MerchantPaymentGatewayResponse'
-  -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
   -> MerchantPaymentGatewayResponse'
 executePGR merchPGR xmls merchTemp =
   merchPGR
-    { txn_id       = undefined -- runPGR xmls (getField @"txnId" merchTemp)
-    , rrn          = undefined -- runPGR xmls (getField @"rrn" merchTemp)
-    , epg_txn_id   = undefined -- runPGR xmls (getField @"epgTxnId" merchTemp)
-    , auth_id_code = undefined -- runPGR xmls (getField @"authId" merchTemp)
-    , resp_code    = undefined -- runPGR xmls (getField @"respCode" merchTemp)
-    , resp_message = undefined -- runPGR xmls (getField @"respMessage" merchTemp)
+    { txn_id       = runPGR xmls $ getField @"txnId" merchTemp
+    , rrn          = runPGR xmls $ getField @"rrn" merchTemp
+    , epg_txn_id   = runPGR xmls $ getField @"epgTxnId" merchTemp
+    , auth_id_code = runPGR xmls $ getField @"authId" merchTemp
+    , resp_code    = runPGR xmls $ getField @"respCode" merchTemp
+    , resp_message = runPGR xmls $ getField @"respMessage" merchTemp
     }
 
 runPGR
-  :: (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  :: Map.Map TL.Text EValue
   -> PGRField
   -> Maybe Text
-runPGR _ _= undefined
--- runPGR xmls (Value b) = b
+-- runPGR _ _= undefined
 -- runPGR xmls (Fn f a) = f a
--- runPGR xmls (FromObjOrkeys ndf key_1 key_2 df) = just $ unNull ndf $ lookupXMLKeys xmls key_1 key_2 df
--- runPGR xmls (FromKeysOrObj key_1 key_2 ndf df) = just $ lookupXMLKeys xmls key_1 key_2 $ unNull ndf df
--- runPGR xmls (FromObjOrkey ndf key df) = just $ unNull ndf $ lookupXML xmls key df
--- runPGR xmls (FromKeyOrObj key ndf df) = just $ lookupXML xmls key $ unNull ndf df
--- runPGR xmls (XmlKeys key_1 key_2 df)  = just $ lookupXMLKeys xmls key_1 key_2 df
--- runPGR xmls (XmlKey key df)           = just $ lookupXML xmls key df
+runPGR xmls (FromObjOrkeys ndf key_1 key_2 df) = Just $ fromMaybe (lookupXMLKeys xmls key_1 key_2 df) ndf
+runPGR xmls (FromKeysOrObj key_1 key_2 ndf df) = Just $ lookupXMLKeys xmls key_1 key_2 $ fromMaybe df ndf
+runPGR xmls (FromObjOrkey ndf key df) = Just $ fromMaybe (lookupXML xmls key df) ndf
+runPGR xmls (FromKeyOrObj key ndf df) = Just $ lookupXML xmls key $ fromMaybe df ndf
+runPGR xmls (XmlKeys key_1 key_2 df)  = Just $ lookupXMLKeys xmls key_1 key_2 df
+runPGR xmls (XmlKey key df)           = Just $ lookupXML xmls key df
+runPGR xmls (Value b) = b
 
 
 lookupXML
-  :: (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  :: Map.Map TL.Text EValue
   -> Text
   -> Text
   -> Text
-lookupXML (xml_1, xml_2) key defaultValue = undefined
--- lookupXML (xml_1, xml_2) key defaultValue =
---   (<|>)
---   (matchKeyfn_1 xml_1 key # previewValue)
---   (matchKeyfn_2 xml_2 key >>= (getRecordValues >>> preview _1))
+lookupXML xml key defaultValue = maybe defaultValue P.id $
+  (<|>)
+  (previewValue $ matchKeyfn_1 xml key)
+  (previewValue $ getRecordValues $ matchKeyfn_2 xml key)
 
-  -- # maybe defaultValue id
+
+-- previewValue
+--   :: ∀ a r.
+--       (Maybe { string :: Array a | r }) → Maybe a
+-- previewValue =
+--   preview _XMLValue >=> \v → isNotString v # if _ then Nothing else Just v
+previewValue :: Maybe EValue -> Maybe Text
+previewValue Nothing = Nothing
+previewValue (Just (EText val)) = Just (TL.toStrict val)
+previewValue (Just _) = Nothing
+
+matchKeyfn_1
+  :: Map.Map TL.Text EValue
+  -> Text
+  -> Maybe EValue
+matchKeyfn_1 xml key = LMap.lookup (TL.fromStrict key) xml
+  -- find (preview _XMLKey >>> eq (Just key)) xml
+
+-- matchKeyfn_2
+--   :: ∀ a r.
+--       (Array { string :: String | r})
+--       → String
+--       → Maybe { string :: String | r }
+-- matchKeyfn_2 xml key =
+--   find (\val → val.string == key) xml
+matchKeyfn_2
+  :: Map.Map TL.Text EValue
+  -> Text
+  -> Maybe EValue
+matchKeyfn_2 xml key = LMap.lookup (TL.fromStrict key) xml
+  -- find (\val → val.string == key) xml
+
+
+getRecordValues :: Maybe EValue -> Maybe EValue
+getRecordValues (Just (EGroovyHM (GroovyHM m))) = listToMaybe $ Map.elems m
+getRecordValues _ = Nothing
+
+-- exports.getRecordValues = function(rec) {
+--   var i = [];
+--   if (typeof rec == "object") {
+--     for (var k in rec) {
+--       i.push(rec[k]);
+--     }
+--   }
+--   return i;
+-- }
+
+-- var obj = {
+--     "a": 1,
+--     "b": 2,
+--     "c": 3
+-- };
+
+-- console.log(getRecordValues(obj))
+-- [1,2,3]
 
 lookupXMLKeys
-  :: (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  :: Map.Map TL.Text EValue
   -> Text
   -> Text
   -> Text
   -> Text
-lookupXMLKeys xmls key_1 key_2 defaultValue = undefined
-  -- on chooseOne (\key -> lookupXML xmls key defaultValue) key_1 key_2
-  -- where
-        -- chooseOne a b = if a == defaultValue then b else a
+lookupXMLKeys xmls key_1 key_2 defaultValue =
+  on chooseOne (\key -> lookupXML xmls key defaultValue) key_1 key_2
+  where
+        chooseOne a b = if a == defaultValue then b else a
 
 
 
@@ -275,7 +327,7 @@ hdfc_ebs_vas txn pgr = undefined
 stripe
   :: TxnDetail
   -> PaymentGatewayResponse
-  -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
 stripe txn pgr xmls = undefined
   -- { txnId       : Value (txn ^. _txnId # just)
@@ -291,7 +343,7 @@ stripe txn pgr xmls = undefined
   --       respCode    = just $ if status == "failed" then failureCode else status
 
 
-ipg :: TxnDetail -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue) -> MerchantPaymentGatewayResponseTemp
+ipg :: TxnDetail -> Map.Map TL.Text EValue -> MerchantPaymentGatewayResponseTemp
 ipg txn xmls = undefined
   -- { txnId       : Value (txn ^. _txnId # just)
   -- , rrn         : Value justNa
@@ -326,7 +378,7 @@ zestmoney txn pgr = undefined
 ccavenue_v2
   :: TxnDetail
   -> PaymentGatewayResponse
-  -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
 ccavenue_v2 txn pgr xmls = undefined
   -- { txnId       : Value (txn ^. _txnId # just)
@@ -370,7 +422,7 @@ olapostpaid txn pgr = undefined
 blazepay
   :: TxnDetail
   -> PaymentGatewayResponse
-  -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
 blazepay txn pgr xmls = undefined
   -- { txnId       : Value (txn ^. _txnId # just)
@@ -654,7 +706,7 @@ linepay txn pgr = undefined
 
 citi
   :: TxnDetail
-  -> (Map.Map TL.Text EValue, Map.Map TL.Text EValue)
+  -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
 citi txn xmls = undefined
   -- { txnId       : Value (txn ^. _txnId # just)

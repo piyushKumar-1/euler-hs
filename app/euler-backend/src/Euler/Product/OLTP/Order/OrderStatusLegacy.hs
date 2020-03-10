@@ -78,8 +78,8 @@ import           Euler.Storage.DBConfig
 
 -- Legenda EHS
 -- porting statistics:
--- to port '-- TODO port' - 19
--- to update '-- TODO update' - 15
+-- to port '-- TODO port' - 18
+-- to update '-- TODO update' - 16
 -- completed '-- done' - 39
 -- total number of functions = 73
 --
@@ -3837,7 +3837,7 @@ makeMerchantPaymentGatewayResponse gatewayResponse pgr' = MerchantPaymentGateway
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayResponseInJson
--- TODO port
+-- TODO update
 -- TODO check
 -- ----------------------------------------------------------------------------
 
@@ -4178,7 +4178,7 @@ getPaymentGatewayResponse
   -> Flow OrderStatusResponse
 getPaymentGatewayResponse txn pgr orderStatusResp = do
 
-  let merchantPGR = casematch txn pgr upgr gateway (pgrXml, pgrXml)
+  let merchantPGR = casematch txn pgr upgr gateway pgrXml
 
   pure $ orderStatusResp {payment_gateway_response' = Just merchantPGR}
 

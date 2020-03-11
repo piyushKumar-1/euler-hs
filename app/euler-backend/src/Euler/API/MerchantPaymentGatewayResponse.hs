@@ -74,6 +74,33 @@ data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
   , gateway_response     :: Maybe Text -- Foreign
   }  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+makeMerchantPaymentGatewayResponse
+  :: Maybe Text
+  -> MerchantPaymentGatewayResponse'
+  -> MerchantPaymentGatewayResponse
+makeMerchantPaymentGatewayResponse gatewayResponse pgr' = MerchantPaymentGatewayResponse
+  { resp_code = Just $ checkNull $ getField @"resp_code" pgr'
+  , rrn = Just $ checkNull $ getField @"resp_code" pgr'
+  , created = Just $ checkNull $ getField @"resp_code" pgr'
+  , epg_txn_id = Just $ checkNull $ getField @"resp_code" pgr'
+  , resp_message = Just $ checkNull $ getField @"resp_code" pgr'
+  , auth_id_code = Just $ checkNull $ getField @"resp_code" pgr'
+  , txn_id = Just $ checkNull $ getField @"resp_code" pgr'
+  , offer = getField @"offer" pgr'
+  , offer_type = getField @"offer_type" pgr'
+  , offer_availed = getField @"offer_availed" pgr'
+  , discount_amount = getField @"discount_amount" pgr'
+  , offer_failure_reason = getField @"offer_failure_reason" pgr'
+  , gateway_response = gatewayResponse
+  }
+    -- EHS: TODO move to common utils or sth to that effect
+  where
+    checkNull :: Maybe Text -> Text
+    checkNull Nothing = mempty
+    checkNull (Just resp)
+      | resp == "null" = mempty
+      | otherwise      = resp
+
 -- EPS
 -- | Type for PGR_Key_Mapping
 -- | To fetch value from xml string we have following constructors

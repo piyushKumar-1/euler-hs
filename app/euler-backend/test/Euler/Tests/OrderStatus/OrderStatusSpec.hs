@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import           Data.Time
 import           Test.Hspec
 
+import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order (Chargeback' (..), Mandate' (..),
                                   MerchantSecondFactorResponse (..), OrderStatusQuery (..),
                                   OrderStatusResponse (..), Paymentlinks (..), Refund' (..),
@@ -53,6 +54,7 @@ spec =
               returnUrlGoogle
               (payMethod, payMethodType, payerVpa, payerAppName)
               (txnFlowInfo, merchantSFR)
+              mMerchantPgr
         statusResp `shouldBe` Right orderStatusResponse1
 
       it "Success with txnDetailNothing, promotionJust" $ \rt -> do
@@ -72,6 +74,7 @@ spec =
               returnUrlGoogle
               (payMethod, payMethodType, payerVpa, payerAppName)
               (txnFlowInfo, merchantSFR)
+              mMerchantPgr
         statusResp `shouldBe` Right orderStatusResponse2
 
       it "Success with txnDetailJust, promotionNothing" $ \rt -> do
@@ -91,8 +94,25 @@ spec =
               returnUrlGoogle
               (payMethod, payMethodType, payerVpa, payerAppName)
               (txnFlowInfo, merchantSFR)
+              mMerchantPgr
         statusResp `shouldBe` Right orderStatusResponse3
 
+mMerchantPgr :: Maybe MerchantPaymentGatewayResponse
+mMerchantPgr = Just $ MerchantPaymentGatewayResponse
+  { resp_code            = Just "resp_code"
+  , rrn                  = Just "rrn"
+  , created              = Just "created"
+  , epg_txn_id           = Just "epg_txn_id"
+  , resp_message         = Just "resp_message"
+  , auth_id_code         = Just "auth_id_code"
+  , txn_id               = Just "txn_id"
+  , offer                = Just "offer"
+  , offer_type           = Just "offer_type"
+  , offer_availed        = Just "offer_availed"
+  , discount_amount      = Just "discount_amount"
+  , offer_failure_reason = Just "offer_failure_reason"
+  , gateway_response     = Just "gateway_response"
+  }
 
 orderRef :: OrderReference
 orderRef = OrderReference
@@ -492,7 +512,7 @@ orderStatusResponse1 = OrderStatusResponse
         }
       )
     , payment_gateway_response' = Nothing
-    , payment_gateway_response = Nothing
+    , payment_gateway_response = mMerchantPgr
     , gateway_id = Just 6
     , emi_bank = Just "emiBank"
     , emi_tenure = Just 3
@@ -630,7 +650,7 @@ orderStatusResponse2 = OrderStatusResponse
     , gateway_payload = Nothing
     , txn_detail = Nothing
     , payment_gateway_response' = Nothing
-    , payment_gateway_response = Nothing
+    , payment_gateway_response = mMerchantPgr
     , gateway_id = Nothing
     , emi_bank =Nothing
     , emi_tenure = Nothing
@@ -774,7 +794,7 @@ orderStatusResponse3 = OrderStatusResponse
         }
       )
     , payment_gateway_response' = Nothing
-    , payment_gateway_response = Nothing
+    , payment_gateway_response = mMerchantPgr
     , gateway_id = Just 6
     , emi_bank = Just "emiBank"
     , emi_tenure = Just 3

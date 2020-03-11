@@ -11,7 +11,7 @@ import           Data.Char (isDigit)
 import           Data.Attoparsec.Text
 
 -- EHS: rework imports, rework dependencies.
-import Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
+import Euler.Common.Types.Gateway   (Gateway, GatewayId, gatewayRMap, gateways)
 import Euler.Common.Types.Order (UDF(..))
 import Euler.Common.Types.Transaction (AuthType(..))
 import Euler.Product.Domain.UPIPayment (UPITxnType)
@@ -194,6 +194,8 @@ isCardType = mkValidator "Text is CardType" (`elem`
   , DC.REWARD
   ])
 
+isGateway :: Validator Gateway
+isGateway = mkValidator "Text is Gateway" (`elem` gateways)
 
 objectReferenceIdValidators :: Validator Text
 objectReferenceIdValidators =

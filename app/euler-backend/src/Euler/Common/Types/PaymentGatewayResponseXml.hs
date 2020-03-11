@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE QuasiQuotes    #-}
 {-# LANGUAGE TupleSections  #-}
-{-# LANGUAGE QuasiQuotes  #-}
 
 module Euler.Common.Types.PaymentGatewayResponseXml
   ( LHM (..)
@@ -9,28 +9,31 @@ module Euler.Common.Types.PaymentGatewayResponseXml
   , Entry(..)
   , EValue(..)
   , PGRXml(..)
+  , EValueMap
  -- , OpusPGResponse(..)
   , decodeXml
   , findEntry
   , getMapFromPGRXml
+  , lookupXML
+  , lookupXMLKeys
   )
   where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude as P
 
-import           Data.Coerce
-import           Xmlbf
-import           Xmlbf.Xeno
-import           Text.RawString.QQ
 import qualified Data.Aeson as A
-
 import qualified Data.Binary.Builder as BB
+import           Data.Coerce
+import qualified Data.Map.Lazy as LMap
 import qualified Data.Map.Strict as Map
-import qualified Data.Text.Encoding as TE
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
+import           Text.RawString.QQ
 import qualified Text.Read
+import           Xmlbf
+import           Xmlbf.Xeno
 
 
 decodeXml :: ByteString -> Either String PGRXml
@@ -58,6 +61,95 @@ findEntry entry defaultEntry pgrXml = do
 
 lookupEntry :: TL.Text -> PGRXml -> Maybe EValue
 lookupEntry name = Map.lookup name . coerce . fromPGRXml
+
+lookupXML
+  :: Map.Map TL.Text EValue
+  -> Text
+  -> Text
+  -> Text
+lookupXML xml key defaultValue = maybe defaultValue P.id $
+  (<|>)
+  (previewValue $ matchKeyfn_1 xml key)
+  (previewValue $ listToMaybe $ getRecordValues $ matchKeyfn_2 xml key) -- EHS: check if 'preview _1' == 'listToMaybe'
+
+lookupXMLKeys
+  :: Map.Map TL.Text EValue
+  -> Text
+  -> Text
+  -> Text
+  -> Text
+lookupXMLKeys xmls key_1 key_2 defaultValue =
+  on chooseOne (\key -> lookupXML xmls key defaultValue) key_1 key_2
+  where
+        chooseOne a b = if a == defaultValue then b else a
+
+
+-- previewValue
+--   :: ∀ a r.
+--       (Maybe { string :: Array a | r }) → Maybe a
+-- previewValue =
+--   preview _XMLValue >=> \v → isNotString v # if _ then Nothing else Just v
+previewValue :: Maybe EValue -> Maybe Text
+previewValue Nothing            = Nothing
+previewValue (Just (EText val)) = Just (TL.toStrict val)
+previewValue (Just _)           = Nothing
+
+matchKeyfn_1
+  :: Map.Map TL.Text EValue
+  -> Text
+  -> Maybe EValue
+matchKeyfn_1 xml key = LMap.lookup (TL.fromStrict key) xml
+  -- find (preview _XMLKey >>> eq (Just key)) xml
+
+-- matchKeyfn_2
+--   :: ∀ a r.
+--       (Array { string :: String | r})
+--       → String
+--       → Maybe { string :: String | r }
+-- matchKeyfn_2 xml key =
+--   find (\val → val.string == key) xml
+matchKeyfn_2
+  :: Map.Map TL.Text EValue
+  -> Text
+  -> Maybe EValue
+matchKeyfn_2 xml key = LMap.lookup (TL.fromStrict key) xml
+  -- find (\val → val.string == key) xml
+
+
+getRecordValues :: Maybe EValue -> [EValue]
+getRecordValues (Just (EGroovyHM (GroovyHM m))) = Map.elems m
+getRecordValues _                               = []
+
+-- exports.getRecordValues = function(rec) {
+--   var i = [];
+--   if (typeof rec == "object") {
+--     for (var k in rec) {
+--       i.push(rec[k]);
+--     }
+--   }
+--   return i;
+-- }
+
+-- var obj = {
+--     "a": 1,
+--     "b": 2,
+--     "c": 3
+-- };
+
+-- console.log(getRecordValues(obj))
+-- [1,2,3]
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 readEither' :: Read a => TL.Text -> Either String a
@@ -197,9 +289,9 @@ instance ToXml Entry where
 
 
 
+type EValueMap = Map.Map TL.Text EValue
 
-
-newtype LHM = LHM ( Map.Map TL.Text EValue)
+newtype LHM = LHM (Map.Map TL.Text EValue)
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 instance FromXml LHM where

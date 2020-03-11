@@ -1,18 +1,19 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE DeriveDataTypeable       #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Euler.Common.Types.Gateway where
 
-import EulerHS.Prelude
-import qualified Prelude as P
+import           EulerHS.Prelude
 
+import           Data.Data hiding (typeRep)
 import qualified Data.Map as Map
 import qualified Data.Text as T
 
-import Database.Beam.Backend.SQL
-import Database.Beam.Postgres
-import Database.Beam.Sqlite
-import Database.Beam.MySQL
+import           Database.Beam.Backend.SQL
+import           Database.Beam.MySQL
+import           Database.Beam.Postgres
+import           Database.Beam.Sqlite
 
 type GatewayId = Int
 
@@ -82,7 +83,7 @@ data Gateway =
   | FSSPAY
   | CASH
   | DEFAULT
-  deriving (Show, Read, Eq, Ord, Generic, Enum, Bounded, ToJSON, ToJSONKey, FromJSON, FromJSONKey)
+  deriving (Show, Read, Eq, Ord, Generic, Data, Enum, Bounded, ToJSON, ToJSONKey, FromJSON, FromJSONKey)
 
 instance HasSqlValueSyntax be String => HasSqlValueSyntax be Gateway where
   sqlValueSyntax = autoSqlValueSyntax
@@ -95,6 +96,74 @@ instance FromBackendRow Sqlite Gateway where
 
 instance FromBackendRow MySQL Gateway where
   fromBackendRow = read . T.unpack <$> fromBackendRow
+
+gateways :: [Gateway]
+gateways =
+  [ AXIS
+  , HDFC
+  , ICICI
+  , CITI
+  , AMEX
+  , CYBERSOURCE
+  , IPG
+  , MIGS
+  , KOTAK
+  , EBS
+  , PAYU
+  , CCAVENUE
+  , CITRUS
+  , ATOM
+  , CCAVENUE_V2
+  , TPSL
+  , PAYTM
+  , PAYTM_V2
+  , PAYPAL
+  , HDFC_EBS_VAS
+  , PAYLATER
+  , RAZORPAY
+  , FSS_ATM_PIN
+  , EBS_V3
+  , ZAAKPAY
+  , BILLDESK
+  , SODEXO
+  , BLAZEPAY
+  , FSS_ATM_PIN_V2
+  , MOBIKWIK
+  , OLAMONEY
+  , FREECHARGE
+  , MPESA
+  , SBIBUDDY
+  , JIOMONEY
+  , AIRTELMONEY
+  , AMAZONPAY
+  , PHONEPE
+  , STRIPE
+  , DUMMY
+  , HDFC_IVR
+  , ZESTMONEY
+  , EPAYLATER
+  , AXISNB
+  , ICICINB
+  , TPSL_SI
+  , AXIS_UPI
+  , HDFC_UPI
+  , INDUS_UPI
+  , KOTAK_UPI
+  , SBI_UPI
+  , ICICI_UPI
+  , VIJAYA_UPI
+  , HSBC_UPI
+  , YESBANK_UPI
+  , PAYTM_UPI
+  , LINEPAY
+  , OLAPOSTPAID
+  , SIMPL
+  , GOOGLEPAY
+  , GOCASHFREE
+  , FSSPAY
+  , CASH
+  , DEFAULT
+  ]
 
 -- EHS: these functions and constants should not be here.
 -- Preferably, this should be set up as a config.
@@ -182,4 +251,4 @@ stringToGateway :: Text -> Maybe Gateway
 stringToGateway = readMaybe . T.unpack
 
 gatewayIdFromGateway :: Gateway -> Int
-gatewayIdFromGateway gateway = fromMaybe 0 $ P.lookup gateway gatewayMap
+gatewayIdFromGateway gateway = fromMaybe 0 $ Map.lookup gateway gatewayMap

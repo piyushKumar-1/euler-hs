@@ -29,8 +29,8 @@ import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import           Data.Time
 import           Servant.Server
 import           Control.Comonad hiding ((<<=))
@@ -48,6 +48,7 @@ import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.Mandate as Mandate
 import           Euler.Common.Types.Merchant
+import           Euler.Common.Types.Money
 import           Euler.Common.Types.Order (OrderId, OrderTokenExpiryData (..),
                                            defaultOrderTokenExpiryData)
 import qualified Euler.Common.Types.Order as C
@@ -160,27 +161,26 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
   gatewayRefId <- case mTxn of
-    Nothing -> getGatewayReferenceId2 T.empty orderRef
+    Nothing -> getGatewayReferenceId2 Nothing orderRef
     Just txn -> do
-      let gateway = fromMaybe "" $ getField @"gateway" txn
+      let gateway = getField @"gateway" txn
       getGatewayReferenceId2 gateway orderRef
 
   (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr) <- case mTxn of
     Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
     Just txn -> do
-      case getField @"id" txn of
-        Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
-        Just txnId -> do
-          mRisk <- getRisk txnId
-          mTxnCard <- loadTxnCardInfo txnId
-          mRefunds' <- maybeList <$> (refundDetails txnId)
-          mChargeback' <- maybeList <$> (chargebackDetails txnId $ mapTxnDetail txn)
-          mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
-          pure (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr)
+      let txnDetail_id = D.txnDetail_id $ getField @"id" txn
+      mRisk <- getRisk $ show txnDetail_id
+      mTxnCard <- loadTxnCardInfo $ show txnDetail_id
+      mRefunds' <- maybeList <$> (refundDetails txnDetail_id)
+      mChargeback' <- maybeList <$> (chargebackDetails txnDetail_id $ mapTxnDetail txn)
+      mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
+      pure (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr)
 
   mCardBrand <- case mTxnCard of
     Nothing                    -> pure Nothing
-    Just (card :: DB.TxnCardInfo) -> getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+    Just (card :: DB.TxnCardInfo) ->
+      getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
 
   returnUrl <- getReturnUrl orderRef
 
@@ -190,7 +190,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> do
-      txnDetail_id <- whenNothing (getField @"id" txn) (throwException err500)
+      let txnDetail_id = D.txnDetail_id $ getField @"id" txn
       getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
     (Nothing, Nothing) -> pure (Nothing, Nothing)
 
@@ -281,7 +281,7 @@ makeOrderStatusResponse
   -> Maybe Promotion'
   -> Maybe Mandate'
   -> OrderStatusQuery
-  -> Maybe DB.TxnDetail
+  -> Maybe D.TxnDetail
   -> Text
   -> Maybe Risk
   -> Maybe DB.TxnCardInfo
@@ -322,7 +322,7 @@ makeOrderStatusResponse
 
       getStatus = show . getField @"status"
       getStatusId = txnStatusToInt . getField @"status"
-      getGatewayId txn = maybe 0 gatewayIdFromGateway $ join $ stringToGateway <$> getField @"gateway" txn
+      getGatewayId txn = maybe 0 gatewayIdFromGateway $ getField @"gateway" txn
       getBankErrorCode txn = whenNothing (getField @"bankErrorCode" txn) (Just "")
       getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
       getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
@@ -623,43 +623,33 @@ getOrderReference query = do
       throwException err500
 
 
-getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe DB.TxnDetail)
-getTxnFromTxnUuid order maybeTxnUuid =
-  case maybeTxnUuid of
-    Just txnUuid' -> do
-      orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
-      merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
+getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe D.TxnDetail)
+getTxnFromTxnUuid order maybeTxnUuid = do
+  -- EHS: TODO should we throw exceptions?
+      -- orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
+      -- merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
 
-      withDB eulerDB $ do
-        let predicate DB.TxnDetail {orderId, merchantId, txnUuid} =
-              orderId ==. B.val_ orderId'
-              &&. merchantId ==. B.just_ (B.val_ merchantId')
-              &&. txnUuid ==. B.just_ (B.val_ txnUuid')
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (DB.txn_detail DB.eulerDBSchema)
-    Nothing -> pure Nothing
+      findTxnByOrderIdMerchantIdTxnuuidId
+        (getField @"orderId" order)
+        (getField @"merchantId" order)
+        maybeTxnUuid
 
-
-getLastTxn :: DB.OrderReference -> Flow (Maybe DB.TxnDetail)
+-- EHS: TODO add sorting by dateCreated!
+getLastTxn :: DB.OrderReference -> Flow (Maybe D.TxnDetail)
 getLastTxn orderRef = do
-  orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
-  merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
+  -- EHS: TODO should we throw exceptions?
+  -- orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
+  -- merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
+  let orderId = getField @"orderId" orderRef
+  let merchantId = getField @"merchantId" orderRef
 
-  txnDetails <- withDB eulerDB $ do
-    let predicate DB.TxnDetail {orderId, merchantId} =
-          orderId ==. B.val_ orderId'
-            &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRows
-      $ B.select
-      $ B.filter_ predicate
-      $ B.all_ (DB.txn_detail DB.eulerDBSchema)
+  txnDetails <- findTxnByOrderIdMerchantId orderId merchantId
 
   case txnDetails of
     [] -> do
-      logError "get_last_txn" ("No last txn found for orderId: " <> orderId' <> " :merchant:" <> merchantId')
+      logError "get_last_txn"
+        $ "No last txn found for orderId: " <> show orderId
+        <> " :merchant:" <> show merchantId
       pure Nothing
     _ -> do
       let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
@@ -777,27 +767,27 @@ getPromotion orderRef = do
   decryptActivePromotion  proms
 
 
-mapTxnDetail :: DB.TxnDetail -> TxnDetail'
+mapTxnDetail :: D.TxnDetail -> TxnDetail'
 mapTxnDetail txn = TxnDetail'
   { txn_id = getField @"txnId" txn
   , order_id = getField @"orderId" txn
   , txn_uuid = getField @"txnUuid" txn
-  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ stringToGateway $ fromMaybe mempty $ getField @"gateway" txn
+  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ getField @"gateway" txn
   , status = show $ getField @"status" txn
-  , gateway = getField @"gateway" txn
+  , gateway = show <$> getField @"gateway" txn
   , express_checkout = getField @"expressCheckout" txn
   , redirect = getField @"redirect" txn
   , net_amount = Just $ if isJust (getField @"netAmount" txn)
-      then show $ fromMaybe 0 (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
+      then show $ maybe 0 fromMoney (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
       else mempty
   , surcharge_amount = Just $ if isJust (getField @"surchargeAmount" txn)
-      then show $ fromMaybe 0 (getField @"surchargeAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"surchargeAmount" txn)
       else mempty
   , tax_amount = Just $ if isJust (getField @"taxAmount" txn)
-      then show $ fromMaybe 0 (getField @"taxAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"taxAmount" txn)
       else mempty
   , txn_amount = Just $ if isJust (getField @"txnAmount" txn)
-      then show $ fromMaybe 0 (getField @"txnAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"txnAmount" txn)
       else mempty
   , currency = getField @"currency" txn
   , error_message = Just $ fromMaybe mempty $ getField @"bankErrorMessage" txn
@@ -828,9 +818,10 @@ loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
     $ B.all_ (DB.order_metadata_v2 DB.eulerDBSchema)
 
 
-getGatewayReferenceId2 :: Text -> DB.OrderReference -> Flow Text
+getGatewayReferenceId2 :: Maybe Gateway -> DB.OrderReference -> Flow Text
 getGatewayReferenceId2 gateway ordRef = do
   let checkGateway = checkGatewayRefIdForVodafone2 ordRef gateway
+  let gatewayT = maybe "" show gateway
 
   case getField @"id" ordRef of
     Nothing -> checkGateway
@@ -846,14 +837,14 @@ getGatewayReferenceId2 gateway ordRef = do
               case md' of
                 Nothing -> checkGateway
                 Just metadata -> do
-                  gRefId <- pure $ Map.lookup (gateway <> ":gateway_reference_id") metadata
+                  gRefId <- pure $ Map.lookup (gatewayT <> ":gateway_reference_id") metadata
                   jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
                   case (gRefId <|> jusId) of
                     Just v  -> pure v
                     Nothing -> checkGateway
 
 
-checkGatewayRefIdForVodafone2 :: DB.OrderReference -> Text -> Flow Text
+checkGatewayRefIdForVodafone2 :: DB.OrderReference -> Maybe Gateway -> Flow Text
 checkGatewayRefIdForVodafone2 ordRef gateway = do
   merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500)
 
@@ -869,7 +860,7 @@ checkGatewayRefIdForVodafone2 ordRef gateway = do
 
   case meybeFeature of
     Just feature ->
-        if (gateway == "HSBC_UPI")
+        if (gateway == Just HSBC_UPI)
             && (getField @"enabled" feature)
             && (isJust $ getField @"udf2" ordRef)
         then pure $ fromMaybe "" $ getField @"udf2" ordRef
@@ -982,7 +973,7 @@ loadTxnCardInfo txnId =
       $ B.all_ (DB.txn_card_info DB.eulerDBSchema)
 
 
-getCardDetails :: DB.TxnCardInfo -> DB.TxnDetail -> Bool -> Card
+getCardDetails :: DB.TxnCardInfo -> D.TxnDetail -> Bool -> Card
 getCardDetails card txn shouldSendCardIsin = Card
   { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
   , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
@@ -1004,13 +995,13 @@ getCardDetails card txn shouldSendCardIsin = Card
 
 refundDetails :: TxnDetailId -> Flow [Refund']
 refundDetails txnId = do
-  l <- findRefunds txnId
+  l <- findRefunds $ show txnId
   pure $ map AO.mapRefund l
 
 
-chargebackDetails :: TxnDetId -> TxnDetail' -> Flow [Chargeback']
+chargebackDetails :: Int -> TxnDetail' -> Flow [Chargeback']
 chargebackDetails txnId txn = do
-  chargebacks <- findChargebacks txnId
+  chargebacks <- findChargebacks $ show txnId
   pure $ map (AO.mapChargeback txn) chargebacks
 
 
@@ -1019,7 +1010,7 @@ sanitizeNullAmount = fmap sanitizeAmount
 
 
 getPaymentMethodAndType
-  :: DB.TxnDetail
+  :: D.TxnDetail
   -> DB.TxnCardInfo
   -> Flow (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -- ^ Result is (payment_method, payment_method_type, payer_vpa, payer_app_name)
@@ -1060,7 +1051,7 @@ getPaymentMethodAndType txn card = do
           )
         else do
           let respId = getField @"successResponseId" txn
-          let gateway = fromMaybe T.empty $ getField @"gateway" txn
+          let gateway = getField @"gateway" txn
           payervpa <- getPayerVpaByGateway respId gateway
           case payervpa of
             "" -> pure
@@ -1127,44 +1118,44 @@ getPayerVpa mSuccessResponseId = do
     Nothing  -> T.empty
     Just xml -> findEntry "payerVpa" "" $ decodeXml $ T.encodeUtf8 xml
 
-getPayerVpaByGateway :: Maybe Int -> Text -> Flow Text
+getPayerVpaByGateway :: Maybe Int -> Maybe Gateway -> Flow Text
 getPayerVpaByGateway respId gateway = do
   mPgr <- loadPGR respId
   case mPgr of
     Nothing  -> pure T.empty
     Just pgr -> pure $ findPayerVpaByGateway gateway (getField @"responseXml" pgr)
 
-findPayerVpaByGateway :: Text -> Maybe Text -> Text
+findPayerVpaByGateway :: Maybe Gateway -> Maybe Text -> Text
 findPayerVpaByGateway _ Nothing = T.empty
 findPayerVpaByGateway gateway (Just xml) =
   case gateway of
-    "AXIS_UPI"    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
-    "HDFC_UPI"    -> findEntry "payerVpa" "" pgrXml
-    "INDUS_UPI"   -> findEntry "payerVpa" "" pgrXml
-    "KOTAK_UPI"   -> findEntry "payerVpa" "" pgrXml
-    "SBI_UPI"     -> findEntry "payerVpa" "" pgrXml
-    "ICICI_UPI"   -> findEntry "payerVpa" "" pgrXml
-    "HSBC_UPI"    -> findEntry "payerVpa" "" pgrXml
-    "VIJAYA_UPI"  -> findEntry "payerVpa" "" pgrXml
-    "YESBANK_UPI" -> findEntry "payerVpa" "" pgrXml
-    "PAYTM_UPI"   -> findEntry "payerVpa" "" pgrXml
-    "PAYU"        -> findEntry "field3" "" pgrXml
-    "RAZORPAY"    -> findEntry "vpa" "" pgrXml
-    "PAYTM_V2"    -> findEntry "VPA" "" pgrXml
-    "GOCASHFREE"  -> findEntry "payersVPA" "" pgrXml
-    _             -> T.empty
+    Just AXIS_UPI    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
+    Just HDFC_UPI    -> findEntry "payerVpa" "" pgrXml
+    Just INDUS_UPI   -> findEntry "payerVpa" "" pgrXml
+    Just KOTAK_UPI   -> findEntry "payerVpa" "" pgrXml
+    Just SBI_UPI     -> findEntry "payerVpa" "" pgrXml
+    Just ICICI_UPI   -> findEntry "payerVpa" "" pgrXml
+    Just HSBC_UPI    -> findEntry "payerVpa" "" pgrXml
+    Just VIJAYA_UPI  -> findEntry "payerVpa" "" pgrXml
+    Just YESBANK_UPI -> findEntry "payerVpa" "" pgrXml
+    Just PAYTM_UPI   -> findEntry "payerVpa" "" pgrXml
+    Just PAYU        -> findEntry "field3" "" pgrXml
+    Just RAZORPAY    -> findEntry "vpa" "" pgrXml
+    Just PAYTM_V2    -> findEntry "VPA" "" pgrXml
+    Just GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
+    _                -> T.empty
   where
     pgrXml = decodeXml $ T.encodeUtf8 xml
 
 getTxnFlowInfoAndMerchantSFR
-  :: Text
+  :: Int
   -> DB.TxnCardInfo
   -> Flow (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
 getTxnFlowInfoAndMerchantSFR txnDetId card = do
 
   if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
 
-    mSecondFactor <- findSecondFactor txnDetId
+    mSecondFactor <- findSecondFactor $ show txnDetId
 
     case mSecondFactor of
       Nothing ->  pure (Nothing, Nothing)
@@ -1186,7 +1177,7 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
     else pure (Nothing, Nothing) --NON VIES Txn
 
 
-getMerchantPGR :: DB.TxnDetail -> Bool -> Flow (Maybe MerchantPaymentGatewayResponse)
+getMerchantPGR :: D.TxnDetail -> Bool -> Flow (Maybe MerchantPaymentGatewayResponse)
 getMerchantPGR txn shouldSendFullGatewayResponse = do
 
   -- EHS: TODO OS: We need to have this clarified with Sushobhith
@@ -1197,7 +1188,7 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
   case mPaymentGatewayResp of
     Nothing -> pure Nothing
     Just pgr -> do
-      let gateway = fromMaybe T.empty $ getField @"gateway" txn
+      let gateway = getField @"gateway" txn
       let pgrXml  = case getField @"responseXml" pgr of
             Nothing  -> Map.empty
             Just xml -> getMapFromPGRXml $ decodeXml $ T.encodeUtf8 xml
@@ -1225,14 +1216,16 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
     else Nothing
 
 casematch
-  :: DB.TxnDetail
+  :: D.TxnDetail
   -> DB.PaymentGatewayResponse
   -> MerchantPaymentGatewayResponse'
-  -> Text
+  -> Maybe Gateway
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponse'
-casematch txn pgr merchPGR gateway xmls = match gateway
+casematch txn pgr merchPGR gateway xmls = match gateway'
   where
+    -- EHS: Gateway type from TxnDetail does not match gateways from casematch totally
+    gateway' = maybe "" show gateway
     match "CCAVENUE_V2"    = executePGR merchPGR xmls $ ccavenue_v2  txn pgr xmls
     match "BLAZEPAY"       = executePGR merchPGR xmls $ blazepay     txn pgr xmls
     match "STRIPE"         = executePGR merchPGR xmls $ stripe       txn pgr xmls
@@ -1295,6 +1288,7 @@ casematch txn pgr merchPGR gateway xmls = match gateway
             -- EPS: Freecharge doesn't return any information about offers in their response
       where
         campaignCode = lookupXML xmls "campaignCode" "NA"
+
     match "PAYU"           = executePGR merchPGR xmls (payu pgr)
       & \upgr -> if offer /= "NA"
       -- EPS: * Payu allows merchants to send multiple offers and avails a valid offer among them
@@ -1360,7 +1354,7 @@ casematch txn pgr merchPGR gateway xmls = match gateway
       where
         sellerNote = lookupXML xmls "sellerNote" "null"
 
-    match _ = find (\val -> gateway == show val) (eulerUpiGateways <> [GOOGLEPAY])
+    match _ = find (\val -> gateway' == show val) (eulerUpiGateways <> [GOOGLEPAY])
       & maybe
           (executePGR merchPGR xmls $ otherGateways pgr)
           (const (executePGR merchPGR xmls $ eulerUpiGWs txn pgr))

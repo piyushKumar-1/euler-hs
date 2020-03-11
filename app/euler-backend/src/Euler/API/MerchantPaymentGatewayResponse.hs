@@ -6,12 +6,13 @@ module Euler.API.MerchantPaymentGatewayResponse where
 import           EulerHS.Prelude as P
 
 import           Data.Aeson
+import qualified Data.Char as C
+import           Data.Generics.Product.Fields
+
 import qualified Data.Map.Strict as Map
-import qualified Data.Map.Lazy as LMap
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
-import           Data.Generics.Product.Fields
 
 import           Euler.API.Types
 import           Euler.Common.Types.PaymentGatewayResponseXml
@@ -148,8 +149,6 @@ runPGR
   :: Map.Map TL.Text EValue
   -> PGRField
   -> Maybe Text
--- runPGR _ _= undefined
--- runPGR xmls (Fn f a) = f a
 runPGR xmls (FromObjOrkeys ndf key_1 key_2 df) = Just $ fromMaybe (lookupXMLKeys xmls key_1 key_2 df) ndf
 runPGR xmls (FromKeysOrObj key_1 key_2 ndf df) = Just $ lookupXMLKeys xmls key_1 key_2 $ fromMaybe df ndf
 runPGR xmls (FromObjOrkey ndf key df) = Just $ fromMaybe (lookupXML xmls key df) ndf
@@ -159,89 +158,14 @@ runPGR xmls (XmlKey key df)           = Just $ lookupXML xmls key df
 runPGR xmls (Value b) = b
 
 
-lookupXML
-  :: Map.Map TL.Text EValue
-  -> Text
-  -> Text
-  -> Text
-lookupXML xml key defaultValue = maybe defaultValue P.id $
-  (<|>)
-  (previewValue $ matchKeyfn_1 xml key)
-  (previewValue $ listToMaybe $ getRecordValues $ matchKeyfn_2 xml key) -- EHS: check if 'preview _1' == 'listToMaybe'
 
-
--- previewValue
---   :: ∀ a r.
---       (Maybe { string :: Array a | r }) → Maybe a
--- previewValue =
---   preview _XMLValue >=> \v → isNotString v # if _ then Nothing else Just v
-previewValue :: Maybe EValue -> Maybe Text
-previewValue Nothing = Nothing
-previewValue (Just (EText val)) = Just (TL.toStrict val)
-previewValue (Just _) = Nothing
-
-matchKeyfn_1
-  :: Map.Map TL.Text EValue
-  -> Text
-  -> Maybe EValue
-matchKeyfn_1 xml key = LMap.lookup (TL.fromStrict key) xml
-  -- find (preview _XMLKey >>> eq (Just key)) xml
-
--- matchKeyfn_2
---   :: ∀ a r.
---       (Array { string :: String | r})
---       → String
---       → Maybe { string :: String | r }
--- matchKeyfn_2 xml key =
---   find (\val → val.string == key) xml
-matchKeyfn_2
-  :: Map.Map TL.Text EValue
-  -> Text
-  -> Maybe EValue
-matchKeyfn_2 xml key = LMap.lookup (TL.fromStrict key) xml
-  -- find (\val → val.string == key) xml
-
-
-getRecordValues :: Maybe EValue -> [EValue]
-getRecordValues (Just (EGroovyHM (GroovyHM m))) = Map.elems m
-getRecordValues _ = []
-
--- exports.getRecordValues = function(rec) {
---   var i = [];
---   if (typeof rec == "object") {
---     for (var k in rec) {
---       i.push(rec[k]);
---     }
---   }
---   return i;
--- }
-
--- var obj = {
---     "a": 1,
---     "b": 2,
---     "c": 3
--- };
-
--- console.log(getRecordValues(obj))
--- [1,2,3]
-
-lookupXMLKeys
-  :: Map.Map TL.Text EValue
-  -> Text
-  -> Text
-  -> Text
-  -> Text
-lookupXMLKeys xmls key_1 key_2 defaultValue =
-  on chooseOne (\key -> lookupXML xmls key defaultValue) key_1 key_2
-  where
-        chooseOne a b = if a == defaultValue then b else a
 
 justEmpty, justNa :: Maybe Text
 justEmpty = Just T.empty
 justNa = Just "NA"
 
 onlyAlphaNumeric :: Text -> Text
-onlyAlphaNumeric = undefined
+onlyAlphaNumeric = T.filter (\c -> C.isDigit c || C.isAsciiLower c)
 -- exports["onlyAlphaNumeric"] = function(str) {
 --   return str.replace(/[^a-z0-9]/gi, '');
 -- }
@@ -267,7 +191,7 @@ decisionCodeToMessageMap  _   = ""
 
 -- EPS: ** PGR Key Mapping Configs **
 
-zaakpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+zaakpay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 zaakpay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -277,7 +201,7 @@ zaakpay txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = FromKeysOrObj "responseMessage" "responseDescription" (getField @"respMessage" pgr)  "null" -- EPS: extra check
   }
 
-atom :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+atom :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 atom txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKeys "bank_txn" "BID" "null"
@@ -288,7 +212,7 @@ atom txn pgr = MerchantPaymentGatewayResponseTemp
   }
 
 
-paylater :: TxnDetail -> MerchantPaymentGatewayResponseTemp
+paylater :: D.TxnDetail -> MerchantPaymentGatewayResponseTemp
 paylater txn = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -298,7 +222,7 @@ paylater txn = MerchantPaymentGatewayResponseTemp
   , respMessage = Value justNa
   }
 
-mobikwik :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+mobikwik :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 mobikwik txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -338,7 +262,7 @@ paytm_v2 pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-tpsl :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+tpsl :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 tpsl txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "clnt_txn_ref" ""
@@ -348,7 +272,7 @@ tpsl txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = FromKeyOrObj "txn_msg" (getField @"respMessage" pgr) ""
   }
 
-amex :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+amex :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 amex txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "vpc_ReceiptNo" "null"
@@ -368,7 +292,7 @@ dummy = MerchantPaymentGatewayResponseTemp
   , respMessage = XmlKey "respMessage" "null"
   }
 
-hdfc_ebs_vas :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+hdfc_ebs_vas :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 hdfc_ebs_vas txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -379,7 +303,7 @@ hdfc_ebs_vas txn pgr = MerchantPaymentGatewayResponseTemp
   }
 
 stripe
-  :: TxnDetail
+  :: D.TxnDetail
   -> PaymentGatewayResponse
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
@@ -397,7 +321,7 @@ stripe txn pgr xmls = MerchantPaymentGatewayResponseTemp
         respCode    = Just $ if status == "failed" then failureCode else status
 
 
-ipg :: TxnDetail -> Map.Map TL.Text EValue -> MerchantPaymentGatewayResponseTemp
+ipg :: D.TxnDetail -> Map.Map TL.Text EValue -> MerchantPaymentGatewayResponseTemp
 ipg txn xmls = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -413,7 +337,7 @@ ipg txn xmls = MerchantPaymentGatewayResponseTemp
   where
     ipgRespCodeAndMessage xmls keys_1 key_2 df = Just $ lookupXMLKeys xmls keys_1 key_2 df
 
-axisnb :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+axisnb :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 axisnb txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -423,7 +347,7 @@ axisnb txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ getField @"axisRespMessage" pgr
   }
 
-zestmoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+zestmoney :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 zestmoney txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -434,7 +358,7 @@ zestmoney txn pgr = MerchantPaymentGatewayResponseTemp
   }
 
 ccavenue_v2
-  :: TxnDetail
+  :: D.TxnDetail
   -> PaymentGatewayResponse
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
@@ -447,7 +371,7 @@ ccavenue_v2 txn pgr xmls = MerchantPaymentGatewayResponseTemp
   , respMessage = FromObjOrkey (getField @"respMessage" pgr) "order_status" "null" -- extra check
   }
 
-cybersource :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+cybersource :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 cybersource txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -457,7 +381,7 @@ cybersource txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-paypal :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+paypal :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 paypal txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -467,7 +391,7 @@ paypal txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-olapostpaid :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+olapostpaid :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 olapostpaid txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -478,7 +402,7 @@ olapostpaid txn pgr = MerchantPaymentGatewayResponseTemp
   }
 
 blazepay
-  :: TxnDetail
+  :: D.TxnDetail
   -> PaymentGatewayResponse
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
@@ -491,7 +415,7 @@ blazepay txn pgr xmls = MerchantPaymentGatewayResponseTemp
   , respMessage = FromObjOrkey (getField @"respMessage" pgr) "respMsg" "null" -- EPS: extra check
   }
 
-simpl :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+simpl :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 simpl txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -501,7 +425,7 @@ simpl txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-gocashfree :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+gocashfree :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 gocashfree txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -512,7 +436,7 @@ gocashfree txn pgr = MerchantPaymentGatewayResponseTemp
   }
 
 
-razorpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+razorpay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 razorpay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -522,7 +446,7 @@ razorpay txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ Just $ fromMaybe "null" (getField @"respMessage" pgr)
   }
 
-olmoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+olmoney :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 olmoney txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn -- EHS: eps has not Just
   , rrn         = Value justEmpty
@@ -532,7 +456,7 @@ olmoney txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-mpesa :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+mpesa :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 mpesa txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -542,7 +466,7 @@ mpesa txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-sbibuddy :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+sbibuddy :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 sbibuddy txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -552,7 +476,7 @@ sbibuddy txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-citrus :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+citrus :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 citrus txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "issuerRefNo" "null"
@@ -602,7 +526,7 @@ icici pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = FromKeyOrObj "respMessage" (getField @"respMessage" pgr) "null" -- EPS: extra check
   }
 
-icicinb :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+icicinb :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 icicinb txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -612,7 +536,7 @@ icicinb txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
   }
 
-olamoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+olamoney :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 olamoney txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -642,7 +566,7 @@ payu pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "null")
   }
 
-freecharge :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+freecharge :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 freecharge txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -652,7 +576,7 @@ freecharge txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = FromKeysOrObj "errorMessage" "status"    (getField @"respMessage" pgr) "null" -- EPS: extra check
   }
 
-billdesk :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+billdesk :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 billdesk txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "TxnReferenceNo"  "null"
@@ -662,7 +586,7 @@ billdesk txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-kotak :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+kotak :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 kotak txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "RetRefNo" "NA"
@@ -672,7 +596,7 @@ kotak txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-jiomoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+jiomoney :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 jiomoney txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -682,7 +606,7 @@ jiomoney txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-amazonpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+amazonpay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 amazonpay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -692,7 +616,7 @@ amazonpay txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-airtelmoney :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+airtelmoney :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 airtelmoney txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ onlyAlphaNumeric $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -702,7 +626,7 @@ airtelmoney txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-phonepe :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+phonepe :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 phonepe txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -712,7 +636,7 @@ phonepe txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-epaylater :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+epaylater :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 epaylater txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -722,7 +646,7 @@ epaylater txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-sodexo :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+sodexo :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 sodexo txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "retrievalReferenceNumber" "null"
@@ -732,7 +656,7 @@ sodexo txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-fssatmpinv2 :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+fssatmpinv2 :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 fssatmpinv2 txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "ref"    "null"
@@ -742,7 +666,7 @@ fssatmpinv2 txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-fssatmpin :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+fssatmpin :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 fssatmpin txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "ref"    "null"
@@ -752,7 +676,7 @@ fssatmpin txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-linepay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+linepay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 linepay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = XmlKey "transactionId" ""
@@ -763,7 +687,7 @@ linepay txn pgr = MerchantPaymentGatewayResponseTemp
   }
 
 citi
-  :: TxnDetail
+  :: D.TxnDetail
   -> Map.Map TL.Text EValue
   -> MerchantPaymentGatewayResponseTemp
 citi txn xmls = MerchantPaymentGatewayResponseTemp
@@ -778,7 +702,7 @@ citi txn xmls = MerchantPaymentGatewayResponseTemp
     result       = T.splitOn "|" (lookupXML xmls "CitiToMall" "null")
     decisionCode = fromMaybe "" (listToMaybe $ drop 5 result)
 
-cash :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+cash :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 cash txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -788,7 +712,7 @@ cash txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-axisupi :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+axisupi :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 axisupi txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = XmlKeys "merchantRequestId" "transactionRef" (getField @"txnId" txn)
   , rrn         = XmlKey  "custRef" "null"
@@ -808,7 +732,7 @@ otherGateways pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-eulerUpiGWs :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+eulerUpiGWs :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 eulerUpiGWs txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = XmlKey "transactionRef" (getField @"txnId" txn)
   , rrn         = XmlKey "custRef"        "null"
@@ -818,7 +742,7 @@ eulerUpiGWs txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value (getField @"respMessage" pgr)
   }
 
-fsspay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+fsspay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 fsspay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -828,7 +752,7 @@ fsspay txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
   }
 
-lazypay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+lazypay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 lazypay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -838,7 +762,7 @@ lazypay txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
   }
 
-pinelabs :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+pinelabs :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 pinelabs txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justEmpty
@@ -848,7 +772,7 @@ pinelabs txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = FromObjOrkey (getField @"respMessage" pgr) "ppc_TxnResponseMessage" "null"
   }
 
-airpay :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+airpay :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 airpay txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -858,7 +782,7 @@ airpay txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = FromKeyOrObj "MESSAGE"           (getField @"respMessage" pgr) ""
   }
 
-freechargev2 :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+freechargev2 :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 freechargev2 txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa
@@ -868,7 +792,7 @@ freechargev2 txn pgr = MerchantPaymentGatewayResponseTemp
   , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
   }
 
-hdfcnb :: TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
+hdfcnb :: D.TxnDetail -> PaymentGatewayResponse -> MerchantPaymentGatewayResponseTemp
 hdfcnb txn pgr = MerchantPaymentGatewayResponseTemp
   { txnId       = Value $ Just $ getField @"txnId" txn
   , rrn         = Value justNa

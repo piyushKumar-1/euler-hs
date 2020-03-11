@@ -17,7 +17,7 @@ import qualified Database.Beam as B
 import qualified Euler.Common.Types.TxnDetail as TDC
 
 data TxnDetailT f = TxnDetail
-  { id                       :: B.C f (Maybe Text)
+  { id                       :: B.C f (Maybe Int) -- originaly String but Int in DB
   , version                  :: B.C f Int
   , errorMessage             :: B.C f (Maybe Text)
   , orderId                  :: B.C f Text
@@ -56,8 +56,8 @@ data TxnDetailT f = TxnDetail
 
 instance B.Table TxnDetailT where
   data PrimaryKey TxnDetailT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
-  primaryKey = Id . id
+    TxnDetailId (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
+  primaryKey = TxnDetailId . id
 
 type TxnDetail = TxnDetailT Identity
 type Id = B.PrimaryKey TxnDetailT Identity

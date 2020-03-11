@@ -13,3 +13,4 @@ import Euler.Storage.Repository.ResellerAccount           as X
 import Euler.Storage.Repository.PaymentGatewayResponse    as X
 import Euler.Storage.Repository.SecondFactor              as X
 import Euler.Storage.Repository.SecondFactorResponse      as X
+import Euler.Storage.Repository.TxnDetail                 as X

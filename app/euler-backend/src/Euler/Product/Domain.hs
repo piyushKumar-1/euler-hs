@@ -14,6 +14,7 @@ import Euler.Product.Domain.Refund               as X
 import Euler.Product.Domain.SecondFactor         as X
 import Euler.Product.Domain.SecondFactorResponse as X
 import Euler.Product.Domain.Transaction          as X
+import Euler.Product.Domain.TxnDetail            as X
 import Euler.Product.Domain.UPIPayment           as X
 import Euler.Product.Domain.WalletPayment        as X
 import Euler.Product.Domain.ResellerAccount      as X

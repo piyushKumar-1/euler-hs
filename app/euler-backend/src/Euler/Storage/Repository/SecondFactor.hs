@@ -34,7 +34,8 @@ findSecondFactor txnDetail_id = do
     Success sf' -> pure sf'
     Failure e -> do
       logError "Incorrect secondFactor in DB"
-        $  "txnDetailId: " <> txnDetail_id <> "error: " <> show e
+        $  "txnDetailId: " <> show txnDetail_id
+        <> "error: " <> show e
       throwException internalError
 
 transformSecondFactor :: DB.SecondFactor -> V D.SecondFactor

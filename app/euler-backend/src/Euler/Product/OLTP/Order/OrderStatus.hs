@@ -1112,7 +1112,7 @@ getPayerVpa mSuccessResponseId = do
   let mXml = getField @"responseXml" =<< mPaymentGatewayResp
   pure $ case mXml of
     Nothing -> T.empty
-    Just xml -> findEntry "payerVpa" "" $ decodeXml $ TE.encodeUtf8 xml
+    Just xml -> findEntry "payerVpa" "" $ decodeXml $ T.encodeUtf8 xml
 
 getPayerVpaByGateway :: Maybe Int -> Text -> Flow Text
 getPayerVpaByGateway respId gateway = do
@@ -1141,7 +1141,7 @@ findPayerVpaByGateway gateway (Just xml) =
     "GOCASHFREE"  -> findEntry "payersVPA" "" pgrXml
     _             -> T.empty
   where
-    pgrXml = decodeXml $ TE.encodeUtf8 xml
+    pgrXml = decodeXml $ T.encodeUtf8 xml
 
 getTxnFlowInfoAndMerchantSFR
   :: Text

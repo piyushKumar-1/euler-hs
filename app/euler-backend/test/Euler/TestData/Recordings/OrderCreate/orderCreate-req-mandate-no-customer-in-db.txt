@@ -1,16 +1,6 @@
 {
     "methodRecording": {
-        "mrJsonResponse": {
-            "order_id": "1583331273448",
-            "status": "CREATED",
-            "payment_links": {
-                "iframe": "http://localhost:8081/merchant/ipay/ordeu_a785c249286f4ed8b4df7432735068e5",
-                "web": "http://localhost:8081/merchant/pay/ordeu_a785c249286f4ed8b4df7432735068e5",
-                "mobile": "http://localhost:8081/merchant/pay/ordeu_a785c249286f4ed8b4df7432735068e5?mobile=true"
-            },
-            "id": "ordeu_a785c249286f4ed8b4df7432735068e5",
-            "status_id": 1
-        },
+        "mrJsonResponse": "ServerError {errHTTPCode = 400, errReasonPhrase = \"\", errBody = \"{\\n    \\\"status\\\": \\\"NOT_FOUND\\\",\\n    \\\"error_code\\\": null,\\n    \\\"error_message\\\": \\\"Customer not found for this order\\\",\\n    \\\"status_id\\\": 40\\n}\", errHeaders = []}",
         "mrSessionId": "SomeSessionId",
         "mrMethodConfigs": {
             "mcRawBody": "",
@@ -23,7 +13,7 @@
                 "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=",
                 "SourceIP": "127.0.0.1",
                 "Version": "2018-07-01",
-                "UserAgent": "PostmanRuntime/7.22.0"
+                "UserAgent": "PostmanRuntime/7.23.0"
             }
         },
         "mrParameters": {},
@@ -256,8 +246,22 @@
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "GetSqlDBConnectionEntry",
+                    "_entryName": "GetEntry",
                     "_entryIndex": 6,
+                    "_entryPayload": {
+                        "jsonResult": {
+                            "Right": null
+                        },
+                        "jsonKey": {
+                            "utf8": "\"1_mandate_max_amount_limit\"",
+                            "b64": "IjFfbWFuZGF0ZV9tYXhfYW1vdW50X2xpbWl0Ig=="
+                        }
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "GetSqlDBConnectionEntry",
+                    "_entryIndex": 7,
                     "_entryPayload": {
                         "dBConfig": {
                             "tag": "SQLitePoolConf",
@@ -279,7 +283,7 @@
                 },
                 {
                     "_entryName": "RunDBEntry",
-                    "_entryIndex": 7,
+                    "_entryIndex": 8,
                     "_entryPayload": {
                         "jsonResult": {
                             "Right": null
@@ -289,7 +293,7 @@
                 },
                 {
                     "_entryName": "GetSqlDBConnectionEntry",
-                    "_entryIndex": 8,
+                    "_entryIndex": 9,
                     "_entryPayload": {
                         "dBConfig": {
                             "tag": "SQLitePoolConf",
@@ -311,7 +315,7 @@
                 },
                 {
                     "_entryName": "RunDBEntry",
-                    "_entryIndex": 9,
+                    "_entryIndex": 10,
                     "_entryPayload": {
                         "jsonResult": {
                             "Right": {
@@ -358,191 +362,42 @@
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "GenerateGUIDEntry",
-                    "_entryIndex": 10,
-                    "_entryPayload": {
-                        "guid": "a785c249-286f-4ed8-b4df-7432735068e5"
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunIOEntry",
+                    "_entryName": "GetSqlDBConnectionEntry",
                     "_entryIndex": 11,
                     "_entryPayload": {
-                        "jsonResult": "2020-03-04T14:14:33.472342164"
+                        "dBConfig": {
+                            "tag": "SQLitePoolConf",
+                            "contents": [
+                                "sqlite",
+                                "./app/euler-backend/test/Euler/TestData/test.db",
+                                {
+                                    "resourcesPerStripe": 50,
+                                    "stripes": 1,
+                                    "keepAlive": 10
+                                }
+                            ]
+                        },
+                        "getConnResult": {
+                            "Right": []
+                        }
                     },
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "GetSqlDBConnectionEntry",
+                    "_entryName": "RunDBEntry",
                     "_entryIndex": 12,
                     "_entryPayload": {
-                        "dBConfig": {
-                            "tag": "SQLitePoolConf",
-                            "contents": [
-                                "sqlite",
-                                "./app/euler-backend/test/Euler/TestData/test.db",
-                                {
-                                    "resourcesPerStripe": 50,
-                                    "stripes": 1,
-                                    "keepAlive": 10
-                                }
-                            ]
-                        },
-                        "getConnResult": {
-                            "Right": []
+                        "jsonResult": {
+                            "Right": null
                         }
                     },
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "RunDBEntry",
+                    "_entryName": "ThrowExceptionEntry",
                     "_entryIndex": 13,
                     "_entryPayload": {
-                        "jsonResult": {
-                            "Right": [
-                                {
-                                    "udf3": null,
-                                    "browser": null,
-                                    "status": "NEW",
-                                    "amount": 1.1,
-                                    "merchantId": "1",
-                                    "udf8": null,
-                                    "udf5": null,
-                                    "udf2": null,
-                                    "popupLoaded": null,
-                                    "billingAddressId": null,
-                                    "popupLoadedTime": null,
-                                    "orderUuid": "ordeu_a785c249286f4ed8b4df7432735068e5",
-                                    "refundedEntirely": null,
-                                    "udf4": null,
-                                    "amountRefunded": null,
-                                    "orderType": "ORDER_PAYMENT",
-                                    "udf10": null,
-                                    "browserVersion": null,
-                                    "udf1": null,
-                                    "customerId": null,
-                                    "returnUrl": null,
-                                    "dateCreated": "2020-03-04T14:14:33.472342164",
-                                    "lastSynced": null,
-                                    "currency": "INR",
-                                    "version": 0,
-                                    "mandateFeature": "DISABLED",
-                                    "preferredGateway": null,
-                                    "id": 46,
-                                    "customerPhone": null,
-                                    "customerEmail": null,
-                                    "udf7": null,
-                                    "orderId": "1583331273448",
-                                    "lastModified": "2020-03-04T14:14:33.472342164",
-                                    "udf9": null,
-                                    "productId": null,
-                                    "description": null,
-                                    "shippingAddressId": null,
-                                    "udf6": null,
-                                    "autoRefund": null
-                                }
-                            ]
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunIOEntry",
-                    "_entryIndex": 14,
-                    "_entryPayload": {
-                        "jsonResult": "2020-03-04T14:14:33.491137354"
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "GetSqlDBConnectionEntry",
-                    "_entryIndex": 15,
-                    "_entryPayload": {
-                        "dBConfig": {
-                            "tag": "SQLitePoolConf",
-                            "contents": [
-                                "sqlite",
-                                "./app/euler-backend/test/Euler/TestData/test.db",
-                                {
-                                    "resourcesPerStripe": 50,
-                                    "stripes": 1,
-                                    "keepAlive": 10
-                                }
-                            ]
-                        },
-                        "getConnResult": {
-                            "Right": []
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunDBEntry",
-                    "_entryIndex": 16,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "Right": [
-                                {
-                                    "browser": null,
-                                    "lastUpdated": "2020-03-04T14:14:33.491137354",
-                                    "ipAddress": "127.0.0.1",
-                                    "operatingSystem": null,
-                                    "device": null,
-                                    "browserVersion": null,
-                                    "dateCreated": "2020-03-04T14:14:33.491137354",
-                                    "metadata": null,
-                                    "id": 98,
-                                    "mobile": false,
-                                    "userAgent": "PostmanRuntime/7.22.0",
-                                    "orderReferenceId": 46,
-                                    "referer": null
-                                }
-                            ]
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "SetExEntry",
-                    "_entryIndex": 17,
-                    "_entryPayload": {
-                        "jsonTtl": 86400,
-                        "jsonValue": {
-                            "utf8": "{\"amount\":{\"unMoney\":110},\"merchantId\":\"1\",\"udf\":{\"udf3\":null,\"udf8\":null,\"udf5\":null,\"udf2\":null,\"udf4\":null,\"udf10\":null,\"udf1\":null,\"udf7\":null,\"udf9\":null,\"udf6\":null},\"orderStatus\":\"OrderStatusNew\",\"billingAddressId\":null,\"orderUuid\":\"ordeu_a785c249286f4ed8b4df7432735068e5\",\"refundedEntirely\":false,\"amountRefunded\":null,\"orderType\":\"ORDER_PAYMENT\",\"mandate\":\"DISABLED\",\"customerId\":null,\"returnUrl\":null,\"dateCreated\":\"2020-03-04T14:14:33.472342164\",\"lastSynced\":null,\"currency\":\"INR\",\"version\":0,\"id\":46,\"customerPhone\":null,\"customerEmail\":null,\"orderId\":\"1583331273448\",\"lastModified\":\"2020-03-04T14:14:33.472342164\",\"productId\":null,\"description\":null,\"shippingAddressId\":null,\"autoRefund\":false}",
-                            "b64": "eyJhbW91bnQiOnsidW5Nb25leSI6MTEwfSwibWVyY2hhbnRJZCI6IjEiLCJ1ZGYiOnsidWRmMyI6bnVsbCwidWRmOCI6bnVsbCwidWRmNSI6bnVsbCwidWRmMiI6bnVsbCwidWRmNCI6bnVsbCwidWRmMTAiOm51bGwsInVkZjEiOm51bGwsInVkZjciOm51bGwsInVkZjkiOm51bGwsInVkZjYiOm51bGx9LCJvcmRlclN0YXR1cyI6Ik9yZGVyU3RhdHVzTmV3IiwiYmlsbGluZ0FkZHJlc3NJZCI6bnVsbCwib3JkZXJVdWlkIjoib3JkZXVfYTc4NWMyNDkyODZmNGVkOGI0ZGY3NDMyNzM1MDY4ZTUiLCJyZWZ1bmRlZEVudGlyZWx5IjpmYWxzZSwiYW1vdW50UmVmdW5kZWQiOm51bGwsIm9yZGVyVHlwZSI6Ik9SREVSX1BBWU1FTlQiLCJtYW5kYXRlIjoiRElTQUJMRUQiLCJjdXN0b21lcklkIjpudWxsLCJyZXR1cm5VcmwiOm51bGwsImRhdGVDcmVhdGVkIjoiMjAyMC0wMy0wNFQxNDoxNDozMy40NzIzNDIxNjQiLCJsYXN0U3luY2VkIjpudWxsLCJjdXJyZW5jeSI6IklOUiIsInZlcnNpb24iOjAsImlkIjo0NiwiY3VzdG9tZXJQaG9uZSI6bnVsbCwiY3VzdG9tZXJFbWFpbCI6bnVsbCwib3JkZXJJZCI6IjE1ODMzMzEyNzM0NDgiLCJsYXN0TW9kaWZpZWQiOiIyMDIwLTAzLTA0VDE0OjE0OjMzLjQ3MjM0MjE2NCIsInByb2R1Y3RJZCI6bnVsbCwiZGVzY3JpcHRpb24iOm51bGwsInNoaXBwaW5nQWRkcmVzc0lkIjpudWxsLCJhdXRvUmVmdW5kIjpmYWxzZX0="
-                        },
-                        "jsonResult": {
-                            "Right": {
-                                "tag": "Ok"
-                            }
-                        },
-                        "jsonKey": {
-                            "utf8": "\"1_orderid_1583331273448\"",
-                            "b64": "IjFfb3JkZXJpZF8xNTgzMzMxMjczNDQ4Ig=="
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "LogMessageEntry",
-                    "_entryIndex": 18,
-                    "_entryPayload": {
-                        "tag": "\"Redis setex\"",
-                        "msg": "Ok",
-                        "level": "Info"
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunIOEntry",
-                    "_entryIndex": 19,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "protocol": "http",
-                            "internalECHost": "https://sandbox.juspay.in/internal-ec",
-                            "host": "localhost:8081"
-                        }
+                        "exMessage": "ECErrorResponse {code = 400, response = \"{\\n    \\\"status\\\": \\\"NOT_FOUND\\\",\\n    \\\"error_code\\\": null,\\n    \\\"error_message\\\": \\\"Customer not found for this order\\\",\\n    \\\"status_id\\\": 40\\n}\"}"
                     },
                     "_entryReplayMode": "Normal"
                 }
@@ -551,17 +406,17 @@
         },
         "mrJsonRequest": {
             "shipping_address_country": null,
-            "order_id": "1583331273448",
+            "order_id": "1584019965132",
             "udf3": null,
             "shipping_address_country_code_iso": null,
             "amount": 1.1,
             "udf8": null,
-            "options_create_mandate": null,
+            "options_create_mandate": "REQUIRED",
             "udf5": null,
-            "billing_address_city": null,
+            "billing_address_city": "Bengaluru",
             "billing_address_postal_code": null,
             "billing_address_state": null,
-            "gateway_id": null,
+            "gateway_id": "8",
             "udf2": null,
             "billing_address_country": null,
             "shipping_address_phone": null,
@@ -570,32 +425,32 @@
             "shipping_address_state": null,
             "udf4": null,
             "shipping_address_postal_code": null,
-            "customer_id": null,
+            "customer_id": "notExist",
             "udf10": null,
             "auto_refund": null,
             "shipping_address_last_name": null,
-            "udf1": null,
-            "mandate_max_amount": null,
+            "udf1": "udf1value",
+            "mandate_max_amount": "100",
             "billing_address_line2": null,
             "billing_address_phone": null,
             "product_id": null,
             "shipping_address_line3": null,
-            "options_get_client_auth_token": null,
-            "customer_email": null,
-            "currency": null,
+            "options_get_client_auth_token": true,
+            "customer_email": "kiran.kumar@gmail.com",
+            "currency": "INR",
             "billing_address_last_name": null,
-            "billing_address_first_name": null,
-            "customer_phone": null,
+            "billing_address_first_name": "Parth",
+            "customer_phone": "7076607677",
             "billing_address_line1": null,
             "billing_address_country_code_iso": null,
-            "metaData": null,
-            "udf7": null,
-            "shipping_address_city": null,
+            "metaData": "{\"MIGS:gateway_reference_id\":\"SI\",\"PAYU:gateway_reference_id\":\"PAYU_TEST_SI\"}",
+            "udf7": "udf7value",
+            "shipping_address_city": "Mumbai",
             "shipping_address_line1": null,
-            "shipping_address_first_name": null,
+            "shipping_address_first_name": "Parth",
             "udf9": null,
-            "return_url": null,
-            "description": null,
+            "return_url": "http://juspay.in/",
+            "description": "some description",
             "udf6": null
         }
     },

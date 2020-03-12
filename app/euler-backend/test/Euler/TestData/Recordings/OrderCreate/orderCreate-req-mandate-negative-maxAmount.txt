@@ -1,6 +1,6 @@
 {
     "methodRecording": {
-        "mrJsonResponse": "ServerError {errHTTPCode = 400, errReasonPhrase = \"\", errBody = \"{\\n    \\\"status\\\": \\\"invalid_request_error\\\",\\n    \\\"error_code\\\": \\\"INVALID_MANDATE_MAX_AMOUNT\\\",\\n    \\\"error_message\\\": \\\"invalidMandateMaxAmount 100001.0\\\",\\n    \\\"status_id\\\": -1\\n}\", errHeaders = []}",
+        "mrJsonResponse": "ServerError {errHTTPCode = 400, errReasonPhrase = \"\", errBody = \"{\\n    \\\"status\\\": \\\"invalid_request_error\\\",\\n    \\\"error_code\\\": \\\"INVALID_REQUEST\\\",\\n    \\\"error_message\\\": \\\"[\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should not be negative.\\\\\\\",\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should not be negative.\\\\\\\"]\\\",\\n    \\\"status_id\\\": null\\n}\", errHeaders = []}",
         "mrSessionId": "SomeSessionId",
         "mrMethodConfigs": {
             "mcRawBody": "",
@@ -13,7 +13,7 @@
                 "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=",
                 "SourceIP": "127.0.0.1",
                 "Version": "2018-07-01",
-                "UserAgent": "PostmanRuntime/7.22.0"
+                "UserAgent": "PostmanRuntime/7.23.0"
             }
         },
         "mrParameters": {},
@@ -246,16 +246,12 @@
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "GetEntry",
+                    "_entryName": "LogMessageEntry",
                     "_entryIndex": 6,
                     "_entryPayload": {
-                        "jsonResult": {
-                            "Right": null
-                        },
-                        "jsonKey": {
-                            "utf8": "\"1_mandate_max_amount_limit\"",
-                            "b64": "IjFfbWFuZGF0ZV9tYXhfYW1vdW50X2xpbWl0Ig=="
-                        }
+                        "tag": "\"OrderCreateRequest validation\"",
+                        "msg": "[\"options_create_mandate mandate_max_amount mandate_max_amount should not be negative.\",\"options_create_mandate mandate_max_amount mandate_max_amount should not be negative.\"]",
+                        "level": "Error"
                     },
                     "_entryReplayMode": "Normal"
                 },
@@ -263,7 +259,7 @@
                     "_entryName": "ThrowExceptionEntry",
                     "_entryIndex": 7,
                     "_entryPayload": {
-                        "exMessage": "ECErrorResponse {code = 400, response = \"{\\n    \\\"status\\\": \\\"invalid_request_error\\\",\\n    \\\"error_code\\\": \\\"INVALID_MANDATE_MAX_AMOUNT\\\",\\n    \\\"error_message\\\": \\\"invalidMandateMaxAmount 100001.0\\\",\\n    \\\"status_id\\\": -1\\n}\"}"
+                        "exMessage": "ECErrorResponse {code = 400, response = \"{\\n    \\\"status\\\": \\\"invalid_request_error\\\",\\n    \\\"error_code\\\": \\\"INVALID_REQUEST\\\",\\n    \\\"error_message\\\": \\\"[\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should not be negative.\\\\\\\",\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should not be negative.\\\\\\\"]\\\",\\n    \\\"status_id\\\": null\\n}\"}"
                     },
                     "_entryReplayMode": "Normal"
                 }
@@ -272,7 +268,7 @@
         },
         "mrJsonRequest": {
             "shipping_address_country": null,
-            "order_id": "1583331056213",
+            "order_id": "1584019824153",
             "udf3": null,
             "shipping_address_country_code_iso": null,
             "amount": 1.1,
@@ -296,7 +292,7 @@
             "auto_refund": null,
             "shipping_address_last_name": null,
             "udf1": "udf1value",
-            "mandate_max_amount": "0",
+            "mandate_max_amount": "-10",
             "billing_address_line2": null,
             "billing_address_phone": null,
             "product_id": null,

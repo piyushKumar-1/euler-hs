@@ -1,6 +1,6 @@
 {
     "methodRecording": {
-        "mrJsonResponse": "ServerError {errHTTPCode = 500, errReasonPhrase = \"\", errBody = \"{\\n    \\\"userMessage\\\": \\\"Internal Server Error\\\",\\n    \\\"error\\\": true,\\n    \\\"error_message\\\": \\\"Internal Server Error\\\"\\n}\", errHeaders = []}",
+        "mrJsonResponse": "ServerError {errHTTPCode = 400, errReasonPhrase = \"\", errBody = \"{\\n    \\\"status\\\": \\\"invalid_request_error\\\",\\n    \\\"error_code\\\": \\\"INVALID_REQUEST\\\",\\n    \\\"error_message\\\": \\\"[\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should be set.\\\\\\\",\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should be set.\\\\\\\"]\\\",\\n    \\\"status_id\\\": null\\n}\", errHeaders = []}",
         "mrSessionId": "SomeSessionId",
         "mrMethodConfigs": {
             "mcRawBody": "",
@@ -10,10 +10,10 @@
             "mcUserAgent": "",
             "mcSourceIP": "",
             "mcRouteParams": {
-                "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUM=",
+                "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=",
                 "SourceIP": "127.0.0.1",
                 "Version": "2018-07-01",
-                "UserAgent": "PostmanRuntime/7.22.0"
+                "UserAgent": "PostmanRuntime/7.23.0"
             }
         },
         "mrParameters": {},
@@ -49,12 +49,12 @@
                             "Right": {
                                 "status": "ACTIVE",
                                 "lastUpdated": "2014-01-10T14:28:17",
-                                "apiKey": "F82F812AAF254D7A9AC814B78A4B941C",
+                                "apiKey": "F82F812AAF254D7A9AC814B78A4B941B",
                                 "dateCreated": "2014-01-10T14:28:17",
                                 "version": 1,
                                 "scope": "MERCHANT",
-                                "id": 2,
-                                "merchantAccountId": 2
+                                "id": 1,
+                                "merchantAccountId": 1
                             }
                         }
                     },
@@ -106,7 +106,7 @@
                                 "enableRefundsInDashboard": null,
                                 "payuSalt": null,
                                 "apiKey": "7BAD089A1F604F0DA249B667A5B1D33D",
-                                "merchantId": null,
+                                "merchantId": "1",
                                 "state": null,
                                 "expressCheckoutEnabled": null,
                                 "landmark": null,
@@ -124,7 +124,7 @@
                                 "enableSaveCardBeforeAuth": null,
                                 "contactPerson": null,
                                 "webHookUsername": null,
-                                "merchantName": "merchant2",
+                                "merchantName": "merchantName",
                                 "ccavenueSecretKey": null,
                                 "ebsBackendGateway": null,
                                 "ebsAccountId": null,
@@ -161,7 +161,7 @@
                                 "bankAccountNumber": null,
                                 "enableAutomaticRetry": null,
                                 "dateCreated": null,
-                                "userId": 2,
+                                "userId": 1,
                                 "axisMerchantId": null,
                                 "telephone": null,
                                 "gatewayPriorityLogic": null,
@@ -180,7 +180,7 @@
                                 "ccavenueVerified": null,
                                 "enablePaymentResponseHash": null,
                                 "realModeOnly": null,
-                                "id": 2,
+                                "id": 1,
                                 "enableSendingLastFourDigits": null,
                                 "citiMerchantCode": null,
                                 "amexAccessCode": null,
@@ -219,20 +219,47 @@
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "LogMessageEntry",
+                    "_entryName": "GetEntry",
                     "_entryIndex": 4,
                     "_entryPayload": {
-                        "tag": "\"DB MerchantAccount Validation\"",
-                        "msg": "[\"merchantId not present\"]",
+                        "jsonResult": {
+                            "Right": {
+                                "utf8": "[\"127.0.0.1\"]",
+                                "b64": "WyIxMjcuMC4wLjEiXQ=="
+                            }
+                        },
+                        "jsonKey": {
+                            "utf8": "\"euler_ip_whitelist_for_1\"",
+                            "b64": "ImV1bGVyX2lwX3doaXRlbGlzdF9mb3JfMSI="
+                        }
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "LogMessageEntry",
+                    "_entryIndex": 5,
+                    "_entryPayload": {
+                        "tag": "\"ipAddressFilters\"",
+                        "msg": "IP whitelisting is enable for this merchant: 1",
+                        "level": "Info"
+                    },
+                    "_entryReplayMode": "Normal"
+                },
+                {
+                    "_entryName": "LogMessageEntry",
+                    "_entryIndex": 6,
+                    "_entryPayload": {
+                        "tag": "\"OrderCreateRequest validation\"",
+                        "msg": "[\"options_create_mandate mandate_max_amount mandate_max_amount should be set.\",\"options_create_mandate mandate_max_amount mandate_max_amount should be set.\"]",
                         "level": "Error"
                     },
                     "_entryReplayMode": "Normal"
                 },
                 {
                     "_entryName": "ThrowExceptionEntry",
-                    "_entryIndex": 5,
+                    "_entryIndex": 7,
                     "_entryPayload": {
-                        "exMessage": "ErrorResponse {code = 500, response = ErrorPayload {error = True, error_message = \"Internal Server Error\", userMessage = \"Internal Server Error\"}}"
+                        "exMessage": "ECErrorResponse {code = 400, response = \"{\\n    \\\"status\\\": \\\"invalid_request_error\\\",\\n    \\\"error_code\\\": \\\"INVALID_REQUEST\\\",\\n    \\\"error_message\\\": \\\"[\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should be set.\\\\\\\",\\\\\\\"options_create_mandate mandate_max_amount mandate_max_amount should be set.\\\\\\\"]\\\",\\n    \\\"status_id\\\": null\\n}\"}"
                     },
                     "_entryReplayMode": "Normal"
                 }
@@ -241,7 +268,7 @@
         },
         "mrJsonRequest": {
             "shipping_address_country": null,
-            "order_id": "1583330883546",
+            "order_id": "1584019747028",
             "udf3": null,
             "shipping_address_country_code_iso": null,
             "amount": 1.1,
@@ -265,7 +292,7 @@
             "auto_refund": null,
             "shipping_address_last_name": null,
             "udf1": "udf1value",
-            "mandate_max_amount": "100",
+            "mandate_max_amount": null,
             "billing_address_line2": null,
             "billing_address_phone": null,
             "product_id": null,

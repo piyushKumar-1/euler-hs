@@ -1,6 +1,6 @@
 {
     "methodRecording": {
-        "mrJsonResponse": "ServerError {errHTTPCode = 400, errReasonPhrase = \"\", errBody = \"{\\n    \\\"status\\\": \\\"NOT_FOUND\\\",\\n    \\\"error_code\\\": null,\\n    \\\"error_message\\\": \\\"Customer not found for this order\\\",\\n    \\\"status_id\\\": 40\\n}\", errHeaders = []}",
+        "mrJsonResponse": "ServerError {errHTTPCode = 500, errReasonPhrase = \"\", errBody = \"{\\n    \\\"userMessage\\\": \\\"Internal Server Error\\\",\\n    \\\"error\\\": true,\\n    \\\"error_message\\\": \\\"Internal Server Error\\\"\\n}\", errHeaders = []}",
         "mrSessionId": "SomeSessionId",
         "mrMethodConfigs": {
             "mcRawBody": "",
@@ -10,10 +10,10 @@
             "mcUserAgent": "",
             "mcSourceIP": "",
             "mcRouteParams": {
-                "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=",
+                "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUM=",
                 "SourceIP": "127.0.0.1",
                 "Version": "2018-07-01",
-                "UserAgent": "PostmanRuntime/7.22.0"
+                "UserAgent": "PostmanRuntime/7.23.0"
             }
         },
         "mrParameters": {},
@@ -49,12 +49,12 @@
                             "Right": {
                                 "status": "ACTIVE",
                                 "lastUpdated": "2014-01-10T14:28:17",
-                                "apiKey": "F82F812AAF254D7A9AC814B78A4B941B",
+                                "apiKey": "F82F812AAF254D7A9AC814B78A4B941C",
                                 "dateCreated": "2014-01-10T14:28:17",
                                 "version": 1,
                                 "scope": "MERCHANT",
-                                "id": 1,
-                                "merchantAccountId": 1
+                                "id": 2,
+                                "merchantAccountId": 2
                             }
                         }
                     },
@@ -106,7 +106,7 @@
                                 "enableRefundsInDashboard": null,
                                 "payuSalt": null,
                                 "apiKey": "7BAD089A1F604F0DA249B667A5B1D33D",
-                                "merchantId": "1",
+                                "merchantId": null,
                                 "state": null,
                                 "expressCheckoutEnabled": null,
                                 "landmark": null,
@@ -124,7 +124,7 @@
                                 "enableSaveCardBeforeAuth": null,
                                 "contactPerson": null,
                                 "webHookUsername": null,
-                                "merchantName": "merchantName",
+                                "merchantName": "merchant2",
                                 "ccavenueSecretKey": null,
                                 "ebsBackendGateway": null,
                                 "ebsAccountId": null,
@@ -161,7 +161,7 @@
                                 "bankAccountNumber": null,
                                 "enableAutomaticRetry": null,
                                 "dateCreated": null,
-                                "userId": 1,
+                                "userId": 2,
                                 "axisMerchantId": null,
                                 "telephone": null,
                                 "gatewayPriorityLogic": null,
@@ -180,7 +180,7 @@
                                 "ccavenueVerified": null,
                                 "enablePaymentResponseHash": null,
                                 "realModeOnly": null,
-                                "id": 1,
+                                "id": 2,
                                 "enableSendingLastFourDigits": null,
                                 "citiMerchantCode": null,
                                 "amexAccessCode": null,
@@ -219,185 +219,20 @@
                     "_entryReplayMode": "Normal"
                 },
                 {
-                    "_entryName": "GetEntry",
+                    "_entryName": "LogMessageEntry",
                     "_entryIndex": 4,
                     "_entryPayload": {
-                        "jsonResult": {
-                            "Right": {
-                                "utf8": "[\"127.0.0.1\"]",
-                                "b64": "WyIxMjcuMC4wLjEiXQ=="
-                            }
-                        },
-                        "jsonKey": {
-                            "utf8": "\"euler_ip_whitelist_for_1\"",
-                            "b64": "ImV1bGVyX2lwX3doaXRlbGlzdF9mb3JfMSI="
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "LogMessageEntry",
-                    "_entryIndex": 5,
-                    "_entryPayload": {
-                        "tag": "\"ipAddressFilters\"",
-                        "msg": "IP whitelisting is enable for this merchant: 1",
-                        "level": "Info"
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "GetEntry",
-                    "_entryIndex": 6,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "Right": null
-                        },
-                        "jsonKey": {
-                            "utf8": "\"1_mandate_max_amount_limit\"",
-                            "b64": "IjFfbWFuZGF0ZV9tYXhfYW1vdW50X2xpbWl0Ig=="
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "GetSqlDBConnectionEntry",
-                    "_entryIndex": 7,
-                    "_entryPayload": {
-                        "dBConfig": {
-                            "tag": "SQLitePoolConf",
-                            "contents": [
-                                "sqlite",
-                                "./app/euler-backend/test/Euler/TestData/test.db",
-                                {
-                                    "resourcesPerStripe": 50,
-                                    "stripes": 1,
-                                    "keepAlive": 10
-                                }
-                            ]
-                        },
-                        "getConnResult": {
-                            "Right": []
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunDBEntry",
-                    "_entryIndex": 8,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "Right": null
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "GetSqlDBConnectionEntry",
-                    "_entryIndex": 9,
-                    "_entryPayload": {
-                        "dBConfig": {
-                            "tag": "SQLitePoolConf",
-                            "contents": [
-                                "sqlite",
-                                "./app/euler-backend/test/Euler/TestData/test.db",
-                                {
-                                    "resourcesPerStripe": 50,
-                                    "stripes": 1,
-                                    "keepAlive": 10
-                                }
-                            ]
-                        },
-                        "getConnResult": {
-                            "Right": []
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunDBEntry",
-                    "_entryIndex": 10,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "Right": {
-                                "merchantId": "1",
-                                "canAcceptMaestro": null,
-                                "canAcceptJcb": null,
-                                "mirrorGatewayResponse": null,
-                                "issuerRoutingEnabled": null,
-                                "dynamicSwitchingEnabled": null,
-                                "emergencyMessage": null,
-                                "headingText": null,
-                                "canAcceptMaster": null,
-                                "saveCardEnabled": null,
-                                "showCancelButton": null,
-                                "deleteCardOnExpiry": null,
-                                "customMobileStylesheet": null,
-                                "canAcceptRupay": null,
-                                "alwaysAcceptCards": null,
-                                "cardBrandRoutingEnabled": null,
-                                "canAcceptVisa": null,
-                                "additionalParamsInResponse": null,
-                                "passThroughMode": null,
-                                "returnUrl": "prefUrl",
-                                "isinRoutingEnabled": null,
-                                "defaultCurrency": "INR",
-                                "orderCreationUrl": null,
-                                "canAcceptDiscover": null,
-                                "version": 1,
-                                "merchantLogoUrl": null,
-                                "paymentButtonLabel": null,
-                                "id": 1,
-                                "canAcceptAmex": null,
-                                "redirectModeOnly": null,
-                                "walletTopupReturnUrl": null,
-                                "txnFailureGatewayPenality": null,
-                                "additionalParamsInResponse1": null,
-                                "orderSessionTimeout": null,
-                                "customStylesheet": null,
-                                "canAcceptDiners": null,
-                                "termsAndConditionsLink": null
-                            }
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "GetSqlDBConnectionEntry",
-                    "_entryIndex": 11,
-                    "_entryPayload": {
-                        "dBConfig": {
-                            "tag": "SQLitePoolConf",
-                            "contents": [
-                                "sqlite",
-                                "./app/euler-backend/test/Euler/TestData/test.db",
-                                {
-                                    "resourcesPerStripe": 50,
-                                    "stripes": 1,
-                                    "keepAlive": 10
-                                }
-                            ]
-                        },
-                        "getConnResult": {
-                            "Right": []
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunDBEntry",
-                    "_entryIndex": 12,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "Right": null
-                        }
+                        "tag": "\"DB MerchantAccount Validation\"",
+                        "msg": "[\"merchantId not present\"]",
+                        "level": "Error"
                     },
                     "_entryReplayMode": "Normal"
                 },
                 {
                     "_entryName": "ThrowExceptionEntry",
-                    "_entryIndex": 13,
+                    "_entryIndex": 5,
                     "_entryPayload": {
-                        "exMessage": "ECErrorResponse {code = 400, response = \"{\\n    \\\"status\\\": \\\"NOT_FOUND\\\",\\n    \\\"error_code\\\": null,\\n    \\\"error_message\\\": \\\"Customer not found for this order\\\",\\n    \\\"status_id\\\": 40\\n}\"}"
+                        "exMessage": "ErrorResponse {code = 500, response = ErrorPayload {error = True, error_message = \"Internal Server Error\", userMessage = \"Internal Server Error\"}}"
                     },
                     "_entryReplayMode": "Normal"
                 }
@@ -406,7 +241,7 @@
         },
         "mrJsonRequest": {
             "shipping_address_country": null,
-            "order_id": "1583331229320",
+            "order_id": "1584019348374",
             "udf3": null,
             "shipping_address_country_code_iso": null,
             "amount": 1.1,
@@ -425,7 +260,7 @@
             "shipping_address_state": null,
             "udf4": null,
             "shipping_address_postal_code": null,
-            "customer_id": "notExist",
+            "customer_id": "cst_8mygkoq6jbsearii",
             "udf10": null,
             "auto_refund": null,
             "shipping_address_last_name": null,

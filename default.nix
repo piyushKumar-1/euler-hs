@@ -37,8 +37,8 @@ let
             self.callCabal2nix "web-service" ./lib/web-service { };
           euler-backend =
             self.callCabal2nix "euler-backend" ./app/euler-backend { };
-          credit-platform =
-            self.callCabal2nix "credit-platform" ./app/credit-platform { };
+          #credit-platform =
+          #  self.callCabal2nix "credit-platform" ./app/credit-platform { };
         };
       };
     };
@@ -49,6 +49,6 @@ in {
   pkgs = pkgs;
   euler-hs = pkgs.haskellPackages.euler-hs;
   web-service = pkgs.haskellPackages.web-service;
-  credit-platform = pkgs.haskellPackages.credit-platform;
+ # credit-platform = pkgs.haskellPackages.credit-platform;
   euler-backend = pkgs.haskellPackages.euler-backend;
 }

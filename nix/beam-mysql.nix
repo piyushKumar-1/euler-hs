@@ -29,8 +29,8 @@ mkDerivation {
   version = "0.2.0.0";
   src = fetchgit {
     url    = "https://github.com/graninas/beam-mysql";
-    rev    = "e5a667fe6396441c7dcf1c7755c69345f00d0eee";
-    sha256 = "1crf5rsnpjm9gsxqk96y2g5wvx79rp78ivbk3qy46h9703q1zw1l";
+    rev    = "38b084e28c9593fb8e17b7e67cfd27d40fc053d8";
+    sha256 = "0rxq0ggbd9h01s543gr6aypf8w31x5rr0kpg6606khbsmza1b7gv";
   };
   libraryHaskellDepends = [
     aeson attoparsec base beam-core bytestring case-insensitive free

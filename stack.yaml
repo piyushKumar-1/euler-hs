@@ -3,17 +3,17 @@ resolver: lts-14.4
 packages:
 - lib/euler-hs
 - lib/web-service
-- app/credit-platform
+# - app/credit-platform
 - app/euler-backend
 
 extra-deps:
-- gogol-0.5.0@sha256:01b38acf97ae0afb2465935fee1bebce03c1b84e629cf0887467be7ae361f0a7,3222
-- gogol-core-0.5.0
-- gogol-bigquery-0.5.0@sha256:47ba01fd655f0b8e8789b10949e70a308041bc9db7892a0c7ab26ec4bcf174d4,2698
-- git: https://github.com/shmish111/purescript-bridge.git
-  commit: 0042602f8a195b1fe185138f9ccca02020b8dd62
+#- gogol-0.5.0@sha256:01b38acf97ae0afb2465935fee1bebce03c1b84e629cf0887467be7ae361f0a7,3222
+#- gogol-core-0.5.0
+#- gogol-bigquery-0.5.0@sha256:47ba01fd655f0b8e8789b10949e70a308041bc9db7892a0c7ab26ec4bcf174d4,2698
+#- git: https://github.com/shmish111/purescript-bridge.git
+#  commit: 0042602f8a195b1fe185138f9ccca02020b8dd62
 - git: https://github.com/graninas/beam-mysql
-  commit: e5a667fe6396441c7dcf1c7755c69345f00d0eee
+  commit: 38b084e28c9593fb8e17b7e67cfd27d40fc053d8
 - random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
 - cryptostore-0.2.0.0@sha256:9fcc48b25b7989b9697afb3899387620b3d75b5d995ee2111e7cc942a4c27601,3881
 - wai-middleware-prometheus-1.0.0@sha256:1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4,1314

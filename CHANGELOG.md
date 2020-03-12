@@ -1,5 +1,18 @@
 # Changelog for euler-hs
 
+## [1.4.0.0] - 2020-03-12
+* Euler-hs 1.4.0.0:
+  - Performance analysed and tuned
+    N.B. Async logger has a lazy mem leak. Will be fixed in the next version.
+    Use sync logger for now.
+  - Pub-Sub mechanism added
+  - Beam-MySQL updated (support of the `Day` type added)
+  - Small fixes and additions
+* Euler-Backend 0.5.0.0:
+  - DB types added.
+  - Order Create completely implemented
+  - Integration tests & ART tests added
+  - Customer & Card API types, domain types and validators added
 
 ## [1.3.0.0] - 2020-02-17
 - Euler-hs: (breaking changes) Options reworked.

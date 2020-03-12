@@ -70,7 +70,8 @@ import           Euler.Storage.Repository
 
 import           Euler.Storage.DBConfig
 
-import           Euler.Version.Services.OrderStatusResponse
+import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
+import           Euler.Services.Version.OrderStatusResponse
 
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
@@ -80,10 +81,6 @@ import qualified Database.Beam.Backend.SQL as B
 
 myerr    n = err403 { errBody = "Err # " <> n }
 myerr400 n = err400 { errBody = "Err # " <> n }
-
-
-eulerUpiGateways :: [Gateway]
-eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
 
 
 data FlowError = FlowError
@@ -149,14 +146,17 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
 
   orderRef <- getOrderReference query  -- TODO loadOrder orderId merchantId
 
-  let orderUuid = fromMaybe T.empty $ getField @"orderUuid" orderRef
+  let mOrderId = getField @"orderId" orderRef
+  let mMerchantId = getField @"merchantId" orderRef
+  let mOrderUuid = getField @"orderUuid" orderRef
+  let orderUuid = fromMaybe T.empty mOrderUuid
 
   links <- getPaymentLinks resellerId orderUuid
 
   mPromotion' <- getPromotion orderRef
   mMandate' <- getMandate orderRef
 
-  mTxnDetail1 <- getTxnFromTxnUuid orderRef txnId
+  mTxnDetail1 <- findTxnByOrderIdMerchantIdTxnuuidId mOrderId mMerchantId mOrderUuid
   mTxnDetail2 <- getLastTxn orderRef
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
@@ -622,17 +622,17 @@ getOrderReference query = do
       logError "Find OrderReference" $ toText $ P.show err
       throwException err500
 
+-- refactored to findTxnByOrderIdMerchantIdTxnuuidId
+-- getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe D.TxnDetail)
+-- getTxnFromTxnUuid order maybeTxnUuid = do
+--   -- EHS: TODO should we throw exceptions?
+--       -- orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
+--       -- merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
 
-getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe D.TxnDetail)
-getTxnFromTxnUuid order maybeTxnUuid = do
-  -- EHS: TODO should we throw exceptions?
-      -- orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
-      -- merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
-
-      findTxnByOrderIdMerchantIdTxnuuidId
-        (getField @"orderId" order)
-        (getField @"merchantId" order)
-        maybeTxnUuid
+--       findTxnByOrderIdMerchantIdTxnuuidId
+--         (getField @"orderId" order)
+--         (getField @"merchantId" order)
+--         maybeTxnUuid
 
 -- EHS: TODO add sorting by dateCreated!
 getLastTxn :: DB.OrderReference -> Flow (Maybe D.TxnDetail)
@@ -1194,7 +1194,8 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
             Just xml -> getMapFromPGRXml $ decodeXml $ T.encodeUtf8 xml
       let date = show <$> getField @"dateCreated" pgr
       let mPgr = defaultMerchantPaymentGatewayResponse' {created = date} :: MerchantPaymentGatewayResponse'
-      let merchantPgr' = casematch txn pgr mPgr gateway pgrXml
+      let gateway' = maybe "" show gateway
+      let merchantPgr' = transformMpgrByGateway mPgr pgrXml $ mkMerchantPGRServiceTemp gateway' txn pgr pgrXml
       let gatewayResponse = getGatewayResponseInJson pgr shouldSendFullGatewayResponse
       let merchantPgr = makeMerchantPaymentGatewayResponse gatewayResponse merchantPgr'
       pure $ Just merchantPgr
@@ -1215,146 +1216,3 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
       in Just $ toStrict $ TL.decodeUtf8 $ encode $ getMapFromPGRXml pgrXml
     else Nothing
 
-casematch
-  :: D.TxnDetail
-  -> DB.PaymentGatewayResponse
-  -> MerchantPaymentGatewayResponse'
-  -> Maybe Gateway
-  -> Map.Map TL.Text EValue
-  -> MerchantPaymentGatewayResponse'
-casematch txn pgr merchPGR gateway xmls = match gateway'
-  where
-    -- EHS: Gateway type from TxnDetail does not match gateways from casematch totally
-    gateway' = maybe "" show gateway
-    match "CCAVENUE_V2"    = executePGR merchPGR xmls $ ccavenue_v2  txn pgr xmls
-    match "BLAZEPAY"       = executePGR merchPGR xmls $ blazepay     txn pgr xmls
-    match "STRIPE"         = executePGR merchPGR xmls $ stripe       txn pgr xmls
-    match "CITI"           = executePGR merchPGR xmls $ citi         txn xmls
-    match "IPG"            = executePGR merchPGR xmls $ ipg          txn xmls
-    match "FSS_ATM_PIN_V2" = executePGR merchPGR xmls $ fssatmpin    txn pgr
-    match "HDFC_EBS_VAS"   = executePGR merchPGR xmls $ hdfc_ebs_vas txn pgr
-    match "FREECHARGE_V2"  = executePGR merchPGR xmls $ freechargev2 txn pgr
-    match "FSS_ATM_PIN"    = executePGR merchPGR xmls $ fssatmpin    txn pgr
-    match "AIRTELMONEY"    = executePGR merchPGR xmls $ airtelmoney  txn pgr
-    match "CYBERSOURCE"    = executePGR merchPGR xmls $ cybersource  txn pgr
-    match "OLAPOSTPAID"    = executePGR merchPGR xmls $ olapostpaid  txn pgr
-    match "GOCASHFREE"     = executePGR merchPGR xmls $ gocashfree   txn pgr
-    match "EPAYLATER"      = executePGR merchPGR xmls $ epaylater    txn pgr
-    match "ZESTMONEY"      = executePGR merchPGR xmls $ zestmoney    txn pgr
-    match "BILLDESK"       = executePGR merchPGR xmls $ billdesk     txn pgr
-    match "JIOMONEY"       = executePGR merchPGR xmls $ jiomoney     txn pgr
-    match "SBIBUDDY"       = executePGR merchPGR xmls $ sbibuddy     txn pgr
-    match "RAZORPAY"       = executePGR merchPGR xmls $ razorpay     txn pgr
-    match "AXIS_UPI"       = executePGR merchPGR xmls $ axisupi      txn pgr
-    match "PINELABS"       = executePGR merchPGR xmls $ pinelabs     txn pgr
-    match "MOBIKWIK"       = executePGR merchPGR xmls $ mobikwik     txn pgr
-    match "LINEPAY"        = executePGR merchPGR xmls $ linepay      txn pgr
-    match "PHONEPE"        = executePGR merchPGR xmls $ phonepe      txn pgr
-    match "ICICINB"        = executePGR merchPGR xmls $ icicinb      txn pgr
-    match "ZAAKPAY"        = executePGR merchPGR xmls $ zaakpay      txn pgr
-    match "AIRPAY"         = executePGR merchPGR xmls $ airpay       txn pgr
-    match "AXISNB"         = executePGR merchPGR xmls $ axisnb       txn pgr
-    match "SODEXO"         = executePGR merchPGR xmls $ sodexo       txn pgr
-    match "CITRUS"         = executePGR merchPGR xmls $ citrus       txn pgr
-    match "PAYPAL"         = executePGR merchPGR xmls $ paypal       txn pgr
-    match "HDFCNB"         = executePGR merchPGR xmls $ hdfcnb       txn pgr
-    match "KOTAK"          = executePGR merchPGR xmls $ kotak        txn pgr
-    match "MPESA"          = executePGR merchPGR xmls $ mpesa        txn pgr
-    match "SIMPL"          = executePGR merchPGR xmls $ simpl        txn pgr
-    match "CASH"           = executePGR merchPGR xmls $ cash         txn pgr
-    match "TPSL"           = executePGR merchPGR xmls $ tpsl         txn pgr
-    match "LAZYPAY"        = executePGR merchPGR xmls $ lazypay      txn pgr
-    match "FSSPAY"         = executePGR merchPGR xmls $ fsspay       txn pgr
-    match "AMEX"           = executePGR merchPGR xmls $ amex         txn pgr
-    match "ATOM"           = executePGR merchPGR xmls $ atom         txn pgr
-    match "PAYTM_V2"       = executePGR merchPGR xmls $ paytm_v2     pgr
-    match "EBS_V3"         = executePGR merchPGR xmls $ ebs_v3       pgr
-    match "AXIS"           = executePGR merchPGR xmls $ axis         pgr
-    match "HDFC"           = executePGR merchPGR xmls $ hdfc         pgr
-    match "EBS"            = executePGR merchPGR xmls $ ebs          pgr
-    match "MIGS"           = executePGR merchPGR xmls $ migs         pgr
-    match "ICICI"          = executePGR merchPGR xmls $ icici        pgr
-    match "PAYLATER"       = executePGR merchPGR xmls $ paylater     txn
-    match "DUMMY"          = executePGR merchPGR xmls $ dummy
-    match "FREECHARGE"     = executePGR merchPGR xmls (freecharge txn pgr)
-      & \upgr -> if campaignCode /= "NA"
-          then upgr
-            { offer           = Just campaignCode
-            , offer_type      = justNa
-            , offer_availed   = Just "NA"
-            , discount_amount = Just T.empty
-            } :: MerchantPaymentGatewayResponse'
-          else upgr
-            -- EPS: Freecharge doesn't return any information about offers in their response
-      where
-        campaignCode = lookupXML xmls "campaignCode" "NA"
-
-    match "PAYU"           = executePGR merchPGR xmls (payu pgr)
-      & \upgr -> if offer /= "NA"
-      -- EPS: * Payu allows merchants to send multiple offers and avails a valid offer among them
-      -- EPS: * offer_availed contains the successfully availed offer.
-          then
-            (\rec -> if offerFailure /= "null"
-              then rec{ offer_failure_reason = Just offerFailure } :: MerchantPaymentGatewayResponse'
-              else rec)
-            (upgr
-            { offer           = Just offerVal
-            , offer_type      = offerType
-            , offer_availed   = Just $ show offerAvailed
-            , discount_amount = Just disAmount
-            } :: MerchantPaymentGatewayResponse')
-          else upgr
-      where
-          offer        = lookupXML     xmls "offer"                 "NA"
-          offerVal     = lookupXMLKeys xmls "offer_availed" "offer" "null"
-          offerType    = Just $ lookupXML xmls "offer_type" "null"
-          offerFailure = lookupXML     xmls "offer_failure_reason"  "null"
-          discount     = lookupXML     xmls "discount"              "NA"
-          offerAvailed = offerVal /= "null"
-          disAmount    = maybe T.empty show (readMaybe $ T.unpack discount :: Maybe Int)
-
-    match "PAYTM" = executePGR merchPGR xmls (paytm pgr)
-      & \upgr -> if promoCampId /= "null"
-        then upgr
-          { offer         = Just promoCampId
-          , offer_type    = justNa
-          , offer_availed = Just $ show $ promoStatus == "PROMO_SUCCESS"
-          , discount_amount = Just T.empty
-          } :: MerchantPaymentGatewayResponse'
-        else upgr
-      where
-        promoCampId = lookupXML xmls "PROMO_CAMP_ID" "null"
-        promoStatus = lookupXML xmls "PROMO_STATUS"  "null"
-
-    match "OLAMONEY" = executePGR merchPGR xmls (olamoney txn pgr)
-      & \upgr -> if couponCode /= "null"
-        then upgr
-          { offer         = Just couponCode
-          , offer_type    = justNa
-          , offer_availed = Just $ show $ strToBool isCashbackSuc
-          , discount_amount = Just T.empty
-          } :: MerchantPaymentGatewayResponse'
-        else upgr
-      where
-        couponCode    = lookupXML xmls "couponCode"           "null"
-        isCashbackSuc = lookupXML xmls "isCashbackSuccessful" "null"
-        strToBool :: Text -> Bool
-        strToBool "true" = True
-        strToBool _      = False
-
-    match "AMAZONPAY" = executePGR merchPGR xmls (amazonpay txn pgr)
-      & \upgr -> if sellerNote /= "null"
-        then upgr
-          { offer           = Just sellerNote
-          , offer_type      = justNa
-          , offer_availed   = Just T.empty
-          , discount_amount = Just T.empty
-          } :: MerchantPaymentGatewayResponse'
-        else upgr
-      where
-        sellerNote = lookupXML xmls "sellerNote" "null"
-
-    match _ = find (\val -> gateway' == show val) (eulerUpiGateways <> [GOOGLEPAY])
-      & maybe
-          (executePGR merchPGR xmls $ otherGateways pgr)
-          (const (executePGR merchPGR xmls $ eulerUpiGWs txn pgr))

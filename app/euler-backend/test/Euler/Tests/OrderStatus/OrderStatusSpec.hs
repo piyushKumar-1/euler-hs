@@ -20,6 +20,8 @@ import           Euler.API.Order (Chargeback' (..), Mandate' (..),
 import           Euler.Common.Types.Currency
 import           Euler.Common.Types.External.Mandate (MandateFeature (..), PaymentMethodType (..))
 import           Euler.Common.Types.External.Order (OrderStatus (..))
+import           Euler.Common.Types.Gateway
+import           Euler.Common.Types.Money
 import           Euler.Common.Types.Order (OrderType (..))
 import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
 import qualified Euler.Common.Types.Refund as Refund
@@ -27,9 +29,9 @@ import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 
 import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
 
+import           Euler.Product.Domain.TxnDetail
 import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
 import           Euler.Storage.Types.TxnCardInfo (TxnCardInfo, TxnCardInfoT (..))
-import           Euler.Storage.Types.TxnDetail (TxnDetail, TxnDetailT (..))
 
 
 
@@ -234,7 +236,7 @@ query = OrderStatusQuery
 
 txnDetailJust :: Maybe TxnDetail
 txnDetailJust = Just TxnDetail
-  { id                       = Just "txnCardInfo_id"
+  { id                       = TxnDetailId 100
   , version                  = 2
   , errorMessage             = Just "error"
   , orderId                  = "orderId"
@@ -249,7 +251,7 @@ txnDetailJust = Just TxnDetail
   , merchantId               = Just "merchantId"
   , bankErrorCode            = Just "bankErrorCode"
   , bankErrorMessage         = Just "bankErrorMessage"
-  , gateway                  = Just "CYBERSOURCE"
+  , gateway                  = Just CYBERSOURCE
   , expressCheckout          = Just False
   , redirect                 = Just False
   , gatewayPayload           = Just "gatewayPayload"
@@ -259,14 +261,14 @@ txnDetailJust = Just TxnDetail
   , username                 = Just "username"
   , txnUuid                  = Just "txnUuid"
   , merchantGatewayAccountId = Just 5
-  , txnAmount                = Just 0
+  , txnAmount                = Just $ mkMoney 0
   , txnObjectType            = Just "txnObjectType"
   , sourceObject             = Just "sourceObject"
   , sourceObjectId           = Just "sourceObjectId"
   , currency                 = Just "EUR"
-  , netAmount                = Just 0
-  , surchargeAmount          = Just 0
-  , taxAmount                = Just 0
+  , netAmount                = Just $ mkMoney 0
+  , surchargeAmount          = Just $ mkMoney 0
+  , taxAmount                = Just $ mkMoney 0
   }
 
 txnDetailNothing :: Maybe TxnDetail

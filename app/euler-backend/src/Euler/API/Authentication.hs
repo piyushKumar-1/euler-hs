@@ -29,11 +29,10 @@ data Signed a = Signed
 
 authenticateUsingRSAEncryption'
     :: (FromJSON a, HasField' "merchant_id" a Text, Generic a)
-    => T.DBConfig B.SqliteM
-    -> (MerchantAccount -> a -> L.Flow b)
+    => (MerchantAccount -> a -> L.Flow b)
     -> Signed a
     -> L.Flow b
-authenticateUsingRSAEncryption' config next Signed
+authenticateUsingRSAEncryption' next Signed
   { signature_payload
   , signature = b64signature
   , merchant_key_id
@@ -52,10 +51,8 @@ authenticateUsingRSAEncryption' config next Signed
 
     let merchantId' = getField @"merchant_id" decodedSignaturePayload
 
-    conn <- getConn config
-
     merchantAccount <- do
-      res <- L.runDB conn $ do
+      res <- L.withDB eulerDB $ do
         let predicate MerchantAccount {merchantId} =
               merchantId ==. (B.val_ $ Just merchantId')
 
@@ -66,12 +63,11 @@ authenticateUsingRSAEncryption' config next Signed
           $ B.all_ (merchant_account eulerDBSchema)
 
       case res of
-        Left _          -> L.throwException err500
-        Right Nothing   -> L.throwException err401
-        Right (Just ma) -> pure ma
+        Nothing -> L.throwException err401
+        Just ma -> pure ma
 
     merchantKey <- do
-      res <- L.runDB conn $ do
+      res <- L.withDB eulerDB $ do
         let maid = Euler.Storage.Types.MerchantAccount.id
         let predicate MerchantKey {merchantAccountId, scope, status, id = mkid} =
               merchantAccountId ==. (B.val_ $ maid merchantAccount)     &&.
@@ -86,9 +82,8 @@ authenticateUsingRSAEncryption' config next Signed
           $ B.all_ (merchant_key eulerDBSchema)
 
       case res of
-        Left _          -> L.throwException err500
-        Right Nothing   -> L.throwException err401
-        Right (Just mk) -> pure mk
+        Nothing -> L.throwException err401
+        Just mk -> pure mk
 
     -- Should apiKey be mandatory field?
     merchantPublicKey <- case (apiKey :: MerchantKey -> Maybe Text) merchantKey of
@@ -120,4 +115,4 @@ authenticateUsingRSAEncryption
   => (MerchantAccount -> a -> L.Flow b)
   -> Signed a
   -> L.Flow b
-authenticateUsingRSAEncryption = authenticateUsingRSAEncryption' eulerDB
+authenticateUsingRSAEncryption = authenticateUsingRSAEncryption'

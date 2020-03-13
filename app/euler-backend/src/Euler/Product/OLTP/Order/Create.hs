@@ -8,7 +8,7 @@ import EulerHS.Prelude hiding (id, get)
 import qualified Data.Text            as Text
 import qualified Text.Read            as TR
 import           Data.Generics.Product.Subtype
-
+import           Data.Time (localDay)
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
 -- Map to Servant in handlers.
@@ -250,7 +250,7 @@ saveOrderMetadata routeParams orderPId metadata' = do
         , DB.referer = Nothing
         , DB.userAgent = userAgent'
         , DB.dateCreated = orderMetadataTimestamp
-        , DB.lastUpdated = orderMetadataTimestamp
+        , DB.lastUpdated = localDay orderMetadataTimestamp
         }
 
   orderMetadataDB <- Rep.saveOrderMetadataV2 orderMetadataDBVal

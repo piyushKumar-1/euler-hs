@@ -23,7 +23,7 @@ data OrderMetadataV2T f = OrderMetadataV2
   , browserVersion   :: B.C f (Maybe Text)
   , dateCreated      :: B.C f LocalTime
   , device           :: B.C f (Maybe Text)
-  , lastUpdated      :: B.C f LocalTime
+  , lastUpdated      :: B.C f Day
   , metadata         :: B.C f (Maybe Text)
   , mobile           :: B.C f (Maybe Bool)
   , operatingSystem  :: B.C f (Maybe Text)
@@ -75,7 +75,7 @@ defaultOrderMetadataV2 = OrderMetadataV2
   , browserVersion   = Nothing -- :: Maybe Text
   , dateCreated      = defaultDate -- :: LocalTime
   , device           = Nothing -- :: Maybe Text
-  , lastUpdated      = defaultDate -- :: LocalTime
+  , lastUpdated      = localDay defaultDate -- :: LocalTime
   , metadata         = Nothing -- :: Maybe Text
   , mobile           = Just False -- :: Maybe Bool
   , operatingSystem  = Nothing -- :: Maybe Text

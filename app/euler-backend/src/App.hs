@@ -6,6 +6,7 @@ import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defau
 import           Data.Time.Clock (NominalDiffTime)
 
 import qualified Euler.Config.Config as Config
+import qualified Euler.Storage.DBConfig as DBC
 import qualified Euler.Server as Euler
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
@@ -15,27 +16,6 @@ import qualified Euler.Playback.Service as PB
 import qualified WebService.Language as L
 import qualified WebService.Types as T
 
-
-keepConnsAliveForSecs :: NominalDiffTime
-keepConnsAliveForSecs = 60 * 10 -- 10 mins
-
-maxTotalConns :: Int
-maxTotalConns = 8
-
-sqliteConn :: IsString a => a
-sqliteConn = "sqlite"
-
-mySQLCfg :: T.MySQLConfig
-mySQLCfg = T.MySQLConfig
-  { connectHost     = "localhost"
-  , connectPort     = 3306
-  , connectUser     = "cloud"
-  , connectPassword = "scape"
-  , connectDatabase = "jdb"
-  , connectOptions  = [T.CharsetName "utf8"]
-  , connectPath     = ""
-  , connectSSL      = Nothing
-  }
 
 eulerApiPort :: Int
 eulerApiPort = 8080
@@ -57,27 +37,20 @@ redisConnConfig = T.RedisConfig
 -- TODO: add real DB services.
 prepareDBConnections :: L.Flow ()
 prepareDBConnections = do
-  ePool <- L.initSqlDBConnection
-    $ T.mkSQLitePoolConfig sqliteConn "/tmp/test.db" -- T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg --
-    $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
+  ePool <- L.initSqlDBConnection DBC.mysqlDBC
   redis <- L.initKVDBConnection
     $ T.mkKVDBConfig Config.redis
     $ redisConnConfig
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
-prepareDBConnections' :: L.Flow ()
-prepareDBConnections' = pure ()
-
--- TODO: use a real connection config and switch from
--- prepareDBConnections' to prepareDBConnections.
 
 runEulerBackendApp' :: Settings -> IO ()
 runEulerBackendApp' settings = do
   let loggerCfg = T.defaultLoggerConfig
         { T._logToFile = True
         , T._logFilePath = "/tmp/euler-backend.log"
-        , T._isAsync = True
+        , T._isAsync = False
         }
 
   R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do

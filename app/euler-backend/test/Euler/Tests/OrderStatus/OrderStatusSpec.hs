@@ -17,21 +17,23 @@ import           Euler.API.Order (Chargeback' (..), Mandate' (..),
                                   OrderStatusResponse (..), Paymentlinks (..), Refund' (..),
                                   Risk (..), TxnDetail' (..), TxnFlowInfo (..))
 
-import           Euler.Common.Types.Currency
+import qualified Euler.Common.Types as C
+-- import           Euler.Common.Types.Currency
 import           Euler.Common.Types.External.Mandate (MandateFeature (..), PaymentMethodType (..))
-import           Euler.Common.Types.External.Order (OrderStatus (..))
-import           Euler.Common.Types.Gateway
-import           Euler.Common.Types.Money
-import           Euler.Common.Types.Order (OrderType (..))
-import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
-import qualified Euler.Common.Types.Refund as Refund
+-- import           Euler.Common.Types.External.Order (OrderStatus (..))
+-- import           Euler.Common.Types.Gateway
+-- import           Euler.Common.Types.Money
+-- import           Euler.Common.Types.Order (OrderType (..))
+-- import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
+-- import qualified Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 
 import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
 
-import           Euler.Product.Domain.TxnDetail
-import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
-import           Euler.Storage.Types.TxnCardInfo (TxnCardInfo, TxnCardInfoT (..))
+
+import qualified Euler.Product.Domain as D
+-- import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
+import qualified Euler.Storage.Types as DB
 
 
 
@@ -41,7 +43,7 @@ spec =
     describe "makeOrderStatusResponse" $ do
       it "Success with txnDetailJust, promotionJust" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
-              orderRef
+              order
               paymentlinks
               promotionJust
               mMandate
@@ -61,7 +63,7 @@ spec =
 
       it "Success with txnDetailNothing, promotionJust" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
-              orderRef
+              order
               paymentlinks
               promotionJust
               mMandate
@@ -81,7 +83,7 @@ spec =
 
       it "Success with txnDetailJust, promotionNothing" $ \rt -> do
         let statusResp = runExcept $ makeOrderStatusResponse
-              orderRef
+              order
               paymentlinks
               promotionNothing
               mMandate
@@ -116,26 +118,44 @@ mMerchantPgr = Just $ MerchantPaymentGatewayResponse
   , gateway_response     = Just "gateway_response"
   }
 
-orderRef :: OrderReference
-orderRef = OrderReference
-  { id                = Just 13
+order :: D.Order
+order = D.Order
+  { id                = 13
   , version           = 1
-  , amount            = Just 20
-  , currency          = Just USD
+  , amount            = C.mkMoney 20
+  , currency          = C.USD
+  , merchantId        = "merchantId"
+  , orderId           = "orderId"
+  , orderUuid         = "orderUuid"
+  , orderType         = C.MANDATE_REGISTER
+  , orderStatus       = C.OrderStatusSuccess
+  , customerId        = Just "customerId"
+  , customerEmail     = Just "email@email.ru"
+  , customerPhone     = Just "911"
+  , billingAddressId  = Just 14
+  , shippingAddressId = Just 15
+  , udf               = udfFull
+  , description       = Just "description"
+  , returnUrl         = Just "returnUrl"
+  , amountRefunded    = Just 0
+  , refundedEntirely  = False
+  , autoRefund        = True
+  , productId         = Just "productId"
+  , mandate           = C.MandateOptUndefined
+  , lastSynced        = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 20 31 0)
   , dateCreated       = LocalTime (fromGregorian 2020 1 12) (TimeOfDay 2 13 0)
   , lastModified      = LocalTime (fromGregorian 2020 1 13) (TimeOfDay 12 14 0)
-  , merchantId        = Just "merchantId"
-  , orderId           = Just "orderId"
-  , status            = SUCCESS
-  , customerEmail     = Just "email@email.ru"
-  , customerId        = Just "customerId"
-  , browser           = Just "firefox"
-  , browserVersion    = Just "72"
-  , popupLoaded       = Just False
-  , popupLoadedTime   = Just "1"
-  , description       = Just "description"
-  , udf1              = Just "udf1"
-  , udf10             = Just "udf10"
+  -- , browser           = Just "firefox"
+  -- , browserVersion    = Just "72"
+  -- , popupLoaded       = Just False
+  -- , popupLoadedTime   = Just "1"
+  -- , preferredGateway  = Just "preferredGateway"
+  -- , mandateFeature    = Just OPTIONAL
+  }
+
+udfFull :: C.UDF
+udfFull = C.UDF
+  { udf1              = Just "udf1"
   , udf2              = Just "udf2"
   , udf3              = Just "udf3"
   , udf4              = Just "udf4"
@@ -144,19 +164,7 @@ orderRef = OrderReference
   , udf7              = Just "udf7"
   , udf8              = Just "udf8"
   , udf9              = Just "udf9"
-  , returnUrl         = Just "returnUrl"
-  , amountRefunded    = Just 0
-  , refundedEntirely  = Just False
-  , preferredGateway  = Just "preferredGateway"
-  , customerPhone     = Just "911"
-  , productId         = Just "productId"
-  , billingAddressId  = Just 14
-  , shippingAddressId = Just 15
-  , orderUuid         = Just "orderUuid"
-  , lastSynced        = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 20 31 0)
-  , orderType         = Just MANDATE_REGISTER
-  , mandateFeature    = Just OPTIONAL
-  , autoRefund        = Just True
+  , udf10             = Just "udf10"
   }
 
 merchantSFR :: Maybe MerchantSecondFactorResponse
@@ -197,8 +205,8 @@ paymentlinks = Paymentlinks
   , mobile = Just "mobile"
   }
 
-promotionJust :: Maybe Promotion'
-promotionJust = Just Promotion'
+promotionJust :: Maybe C.Promotion'
+promotionJust = Just C.Promotion'
   { id              = Just "promotion_id"
   , order_id        = Just "odrer_id"
   , rules           = Just [rule]
@@ -207,11 +215,11 @@ promotionJust = Just Promotion'
   , status          = Just "ACTIVE"
   }
 
-promotionNothing :: Maybe Promotion'
+promotionNothing :: Maybe C.Promotion'
 promotionNothing = Nothing
 
-rule :: Rules
-rule = Rules
+rule :: C.Rules
+rule = C.Rules
   { dimension = "dimension"
   , value     = "value"
   }
@@ -234,9 +242,9 @@ query = OrderStatusQuery
   , sendFullGatewayResponse = True
   }
 
-txnDetailJust :: Maybe TxnDetail
-txnDetailJust = Just TxnDetail
-  { id                       = TxnDetailId 100
+txnDetailJust :: Maybe D.TxnDetail
+txnDetailJust = Just D.TxnDetail
+  { id                       = D.TxnDetailId 100
   , version                  = 2
   , errorMessage             = Just "error"
   , orderId                  = "orderId"
@@ -251,7 +259,7 @@ txnDetailJust = Just TxnDetail
   , merchantId               = Just "merchantId"
   , bankErrorCode            = Just "bankErrorCode"
   , bankErrorMessage         = Just "bankErrorMessage"
-  , gateway                  = Just CYBERSOURCE
+  , gateway                  = Just C.CYBERSOURCE
   , expressCheckout          = Just False
   , redirect                 = Just False
   , gatewayPayload           = Just "gatewayPayload"
@@ -261,17 +269,17 @@ txnDetailJust = Just TxnDetail
   , username                 = Just "username"
   , txnUuid                  = Just "txnUuid"
   , merchantGatewayAccountId = Just 5
-  , txnAmount                = Just $ mkMoney 0
+  , txnAmount                = Just $ C.mkMoney 0
   , txnObjectType            = Just "txnObjectType"
   , sourceObject             = Just "sourceObject"
   , sourceObjectId           = Just "sourceObjectId"
   , currency                 = Just "EUR"
-  , netAmount                = Just $ mkMoney 0
-  , surchargeAmount          = Just $ mkMoney 0
-  , taxAmount                = Just $ mkMoney 0
+  , netAmount                = Just $ C.mkMoney 0
+  , surchargeAmount          = Just $ C.mkMoney 0
+  , taxAmount                = Just $ C.mkMoney 0
   }
 
-txnDetailNothing :: Maybe TxnDetail
+txnDetailNothing :: Maybe D.TxnDetail
 txnDetailNothing = Nothing
 
 gatewayReferenceId :: Text
@@ -290,8 +298,8 @@ mRisk = Just Risk
   , ebs_risk_percentage = Just "ebs_risk_percentage"
   }
 
-txnCardInfo :: Maybe TxnCardInfo
-txnCardInfo = Just TxnCardInfo
+txnCardInfo :: Maybe DB.TxnCardInfo
+txnCardInfo = Just DB.TxnCardInfo
   { id = Just "txnCardInfo_id"
   , txnId = "txnId"
   , cardIsin = Just "cardIsin"
@@ -325,7 +333,7 @@ mRefunds = Just
       ,  unique_request_id     = "unique_request_id"
       ,  ref                   = "ref"
       ,  created               = "2020-01-21"
-      ,  status                = Refund.SUCCESS
+      ,  status                = C.SUCCESS
       ,  error_message         = "error_message"
       ,  sent_to_gateway       = True
       ,  arn                   = "arn"
@@ -446,7 +454,7 @@ orderStatusResponse1 = OrderStatusResponse
         , unique_request_id = "unique_request_id"
         , ref = "ref"
         , created = "2020-01-21"
-        , status = Refund.SUCCESS
+        , status = C.SUCCESS
         , error_message = "error_message"
         , sent_to_gateway = True
         , arn = "arn"
@@ -464,10 +472,10 @@ orderStatusResponse1 = OrderStatusResponse
         }
       )
     , promotion = Just
-      ( Promotion'
+      ( C.Promotion'
         { id = Just "promotion_id"
         , order_id = Just "odrer_id"
-        , rules = Just [Rules {dimension = "dimension", value = "value"}]
+        , rules = Just [C.Rules {dimension = "dimension", value = "value"}]
         , created = Just "2018-07-01"
         , discount_amount = Just (-9.0)
         , status = Just "ACTIVE"
@@ -559,7 +567,7 @@ orderStatusResponse2 = OrderStatusResponse
   , udf10 = "udf10"
   , txn_id = Nothing
   , status_id = 0
-  , status = "SUCCESS"
+  , status = "OrderStatusSuccess"
   , payment_method_type = Nothing
   , auth_type = Nothing
   , card = Nothing
@@ -606,7 +614,7 @@ orderStatusResponse2 = OrderStatusResponse
         , unique_request_id = "unique_request_id"
         , ref = "ref"
         , created = "2020-01-21"
-        , status = Refund.SUCCESS
+        , status = C.SUCCESS
         , error_message = "error_message"
         , sent_to_gateway = True
         , arn = "arn"
@@ -624,10 +632,10 @@ orderStatusResponse2 = OrderStatusResponse
         }
       )
     , promotion = Just
-      ( Promotion'
+      ( C.Promotion'
         { id = Just "promotion_id"
         , order_id = Just "odrer_id"
-        , rules = Just [Rules {dimension = "dimension", value = "value"}]
+        , rules = Just [C.Rules {dimension = "dimension", value = "value"}]
         , created = Just "2018-07-01"
         , discount_amount = Just (-9.0)
         , status = Just "ACTIVE"
@@ -737,7 +745,7 @@ orderStatusResponse3 = OrderStatusResponse
         , unique_request_id = "unique_request_id"
         , ref = "ref"
         , created = "2020-01-21"
-        , status = Refund.SUCCESS
+        , status = C.SUCCESS
         , error_message = "error_message"
         , sent_to_gateway = True
         , arn = "arn"

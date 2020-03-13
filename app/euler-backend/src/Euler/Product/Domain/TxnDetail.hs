@@ -5,8 +5,7 @@ module Euler.Product.Domain.TxnDetail where
 
 import           EulerHS.Prelude
 
-import           Euler.Common.Types.Gateway
-import           Euler.Common.Types.Money
+import qualified Euler.Common.Types as C
 import qualified Euler.Common.Types.TxnDetail as TDC
 
 import           Data.Generics.Product.Fields
@@ -34,7 +33,7 @@ data TxnDetail = TxnDetail
   , merchantId               :: Maybe Text
   , bankErrorCode            :: Maybe Text
   , bankErrorMessage         :: Maybe Text
-  , gateway                  :: Maybe Gateway
+  , gateway                  :: Maybe C.Gateway
   , expressCheckout          :: Maybe Bool
   , redirect                 :: Maybe Bool
   , gatewayPayload           :: Maybe Text
@@ -44,13 +43,13 @@ data TxnDetail = TxnDetail
   , username                 :: Maybe Text
   , txnUuid                  :: Maybe Text
   , merchantGatewayAccountId :: Maybe Int
-  , txnAmount                :: Maybe Money
+  , txnAmount                :: Maybe C.Money
   , txnObjectType            :: Maybe Text
   , sourceObject             :: Maybe Text
   , sourceObjectId           :: Maybe Text
   , currency                 :: Maybe Text
-  , netAmount                :: Maybe Money
-  , surchargeAmount          :: Maybe Money
-  , taxAmount                :: Maybe Money
+  , netAmount                :: Maybe C.Money
+  , surchargeAmount          :: Maybe C.Money
+  , taxAmount                :: Maybe C.Money
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

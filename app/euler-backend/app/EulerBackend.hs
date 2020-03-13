@@ -1,4 +1,4 @@
-module Main where
+module EulerBackend(main) where
 
 import EulerHS.Prelude
 

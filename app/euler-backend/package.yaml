@@ -126,23 +126,26 @@ library:
 
 executables:
   euler-backend:
-    main:                Main.hs
-    source-dirs:         src/
+    main:                EulerBackend.hs
+    source-dirs:         app/
     ghc-options:
+    - -main-is EulerBackend
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     - -with-rtsopts=-A32M
-    - -with-rtsopts=-AL128
+    - -with-rtsopts=-AL128M
     - -with-rtsopts=-qn2
     - -Wall
     - -O2
     - -fspec-constr-recursive=10
     - -fno-ignore-asserts
+    dependencies:
+    - euler-backend
 
   euler-backend-loadtest:
     main:                LoadTest.hs
-    source-dirs:         src/
+    source-dirs:         app/
     ghc-options:
     - -main-is LoadTest
     - -threaded
@@ -152,6 +155,8 @@ executables:
     - -O2
     - -fspec-constr-recursive=10
     - -fno-ignore-asserts
+    dependencies:
+    - euler-backend
 
 tests:
   hspec:

@@ -25,7 +25,7 @@ import qualified Euler.Storage.Types.OrderAddress              as SOrderAddress
 import qualified Euler.Storage.Types.OrderMetadataV2           as SOrderMetadataV2
 import qualified Euler.Storage.Types.OrderReference            as SOrderReference
 import qualified Euler.Storage.Types.PaymentGatewayResponse    as SPaymentGatewayResp
-import qualified Euler.Storage.Types.Promotions                as SPromotions
+import qualified Euler.Storage.Types.Promotion                 as SPromotion
 import qualified Euler.Storage.Types.Refund                    as SRefund
 import qualified Euler.Storage.Types.ResellerAccount           as SResellerAccount
 import qualified Euler.Storage.Types.RiskManagementAccount     as SRiskManagementAccount
@@ -54,7 +54,7 @@ data EulerDb f = EulerDb
   , order_metadata_v2 :: f (B.TableEntity SOrderMetadataV2.OrderMetadataV2T)
   , order_reference :: f (B.TableEntity SOrderReference.OrderReferenceT)
   , payment_gateway_response :: f (B.TableEntity SPaymentGatewayResp.PaymentGatewayResponseT)
-  , promotions :: f (B.TableEntity SPromotions.PromotionsT)
+  , promotion :: f (B.TableEntity SPromotion.PromotionT)
   , refund :: f (B.TableEntity SRefund.RefundT)
   , reseller_account :: f (B.TableEntity SResellerAccount.ResellerAccountT)
   , risk_management_account :: f (B.TableEntity SRiskManagementAccount.RiskManagementAccountT)
@@ -86,7 +86,7 @@ eulerDb = B.defaultDbSettings `B.withDbModification`
     , order_metadata_v2 = SOrderMetadataV2.orderMetadataV2EMod
     , order_reference = SOrderReference.orderReferenceEMod
     , payment_gateway_response = SPaymentGatewayResp.paymentGatewayResponseEMod
-    , promotions = SPromotions.promotionsEMod
+    , promotion = SPromotion.promotionEMod
     , refund = SRefund.refundEMod
     , reseller_account = SResellerAccount.resellerAccountEMod
     , risk_management_account = SRiskManagementAccount.riskManagementAccountEMod

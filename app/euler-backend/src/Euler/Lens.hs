@@ -19,7 +19,7 @@ import Euler.Storage.Types.OrderAddress as STOrderAddress
 import Euler.Storage.Types.OrderMetadataV2 as STOrderMetadataV2
 import Euler.Storage.Types.OrderReference as STOrderReference
 import Euler.Storage.Types.PaymentGatewayResponse as STPaymentGatewayResponse
-import Euler.Storage.Types.Promotions as STPromotions
+import Euler.Storage.Types.Promotion as STPromotion
 import Euler.Storage.Types.Refund as STRefund
 import Euler.Storage.Types.ResellerAccount as STResellerAccount
 import Euler.Storage.Types.RiskManagementAccount as STRiskManagementAccount
@@ -36,6 +36,7 @@ import Euler.Product.Domain.Customer as PDCustomer
 import Euler.Product.Domain.MerchantAccount as PDMerchantAccount
 import Euler.Product.Domain.NBPayment as PDNBPayment
 import Euler.Product.Domain.Order as PDOrder
+import Euler.Product.Domain.Promotion as PDPromotion
 import Euler.Product.Domain.Transaction as PDTransaction
 import Euler.Product.Domain.UPIPayment as PDUPIPayment
 import Euler.Product.Domain.WalletPayment as PDWalletPayment
@@ -77,7 +78,7 @@ makeGenericLenses ''STOrderAddress.OrderAddressT
 makeGenericLenses ''STOrderMetadataV2.OrderMetadataV2T
 makeGenericLenses ''STOrderReference.OrderReferenceT
 makeGenericLenses ''STPaymentGatewayResponse.PaymentGatewayResponseT
-makeGenericLenses ''STPromotions.PromotionsT
+makeGenericLenses ''STPromotion.PromotionT
 makeGenericLenses ''STRefund.RefundT
 makeGenericLenses ''STResellerAccount.ResellerAccountT
 makeGenericLenses ''STRiskManagementAccount.RiskManagementAccountT
@@ -99,7 +100,7 @@ makeGenericLenses ''PDCustomer.Customer
 makeGenericLenses ''PDMerchantAccount.MerchantAccount
 makeGenericLenses ''PDNBPayment.NBPayment
 makeGenericLenses ''PDOrder.Order
-makeGenericLenses ''PDOrder.Promotions
+makeGenericLenses ''PDPromotion.Promotion
 makeGenericLenses ''PDTransaction.Transaction
 makeGenericLenses ''PDUPIPayment.UPIPayment
 makeGenericLenses ''PDWalletPayment.DirectWalletPayment
@@ -150,6 +151,7 @@ makeGenericLenses ''APICustomer.TokenData
 makeGenericLenses ''APIOrder.Card
 makeGenericLenses ''APIOrder.Chargeback'
 makeGenericLenses ''APIOrder.Mandate'
+makeGenericLenses ''APIOrder.OrderStatusQuery
 makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse
 makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse'
 makeGenericLenses ''APIOrder.OrderCreateRequest

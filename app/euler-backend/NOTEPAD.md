@@ -32,7 +32,7 @@ API
 - Customer(?)
 - Feature (не нужен)
 - Mandate (+)
-- Promotions (+)
+- Promotion (+)
 - Risk' (+) для RiskManagementAccount
 - MerchantSecondFactorResponse (+) для SecondFactorResponse, достаётся через SecondFactor
 - Card (+)
@@ -109,10 +109,10 @@ PaymentGatewayResponse
 ======================
 -storage
 
-Promotions
+Promotion
 ==========
 -api
-+storage Promotions
++storage Promotion
 
 Refund
 ======

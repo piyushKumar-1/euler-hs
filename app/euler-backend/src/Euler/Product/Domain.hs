@@ -10,6 +10,7 @@ import Euler.Product.Domain.Mandate              as X
 import Euler.Product.Domain.MerchantAccount      as X
 import Euler.Product.Domain.NBPayment            as X
 import Euler.Product.Domain.Order                as X
+import Euler.Product.Domain.Promotion           as X
 import Euler.Product.Domain.Refund               as X
 import Euler.Product.Domain.SecondFactor         as X
 import Euler.Product.Domain.SecondFactorResponse as X

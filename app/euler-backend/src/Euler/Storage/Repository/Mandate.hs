@@ -9,6 +9,9 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
+import qualified Euler.Common.Types as C
+import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
+
 import qualified Euler.Product.Domain.Mandate as D
 import           Euler.Product.Domain.Money
 import           Euler.Storage.Types.EulerDB
@@ -20,11 +23,11 @@ import qualified Database.Beam as B
 import           Servant.Server (err500)
 
 
-loadMandate :: Int -> Text -> Flow (Maybe D.Mandate)
-loadMandate id merchId = do
+loadMandate :: C.OrderPId -> Text -> Flow (Maybe D.Mandate)
+loadMandate orderPId merchId = do
   conn <- getConn eulerDB
   let predicate S.Mandate {authOrderId, merchantId} =
-        authOrderId ==. B.just_ (B.val_ id) &&. merchantId ==. B.val_ merchId
+        authOrderId ==. B.just_ (B.val_ orderPId) &&. merchantId ==. B.val_ merchId
   res <- runDB conn $
     findRow
       $ B.select
@@ -37,7 +40,9 @@ loadMandate id merchId = do
           Success m -> pure m
           Failure e -> do
             logError "Incorrect mandate in DB"
-              $ "OrderReference id: " <> show id <> " merchantId " <> merchId <> " error: " <> show e
+              $ "OrderReference id: " <> show orderPId
+              <> " merchantId " <> merchId
+              <> " error: " <> show e
             throwException internalError
     Left err -> do
       logError "Find Mandate" $ toText $ P.show err
@@ -50,7 +55,7 @@ transformMandate r = D.Mandate
   <*> withField @"merchantId" r textNotEmpty
   <*> withField @"endDate" r pure
   <*> withField @"startDate" r pure
-  <*> (fmap mkMoney <$> withField @"maxAmount" r (insideJust amountValidators))
+  <*> (fmap C.mkMoney <$> withField @"maxAmount" r (insideJust amountValidators))
   <*> withField @"merchantCustomerId" r pure
   <*> withField @"paymentMethod" r pure
   <*> withField @"paymentMethodType" r pure

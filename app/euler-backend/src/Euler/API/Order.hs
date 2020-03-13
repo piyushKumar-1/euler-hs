@@ -20,6 +20,7 @@ import           Generics.Deriving.Semigroup (gsappenddefault)
 
 import           Euler.Common.Types.External.Mandate (MandateFeature)
 import           Euler.Common.Types.Order (OrderId)
+import           Euler.Common.Types.Merchant (MerchantId)
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund
 
@@ -275,8 +276,8 @@ src/Types/Communication/OLTP/Order.js
 -- Looks like domain type to me?
 data OrderStatusQuery = OrderStatusQuery
   { orderId                 :: OrderId
-  , merchantId              :: Text       -- ^
-  , resellerId              :: Maybe Text -- ^
+  , merchantId              :: MerchantId
+  , resellerId              :: Maybe Text
   , isAuthenticated         :: Bool
   , sendCardIsin            :: Bool
   , txnId                   :: Maybe Text -- ^ optional txn (seems to be always CHARGED?)

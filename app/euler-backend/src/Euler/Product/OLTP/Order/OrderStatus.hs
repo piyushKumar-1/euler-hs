@@ -44,6 +44,7 @@ import           Euler.API.Transaction
 import           Euler.API.Types
 
 import qualified Euler.Common.Metric as Metric
+import qualified Euler.Common.Types as C
 import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.Mandate as Mandate
@@ -142,29 +143,43 @@ getSendFullGatewayResponse routeParams =
 
 
 execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery query@OrderStatusQuery{..} = do
+execOrderStatusQuery query = do
 
-  orderRef <- getOrderReference query  -- TODO loadOrder orderId merchantId
+  let queryOrderId = query ^. _orderId
+  let queryMerchantId = query ^. _merchantId
+  let resellerId = query ^. _resellerId
+  let sendFullGatewayResponse = query ^. _sendFullGatewayResponse
 
-  let mOrderId = getField @"orderId" orderRef
-  let mMerchantId = getField @"merchantId" orderRef
-  let mOrderUuid = getField @"orderUuid" orderRef
-  let orderUuid = fromMaybe T.empty mOrderUuid
+  mOrder <- loadOrder queryOrderId queryMerchantId
+
+  (order :: D.Order) <- case mOrder of
+    Just ord -> pure ord
+    Nothing -> throwException err404
+      { errBody = "Order not found "
+      <> "OrderId" <> show queryOrderId
+      <> " MerchantId" <> show queryMerchantId }
+
+  let orderId = order ^. _orderId
+  let merchantId = order ^. _merchantId
+  let orderUuid = order ^. _orderUuid
+  let orderType = order ^. _orderType
+  let orderPId = order ^. _id
+  let udf2 = (order ^. _udf) ^. _udf2
 
   links <- getPaymentLinks resellerId orderUuid
 
-  mPromotion' <- getPromotion orderRef
-  mMandate' <- getMandate orderRef
+  mPromotion' <- getPromotion orderPId orderId
+  mMandate' <- getMandate orderPId merchantId orderType
 
-  mTxnDetail1 <- findTxnByOrderIdMerchantIdTxnuuidId mOrderId mMerchantId mOrderUuid
-  mTxnDetail2 <- getLastTxn orderRef
+  mTxnDetail1 <- findTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
+  mTxnDetail2 <- getLastTxn orderId merchantId
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
   gatewayRefId <- case mTxn of
-    Nothing -> getGatewayReferenceId2 Nothing orderRef
+    Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
     Just txn -> do
       let gateway = getField @"gateway" txn
-      getGatewayReferenceId2 gateway orderRef
+      getGatewayReferenceId2 gateway orderPId udf2 merchantId
 
   (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr) <- case mTxn of
     Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
@@ -182,7 +197,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     Just (card :: DB.TxnCardInfo) ->
       getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
 
-  returnUrl <- getReturnUrl orderRef
+  returnUrl <- getReturnUrl order
 
   paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
@@ -195,7 +210,7 @@ execOrderStatusQuery query@OrderStatusQuery{..} = do
     (Nothing, Nothing) -> pure (Nothing, Nothing)
 
   pure $ runExcept $ makeOrderStatusResponse
-    orderRef
+    order
     links
     mPromotion'
     mMandate'
@@ -276,7 +291,7 @@ buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
 
 
 makeOrderStatusResponse
-  :: DB.OrderReference
+  :: D.Order
   -> Paymentlinks
   -> Maybe Promotion'
   -> Maybe Mandate'
@@ -294,7 +309,7 @@ makeOrderStatusResponse
   -> Maybe MerchantPaymentGatewayResponse
   -> Except Text OrderStatusResponse
 makeOrderStatusResponse
-  ordRef
+  order
   paymentLinks
   mPromotion
   mMandate
@@ -312,13 +327,13 @@ makeOrderStatusResponse
   mMerchantPgr
   = do
 
-  ordId <- liftEither $ maybe (Left "4") Right $ getField @ "orderUuid" ordRef
+  let ordId = getField @ "orderUuid" order
 
-  let mCustomerId = whenNothing (getField @"customerId" ordRef) (Just "")
-      email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" ordRef)
-      phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" ordRef)
-      amount = fmap sanitizeAmount $ getField @ "amount" ordRef
-      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" ordRef
+  let mCustomerId = whenNothing (getField @"customerId" order) (Just "")
+      email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" order)
+      phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" order)
+      amount = fromMoney $ getField @ "amount" order
+      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" order
 
       getStatus = show . getField @"status"
       getStatusId = txnStatusToInt . getField @"status"
@@ -327,6 +342,7 @@ makeOrderStatusResponse
       getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
       getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
         where mGatewayPayload' t = getField @"gatewayPayload" t
+      currency = show $ getField @"currency" order
 
       isEmi txn = isTrueMaybe (getField @"isEmi" txn)
       emiTenure txn = getField @"emiTenure" txn
@@ -391,44 +407,44 @@ makeOrderStatusResponse
 
     <<= changePromotion mPromotion
 
-    <<= changeUtf10 (getField @"udf10" ordRef)
-    <<= changeUtf9 (getField @"udf9" ordRef)
-    <<= changeUtf8 (getField @"udf8" ordRef)
-    <<= changeUtf7 (getField @"udf7" ordRef)
-    <<= changeUtf6 (getField @"udf6" ordRef)
-    <<= changeUtf5 (getField @"udf5" ordRef)
-    <<= changeUtf4 (getField @"udf4" ordRef)
-    <<= changeUtf3 (getField @"udf3" ordRef)
-    <<= changeUtf2 (getField @"udf2" ordRef)
-    <<= changeUtf1 (getField @"udf1" ordRef)
+    <<= changeUtf10 ((order ^. _udf) ^. _udf10)
+    <<= changeUtf9 ((order ^. _udf) ^. _udf9)
+    <<= changeUtf8 ((order ^. _udf) ^. _udf8)
+    <<= changeUtf7 ((order ^. _udf) ^. _udf7)
+    <<= changeUtf6 ((order ^. _udf) ^. _udf6)
+    <<= changeUtf5 ((order ^. _udf) ^. _udf5)
+    <<= changeUtf4 ((order ^. _udf) ^. _udf4)
+    <<= changeUtf3 ((order ^. _udf) ^. _udf3)
+    <<= changeUtf2 ((order ^. _udf) ^. _udf2)
+    <<= changeUtf1 ((order ^. _udf) ^. _udf1)
     <<= changeReturnUrl returnUrl
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
-    <<= changeDateCreated (show $ getField @"dateCreated" ordRef)
+    <<= changeDateCreated (show $ getField @"dateCreated" order)
     <<= changeAmountRefunded amountRefunded
     <<= changePaymentLinks paymentLinks
-    <<= changeRefunded (getField @"refundedEntirely" ordRef)
-    <<= changeCurrency (getField @"currency" ordRef)
+    <<= changeRefunded (getField @"refundedEntirely" order)
+    <<= changeCurrency currency
     <<= changeAmount amount
-    <<= changeStatus (show $ getField @ "status" ordRef)
-    <<= changeProductId (getField @"productId" ordRef)
+    <<= changeStatus (show $ order ^. _orderStatus)
+    <<= changeProductId (getField @"productId" order)
     <<= changeCustomerId mCustomerId
-    <<= changeOrderId (getField @"orderId" ordRef)
-    <<= changeMerchantId (getField @"merchantId" ordRef)
+    <<= changeOrderId (getField @"orderId" order)
+    <<= changeMerchantId (getField @"merchantId" order)
     <<= changeId ordId
 
 
 changeId :: Text -> ResponseBuilder -> OrderStatusResponse
 changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
 
-changeMerchantId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = fmap First mMerchantId}
+changeMerchantId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = Just $ First mMerchantId}
 
-changeAmount :: Maybe Double -> ResponseBuilder -> OrderStatusResponse
-changeAmount amount builder = builder $ mempty {amountT = fmap Last amount}
+changeAmount :: Double -> ResponseBuilder -> OrderStatusResponse
+changeAmount amount builder = builder $ mempty {amountT = Just $ Last amount}
 
-changeOrderId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeOrderId orderId builder = builder $ mempty {order_idT = fmap First orderId}
+changeOrderId :: Text -> ResponseBuilder -> OrderStatusResponse
+changeOrderId orderId builder = builder $ mempty {order_idT = Just $ First orderId}
 
 changeCustomerId :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeCustomerId customerId builder = builder $ mempty {customer_idT = fmap Last customerId}
@@ -439,11 +455,11 @@ changeProductId productId builder = builder $ mempty {product_idT = fmap Last pr
 changeStatus :: Text -> ResponseBuilder -> OrderStatusResponse
 changeStatus status builder = builder $ mempty {statusT = Just $ Last status}
 
-changeCurrency :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
-changeCurrency currency builder = builder $ mempty {currencyT = map Last currency}
+changeCurrency :: Text -> ResponseBuilder -> OrderStatusResponse
+changeCurrency currency builder = builder $ mempty {currencyT = Just $ Last currency}
 
-changeRefunded :: Maybe Bool -> ResponseBuilder -> OrderStatusResponse
-changeRefunded refunded builder = builder $ mempty {refundedT = map Last refunded}
+changeRefunded :: Bool -> ResponseBuilder -> OrderStatusResponse
+changeRefunded refunded builder = builder $ mempty {refundedT = Just $ Last refunded}
 
 changePaymentLinks :: Paymentlinks -> ResponseBuilder -> OrderStatusResponse
 changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Just $ Last paymentLinks}
@@ -598,50 +614,9 @@ changeMerchantPGR :: Maybe MerchantPaymentGatewayResponse -> ResponseBuilder -> 
 changeMerchantPGR mMerchantPgr builder =
   builder $ mempty {payment_gateway_responseT = map Last mMerchantPgr}
 
-
-getOrderReference
-  :: OrderStatusQuery
-  -> Flow DB.OrderReference
-getOrderReference query = do
-  let orderId' = getField @"orderId" query
-  let merchantId' = getField @"merchantId" query
-
-  conn <- getConn eulerDB
-  res <- runDB conn $ do
-    let predicate DB.OrderReference {orderId, merchantId} = (orderId ==. B.just_ (B.val_ orderId'))
-          &&. (merchantId ==. B.just_ (B.val_ merchantId'))
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.order_reference DB.eulerDBSchema)
-  case res of
-    Right (Just ordRef) -> pure ordRef
-    Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
-    Left err -> do
-      logError "Find OrderReference" $ toText $ P.show err
-      throwException err500
-
--- refactored to findTxnByOrderIdMerchantIdTxnuuidId
--- getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe D.TxnDetail)
--- getTxnFromTxnUuid order maybeTxnUuid = do
---   -- EHS: TODO should we throw exceptions?
---       -- orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
---       -- merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
-
---       findTxnByOrderIdMerchantIdTxnuuidId
---         (getField @"orderId" order)
---         (getField @"merchantId" order)
---         maybeTxnUuid
-
 -- EHS: TODO add sorting by dateCreated!
-getLastTxn :: DB.OrderReference -> Flow (Maybe D.TxnDetail)
-getLastTxn orderRef = do
-  -- EHS: TODO should we throw exceptions?
-  -- orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
-  -- merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
-  let orderId = getField @"orderId" orderRef
-  let merchantId = getField @"merchantId" orderRef
+getLastTxn :: C.OrderId -> C.MerchantId -> Flow (Maybe D.TxnDetail)
+getLastTxn orderId merchantId = do
 
   txnDetails <- findTxnByOrderIdMerchantId orderId merchantId
 
@@ -656,18 +631,11 @@ getLastTxn orderRef = do
       maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
 
-getMandate :: DB.OrderReference -> Flow (Maybe Mandate')
-getMandate ordRef = do
-  let id = getField @"id" ordRef
-      merchId = getField @"merchantId" ordRef
-      orderType = getField @"orderType" ordRef
-
-  case (id, merchId, orderType) of
-    (Just id', Just merchantId, Just C.MANDATE_REGISTER) -> do
-
-      mandate <- loadMandate id' merchantId
+getMandate :: C.OrderPId -> C.MerchantId -> C.OrderType -> Flow (Maybe Mandate')
+getMandate orderPId merchantId = \case
+    C.MANDATE_REGISTER -> do
+      mandate <- loadMandate orderPId merchantId
       pure $ mapMandate <$> mandate
-
     _ -> pure Nothing
 
 
@@ -693,12 +661,12 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     protocol = getField @"protocol" config
     host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
 
-getReturnUrl ::  DB.OrderReference -> Flow Text
-getReturnUrl orderRef = do
+getReturnUrl ::  D.Order -> Flow Text
+getReturnUrl order = do
   conn <- getConn eulerDB
   merchantAccount <- do
     res <- runDB conn $ do
-      let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ fromMaybe "" $ orderRef ^. _merchantId)
+      let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ order ^. _merchantId)
       findRow
         $ B.select
         $ B.limit_ 1
@@ -725,46 +693,17 @@ getReturnUrl orderRef = do
                 logError "SQLDB Interraction." $ toText $ P.show err
                 throwException err500
           let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
-              orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" orderRef )
+              orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" order)
           if (orderRefReturnUrl == "")
             then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc )
             else pure orderRefReturnUrl
     Nothing -> pure $ ""
 
 
-loadPromotions :: DB.OrderReference -> Flow (Text, [DB.Promotions])
-loadPromotions orderRef = do
-  let id = fromMaybe 0 $ getField @"id" orderRef
-      orderId = fromMaybe "" $ getField @"orderId" orderRef
-  promotions <- do
-    conn <- getConn eulerDB
-    res  <- runDB conn $ do
-      let predicate DB.Promotions{orderReferenceId} =
-            orderReferenceId ==. B.just_ (B.val_ id)
-      findRows
-        $ B.select
-        $ B.filter_ predicate
-        $ B.all_ (DB.promotions DB.eulerDBSchema)
-    case res of
-      Right proms -> pure proms
-      Left err -> do
-        logError "Find Promotions" $ toText $ P.show err
-        throwException err500
-  pure (orderId, promotions)
-
-decryptActivePromotion :: (Text, [DB.Promotions]) -> Flow (Maybe Promotion')
-decryptActivePromotion (_,[]) = pure Nothing
-decryptActivePromotion (ordId, promotions) = do
-  let mPromotion = find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
-  traverse (decryptPromotionRules ordId) mPromotion
-
-decryptPromotionRules :: Text -> DB.Promotions -> Flow Promotion'
-decryptPromotionRules ordId promotions = pure defaultPromotion'
-
-getPromotion :: DB.OrderReference -> Flow (Maybe Promotion')
-getPromotion orderRef = do
-  proms <- loadPromotions orderRef
-  decryptActivePromotion  proms
+getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe Promotion')
+getPromotion orderPId orderId = do
+  proms <- loadPromotions orderPId
+  decryptActivePromotion orderId proms
 
 
 mapTxnDetail :: D.TxnDetail -> TxnDetail'
@@ -818,35 +757,40 @@ loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
     $ B.all_ (DB.order_metadata_v2 DB.eulerDBSchema)
 
 
-getGatewayReferenceId2 :: Maybe Gateway -> DB.OrderReference -> Flow Text
-getGatewayReferenceId2 gateway ordRef = do
-  let checkGateway = checkGatewayRefIdForVodafone2 ordRef gateway
+getGatewayReferenceId2
+  :: Maybe Gateway
+  -> C.OrderPId
+  -> Maybe Text -- udf2
+  -> C.MerchantId
+  -> Flow Text
+getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
+  let checkGateway = checkGatewayRefIdForVodafone2 merchantId udf2 gateway
   let gatewayT = maybe "" show gateway
 
-  case getField @"id" ordRef of
-    Nothing -> checkGateway
-    Just refId -> do
-      ordMeta <- loadOrderMetadataV2 refId
+  ordMeta <- loadOrderMetadataV2 orderPId
 
-      case ordMeta of
-        Just (ordM :: DB.OrderMetadataV2) ->
-          case blankToNothing (getField @"metadata" ordM) of
+  case ordMeta of
+    Just (ordM :: DB.OrderMetadataV2) ->
+      case blankToNothing (getField @"metadata" ordM) of
+        Nothing -> checkGateway
+        Just md -> do
+          let md' = decode $ BSL.fromStrict $ T.encodeUtf8 md :: Maybe (Map Text Text)
+          case md' of
             Nothing -> checkGateway
-            Just md -> do
-              let md' = decode $ BSL.fromStrict $ T.encodeUtf8 md :: Maybe (Map Text Text)
-              case md' of
+            Just metadata -> do
+              gRefId <- pure $ Map.lookup (gatewayT <> ":gateway_reference_id") metadata
+              jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
+              case (gRefId <|> jusId) of
+                Just v  -> pure v
                 Nothing -> checkGateway
-                Just metadata -> do
-                  gRefId <- pure $ Map.lookup (gatewayT <> ":gateway_reference_id") metadata
-                  jusId  <- pure $ Map.lookup "JUSPAY:gateway_reference_id" metadata
-                  case (gRefId <|> jusId) of
-                    Just v  -> pure v
-                    Nothing -> checkGateway
 
 
-checkGatewayRefIdForVodafone2 :: DB.OrderReference -> Maybe Gateway -> Flow Text
-checkGatewayRefIdForVodafone2 ordRef gateway = do
-  merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500)
+checkGatewayRefIdForVodafone2
+  :: C.MerchantId
+  -> Maybe Text
+  -> Maybe Gateway
+  -> Flow Text
+checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
 
   meybeFeature <- withDB eulerDB $ do
     let predicate DB.Feature {name, merchantId} =
@@ -862,8 +806,8 @@ checkGatewayRefIdForVodafone2 ordRef gateway = do
     Just feature ->
         if (gateway == Just HSBC_UPI)
             && (getField @"enabled" feature)
-            && (isJust $ getField @"udf2" ordRef)
-        then pure $ fromMaybe "" $ getField @"udf2" ordRef
+            && (isJust udf2)
+        then pure $ fromMaybe "" udf2
         else pure mempty
     Nothing -> pure mempty
 

@@ -17,7 +17,7 @@ import Euler.Storage.Types.OrderAddress                as X
 import Euler.Storage.Types.OrderMetadataV2             as X
 import Euler.Storage.Types.OrderReference              as X
 import Euler.Storage.Types.PaymentGatewayResponse      as X
-import Euler.Storage.Types.Promotions                  as X
+import Euler.Storage.Types.Promotion                  as X
 import Euler.Storage.Types.Refund                      as X
 import Euler.Storage.Types.ResellerAccount             as X
 import Euler.Storage.Types.RiskManagementAccount       as X

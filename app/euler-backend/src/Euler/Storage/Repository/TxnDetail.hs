@@ -2,18 +2,17 @@ module Euler.Storage.Repository.TxnDetail where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
+import qualified Euler.Common.Types as C
+
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.Gateway
-import           Euler.Common.Types.Money
 import           Euler.Common.Validators (amountValidators, isGateway, notNegative, textNotEmpty)
--- import           Euler.Common.Types.TxnDetail (TxnDetId)
 
 import qualified Euler.Product.Domain as D
 
+import           Euler.Storage.DBConfig
 import qualified Euler.Storage.Types as DB
 
 import qualified Data.Text as T
@@ -23,14 +22,11 @@ import qualified Database.Beam as B
 
 
 findTxnByOrderIdMerchantIdTxnuuidId
-  :: Maybe Text
-  -> Maybe Text
-  -> Maybe Text
+  :: C.OrderId
+  -> C.MerchantId
+  -> Text
   -> Flow (Maybe D.TxnDetail)
-findTxnByOrderIdMerchantIdTxnuuidId (Just orderId') (Just merchantId') (Just txnUuid') = do
-  -- EHS: TODO should we throw exceptions?
-      -- orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
-      -- merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
+findTxnByOrderIdMerchantIdTxnuuidId orderId' merchantId' txnUuid' = do
   td <- withDB eulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId, txnUuid} =
           orderId ==. B.val_ orderId'
@@ -50,14 +46,10 @@ findTxnByOrderIdMerchantIdTxnuuidId (Just orderId') (Just merchantId') (Just txn
         <>  " txnUuid: " <> txnUuid'
         <> " error: " <> show e
       throwException internalError
-findTxnByOrderIdMerchantIdTxnuuidId _ _ _ = pure Nothing
 
 -- EHS: TODO add sorting by dateCreated!!!
-findTxnByOrderIdMerchantId :: Maybe Text -> Maybe Text -> Flow [D.TxnDetail]
-findTxnByOrderIdMerchantId (Just orderId') (Just merchantId') = do
-  -- EHS: TODO should we throw exceptions?
-  -- orderId' <- whenNothing (getField @"orderId" orderRef) (throwException err500)
-  -- merchantId' <- whenNothing (getField @"merchantId" orderRef) (throwException err500)
+findTxnByOrderIdMerchantId :: C.OrderId -> C.MerchantId -> Flow [D.TxnDetail]
+findTxnByOrderIdMerchantId orderId' merchantId' = do
   td <- withDB eulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId} =
           orderId ==. B.val_ orderId'
@@ -74,7 +66,6 @@ findTxnByOrderIdMerchantId (Just orderId') (Just merchantId') = do
         <>  " merchantId: " <> merchantId'
         <> " error: " <> show e
       throwException internalError
-findTxnByOrderIdMerchantId _ _ = pure []
 
 
 transformTxnDetail :: DB.TxnDetail -> V D.TxnDetail
@@ -104,11 +95,11 @@ transformTxnDetail r = D.TxnDetail
   <*> withField @"username" r pure
   <*> withField @"txnUuid" r pure
   <*> withField @"merchantGatewayAccountId" r pure
-  <*> (fmap mkMoney <$> withField @"txnAmount" r (insideJust amountValidators))
+  <*> (fmap C.mkMoney <$> withField @"txnAmount" r (insideJust amountValidators))
   <*> withField @"txnObjectType" r pure
   <*> withField @"sourceObject" r pure
   <*> withField @"sourceObjectId" r pure
   <*> withField @"currency" r pure
-  <*> (fmap mkMoney <$> withField @"netAmount" r (insideJust amountValidators))
-  <*> (fmap mkMoney <$> withField @"surchargeAmount" r (insideJust amountValidators))
-  <*> (fmap mkMoney <$> withField @"taxAmount" r (insideJust amountValidators))
+  <*> (fmap C.mkMoney <$> withField @"netAmount" r (insideJust amountValidators))
+  <*> (fmap C.mkMoney <$> withField @"surchargeAmount" r (insideJust amountValidators))
+  <*> (fmap C.mkMoney <$> withField @"taxAmount" r (insideJust amountValidators))

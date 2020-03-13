@@ -57,6 +57,7 @@ import Euler.API.Customer as APICustomer
 import Euler.API.MerchantPaymentGatewayResponse as APIMerchantPGR
 import Euler.API.Order as APIOrder
 import Euler.API.Payment as APIPayment
+import Euler.API.Refund as APIRefund
 import Euler.API.Transaction as APITransaction
 
 import Euler.Config.Config as CConfig
@@ -161,7 +162,7 @@ makeGenericLenses ''APIOrder.OrderStatusResponse
 makeGenericLenses ''APIOrder.OrderTokenResp
 makeGenericLenses ''APIOrder.OrderUpdateRequest
 makeGenericLenses ''APIOrder.Paymentlinks
-makeGenericLenses ''APIOrder.Refund'
+makeGenericLenses ''APIRefund.Refund'
 makeGenericLenses ''APIOrder.Risk
 makeGenericLenses ''APIOrder.TxnDetail'
 makeGenericLenses ''APIPayment.JsonError

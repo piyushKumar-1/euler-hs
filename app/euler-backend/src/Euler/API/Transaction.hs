@@ -6,7 +6,8 @@ import EulerHS.Prelude
 
 import Data.Time
 import Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse)
-import Euler.API.Order (PaymentInfo, Refund')
+import Euler.API.Refund (Refund')
+import Euler.API.Order (PaymentInfo)
 import Euler.Common.Types.Transaction (AuthType, PaymentMethodType)
 import Euler.Common.Types.TxnDetail
 

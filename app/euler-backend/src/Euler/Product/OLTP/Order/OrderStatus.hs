@@ -25,7 +25,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Char (toLower)
 import           Data.Either.Extra
-import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -39,7 +38,9 @@ import           Control.Monad.Except
 
 import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order as AO
-import           Euler.API.RouteParameters (RouteParameters(..), OrderId, lookupRP)
+import           Euler.API.Refund
+import           Euler.API.RouteParameters (RouteParameters (..), lookupRP)
+import qualified Euler.API.RouteParameters as Param
 import           Euler.API.Transaction
 import           Euler.API.Types
 
@@ -122,10 +123,10 @@ handleByOrderId orderId rps merchantAccount  = do
 
   let query = OrderStatusQuery
         { orderId         = orderId
-        , merchantId      = getField @"merchantId" merchantAccount
-        , resellerId      = getField @"resellerId" merchantAccount
+        , merchantId      = merchantAccount ^. _merchantId
+        , resellerId      = merchantAccount ^. _resellerId
         , isAuthenticated = True
-        , sendCardIsin    = fromMaybe False $ getField @"enableSendingCardIsin" merchantAccount
+        , sendCardIsin    = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
         , txnId           = undefined :: Maybe Text
         , sendFullGatewayResponse = getSendFullGatewayResponse rps
         }
@@ -178,13 +179,13 @@ execOrderStatusQuery query = do
   gatewayRefId <- case mTxn of
     Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
     Just txn -> do
-      let gateway = getField @"gateway" txn
+      let gateway = txn ^. _gateway
       getGatewayReferenceId2 gateway orderPId udf2 merchantId
 
   (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr) <- case mTxn of
     Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
     Just txn -> do
-      let txnDetail_id = D.txnDetail_id $ getField @"id" txn
+      let txnDetail_id = D.txnDetail_id $ txn ^. _id
       mRisk <- getRisk $ show txnDetail_id
       mTxnCard <- loadTxnCardInfo $ show txnDetail_id
       mRefunds' <- maybeList <$> (refundDetails txnDetail_id)
@@ -195,7 +196,7 @@ execOrderStatusQuery query = do
   mCardBrand <- case mTxnCard of
     Nothing                    -> pure Nothing
     Just (card :: DB.TxnCardInfo) ->
-      getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
+      getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
 
   returnUrl <- getReturnUrl order
 
@@ -205,7 +206,7 @@ execOrderStatusQuery query = do
 
   txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> do
-      let txnDetail_id = D.txnDetail_id $ getField @"id" txn
+      let txnDetail_id = D.txnDetail_id $ txn ^. _id
       getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
     (Nothing, Nothing) -> pure (Nothing, Nothing)
 
@@ -327,26 +328,26 @@ makeOrderStatusResponse
   mMerchantPgr
   = do
 
-  let ordId = getField @ "orderUuid" order
+  let ordId = order ^. _orderUuid
 
-  let mCustomerId = whenNothing (getField @"customerId" order) (Just "")
-      email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" order)
-      phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" order)
-      amount = fromMoney $ getField @ "amount" order
-      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" order
+  let mCustomerId = whenNothing  (order ^. _customerId) (Just "")
+      email = (\email -> if isAuthenticated then email else Just "")  (order ^. _customerEmail)
+      phone = (\phone -> if isAuthenticated then phone else Just "")  (order ^. _customerPhone)
+      amount = fromMoney $ order ^. _amount
+      amountRefunded = fmap sanitizeAmount $ order ^. _amountRefunded
 
-      getStatus = show . getField @"status"
-      getStatusId = txnStatusToInt . getField @"status"
-      getGatewayId txn = maybe 0 gatewayIdFromGateway $ getField @"gateway" txn
-      getBankErrorCode txn = whenNothing (getField @"bankErrorCode" txn) (Just "")
-      getBankErrorMessage txn = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+      getStatus = show . (^. _status)
+      getStatusId = txnStatusToInt . (^. _status)
+      getGatewayId txn = maybe 0 gatewayIdFromGateway $ txn ^. _gateway
+      getBankErrorCode txn = whenNothing  (txn ^. _bankErrorCode) (Just "")
+      getBankErrorMessage txn = whenNothing  (txn ^. _bankErrorMessage) (Just "")
       getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
-        where mGatewayPayload' t = getField @"gatewayPayload" t
-      currency = show $ getField @"currency" order
+        where mGatewayPayload' t = t ^. _gatewayPayload
+      currency = show $ order ^. _currency
 
-      isEmi txn = isTrueMaybe (getField @"isEmi" txn)
-      emiTenure txn = getField @"emiTenure" txn
-      emiBank txn = getField @"emiBank" txn
+      isEmi txn = isTrueMaybe  (txn ^. _isEmi)
+      emiTenure txn = txn ^. _emiTenure
+      emiBank txn = txn ^. _emiBank
 
       paymentMethod = whenNothing mCardBrand (Just "UNKNOWN")
 
@@ -371,19 +372,19 @@ makeOrderStatusResponse
     <<= changeTxnFlowInfo txnFlowInfo
       -- addSecondFactorResponseAndTxnFlowInfo
 
-    <<= maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
+    <<= maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changeCard (getCardDetails txnCard txn sendCardIsin)
         else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
+    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changePaymentMethodType "CARD"
         else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (getField @"cardIsin" txnCard)
+    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changeEmiPaymentMethod paymentMethod
         else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (getField @"authType" txnCard) (Just ""))
+    <<= maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
     <<= maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
 
     <<= maybeTxnAndTxnCard (\_ _ -> changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes)
@@ -396,8 +397,8 @@ makeOrderStatusResponse
     <<= maybeTxn (changeBankErrorCode . getBankErrorCode)
     <<= maybeTxn (const $ changeGatewayRefId gatewayRefId)
     <<= maybeTxn (changeGatewayId . getGatewayId)
-    <<= maybeTxn (changeTxnUuid . getField @"txnUuid")
-    <<= maybeTxn (changeTxnId . getField @"txnId")
+    <<= maybeTxn (changeTxnUuid . (^. _txnUuid))
+    <<= maybeTxn (changeTxnId . (^. _txnId))
     <<= maybeTxn (changeStatusId . getStatusId)
     <<= maybeTxn (changeStatus . getStatus)
 
@@ -420,17 +421,17 @@ makeOrderStatusResponse
     <<= changeReturnUrl returnUrl
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
-    <<= changeDateCreated (show $ getField @"dateCreated" order)
+    <<= changeDateCreated (show $ order ^. _dateCreated)
     <<= changeAmountRefunded amountRefunded
     <<= changePaymentLinks paymentLinks
-    <<= changeRefunded (getField @"refundedEntirely" order)
+    <<= changeRefunded (order ^. _refundedEntirely)
     <<= changeCurrency currency
     <<= changeAmount amount
     <<= changeStatus (show $ order ^. _orderStatus)
-    <<= changeProductId (getField @"productId" order)
+    <<= changeProductId (order ^. _productId)
     <<= changeCustomerId mCustomerId
-    <<= changeOrderId (getField @"orderId" order)
-    <<= changeMerchantId (getField @"merchantId" order)
+    <<= changeOrderId (order ^. _orderId)
+    <<= changeMerchantId (order ^. _merchantId)
     <<= changeId ordId
 
 
@@ -518,8 +519,8 @@ changeAmountAfterPromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatus
 changeAmountAfterPromotion Nothing builder = builder mempty
 changeAmountAfterPromotion (Just newProm) builder =
   let oldStatus = extract builder
-      mOldAmount = getField @"amount" oldStatus
-      mOldPromotion = getField @"discount_amount" newProm
+      mOldAmount = oldStatus ^. _amount
+      mOldPromotion = newProm ^. _discount_amount
       newAmount = sanitizeAmount $ (fromMaybe 0 mOldAmount) + (fromMaybe 0 mOldPromotion)
   in builder mempty { amountT = Just $ Last newAmount }
 
@@ -627,7 +628,7 @@ getLastTxn orderId merchantId = do
         <> " :merchant:" <> show merchantId
       pure Nothing
     _ -> do
-      let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
+      let chargetxn = find (\txn -> (txn ^. _status == CHARGED)) txnDetails
       maybe (pure . Just $ head txnDetails) (pure . Just) chargetxn
 
 
@@ -641,8 +642,8 @@ getMandate orderPId merchantId = \case
 
 getPaymentLinks :: Maybe Text -> Text ->  Flow Paymentlinks
 getPaymentLinks resellerId orderUuid = do
-  mResellerAccount <- maybe (pure Nothing) loadResellerAccount resellerId
-  let mResellerEndpoint = maybe Nothing (getField @"resellerApiEndpoint") mResellerAccount
+  mResellerAccount <- loadReseller resellerId
+  let mResellerEndpoint = maybe Nothing (^. _resellerApiEndpoint) mResellerAccount
   pure $ createPaymentLinks orderUuid mResellerEndpoint
 
 
@@ -658,8 +659,8 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     }
   where
     config = defaultConfig
-    protocol = getField @"protocol" config
-    host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
+    protocol = config ^. _protocol
+    host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
 
 getReturnUrl ::  D.Order -> Flow Text
 getReturnUrl order = do
@@ -692,10 +693,10 @@ getReturnUrl order = do
               Left err -> do
                 logError "SQLDB Interraction." $ toText $ P.show err
                 throwException err500
-          let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
-              orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" order)
+          let merchantIframeReturnUrl = fromMaybe "" ((^. _returnUrl) =<< merchantIframePreferences)
+              orderRefReturnUrl       = fromMaybe "" (order ^. _returnUrl)
           if (orderRefReturnUrl == "")
-            then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc )
+            then pure $ fromMaybe merchantIframeReturnUrl (merchantAcc ^. _returnUrl )
             else pure orderRefReturnUrl
     Nothing -> pure $ ""
 
@@ -708,40 +709,40 @@ getPromotion orderPId orderId = do
 
 mapTxnDetail :: D.TxnDetail -> TxnDetail'
 mapTxnDetail txn = TxnDetail'
-  { txn_id = getField @"txnId" txn
-  , order_id = getField @"orderId" txn
-  , txn_uuid = getField @"txnUuid" txn
-  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ getField @"gateway" txn
-  , status = show $ getField @"status" txn
-  , gateway = show <$> getField @"gateway" txn
-  , express_checkout = getField @"expressCheckout" txn
-  , redirect = getField @"redirect" txn
-  , net_amount = Just $ if isJust (getField @"netAmount" txn)
-      then show $ maybe 0 fromMoney (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
+  { txn_id = txn ^. _txnId
+  , order_id = txn ^. _orderId
+  , txn_uuid = txn ^. _txnUuid
+  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ txn ^. _gateway
+  , status = show $ txn ^. _status
+  , gateway = show <$> txn ^. _gateway
+  , express_checkout = txn ^. _expressCheckout
+  , redirect = txn ^. _redirect
+  , net_amount = Just $ if isJust (txn ^. _netAmount)
+      then show $ maybe 0 fromMoney (txn ^. _netAmount) -- Forign becomes Text in our TxnDetail'
       else mempty
-  , surcharge_amount = Just $ if isJust (getField @"surchargeAmount" txn)
-      then show $ maybe 0 fromMoney (getField @"surchargeAmount" txn)
+  , surcharge_amount = Just $ if isJust (txn ^. _surchargeAmount)
+      then show $ maybe 0 fromMoney (txn ^. _surchargeAmount)
       else mempty
-  , tax_amount = Just $ if isJust (getField @"taxAmount" txn)
-      then show $ maybe 0 fromMoney (getField @"taxAmount" txn)
+  , tax_amount = Just $ if isJust (txn ^. _taxAmount)
+      then show $ maybe 0 fromMoney (txn ^. _taxAmount)
       else mempty
-  , txn_amount = Just $ if isJust (getField @"txnAmount" txn)
-      then show $ maybe 0 fromMoney (getField @"txnAmount" txn)
+  , txn_amount = Just $ if isJust (txn ^. _txnAmount)
+      then show $ maybe 0 fromMoney (txn ^. _txnAmount)
       else mempty
-  , currency = getField @"currency" txn
-  , error_message = Just $ fromMaybe mempty $ getField @"bankErrorMessage" txn
-  , error_code = Just $ if isJust (getField @"bankErrorCode" txn)
-      then fromMaybe mempty (getField @"bankErrorCode" txn)
+  , currency = txn ^. _currency
+  , error_message = Just $ fromMaybe mempty $ txn ^. _bankErrorMessage
+  , error_code = Just $ if isJust (txn ^. _bankErrorCode)
+      then fromMaybe mempty (txn ^. _bankErrorCode)
       else mempty
-  , created = getField @"dateCreated" txn
-  , txn_object_type = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
-      then getField @"txnObjectType" txn
+  , created = txn ^. _dateCreated
+  , txn_object_type = if (fromMaybe mempty $ txn ^. _txnObjectType) /= "ORDER_PAYMENT"
+      then txn ^. _txnObjectType
       else Nothing
-  , source_object = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
-      then getField @"sourceObject" txn
+  , source_object = if (fromMaybe mempty $ txn ^. _txnObjectType) /= "ORDER_PAYMENT"
+      then txn ^. _sourceObject
       else Nothing
-  , source_object_id = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
-      then getField @"sourceObjectId" txn
+  , source_object_id = if (fromMaybe mempty $ txn ^. _txnObjectType) /= "ORDER_PAYMENT"
+      then txn ^. _sourceObjectId
       else Nothing
   }
 
@@ -771,7 +772,7 @@ getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
 
   case ordMeta of
     Just (ordM :: DB.OrderMetadataV2) ->
-      case blankToNothing (getField @"metadata" ordM) of
+      case blankToNothing (ordM ^. _metadata) of
         Nothing -> checkGateway
         Just md -> do
           let md' = decode $ BSL.fromStrict $ T.encodeUtf8 md :: Maybe (Map Text Text)
@@ -805,7 +806,7 @@ checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
   case meybeFeature of
     Just feature ->
         if (gateway == Just HSBC_UPI)
-            && (getField @"enabled" feature)
+            && (feature ^. _enabled)
             && (isJust udf2)
         then pure $ fromMaybe "" udf2
         else pure mempty
@@ -839,10 +840,10 @@ loadRiskManagementAccount riskMAId =
 makeRisk' :: Maybe Text -> DB.TxnRiskCheck -> Risk'
 makeRisk' provider trc = Risk'
   { provider = provider
-  , status = getField @"status" trc
-  , message = getField @"message" trc
-  , flagged = whenNothing (getField @"flagged" trc) (Just False)
-  , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
+  , status = trc ^. _status
+  , message = trc ^. _message
+  , flagged = whenNothing (trc ^. _flagged) (Just False)
+  , recommended_action = whenNothing (trc ^. _recommendedAction) (Just T.empty)
   , ebs_risk_level = Nothing
   , ebs_payment_status = Nothing
   , ebs_risk_percentage = Nothing
@@ -850,7 +851,7 @@ makeRisk' provider trc = Risk'
   }
 
 makeRisk :: Risk' -> Flow Risk
-makeRisk risk' = if (fromMaybe T.empty (getField @"provider" risk')) == "ebs"
+makeRisk risk' = if (fromMaybe T.empty (risk' ^. _provider)) == "ebs"
   then do
       -- EHS: TODO not sure is this reliable enough? how port it?
       -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
@@ -873,23 +874,23 @@ makeRisk risk' = if (fromMaybe T.empty (getField @"provider" risk')) == "ebs"
 addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
 addRiskObjDefaultValueAsNull risk' = do
   let risk = Risk
-        { provider = getField @"provider" risk'
-        , status = getField @"status" risk'
-        , message = getField @"message" risk'
-        , flagged = undefined :: Maybe Text -- EHS: TODO: getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
-        , recommended_action = getField @"recommended_action" risk'
+        { provider = risk' ^. _provider
+        , status = risk' ^. _status
+        , message = risk' ^. _message
+        , flagged = undefined :: Maybe Text -- EHS: TODO: risk' ^. _flagged -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
+        , recommended_action = risk' ^. _recommended_action
         , ebs_risk_level = Nothing
         , ebs_payment_status = Nothing
         , ebs_risk_percentage = Nothing
         , ebs_bin_country = Nothing
         }
 
-  case (fromMaybe mempty (getField @"provider" risk')) of
+  case (fromMaybe mempty (risk' ^. _provider)) of
     "ebs" -> pure (risk
-        { ebs_risk_level = getField @"ebs_risk_level" risk'
-        , ebs_payment_status = getField @"ebs_payment_status" risk'
-        , ebs_risk_percentage = undefined :: Maybe Text -- EHS: TODO: getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
-        , ebs_bin_country = getField @"ebs_bin_country" risk'
+        { ebs_risk_level = risk' ^. _ebs_risk_level
+        , ebs_payment_status = risk' ^. _ebs_payment_status
+        , ebs_risk_percentage = undefined :: Maybe Text -- EHS: TODO: risk' ^. _ebs_risk_percentage -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
+        , ebs_bin_country = risk' ^. _ebs_bin_country
         } :: Risk)
     _ -> return risk
 
@@ -899,9 +900,9 @@ getRisk txnId = do
   txnRiskCheck <- loadTxnRiskCheck txnId
   case txnRiskCheck of
     Just trc -> do
-      let riskMAId = getField @"riskManagementAccountId" trc
+      let riskMAId = trc ^. _riskManagementAccountId
       riskMngAcc <- loadRiskManagementAccount riskMAId
-      let risk' = makeRisk' (getField @"provider" <$> riskMngAcc) trc
+      let risk' = makeRisk' ((^. _provider) <$> riskMngAcc) trc
       Just <$> makeRisk risk'
     Nothing -> pure Nothing
 
@@ -919,28 +920,28 @@ loadTxnCardInfo txnId =
 
 getCardDetails :: DB.TxnCardInfo -> D.TxnDetail -> Bool -> Card
 getCardDetails card txn shouldSendCardIsin = Card
-  { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
-  , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
+  { expiry_year = whenNothing (card ^. _cardExpYear) (Just "")
+  , card_reference = whenNothing (card ^. _cardReferenceId) (Just "")
   , saved_to_locker = isSavedToLocker card txn
-  , expiry_month = whenNothing  (getField @"cardExpMonth" card) (Just "")
-  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
-  , card_issuer = whenNothing  (getField @"cardIssuerBankName" card) (Just "")
-  , last_four_digits = whenNothing  (getField @"cardLastFourDigits" card) (Just "")
-  , using_saved_card = getField @"expressCheckout" txn
-  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
-  , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
-  , card_type = whenNothing  (getField @"cardType" card) (Just "")
-  , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
+  , expiry_month = whenNothing  (card ^. _cardExpMonth) (Just "")
+  , name_on_card = whenNothing  (card ^. _nameOnCard) (Just "")
+  , card_issuer = whenNothing  (card ^. _cardIssuerBankName) (Just "")
+  , last_four_digits = whenNothing  (card ^. _cardLastFourDigits) (Just "")
+  , using_saved_card = txn ^. _expressCheckout
+  , card_fingerprint = whenNothing  (card ^. _cardFingerprint) (Just "")
+  , card_isin = if shouldSendCardIsin then (card ^. _cardIsin) else Just ""
+  , card_type = whenNothing  (card ^. _cardType) (Just "")
+  , card_brand = whenNothing  (card ^. _cardSwitchProvider) (Just "")
   }
   where
     isSavedToLocker card' txn' = Just $
-      isTrueMaybe (getField @"addToLocker" txn') && (isBlankMaybe $ getField @"cardReferenceId" card')
+      isTrueMaybe (txn' ^. _addToLocker) && (isBlankMaybe $ card' ^. _cardReferenceId)
 
 
 refundDetails :: TxnDetailId -> Flow [Refund']
 refundDetails txnId = do
   l <- findRefunds $ show txnId
-  pure $ map AO.mapRefund l
+  pure $ map mapRefund l
 
 
 chargebackDetails :: Int -> TxnDetail' -> Flow [Chargeback']
@@ -960,20 +961,20 @@ getPaymentMethodAndType
   -- ^ Result is (payment_method, payment_method_type, payer_vpa, payer_app_name)
   -- when Nothing do not change a field
 getPaymentMethodAndType txn card = do
-  case (getField @"cardType" card) of
+  case (card ^. _cardType) of
     Just "NB" -> pure
-      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
       , Just "NB"
       , Nothing
       , Nothing
       )
     Just "WALLET" -> do
-      payerVpa <- case getField @"paymentMethod" card of
+      payerVpa <- case card ^. _paymentMethod of
         Nothing          -> pure ""
-        Just "GOOGLEPAY" -> getPayerVpa $ getField @"successResponseId" txn
+        Just "GOOGLEPAY" -> getPayerVpa $ txn ^. _successResponseId
         Just _           -> pure ""
       pure
-        ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+        ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
         , Just "WALLET"
         , Just payerVpa
         , Nothing
@@ -982,10 +983,10 @@ getPaymentMethodAndType txn card = do
     Just "UPI" -> do
       let payment_method = Just "UPI"
           payment_method_type = Just "UPI"
-          paymentSource = if (fromMaybe "null" $ getField @"paymentSource" card) == "null"
+          paymentSource = if (fromMaybe "null" $ card ^. _paymentSource) == "null"
             then Just ""
-            else whenNothing (getField @"paymentSource" card) (Just "null")
-          sourceObj = fromMaybe "" $ getField @"sourceObject" txn
+            else whenNothing (card ^. _paymentSource) (Just "null")
+          sourceObj = fromMaybe "" $ txn ^. _sourceObject
       if sourceObj == "UPI_COLLECT" || sourceObj == "upi_collect"
         then pure
           ( payment_method
@@ -994,8 +995,8 @@ getPaymentMethodAndType txn card = do
           , Nothing
           )
         else do
-          let respId = getField @"successResponseId" txn
-          let gateway = getField @"gateway" txn
+          let respId = txn ^. _successResponseId
+          let gateway = txn ^. _gateway
           payervpa <- getPayerVpaByGateway respId gateway
           case payervpa of
             "" -> pure
@@ -1018,19 +1019,19 @@ getPaymentMethodAndType txn card = do
         , Nothing
         )
     Just "CARD" -> pure
-      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
       , Just "CARD"
       , Nothing
       , Nothing
       )
     Just "REWARD" -> pure
-      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
       , Just "REWARD"
       , Nothing
       , Nothing
       )
     Just "ATM_CARD" -> pure
-      ( whenNothing (getField @"cardIssuerBankName" card) (Just T.empty)
+      ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
       , Just "CARD"
       , Nothing
       , Nothing
@@ -1039,15 +1040,15 @@ getPaymentMethodAndType txn card = do
     Nothing -> checkPaymentMethodType card
 
   where
-    checkPaymentMethodType card' = case (getField @"paymentMethodType" card') of
+    checkPaymentMethodType card' = case (card' ^. _paymentMethodType) of
       Just Mandate.CASH -> pure
-        ( whenNothing (getField @"paymentMethod" card') (Just T.empty)
+        ( whenNothing (card' ^. _paymentMethod) (Just T.empty)
         , Just "CASH"
         , Nothing
         , Nothing
         )
       Just Mandate.CONSUMER_FINANCE -> pure
-        ( whenNothing (getField @"paymentMethod" card') (Just T.empty)
+        ( whenNothing (card' ^. _paymentMethod) (Just T.empty)
         , Just "CONSUMER_FINANCE"
         , Nothing
         , Nothing
@@ -1057,7 +1058,7 @@ getPaymentMethodAndType txn card = do
 getPayerVpa :: Maybe Int -> Flow Text
 getPayerVpa mSuccessResponseId = do
   mPaymentGatewayResp <- loadPGR mSuccessResponseId
-  let mXml = getField @"responseXml" =<< mPaymentGatewayResp
+  let mXml = (^. _responseXml) =<< mPaymentGatewayResp
   pure $ case mXml of
     Nothing  -> T.empty
     Just xml -> findEntry "payerVpa" "" $ decodeXml $ T.encodeUtf8 xml
@@ -1067,7 +1068,7 @@ getPayerVpaByGateway respId gateway = do
   mPgr <- loadPGR respId
   case mPgr of
     Nothing  -> pure T.empty
-    Just pgr -> pure $ findPayerVpaByGateway gateway (getField @"responseXml" pgr)
+    Just pgr -> pure $ findPayerVpaByGateway gateway (pgr ^. _responseXml)
 
 findPayerVpaByGateway :: Maybe Gateway -> Maybe Text -> Text
 findPayerVpaByGateway _ Nothing = T.empty
@@ -1097,7 +1098,7 @@ getTxnFlowInfoAndMerchantSFR
   -> Flow (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
 getTxnFlowInfoAndMerchantSFR txnDetId card = do
 
-  if (fromMaybe T.empty $ getField @"authType" card) == "VIES" then do
+  if (fromMaybe T.empty $ card ^. _authType) == "VIES" then do
 
     mSecondFactor <- findSecondFactor $ show txnDetId
 
@@ -1105,7 +1106,7 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
       Nothing ->  pure (Nothing, Nothing)
       Just sf -> do
         authReqParams <- do
-          let authReqParams = fromMaybe "{}" $ getField  @"gatewayAuthReqParams" sf
+          let authReqParams = fromMaybe "{}" $  sf ^. _gatewayAuthReqParams
           let vies = (decode $ BSL.fromStrict $ T.encodeUtf8 authReqParams)
           case vies of
             Just v -> pure v
@@ -1114,7 +1115,7 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
 
         let txnFlowInfo = mkTxnFlowInfo authReqParams
 
-        mSecondFactorResponse <- findSecondFactorResponse $ D.sfId $ getField @"id" sf
+        mSecondFactorResponse <- findSecondFactorResponse $ D.sfId $ sf ^. _id
 
         let mMerchantSFR = mkMerchantSecondFactorResponse <$> mSecondFactorResponse
         pure (Just txnFlowInfo, mMerchantSFR)
@@ -1127,16 +1128,16 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
   -- EHS: TODO OS: We need to have this clarified with Sushobhith
   -- they introduces PGRV1 in early 2020
 
-  mPaymentGatewayResp <- loadPGR $ getField @"successResponseId" txn
+  mPaymentGatewayResp <- loadPGR $ txn ^. _successResponseId
 
   case mPaymentGatewayResp of
     Nothing -> pure Nothing
     Just pgr -> do
-      let gateway = getField @"gateway" txn
-      let pgrXml  = case getField @"responseXml" pgr of
+      let gateway = txn ^. _gateway
+      let pgrXml  = case pgr ^. _responseXml of
             Nothing  -> Map.empty
             Just xml -> getMapFromPGRXml $ decodeXml $ T.encodeUtf8 xml
-      let date = show <$> getField @"dateCreated" pgr
+      let date = show <$> pgr ^. _dateCreated
       let mPgr = defaultMerchantPaymentGatewayResponse' {created = date} :: MerchantPaymentGatewayResponse'
       let gateway' = maybe "" show gateway
       let merchantPgr' = transformMpgrByGateway mPgr pgrXml $ mkMerchantPGRServiceTemp gateway' txn pgr pgrXml
@@ -1151,7 +1152,7 @@ getGatewayResponseInJson
 getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   if shouldSendFullGatewayResponse
     then
-      let xmlResp = fromMaybe T.empty $ getField @"responseXml" paymentGatewayResponse
+      let xmlResp = fromMaybe T.empty $ paymentGatewayResponse ^. _responseXml
           pgrXml = decodeXml $ T.encodeUtf8 xmlResp
 
       -- EHS: it need review and need authentic json data to check

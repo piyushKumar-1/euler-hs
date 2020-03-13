@@ -33,16 +33,17 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy.Encoding as TL
 import           Data.Time
-import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Servant.Server
 
 import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order as AO
+import           Euler.API.Refund
 import           Euler.API.RouteParameters (RouteParameters (..), lookupRP)
 import qualified Euler.API.RouteParameters as Param
 import           Euler.API.Transaction
 import           Euler.API.Types
 
+import           Euler.Common.Types.PaymentGatewayResponseXml
 import qualified Euler.Common.Metric as Metric
 import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.External.Mandate as Mandate
@@ -3422,7 +3423,7 @@ addRefundDetails txn ordStatus = undefined :: Flow OrderStatusResponse
 refundDetails :: Int -> Flow [Refund']
 refundDetails txnId = do
   l <- findRefunds $ show txnId
-  pure $ map AO.mapRefund l
+  pure $ map mapRefund l
 
 
 -- ----------------------------------------------------------------------------

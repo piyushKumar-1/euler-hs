@@ -22,24 +22,18 @@ import           Euler.Common.Types.External.Mandate (MandateFeature)
 import           Euler.Common.Types.Order (OrderId)
 import           Euler.Common.Types.Merchant (MerchantId)
 import           Euler.Common.Types.Promotion
-import           Euler.Common.Types.Refund
+import           Euler.Common.Types.Refund as R
 
 import           Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse,
                                                            MerchantPaymentGatewayResponse')
 import           Euler.API.Types
-
--- import           Euler.Storage.Types.Mandate
+import           Euler.API.Refund
 
 import           Euler.Product.Domain as D
--- import qualified Prelude as P
 
 import           Euler.Common.Types.Currency (Currency)
--- import           Euler.Common.Types.Customer (CustomerId)
--- import           Euler.Common.Types.External.Mandate (MandateFeature (..))
 import           Euler.Common.Types.External.Order (OrderStatus (..))
 import           Euler.Common.Types.Money
--- import           Euler.Common.Types.Promotion
-import           Euler.Common.Types.Refund as Refund
 
 
 
@@ -743,43 +737,7 @@ mapChargeback txn chargeback =
   }
 
 
--- from src/Types/Communication/OLTP/OrderStatus.purs
-data Refund' = Refund'
-  {  id                    :: Text -- Foreign
-  ,  amount                :: Double
-  ,  unique_request_id     :: Text
-  ,  ref                   :: Text -- Foreign
-  ,  created               :: Text
-  ,  status                :: RefundStatus -- Refund.RefundStatus
-  ,  error_message         :: Text
-  ,  sent_to_gateway       :: Bool
-  ,  arn                   :: Text
-  ,  initiated_by          :: Text
-  ,  internal_reference_id :: Text
-  ,  refund_source         :: Text -- Foreign
-  ,  refund_type           :: Text
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
-mapRefund :: D.Refund -> Refund'
-mapRefund refund = Refund'
-  {  id = blanked $ getField @"referenceId" refund
-  ,  amount = fromMoney $ getField @"amount" refund
-  ,  unique_request_id = blanked $ getField @"uniqueRequestId" refund
-  ,  ref = blanked $ getField @"epgTxnId" refund
-  ,  created = show $ getField @"dateCreated" refund -- TODO date format
-  ,  status = getField @"status" refund --"" ORIG TODO // transform this
-  ,  error_message = blanked $ getField @"errorMessage" refund
-  ,  sent_to_gateway = D.getStatus refund
-  ,  arn = blanked $ getField @"refundArn" refund
-  ,  initiated_by = blanked $ getField @"initiatedBy" refund
-  ,  internal_reference_id = D.getRefId refund
-  ,  refund_source = blanked $ getField @"refundSource" refund
-  ,  refund_type = blanked $ getField @"refundType" refund
-  }
-  where
-    blanked = fromMaybe T.empty
 
 
 -- from src/Types/Storage/EC/Mandate/Types.purs

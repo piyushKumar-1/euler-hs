@@ -10,7 +10,7 @@ import qualified EulerHS.Prelude as P
 
 import           Data.Generics.Product.Fields
 
-import Euler.API.Order (Refund'(..))
+import Euler.API.Refund (Refund'(..))
 import Euler.Common.Types.Refund as Refund
 
 -- move to common types?

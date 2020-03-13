@@ -8,7 +8,6 @@ import           EulerHS.Prelude as P
 import           Data.Aeson
 import qualified Data.Char as C
 import           Data.Generics.Product.Fields
-
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -16,7 +15,6 @@ import qualified Data.Text.Lazy as TL
 
 import           Euler.API.Types
 import           Euler.Common.Types.PaymentGatewayResponseXml
-import           Euler.Product.Domain as D
 import           Euler.Storage.Types.PaymentGatewayResponse
 import           Euler.Storage.Types.TxnDetail
 

@@ -12,27 +12,19 @@ import           Data.Time
 import           Test.Hspec
 
 import           Euler.API.MerchantPaymentGatewayResponse
+import           Euler.API.Refund (Refund' (..))
 import           Euler.API.Order (Chargeback' (..), Mandate' (..),
                                   MerchantSecondFactorResponse (..), OrderStatusQuery (..),
-                                  OrderStatusResponse (..), Paymentlinks (..), Refund' (..),
+                                  OrderStatusResponse (..), Paymentlinks (..),
                                   Risk (..), TxnDetail' (..), TxnFlowInfo (..))
 
 import qualified Euler.Common.Types as C
--- import           Euler.Common.Types.Currency
 import           Euler.Common.Types.External.Mandate (MandateFeature (..), PaymentMethodType (..))
--- import           Euler.Common.Types.External.Order (OrderStatus (..))
--- import           Euler.Common.Types.Gateway
--- import           Euler.Common.Types.Money
--- import           Euler.Common.Types.Order (OrderType (..))
--- import           Euler.Common.Types.Promotion (Promotion' (..), Rules (..))
--- import qualified Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 
 import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
 
-
 import qualified Euler.Product.Domain as D
--- import           Euler.Storage.Types.OrderReference (OrderReference, OrderReferenceT (..))
 import qualified Euler.Storage.Types as DB
 
 

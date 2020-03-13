@@ -1,9 +1,9 @@
 # Changelog for euler-hs
 
-## [1.5.0.0] - 2020-03-12
+## [1.5.0.0] - 2020-03-13
 * Euler-Backend 0.5.1.0:
   - Added MerchantGatewayAccount Storage type. MerchantGatewayAccount added to DB scheme
-  - Added EulerAccountDetails with with HasSqlValueSyntax and FromBackEndRow instances
+  - Added EulerAccountDetails with HasSqlValueSyntax and FromBackEndRow instances
   - stack.yaml fixed to avoid multiple rebuilds of euler-backend code
 
 ## [1.4.0.0] - 2020-03-12

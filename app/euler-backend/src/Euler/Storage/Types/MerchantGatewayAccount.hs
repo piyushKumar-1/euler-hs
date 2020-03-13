@@ -13,7 +13,7 @@ module Euler.Storage.Types.MerchantGatewayAccount
 import EulerHS.Prelude hiding (id)
 
 import Data.Time
-
+import Euler.Common.Types.EulerAccountDetails (EulerAccountDetails(..))
 import qualified Database.Beam as B
 
 data MerchantGatewayAccountT f =
@@ -48,19 +48,6 @@ deriving instance ToJSON MerchantGatewayAccount
 deriving instance FromJSON MerchantGatewayAccount
 deriving instance Read MerchantGatewayAccount
 deriving instance Ord MerchantGatewayAccount
-
-data EulerAccountDetails =
-  EulerAccountDetails
-    { merchantId :: Text
-    , checksumKey :: Text
-    } deriving (Generic)
-
-deriving instance Show EulerAccountDetails
-deriving instance Eq EulerAccountDetails
-deriving instance ToJSON EulerAccountDetails
-deriving instance FromJSON EulerAccountDetails
-deriving instance Read EulerAccountDetails
-deriving instance Ord EulerAccountDetails
 
 merchantGatewayAccountEMod ::
      B.EntityModification (B.DatabaseEntity be db) be (B.TableEntity MerchantGatewayAccountT)

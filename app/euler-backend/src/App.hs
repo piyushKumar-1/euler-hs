@@ -47,7 +47,6 @@ prepareDBConnections = do
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
-
 runEulerBackendApp' :: Settings -> IO ()
 runEulerBackendApp' settings = do
   let loggerCfg = T.defaultLoggerConfig

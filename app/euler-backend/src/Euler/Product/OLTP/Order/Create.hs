@@ -8,7 +8,6 @@ import qualified Data.Text            as Text
 import           Data.Time (localDay)
 import qualified Text.Read            as TR
 import           Data.Generics.Product.Subtype
-
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
 -- Map to Servant in handlers.

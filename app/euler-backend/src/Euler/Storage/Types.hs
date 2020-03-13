@@ -10,6 +10,7 @@ import Euler.Storage.Types.Feature                     as X
 import Euler.Storage.Types.IngressRule                 as X
 import Euler.Storage.Types.Mandate                     as X
 import Euler.Storage.Types.MerchantAccount             as X
+import Euler.Storage.Types.MerchantGatewayAccount      as X
 import Euler.Storage.Types.MerchantIframePreferences   as X
 import Euler.Storage.Types.MerchantKey                 as X
 import Euler.Storage.Types.OrderAddress                as X

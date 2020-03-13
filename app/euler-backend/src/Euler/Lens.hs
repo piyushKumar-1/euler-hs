@@ -12,6 +12,7 @@ import Euler.Storage.Types.Feature as STFeature
 import Euler.Storage.Types.IngressRule as STIngressRule
 import Euler.Storage.Types.Mandate as STMandate
 import Euler.Storage.Types.MerchantAccount as STMerchantAccount
+import Euler.Storage.Types.MerchantGatewayAccount as STMerchantGatewayAccount
 import Euler.Storage.Types.MerchantIframePreferences as STMerchantIframePreferences
 import Euler.Storage.Types.MerchantKey as STMerchantKey
 import Euler.Storage.Types.OrderAddress as STOrderAddress
@@ -66,6 +67,7 @@ makeGenericLenses ''STFeature.FeatureT
 makeGenericLenses ''STIngressRule.IngressRuleT
 makeGenericLenses ''STMandate.MandateT
 makeGenericLenses ''STMerchantAccount.MerchantAccountT
+makeGenericLenses ''STMerchantGatewayAccount.MerchantGatewayAccountT
 makeGenericLenses ''STMerchantIframePreferences.MerchantIframePreferencesT
 makeGenericLenses ''STMerchantKey.MerchantKeyT
 makeGenericLenses ''STOrderAddress.APIBillingAddress

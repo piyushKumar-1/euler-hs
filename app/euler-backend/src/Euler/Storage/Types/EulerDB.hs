@@ -18,6 +18,7 @@ import qualified Euler.Storage.Types.Feature                   as SFeature
 import qualified Euler.Storage.Types.IngressRule               as SIngressRule
 import qualified Euler.Storage.Types.Mandate                   as SMandate
 import qualified Euler.Storage.Types.MerchantAccount           as SMerchantAccount
+import qualified Euler.Storage.Types.MerchantGatewayAccount    as STMerchantGatewayAccount
 import qualified Euler.Storage.Types.MerchantIframePreferences as SMerchIframePrefs
 import qualified Euler.Storage.Types.MerchantKey               as SMerchantKey
 import qualified Euler.Storage.Types.OrderAddress              as SOrderAddress
@@ -45,6 +46,7 @@ data EulerDb f = EulerDb
   , ingress_rule :: f (B.TableEntity SIngressRule.IngressRuleT)
   , mandate :: f (B.TableEntity SMandate.MandateT)
   , merchant_account :: f (B.TableEntity SMerchantAccount.MerchantAccountT)
+  , merchant_gateway_account :: f (B.TableEntity STMerchantGatewayAccount.MerchantGatewayAccountT)
   , merchant_iframe_preferences :: f (B.TableEntity SMerchIframePrefs.MerchantIframePreferencesT)
   , merchant_key     :: f (B.TableEntity SMerchantKey.MerchantKeyT)
   , order_address :: f (B.TableEntity SOrderAddress.OrderAddressT)
@@ -74,6 +76,7 @@ eulerDb = B.defaultDbSettings `B.withDbModification`
     , ingress_rule = SIngressRule.ingressRuleEMod
     , mandate = SMandate.mandateEMod
     , merchant_account = SMerchantAccount.merchantAccountEMod
+    , merchant_gateway_account = STMerchantGatewayAccount.merchantGatewayAccountEMod
     , merchant_iframe_preferences = SMerchIframePrefs.merchantIframePreferencesEMod
     , merchant_key = SMerchantKey.merchantKeyEMod
     , order_address = SOrderAddress.orderAddressEMod

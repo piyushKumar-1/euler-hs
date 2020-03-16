@@ -813,61 +813,54 @@ checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
     Nothing -> pure mempty
 
 
-makeRisk :: Risk' -> Flow Risk
-makeRisk risk' = if (fromMaybe T.empty (risk' ^. _provider)) == "ebs"
-  then do
-      -- EHS: TODO not sure is this reliable enough? how port it?
-      -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
-      -- outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
-      -- responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
-      -- outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
-    let r' = undefined :: Risk'
-      -- EHS: TODO
-      -- let r' = wrap (unwrap risk) {
-      --   ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
-      --   ebs_payment_status = (trc ^. _riskStatus),
-      --   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
-      --   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
-      -- }
-    addRiskObjDefaultValueAsNull r'
-  else
-    addRiskObjDefaultValueAsNull risk'
-    where getString a = ""
+makeRisk :: Risk' -> D.TxnRiskCheck -> Risk
+makeRisk risk' trc = if risk' ^. _provider == Just "ebs"
+  then case C.decodeRMSIDResult completeResponse of
+    Left _ -> mapRisk trc $ risk' & _ebs_payment_status .~ (trc ^. _riskStatus)
+    Right rmsidResult -> mapRisk trc risk'
+      { ebs_risk_level = Just $ rmsidResult ^. _riskLevel
+      , ebs_payment_status = trc ^. _riskStatus
+      , ebs_bin_country = Just $ (rmsidResult ^. _output) ^. _bincountry
+      , ebs_risk_percentage = readMaybe $ T.unpack $ rmsidResult ^. _riskPercentage
+      }
+  else mapRisk trc risk'
+  where
+    completeResponse = T.encodeUtf8 $ trc ^. _completeResponse
 
-addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
-addRiskObjDefaultValueAsNull risk' = do
-  let risk = Risk
-        { provider = risk' ^. _provider
-        , status = risk' ^. _status
-        , message = risk' ^. _message
-        , flagged = undefined :: Maybe Text -- EHS: TODO: risk' ^. _flagged -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
-        , recommended_action = risk' ^. _recommended_action
-        , ebs_risk_level = Nothing
-        , ebs_payment_status = Nothing
-        , ebs_risk_percentage = Nothing
-        , ebs_bin_country = Nothing
-        }
-
-  case (fromMaybe mempty (risk' ^. _provider)) of
-    "ebs" -> pure (risk
-        { ebs_risk_level = risk' ^. _ebs_risk_level
-        , ebs_payment_status = risk' ^. _ebs_payment_status
-        , ebs_risk_percentage = undefined :: Maybe Text -- EHS: TODO: risk' ^. _ebs_risk_percentage -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
-        , ebs_bin_country = risk' ^. _ebs_bin_country
-        } :: Risk)
-    _ -> return risk
+mapRisk :: D.TxnRiskCheck -> Risk' -> Risk
+mapRisk trc risk' = case provider of
+  Just "ebs" -> risk
+    { ebs_risk_level = risk' ^. _ebs_risk_level
+    , ebs_payment_status = risk' ^. _ebs_payment_status
+    , ebs_bin_country = risk' ^. _ebs_bin_country
+    , ebs_risk_percentage = Just $ maybe "0" show $ risk' ^.  _ebs_risk_percentage
+    }
+  _ -> risk
+  where
+    provider = risk' ^. _provider
+    risk = Risk
+      { provider = provider
+      , status = risk' ^. _status
+      , message = risk' ^. _message
+      , flagged = show <$> whenNothing (trc ^. _flagged) (Just False)
+      , recommended_action = risk' ^. _recommended_action
+      , ebs_risk_level = Nothing
+      , ebs_payment_status = Nothing
+      , ebs_risk_percentage = Nothing
+      , ebs_bin_country = Nothing
+      }
 
 
 getRisk :: Int -> Flow (Maybe Risk)
 getRisk txnId = do
   txnRiskCheck <- loadTxnRiskCheck txnId
   case txnRiskCheck of
+    Nothing -> pure Nothing
     Just trc -> do
       let riskMAId = trc ^. _riskManagementAccountId
       riskMngAcc <- loadRiskManagementAccount riskMAId
       let risk' = makeRisk' ((^. _provider) <$> riskMngAcc) trc
-      Just <$> makeRisk risk'
-    Nothing -> pure Nothing
+      pure $ Just $ makeRisk risk' trc
 
 
 refundDetails :: Int -> Flow [Refund']
@@ -993,7 +986,7 @@ getPayerVpa mSuccessResponseId = do
   let mXml = (^. _responseXml) =<< mPaymentGatewayResp
   pure $ case mXml of
     Nothing  -> T.empty
-    Just xml -> findEntry "payerVpa" "" $ decodeXml $ T.encodeUtf8 xml
+    Just xml -> findEntry "payerVpa" "" $ decodePGRXml $ T.encodeUtf8 xml
 
 getPayerVpaByGateway :: Maybe Int -> Maybe Gateway -> Flow Text
 getPayerVpaByGateway respId gateway = do
@@ -1006,23 +999,25 @@ findPayerVpaByGateway :: Maybe Gateway -> Maybe Text -> Text
 findPayerVpaByGateway _ Nothing = T.empty
 findPayerVpaByGateway gateway (Just xml) =
   case gateway of
-    Just AXIS_UPI    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
-    Just HDFC_UPI    -> findEntry "payerVpa" "" pgrXml
-    Just INDUS_UPI   -> findEntry "payerVpa" "" pgrXml
-    Just KOTAK_UPI   -> findEntry "payerVpa" "" pgrXml
-    Just SBI_UPI     -> findEntry "payerVpa" "" pgrXml
-    Just ICICI_UPI   -> findEntry "payerVpa" "" pgrXml
-    Just HSBC_UPI    -> findEntry "payerVpa" "" pgrXml
-    Just VIJAYA_UPI  -> findEntry "payerVpa" "" pgrXml
-    Just YESBANK_UPI -> findEntry "payerVpa" "" pgrXml
-    Just PAYTM_UPI   -> findEntry "payerVpa" "" pgrXml
-    Just PAYU        -> findEntry "field3" "" pgrXml
-    Just RAZORPAY    -> findEntry "vpa" "" pgrXml
-    Just PAYTM_V2    -> findEntry "VPA" "" pgrXml
-    Just GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
-    _                -> T.empty
+    Nothing -> T.empty
+    Just gateway' -> case gateway' of
+      AXIS_UPI    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
+      HDFC_UPI    -> findEntry "payerVpa" "" pgrXml
+      INDUS_UPI   -> findEntry "payerVpa" "" pgrXml
+      KOTAK_UPI   -> findEntry "payerVpa" "" pgrXml
+      SBI_UPI     -> findEntry "payerVpa" "" pgrXml
+      ICICI_UPI   -> findEntry "payerVpa" "" pgrXml
+      HSBC_UPI    -> findEntry "payerVpa" "" pgrXml
+      VIJAYA_UPI  -> findEntry "payerVpa" "" pgrXml
+      YESBANK_UPI -> findEntry "payerVpa" "" pgrXml
+      PAYTM_UPI   -> findEntry "payerVpa" "" pgrXml
+      PAYU        -> findEntry "field3" "" pgrXml
+      RAZORPAY    -> findEntry "vpa" "" pgrXml
+      PAYTM_V2    -> findEntry "VPA" "" pgrXml
+      GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
+      _           -> T.empty
   where
-    pgrXml = decodeXml $ T.encodeUtf8 xml
+    pgrXml = decodePGRXml $ T.encodeUtf8 xml
 
 getTxnFlowInfoAndMerchantSFR
   :: Int
@@ -1068,7 +1063,7 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
       let gateway = txn ^. _gateway
       let pgrXml  = case pgr ^. _responseXml of
             Nothing  -> Map.empty
-            Just xml -> getMapFromPGRXml $ decodeXml $ T.encodeUtf8 xml
+            Just xml -> getMapFromPGRXml $ decodePGRXml $ T.encodeUtf8 xml
       let date = show <$> pgr ^. _dateCreated
       let mPgr = defaultMerchantPaymentGatewayResponse' {created = date} :: MerchantPaymentGatewayResponse'
       let gateway' = maybe "" show gateway
@@ -1085,7 +1080,7 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   if shouldSendFullGatewayResponse
     then
       let xmlResp = fromMaybe T.empty $ paymentGatewayResponse ^. _responseXml
-          pgrXml = decodeXml $ T.encodeUtf8 xmlResp
+          pgrXml = decodePGRXml $ T.encodeUtf8 xmlResp
 
       -- EHS: it need review and need authentic json data to check
       -- jsonPgr <- createJsonFromPGRXmlResponse $ getMapFromPGRXml pgrXml

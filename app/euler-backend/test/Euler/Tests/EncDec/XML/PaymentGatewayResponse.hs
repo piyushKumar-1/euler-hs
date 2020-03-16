@@ -28,15 +28,15 @@ spec =
   describe "PaymentGatewayResponseXml encoding decoding" $ do
 
     it "LHS (linked-hash-map) decoding from raw bytestring" $  do
-      let res = decodeXml $ BC.pack rawLinkedHashMapXML
+      let res = decodePGRXml $ BC.pack rawLinkedHashMapXML
       res `shouldBe` (Right testLHM)
 
     it "LHS (linked-hash-map) find entry: SUCCESS" $  do
-      let res = findEntry "SomeTextEntry" "" (decodeXml $ BC.pack rawLinkedHashMapXML)
+      let res = findEntry "SomeTextEntry" "" (decodePGRXml $ BC.pack rawLinkedHashMapXML)
       res `shouldBe` "TextValue"
 
     it "LHS (linked-hash-map) find entry: FAIL" $  do
-      let res = findEntry "SomeTextEntryWrong" "default" (decodeXml $ BC.pack rawLinkedHashMapXML)
+      let res = findEntry "SomeTextEntryWrong" "default" (decodePGRXml $ BC.pack rawLinkedHashMapXML)
       res `shouldBe` "default"
 
     it "LHS (linked-hash-map) encode/decode" $  do
@@ -49,20 +49,20 @@ spec =
       resFromDecodedNodes `shouldBe` (Right testLHM)
 
     it "LHS (linked-hash-map) with complex string value" $ do
-      let res = decodeXml $ BC.pack rawLinkedHashMapXML2
+      let res = decodePGRXml $ BC.pack rawLinkedHashMapXML2
       res `shouldBe` (Right $ PGRLhm $ LHM $ Map.fromList $ coerce
         [Entry ("soap:Envelope", EText (TLE.decodeUtf8 $ BSL.fromStrict $ BC.pack rawXML2TextValue))])
 
     it "groovy hash map from raw string" $ do
-      let res = decodeXml $ BC.pack groovyHMS
+      let res = decodePGRXml $ BC.pack groovyHMS
       res `shouldBe` (Right $ testGroovyHM)
 
     it "groovy hash map: find entry: SUCCESS" $  do
-      let res = findEntry "checksum" "" (decodeXml $ BC.pack groovyHMS)
+      let res = findEntry "checksum" "" (decodePGRXml $ BC.pack groovyHMS)
       res `shouldBe` "b43ac9dcfb502b3e8e0a5578e40e18d0db8dbf19d88f419146aa12ca1771d47a"
 
     it "groovy hash map: find entry: FAIL" $  do
-      let res = findEntry "SomeTextEntryWrong" "default" (decodeXml $ BC.pack groovyHMS)
+      let res = findEntry "SomeTextEntryWrong" "default" (decodePGRXml $ BC.pack groovyHMS)
       res `shouldBe` "default"
 
     it "groovy hash map enc/dec" $ do
@@ -75,19 +75,19 @@ spec =
       resFromDecodedNodes `shouldBe` (Right testGroovyHM)
 
     it "PRGXml from raw string" $ do
-      let groovyXML = decodeXml $ BC.pack groovyHMS
-      let lhmXML = decodeXml $ BC.pack rawLinkedHashMapXML
-      let mapXML = decodeXml $ BC.pack rawXmlMapXML
+      let groovyXML = decodePGRXml $ BC.pack groovyHMS
+      let lhmXML = decodePGRXml $ BC.pack rawLinkedHashMapXML
+      let mapXML = decodePGRXml $ BC.pack rawXmlMapXML
       groovyXML `shouldBe` (Right testGroovyHM)
       lhmXML `shouldBe` (Right testLHM)
       mapXML `shouldBe` (Right testXmlMap)
 
     it "XmlMap hash map: find entry: SUCCESS" $  do
-      let res = findEntry "SomeTextEntry" "" (decodeXml $ BC.pack rawXmlMapXML)
+      let res = findEntry "SomeTextEntry" "" (decodePGRXml $ BC.pack rawXmlMapXML)
       res `shouldBe` "TextValue"
 
     it "XmlMap hash map: find entry: FAIL" $  do
-      let res = findEntry "SomeTextEntryWrong" "default" (decodeXml $ BC.pack rawXmlMapXML)
+      let res = findEntry "SomeTextEntryWrong" "default" (decodePGRXml $ BC.pack rawXmlMapXML)
       res `shouldBe` "default"
 
 

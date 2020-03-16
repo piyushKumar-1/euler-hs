@@ -49,6 +49,7 @@ import Euler.Common.Types.Customer as CTCustomer
 import Euler.Common.Types.GatewayMetadata as CTGatewayMetadata
 import Euler.Common.Types.Order as CTOrder
 import Euler.Common.Types.Promotion as CTPromotion
+import Euler.Common.Types.RMSIDResult as CTRMSIDResult
 
 import Euler.API.Authentication as APIAuthentication
 import Euler.API.Card as APICard
@@ -120,6 +121,8 @@ makeGenericLenses ''CTOrder.OrderTokenExpiryData
 makeGenericLenses ''CTOrder.UDF
 makeGenericLenses ''CTPromotion.Promotion'
 makeGenericLenses ''CTPromotion.Rules
+makeGenericLenses ''CTRMSIDResult.RMSIDResult
+makeGenericLenses ''CTRMSIDResult.Output
 
 makeGenericLenses ''APIAuthentication.Signed
 makeGenericLenses ''APICard.AddCard

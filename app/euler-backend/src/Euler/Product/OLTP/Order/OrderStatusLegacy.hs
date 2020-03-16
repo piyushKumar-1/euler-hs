@@ -85,7 +85,7 @@ import           Euler.Storage.DBConfig
 -- completed '-- done' - 37
 -- total number of functions = 67
 --
--- refactored '-- refactored' - 12
+-- refactored '-- refactored' - 14
 -- to check '-- TODO check' - 1
 --
 -- EPS -- comments from PureScript version
@@ -2594,40 +2594,55 @@ addRiskCheckInfoToResponse txn orderStatus = undefined
 
 -- EHS: refactoring
 
--- EHS: TODO: check if it can become pure
-makeRisk :: Risk' -> Flow Risk
-makeRisk risk' = if (fromMaybe T.empty (getField @"provider" risk')) == "ebs"
-  then do
-      -- EHS: TODO not sure is this reliable enough? how port it?
-      -- completeResponseJson <- xml2Json (trc ^. _completeResponse)
-      -- outputObjectResponseJson <- xml2Json (trc ^. _completeResponse)
-      -- responseObj <- pure $ fromMaybe emptyObj (lookupJson "RMSIDResult" completeResponseJson)
-      -- outputObj   <- pure $ fromMaybe emptyObj (maybe Nothing (lookupJson "Output") (lookupJson "RMSIDResult" outputObjectResponseJson))
-    let r' = undefined :: Risk'
-      -- EHS: TODO
-      -- let r' = wrap (unwrap risk) {
-      --   ebs_risk_level = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "RiskLevel" responseObj) ,
-      --   ebs_payment_status = (trc ^. _riskStatus),
-      --   ebs_risk_percentage = NullOrUndefined $ maybe Nothing fromString (lookupJson "RiskPercentage" responseObj) ,
-      --   ebs_bin_country = NullOrUndefined $ maybe Nothing (Just <<< getString) (lookupJson "Bincountry" (outputObj))
-      -- }
-    addRiskObjDefaultValueAsNull r'
-  else
-    addRiskObjDefaultValueAsNull risk'
-    where getString a = "" -- EHS: TODO: if (isNotString a) then "" else a
+
+makeRisk :: Risk' -> D.TxnRiskCheck -> Risk
+makeRisk risk' trc = if risk' ^. _provider == Just "ebs"
+  then case C.decodeRMSIDResult completeResponse of
+    Left _ -> mapRisk trc $ risk' & _ebs_payment_status .~ (trc ^. _riskStatus)
+    Right rmsidResult -> mapRisk trc risk'
+      { ebs_risk_level = Just $ rmsidResult ^. _riskLevel
+      , ebs_payment_status = trc ^. _riskStatus
+      , ebs_bin_country = Just $ (rmsidResult ^. _output) ^. _bincountry
+      , ebs_risk_percentage = readMaybe $ T.unpack $ rmsidResult ^. _riskPercentage
+      }
+  else mapRisk trc risk'
+  where
+    completeResponse = T.encodeUtf8 $ trc ^. _completeResponse
+
+mapRisk :: D.TxnRiskCheck -> Risk' -> Risk
+mapRisk trc risk' = case provider of
+  Just "ebs" -> risk
+    { ebs_risk_level = risk' ^. _ebs_risk_level
+    , ebs_payment_status = risk' ^. _ebs_payment_status
+    , ebs_bin_country = risk' ^. _ebs_bin_country
+    , ebs_risk_percentage = Just $ maybe "0" show $ risk' ^.  _ebs_risk_percentage
+    }
+  _ -> risk
+  where
+    provider = risk' ^. _provider
+    risk = Risk
+      { provider = provider
+      , status = risk' ^. _status
+      , message = risk' ^. _message
+      , flagged = show <$> whenNothing (trc ^. _flagged) (Just False)
+      , recommended_action = risk' ^. _recommended_action
+      , ebs_risk_level = Nothing
+      , ebs_payment_status = Nothing
+      , ebs_risk_percentage = Nothing
+      , ebs_bin_country = Nothing
+      }
 
 
--- EHS: Partly refactored
 getRisk :: Int -> Flow (Maybe Risk)
 getRisk txnId = do
   txnRiskCheck <- loadTxnRiskCheck txnId
   case txnRiskCheck of
-    Just trc -> do
-      let riskMAId = getField @"riskManagementAccountId" trc
-      riskMngAcc <- loadRiskManagementAccount riskMAId
-      let risk' = makeRisk' (getField @"provider" <$> riskMngAcc) trc
-      Just <$> makeRisk risk'
     Nothing -> pure Nothing
+    Just trc -> do
+      let riskMAId = trc ^. _riskManagementAccountId
+      riskMngAcc <- loadRiskManagementAccount riskMAId
+      let risk' = makeRisk' ((^. _provider) <$> riskMngAcc) trc
+      pure $ Just $ makeRisk risk' trc
 
 
 
@@ -2635,7 +2650,6 @@ getRisk txnId = do
 -- ----------------------------------------------------------------------------
 -- function: addRiskObjDefaultValueAsNull
 -- done
--- TODO check foreign fields seem to be the same in out design
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2661,28 +2675,30 @@ addRiskObjDefaultValueAsNull risk' = do
    else pure risk
 -}
 
-addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
-addRiskObjDefaultValueAsNull risk' = do
-  let risk = Risk
-        { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
-        , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
-        , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
-        , flagged = undefined :: Maybe Text -- EHS: TODO: getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
-        , recommended_action = getField @"recommended_action" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
-        , ebs_risk_level = Nothing -- NullOrUndefined Nothing
-        , ebs_payment_status = Nothing -- NullOrUndefined Nothing
-        , ebs_risk_percentage = Nothing -- NullOrUndefined Nothing
-        , ebs_bin_country = Nothing -- NullOrUndefined Nothing
-        }
+-- Refactored to mapRisk
 
-  case (fromMaybe mempty (getField @"provider" risk')) of
-    "ebs" -> pure (risk
-        { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
-        , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
-        , ebs_risk_percentage = undefined :: Maybe Text -- EHS: TODO: getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
-        , ebs_bin_country = getField @"ebs_bin_country" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
-        } :: Risk)
-    _ -> return risk
+-- addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
+-- addRiskObjDefaultValueAsNull risk' = do
+--   let risk = Risk
+--         { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
+--         , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
+--         , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
+--         , flagged = undefined :: Maybe Text -- EHS: TODO: getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
+--         , recommended_action = getField @"recommended_action" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
+--         , ebs_risk_level = Nothing -- NullOrUndefined Nothing
+--         , ebs_payment_status = Nothing -- NullOrUndefined Nothing
+--         , ebs_risk_percentage = Nothing -- NullOrUndefined Nothing
+--         , ebs_bin_country = Nothing -- NullOrUndefined Nothing
+--         }
+
+--   case (fromMaybe mempty (getField @"provider" risk')) of
+--     "ebs" -> pure (risk
+--         { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
+--         , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
+--         , ebs_risk_percentage = undefined :: Maybe Text -- EHS: TODO: getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
+--         , ebs_bin_country = getField @"ebs_bin_country" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
+--         } :: Risk)
+--     _ -> return risk
 
 
 -- ----------------------------------------------------------------------------
@@ -3056,7 +3072,7 @@ getPayerVpa mSuccessResponseId = do
   let mXml = getField @"responseXml" =<< mPaymentGatewayResp
   pure $ case mXml of
     Nothing  -> T.empty
-    Just xml -> findEntry "payerVpa" "" $ decodeXml $ T.encodeUtf8 xml
+    Just xml -> findEntry "payerVpa" "" $ decodePGRXml $ T.encodeUtf8 xml
 
 
 -- ----------------------------------------------------------------------------
@@ -3656,7 +3672,7 @@ getResponseXml xmlVal = do
 								Nothing -> jsonValues emptyObj
 -}
 
---  Ported to decodeXml at Euler.Common.Types.PaymentGatewayResponseXml
+--  Ported to decodePGRXml at Euler.Common.Types.PaymentGatewayResponseXml
 
 
 -- ----------------------------------------------------------------------------
@@ -3716,7 +3732,7 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
       let gateway = getField @"gateway" txn
       let pgrXml  = case getField @"responseXml" pgr of
             Nothing  -> Map.empty
-            Just xml -> getMapFromPGRXml $ decodeXml $ T.encodeUtf8 xml
+            Just xml -> getMapFromPGRXml $ decodePGRXml $ T.encodeUtf8 xml
       let date = show <$> getField @"dateCreated" pgr
       let mPgr = defaultMerchantPaymentGatewayResponse' {created = date} :: MerchantPaymentGatewayResponse'
       let gateway' = maybe "" show gateway
@@ -3750,7 +3766,7 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
   if shouldSendFullGatewayResponse
     then
       let xmlResp = fromMaybe T.empty $ getField @"responseXml" paymentGatewayResponse
-          pgrXml = decodeXml $ T.encodeUtf8 xmlResp
+          pgrXml = decodePGRXml $ T.encodeUtf8 xmlResp
 
       -- EHS: it need review and need authentic json data to check
       -- jsonPgr <- createJsonFromPGRXmlResponse $ getMapFromPGRXml pgrXml
@@ -4086,7 +4102,7 @@ getPaymentGatewayResponse txn pgr orderStatusResp = do
 --         gateway = fromMaybe T.empty $ getField @"gateway" txn
 --         pgrXml  = case getField @"responseXml" pgr of
 --           Nothing  -> Map.empty
---           Just xml -> getMapFromPGRXml $ decodeXml $ T.encodeUtf8 xml
+--           Just xml -> getMapFromPGRXml $ decodePGRXml $ T.encodeUtf8 xml
 --         date = show <$> getField @"dateCreated" pgr
 --         upgr = defaultMerchantPaymentGatewayResponse' {created = date} :: MerchantPaymentGatewayResponse'
 
@@ -4710,7 +4726,7 @@ findPayerVpaByGateway gateway (Just xml) =
     Just GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
     _                -> T.empty
   where
-    pgrXml = decodeXml $ T.encodeUtf8 xml
+    pgrXml = decodePGRXml $ T.encodeUtf8 xml
 
 -- EHS: OLD STUFF
 

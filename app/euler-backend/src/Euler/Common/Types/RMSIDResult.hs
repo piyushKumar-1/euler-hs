@@ -1,32 +1,43 @@
 module Euler.Common.Types.RMSIDResult
   ( RMSIDResult (..)
   , Output (..)
+  , decodeRMSIDResult
+  , decodeOutput
   )
   where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import qualified Data.Text.Lazy as TL
-import Xmlbf
+import           Xmlbf
+import           Xmlbf.Xeno
+
+
+decodeRMSIDResult :: ByteString -> Either String RMSIDResult
+decodeRMSIDResult bs = runParser fromXml =<< (fromRawXml bs)
+
+decodeOutput :: ByteString -> Either String Output
+decodeOutput bs = either Left (Right . output) $ runParser fromXml =<< (fromRawXml bs)
+
 
 data RMSIDResult = RMSIDResult
-  { _ReferenceNo         :: Text
-  , _TxnLogID            :: Text
-  , _TemplateID          :: Text
-  , _CreatedOn           :: Text
-  , _TxnDate             :: Text
-  , _RiskLevel           :: Text
-  , _RiskPercentage      :: Text
-  , _PaymentStatus       :: Text
-  , _Amount              :: Text
-  , _DeviceID            :: Text
-  , _DeviceProfileStatus :: Text
-  , _Accuracy            :: Text
-  , _DeviceType          :: Text
-  , _Origin              :: Text
-  , _Output              :: Output
-  , _AffectedRules       :: Text
-  , _ResponseTime        :: Text
+  { referenceNo         :: Text
+  , txnLogID            :: Text
+  , templateID          :: Text
+  , createdOn           :: Text
+  , txnDate             :: Text
+  , riskLevel           :: Text
+  , riskPercentage      :: Text
+  , paymentStatus       :: Text
+  , amount              :: Text
+  , deviceID            :: Text
+  , deviceProfileStatus :: Text
+  , accuracy            :: Text
+  , deviceType          :: Text
+  , origin              :: Text
+  , output              :: Output
+  , affectedRules       :: Text
+  , responseTime        :: Text
   }
   deriving (Eq, Show, Generic)
 
@@ -40,86 +51,86 @@ instance FromXml RMSIDResult where
   fromXml = pElement "RMSIDResult" p
     where
       p = do
-        _ReferenceNo <- pElement "ReferenceNo" pMText
-        _TxnLogID <- pElement "TxnLogID" pMText
-        _TemplateID <- pElement "TemplateID" pMText
-        _CreatedOn <- pElement "CreatedOn" pMText
-        _TxnDate <- pElement "TxnDate" pMText
-        _RiskLevel <- pElement "RiskLevel" pMText
-        _RiskPercentage <- pElement "RiskPercentage" pMText
-        _PaymentStatus <- pElement "PaymentStatus" pMText
-        _Amount <- pElement "Amount" pMText
-        _DeviceID <- pElement "DeviceID" pMText
-        _DeviceProfileStatus <- pElement "DeviceProfileStatus" pMText
-        _Accuracy <- pElement "Accuracy" pMText
-        _DeviceType <- pElement "DeviceType" pMText
-        _Origin <- pElement "Origin" pMText
-        _Output <- fromXml
-        _AffectedRules <- pElement "AffectedRules" pMText
-        _ResponseTime <- pElement "ResponseTime" pMText
+        referenceNo <- pElement "ReferenceNo" pMText
+        txnLogID <- pElement "TxnLogID" pMText
+        templateID <- pElement "TemplateID" pMText
+        createdOn <- pElement "CreatedOn" pMText
+        txnDate <- pElement "TxnDate" pMText
+        riskLevel <- pElement "RiskLevel" pMText
+        riskPercentage <- pElement "RiskPercentage" pMText
+        paymentStatus <- pElement "PaymentStatus" pMText
+        amount <- pElement "Amount" pMText
+        deviceID <- pElement "DeviceID" pMText
+        deviceProfileStatus <- pElement "DeviceProfileStatus" pMText
+        accuracy <- pElement "Accuracy" pMText
+        deviceType <- pElement "DeviceType" pMText
+        origin <- pElement "Origin" pMText
+        output <- fromXml
+        affectedRules <- pElement "AffectedRules" pMText
+        responseTime <- pElement "ResponseTime" pMText
         pure RMSIDResult{..}
 
 instance ToXml RMSIDResult where
   toXml RMSIDResult {..} =
     element "RMSIDResult" mempty $ concat
-      [ element "ReferenceNo" mempty $ text $ TL.fromStrict _ReferenceNo
-      , element "TxnLogID" mempty $ text $ TL.fromStrict _TxnLogID
-      , element "TemplateID" mempty $ text $ TL.fromStrict _TemplateID
-      , element "CreatedOn" mempty $ text $ TL.fromStrict _CreatedOn
-      , element "TxnDate" mempty $ text $ TL.fromStrict _TxnDate
-      , element "RiskLevel" mempty $ text $ TL.fromStrict _RiskLevel
-      , element "RiskPercentage" mempty $ text $ TL.fromStrict _RiskPercentage
-      , element "PaymentStatus" mempty $ text $ TL.fromStrict _PaymentStatus
-      , element "Amount" mempty $ text $ TL.fromStrict _Amount
-      , element "DeviceID" mempty $ text $ TL.fromStrict _DeviceID
-      , element "DeviceProfileStatus" mempty $ text $ TL.fromStrict _DeviceProfileStatus
-      , element "Accuracy" mempty $ text $ TL.fromStrict _Accuracy
-      , element "DeviceType" mempty $ text $ TL.fromStrict _DeviceType
-      , element "Origin" mempty $ text $ TL.fromStrict _Origin
-      , toXml  _Output
-      , element "AffectedRules" mempty $ text $ TL.fromStrict _AffectedRules
-      , element "ResponseTime" mempty $ text $ TL.fromStrict _ResponseTime
+      [ element "ReferenceNo" mempty $ text $ TL.fromStrict referenceNo
+      , element "TxnLogID" mempty $ text $ TL.fromStrict txnLogID
+      , element "TemplateID" mempty $ text $ TL.fromStrict templateID
+      , element "CreatedOn" mempty $ text $ TL.fromStrict createdOn
+      , element "TxnDate" mempty $ text $ TL.fromStrict txnDate
+      , element "RiskLevel" mempty $ text $ TL.fromStrict riskLevel
+      , element "RiskPercentage" mempty $ text $ TL.fromStrict riskPercentage
+      , element "PaymentStatus" mempty $ text $ TL.fromStrict paymentStatus
+      , element "Amount" mempty $ text $ TL.fromStrict amount
+      , element "DeviceID" mempty $ text $ TL.fromStrict deviceID
+      , element "DeviceProfileStatus" mempty $ text $ TL.fromStrict deviceProfileStatus
+      , element "Accuracy" mempty $ text $ TL.fromStrict accuracy
+      , element "DeviceType" mempty $ text $ TL.fromStrict deviceType
+      , element "Origin" mempty $ text $ TL.fromStrict origin
+      , toXml  output
+      , element "AffectedRules" mempty $ text $ TL.fromStrict affectedRules
+      , element "ResponseTime" mempty $ text $ TL.fromStrict responseTime
       ]
 
 
 data Output = Output
-  { _Ipcity               :: Text
-  , _Ipregion             :: Text
-  , _Ipcountry            :: Text
-  , _Ipisp                :: Text
-  , _Iporg                :: Text
-  , _Iplatitude           :: Text
-  , _Iplongitude          :: Text
-  , _Iphost               :: Text
-  , _Proxyscore           :: Text
-  , _Proxyfound           :: Text
-  , _Proxytype            :: Text
-  , _Spamscore            :: Text
-  , _Binname              :: Text
-  , _Bincity              :: Text
-  , _Binregion            :: Text
-  , _Bincountry           :: Text
-  , _Billdistance         :: Text
-  , _Billpostalcity       :: Text
-  , _Billpostalregion     :: Text
-  , _Billpostalcountry    :: Text
-  , _Shipbilldistance     :: Text
-  , _Shipdistance         :: Text
-  , _Shippostalcity       :: Text
-  , _Shippostalregion     :: Text
-  , _Shippostalcountry    :: Text
-  , _Freeemail            :: Text
-  , _Emaildomain          :: Text
-  , _Emaildomaincountry   :: Text
-  , _Phoneserviceprovider :: Text
-  , _Phonetype            :: Text
-  , _Phonecity            :: Text
-  , _Phoneregion          :: Text
-  , _Phonecountry         :: Text
-  , _Tsdeltamins          :: Text
-  , _Tzdelta              :: Text
-  , _Tzcountry            :: Text
-  , _Ipaddress            :: Text
+  { ipcity               :: Text
+  , ipregion             :: Text
+  , ipcountry            :: Text
+  , ipisp                :: Text
+  , iporg                :: Text
+  , iplatitude           :: Text
+  , iplongitude          :: Text
+  , iphost               :: Text
+  , proxyscore           :: Text
+  , proxyfound           :: Text
+  , proxytype            :: Text
+  , spamscore            :: Text
+  , binname              :: Text
+  , bincity              :: Text
+  , binregion            :: Text
+  , bincountry           :: Text
+  , billdistance         :: Text
+  , billpostalcity       :: Text
+  , billpostalregion     :: Text
+  , billpostalcountry    :: Text
+  , shipbilldistance     :: Text
+  , shipdistance         :: Text
+  , shippostalcity       :: Text
+  , shippostalregion     :: Text
+  , shippostalcountry    :: Text
+  , freeemail            :: Text
+  , emaildomain          :: Text
+  , emaildomaincountry   :: Text
+  , phoneserviceprovider :: Text
+  , phonetype            :: Text
+  , phonecity            :: Text
+  , phoneregion          :: Text
+  , phonecountry         :: Text
+  , tsdeltamins          :: Text
+  , tzdelta              :: Text
+  , tzcountry            :: Text
+  , ipaddress            :: Text
   }
   deriving (Eq, Show, Generic)
 
@@ -132,86 +143,86 @@ instance ToJSON Output where
 instance ToXml Output where
   toXml Output{..} =
     element "Output" mempty $ concat
-      [ element "Ipcity" mempty $ text $ TL.fromStrict _Ipcity
-      , element "Ipregion" mempty $ text $ TL.fromStrict _Ipregion
-      , element "Ipcountry" mempty $ text $ TL.fromStrict _Ipcountry
-      , element "Ipisp" mempty $ text $ TL.fromStrict _Ipisp
-      , element "Iporg" mempty $ text $ TL.fromStrict _Iporg
-      , element "Iplatitude" mempty $ text $ TL.fromStrict _Iplatitude
-      , element "Iplongitude" mempty $ text $ TL.fromStrict _Iplongitude
-      , element "Iphost" mempty $ text $ TL.fromStrict _Iphost
-      , element "Proxyscore" mempty $ text $ TL.fromStrict _Proxyscore
-      , element "Proxyfound" mempty $ text $ TL.fromStrict _Proxyfound
-      , element "Proxytype" mempty $ text $ TL.fromStrict _Proxytype
-      , element "Spamscore" mempty $ text $ TL.fromStrict _Spamscore
-      , element "Binname" mempty $ text $ TL.fromStrict _Binname
-      , element "Bincity" mempty $ text $ TL.fromStrict _Bincity
-      , element "Binregion" mempty $ text $ TL.fromStrict _Binregion
-      , element "Bincountry" mempty $ text $ TL.fromStrict _Bincountry
-      , element "Billdistance" mempty $ text $ TL.fromStrict _Billdistance
-      , element "Billpostalcity" mempty $ text $ TL.fromStrict _Billpostalcity
-      , element "Billpostalregion" mempty $ text $ TL.fromStrict _Billpostalregion
-      , element "Billpostalcountry" mempty $ text $ TL.fromStrict _Billpostalcountry
-      , element "Shipbilldistance" mempty $ text $ TL.fromStrict _Shipbilldistance
-      , element "Shipdistance" mempty $ text $ TL.fromStrict _Shipdistance
-      , element "Shippostalcity" mempty $ text $ TL.fromStrict _Shippostalcity
-      , element "Shippostalregion" mempty $ text $ TL.fromStrict _Shippostalregion
-      , element "Shippostalcountry" mempty $ text $ TL.fromStrict _Shippostalcountry
-      , element "Freeemail" mempty $ text $ TL.fromStrict _Freeemail
-      , element "Emaildomain" mempty $ text $ TL.fromStrict _Emaildomain
-      , element "Emaildomaincountry" mempty $ text $ TL.fromStrict _Emaildomaincountry
-      , element "Phoneserviceprovider" mempty $ text $ TL.fromStrict _Phoneserviceprovider
-      , element "Phonetype" mempty $ text $ TL.fromStrict _Phonetype
-      , element "Phonecity" mempty $ text $ TL.fromStrict _Phonecity
-      , element "Phoneregion" mempty $ text $ TL.fromStrict _Phoneregion
-      , element "Phonecountry" mempty $ text $ TL.fromStrict _Phonecountry
-      , element "Tsdeltamins" mempty $ text $ TL.fromStrict _Tsdeltamins
-      , element "Tzdelta" mempty $ text $ TL.fromStrict _Tzdelta
-      , element "Tzcountry" mempty $ text $ TL.fromStrict _Tzcountry
-      , element "Ipaddress" mempty $ text $ TL.fromStrict _Ipaddress
+      [ element "Ipcity" mempty $ text $ TL.fromStrict ipcity
+      , element "Ipregion" mempty $ text $ TL.fromStrict ipregion
+      , element "Ipcountry" mempty $ text $ TL.fromStrict ipcountry
+      , element "Ipisp" mempty $ text $ TL.fromStrict ipisp
+      , element "Iporg" mempty $ text $ TL.fromStrict iporg
+      , element "Iplatitude" mempty $ text $ TL.fromStrict iplatitude
+      , element "Iplongitude" mempty $ text $ TL.fromStrict iplongitude
+      , element "Iphost" mempty $ text $ TL.fromStrict iphost
+      , element "Proxyscore" mempty $ text $ TL.fromStrict proxyscore
+      , element "Proxyfound" mempty $ text $ TL.fromStrict proxyfound
+      , element "Proxytype" mempty $ text $ TL.fromStrict proxytype
+      , element "Spamscore" mempty $ text $ TL.fromStrict spamscore
+      , element "Binname" mempty $ text $ TL.fromStrict binname
+      , element "Bincity" mempty $ text $ TL.fromStrict bincity
+      , element "Binregion" mempty $ text $ TL.fromStrict binregion
+      , element "Bincountry" mempty $ text $ TL.fromStrict bincountry
+      , element "Billdistance" mempty $ text $ TL.fromStrict billdistance
+      , element "Billpostalcity" mempty $ text $ TL.fromStrict billpostalcity
+      , element "Billpostalregion" mempty $ text $ TL.fromStrict billpostalregion
+      , element "Billpostalcountry" mempty $ text $ TL.fromStrict billpostalcountry
+      , element "Shipbilldistance" mempty $ text $ TL.fromStrict shipbilldistance
+      , element "Shipdistance" mempty $ text $ TL.fromStrict shipdistance
+      , element "Shippostalcity" mempty $ text $ TL.fromStrict shippostalcity
+      , element "Shippostalregion" mempty $ text $ TL.fromStrict shippostalregion
+      , element "Shippostalcountry" mempty $ text $ TL.fromStrict shippostalcountry
+      , element "Freeemail" mempty $ text $ TL.fromStrict freeemail
+      , element "Emaildomain" mempty $ text $ TL.fromStrict emaildomain
+      , element "Emaildomaincountry" mempty $ text $ TL.fromStrict emaildomaincountry
+      , element "Phoneserviceprovider" mempty $ text $ TL.fromStrict phoneserviceprovider
+      , element "Phonetype" mempty $ text $ TL.fromStrict phonetype
+      , element "Phonecity" mempty $ text $ TL.fromStrict phonecity
+      , element "Phoneregion" mempty $ text $ TL.fromStrict phoneregion
+      , element "Phonecountry" mempty $ text $ TL.fromStrict phonecountry
+      , element "Tsdeltamins" mempty $ text $ TL.fromStrict tsdeltamins
+      , element "Tzdelta" mempty $ text $ TL.fromStrict tzdelta
+      , element "Tzcountry" mempty $ text $ TL.fromStrict tzcountry
+      , element "Ipaddress" mempty $ text $ TL.fromStrict ipaddress
       ]
 
 instance FromXml Output where
   fromXml = pElement "Output" p
     where
       p = do
-        _Ipcity <- pElement "Ipcity" pMText
-        _Ipregion <- pElement "Ipregion" pMText
-        _Ipcountry <- pElement "Ipcountry" pMText
-        _Ipisp <- pElement "Ipisp" pMText
-        _Iporg <- pElement "Iporg" pMText
-        _Iplatitude <- pElement "Iplatitude" pMText
-        _Iplongitude <- pElement "Iplongitude" pMText
-        _Iphost <- pElement "Iphost" pMText
-        _Proxyscore <- pElement "Proxyscore" pMText
-        _Proxyfound <- pElement "Proxyfound" pMText
-        _Proxytype <- pElement "Proxytype" pMText
-        _Spamscore <- pElement "Spamscore" pMText
-        _Binname <- pElement "Binname" pMText
-        _Bincity <- pElement "Bincity" pMText
-        _Binregion <- pElement "Binregion" pMText
-        _Bincountry <- pElement "Bincountry" pMText
-        _Billdistance <- pElement "Billdistance" pMText
-        _Billpostalcity <- pElement "Billpostalcity" pMText
-        _Billpostalregion <- pElement "Billpostalregion" pMText
-        _Billpostalcountry <- pElement "Billpostalcountry" pMText
-        _Shipbilldistance <- pElement "Shipbilldistance" pMText
-        _Shipdistance <- pElement "Shipdistance" pMText
-        _Shippostalcity <- pElement "Shippostalcity" pMText
-        _Shippostalregion <- pElement "Shippostalregion" pMText
-        _Shippostalcountry <- pElement "Shippostalcountry" pMText
-        _Freeemail <- pElement "Freeemail" pMText
-        _Emaildomain <- pElement "Emaildomain" pMText
-        _Emaildomaincountry <- pElement "Emaildomaincountry" pMText
-        _Phoneserviceprovider <- pElement "Phoneserviceprovider" pMText
-        _Phonetype <- pElement "Phonetype" pMText
-        _Phonecity <- pElement "Phonecity" pMText
-        _Phoneregion <- pElement "Phoneregion" pMText
-        _Phonecountry <- pElement "Phonecountry" pMText
-        _Tsdeltamins <- pElement "Tsdeltamins" pMText
-        _Tzdelta <- pElement "Tzdelta" pMText
-        _Tzcountry <- pElement "Tzcountry" pMText
-        _Ipaddress <- pElement "Ipaddress" pMText
+        ipcity <- pElement "Ipcity" pMText
+        ipregion <- pElement "Ipregion" pMText
+        ipcountry <- pElement "Ipcountry" pMText
+        ipisp <- pElement "Ipisp" pMText
+        iporg <- pElement "Iporg" pMText
+        iplatitude <- pElement "Iplatitude" pMText
+        iplongitude <- pElement "Iplongitude" pMText
+        iphost <- pElement "Iphost" pMText
+        proxyscore <- pElement "Proxyscore" pMText
+        proxyfound <- pElement "Proxyfound" pMText
+        proxytype <- pElement "Proxytype" pMText
+        spamscore <- pElement "Spamscore" pMText
+        binname <- pElement "Binname" pMText
+        bincity <- pElement "Bincity" pMText
+        binregion <- pElement "Binregion" pMText
+        bincountry <- pElement "Bincountry" pMText
+        billdistance <- pElement "Billdistance" pMText
+        billpostalcity <- pElement "Billpostalcity" pMText
+        billpostalregion <- pElement "Billpostalregion" pMText
+        billpostalcountry <- pElement "Billpostalcountry" pMText
+        shipbilldistance <- pElement "Shipbilldistance" pMText
+        shipdistance <- pElement "Shipdistance" pMText
+        shippostalcity <- pElement "Shippostalcity" pMText
+        shippostalregion <- pElement "Shippostalregion" pMText
+        shippostalcountry <- pElement "Shippostalcountry" pMText
+        freeemail <- pElement "Freeemail" pMText
+        emaildomain <- pElement "Emaildomain" pMText
+        emaildomaincountry <- pElement "Emaildomaincountry" pMText
+        phoneserviceprovider <- pElement "Phoneserviceprovider" pMText
+        phonetype <- pElement "Phonetype" pMText
+        phonecity <- pElement "Phonecity" pMText
+        phoneregion <- pElement "Phoneregion" pMText
+        phonecountry <- pElement "Phonecountry" pMText
+        tsdeltamins <- pElement "Tsdeltamins" pMText
+        tzdelta <- pElement "Tzdelta" pMText
+        tzcountry <- pElement "Tzcountry" pMText
+        ipaddress <- pElement "Ipaddress" pMText
         pure Output {..}
 
 pMText :: Parser Text

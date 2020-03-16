@@ -20,7 +20,7 @@ data TxnRiskCheck = TxnRiskCheck
   { id                              :: TxnRiskCheckPId
   , completeResponse                :: Text
   , dateCreated                     :: LocalTime
-  , flagged                         :: Bool      -- Maybe Bool in db type
+  , flagged                         :: Maybe Bool
   , lastUpdated                     :: LocalTime
   , recommendedAction               :: Maybe Text
   , resultJson                      :: Maybe Text

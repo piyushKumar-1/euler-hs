@@ -11,7 +11,7 @@ module Euler.Common.Types.PaymentGatewayResponseXml
   , PGRXml(..)
   , EValueMap
  -- , OpusPGResponse(..)
-  , decodeXml
+  , decodePGRXml
   , findEntry
   , getMapFromPGRXml
   , lookupXML
@@ -36,8 +36,8 @@ import           Xmlbf
 import           Xmlbf.Xeno
 
 
-decodeXml :: ByteString -> Either String PGRXml
-decodeXml bs = runParser fromXml =<< (fromRawXml bs)
+decodePGRXml :: ByteString -> Either String PGRXml
+decodePGRXml bs = runParser fromXml =<< (fromRawXml bs)
 
 -- former getResponseXml
 getMapFromPGRXml :: Either String PGRXml -> Map.Map TL.Text EValue
@@ -347,7 +347,7 @@ instance ToXml GroovyHM where
 
 
 test :: Either String PGRXml
-test = decodeXml $ TE.encodeUtf8 $ T.pack [r|
+test = decodePGRXml $ TE.encodeUtf8 $ T.pack [r|
 <org.codehaus.groovy.grails.web.json.JSONObject>
   <myHashMap>
     <entry>
@@ -414,7 +414,7 @@ test = decodeXml $ TE.encodeUtf8 $ T.pack [r|
 |]
 
 test2 :: Either String PGRXml
-test2 = decodeXml $ TE.encodeUtf8 $ T.pack [r|
+test2 = decodePGRXml $ TE.encodeUtf8 $ T.pack [r|
 <linked-hash-map>
   <entry>
     <string>soap:Envelope</string>

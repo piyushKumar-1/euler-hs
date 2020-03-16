@@ -39,7 +39,7 @@ transformTxnRiskCheck r = D.TxnRiskCheck
   <$> (D.TxnRiskCheckPId <$> withField @"id" r notNegative)
   <*> withField @"completeResponse" r textNotEmpty
   <*> withField @"dateCreated" r pure
-  <*> withField @"flagged" r extractJust
+  <*> withField @"flagged" r pure
   <*> withField @"lastUpdated" r pure
   <*> withField @"recommendedAction" r pure
   <*> withField @"resultJson" r pure

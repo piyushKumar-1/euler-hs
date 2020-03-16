@@ -815,17 +815,6 @@ checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
 
 
 
-loadTxnRiskCheck :: Int -> Flow (Maybe DB.TxnRiskCheck)
-loadTxnRiskCheck txnId =
-  withDB eulerDB $ do
-    let predicate DB.TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.txn_risk_check DB.eulerDBSchema)
-
-
 loadRiskManagementAccount :: Int -> Flow (Maybe DB.RiskManagementAccount)
 loadRiskManagementAccount riskMAId =
   withDB eulerDB $ do
@@ -837,7 +826,7 @@ loadRiskManagementAccount riskMAId =
       $ B.all_ (DB.risk_management_account DB.eulerDBSchema)
 
 
-makeRisk' :: Maybe Text -> DB.TxnRiskCheck -> Risk'
+makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
 makeRisk' provider trc = Risk'
   { provider = provider
   , status = trc ^. _status

@@ -2595,18 +2595,6 @@ addRiskCheckInfoToResponse txn orderStatus = undefined
 -- EHS: refactoring
 
 
-loadTxnRiskCheck :: Int -> Flow (Maybe TxnRiskCheck)
-loadTxnRiskCheck txnId =
-  -- let txnId = fromMaybe T.empty $ getField @"id" txn
-  withDB eulerDB $ do
-    let predicate TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.txn_risk_check eulerDBSchema)
-
-
 loadRiskManagementAccount :: Int -> Flow (Maybe RiskManagementAccount)
 loadRiskManagementAccount riskMAId =
   withDB eulerDB $ do
@@ -2618,7 +2606,7 @@ loadRiskManagementAccount riskMAId =
       $ B.all_ (DB.risk_management_account eulerDBSchema)
 
 
-makeRisk' :: Maybe Text -> TxnRiskCheck -> Risk'
+makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
 makeRisk' provider trc = Risk'
   { provider = provider
   , status = getField @"status" trc

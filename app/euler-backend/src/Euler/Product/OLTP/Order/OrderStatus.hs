@@ -195,7 +195,7 @@ execOrderStatusQuery query = do
 
   mCardBrand <- case mTxnCard of
     Nothing                    -> pure Nothing
-    Just (card :: DB.TxnCardInfo) ->
+    Just (card :: D.TxnCardInfo) ->
       getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
 
   returnUrl <- getReturnUrl order
@@ -300,7 +300,7 @@ makeOrderStatusResponse
   -> Maybe D.TxnDetail
   -> Text
   -> Maybe Risk
-  -> Maybe DB.TxnCardInfo
+  -> Maybe D.TxnCardInfo
   -> Maybe Text
   -> Maybe [Refund']
   -> Maybe [Chargeback']
@@ -870,38 +870,7 @@ getRisk txnId = do
     Nothing -> pure Nothing
 
 
-loadTxnCardInfo :: Int -> Flow (Maybe DB.TxnCardInfo)
-loadTxnCardInfo txnId =
-  withDB eulerDB $ do
-    let predicate DB.TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.txn_card_info DB.eulerDBSchema)
-
-
-getCardDetails :: DB.TxnCardInfo -> D.TxnDetail -> Bool -> Card
-getCardDetails card txn shouldSendCardIsin = Card
-  { expiry_year = whenNothing (card ^. _cardExpYear) (Just "")
-  , card_reference = whenNothing (card ^. _cardReferenceId) (Just "")
-  , saved_to_locker = isSavedToLocker card txn
-  , expiry_month = whenNothing  (card ^. _cardExpMonth) (Just "")
-  , name_on_card = whenNothing  (card ^. _nameOnCard) (Just "")
-  , card_issuer = whenNothing  (card ^. _cardIssuerBankName) (Just "")
-  , last_four_digits = whenNothing  (card ^. _cardLastFourDigits) (Just "")
-  , using_saved_card = txn ^. _expressCheckout
-  , card_fingerprint = whenNothing  (card ^. _cardFingerprint) (Just "")
-  , card_isin = if shouldSendCardIsin then (card ^. _cardIsin) else Just ""
-  , card_type = whenNothing  (card ^. _cardType) (Just "")
-  , card_brand = whenNothing  (card ^. _cardSwitchProvider) (Just "")
-  }
-  where
-    isSavedToLocker card' txn' = Just $
-      isTrueMaybe (txn' ^. _addToLocker) && (isBlankMaybe $ card' ^. _cardReferenceId)
-
-
-refundDetails :: TxnDetailId -> Flow [Refund']
+refundDetails :: Int -> Flow [Refund']
 refundDetails txnId = do
   l <- findRefunds txnId
   pure $ map mapRefund l
@@ -919,7 +888,7 @@ sanitizeNullAmount = fmap sanitizeAmount
 
 getPaymentMethodAndType
   :: D.TxnDetail
-  -> DB.TxnCardInfo
+  -> D.TxnCardInfo
   -> Flow (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -- ^ Result is (payment_method, payment_method_type, payer_vpa, payer_app_name)
   -- when Nothing do not change a field
@@ -1057,7 +1026,7 @@ findPayerVpaByGateway gateway (Just xml) =
 
 getTxnFlowInfoAndMerchantSFR
   :: Int
-  -> DB.TxnCardInfo
+  -> D.TxnCardInfo
   -> Flow (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
 getTxnFlowInfoAndMerchantSFR txnDetId card = do
 

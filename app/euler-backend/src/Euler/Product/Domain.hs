@@ -17,6 +17,7 @@ import Euler.Product.Domain.RiskManagementAccount as X
 import Euler.Product.Domain.SecondFactor          as X
 import Euler.Product.Domain.SecondFactorResponse  as X
 import Euler.Product.Domain.Transaction           as X
+import Euler.Product.Domain.TxnCardInfo           as X
 import Euler.Product.Domain.TxnDetail             as X
 import Euler.Product.Domain.TxnRiskCheck          as X
 import Euler.Product.Domain.UPIPayment            as X

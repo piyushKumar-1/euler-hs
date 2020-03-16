@@ -15,5 +15,6 @@ import Euler.Storage.Repository.ResellerAccount           as X
 import Euler.Storage.Repository.RiskManagementAccount     as X
 import Euler.Storage.Repository.SecondFactor              as X
 import Euler.Storage.Repository.SecondFactorResponse      as X
+import Euler.Storage.Repository.TxnCardInfo               as X
 import Euler.Storage.Repository.TxnDetail                 as X
 import Euler.Storage.Repository.TxnRiskCheck              as X

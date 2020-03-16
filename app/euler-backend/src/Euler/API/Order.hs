@@ -17,23 +17,25 @@ import           Web.FormUrlEncoded
 import           Data.Semigroup
 import           Generics.Deriving.Semigroup (gsappenddefault)
 
-
 import           Euler.Common.Types.External.Mandate (MandateFeature)
-import           Euler.Common.Types.Order (OrderId)
+import           Euler.Common.Types.External.Order (OrderStatus (..))
+
+import           Euler.Common.Types.Currency (Currency)
 import           Euler.Common.Types.Merchant (MerchantId)
+import           Euler.Common.Types.Money
+import           Euler.Common.Types.Order (OrderId)
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund as R
 
 import           Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse,
                                                            MerchantPaymentGatewayResponse')
-import           Euler.API.Types
 import           Euler.API.Refund
+import           Euler.API.Types
+
+import           Euler.Common.Utils
 
 import           Euler.Product.Domain as D
 
-import           Euler.Common.Types.Currency (Currency)
-import           Euler.Common.Types.External.Order (OrderStatus (..))
-import           Euler.Common.Types.Money
 
 
 
@@ -678,6 +680,45 @@ data Card = Card
   ,  card_brand       :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+getCardDetails :: D.TxnCardInfo -> D.TxnDetail -> Bool -> Card
+getCardDetails card txn shouldSendCardIsin = Card
+  { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
+  , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
+  , saved_to_locker = isSavedToLocker card txn
+  , expiry_month = whenNothing  (getField @"cardExpMonth" card) (Just "")
+  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
+  , card_issuer = whenNothing  (getField @"cardIssuerBankName" card) (Just "")
+  , last_four_digits = whenNothing  (getField @"cardLastFourDigits" card) (Just "")
+  , using_saved_card = getField @"expressCheckout" txn
+  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
+  , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
+  , card_type = whenNothing  (getField @"cardType" card) (Just "")
+  , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
+  }
+  where
+    isSavedToLocker card' txn' = Just $
+      isTrueMaybe (getField @"addToLocker" txn') && (isBlankMaybe $ getField @"cardReferenceId" card')
+
+-- with lens
+-- getCardDetails :: D.TxnCardInfo -> D.TxnDetail -> Bool -> Card
+-- getCardDetails card txn shouldSendCardIsin = Card
+--   { expiry_year = whenNothing (card ^. _cardExpYear) (Just "")
+--   , card_reference = whenNothing (card ^. _cardReferenceId) (Just "")
+--   , saved_to_locker = isSavedToLocker card txn
+--   , expiry_month = whenNothing  (card ^. _cardExpMonth) (Just "")
+--   , name_on_card = whenNothing  (card ^. _nameOnCard) (Just "")
+--   , card_issuer = whenNothing  (card ^. _cardIssuerBankName) (Just "")
+--   , last_four_digits = whenNothing  (card ^. _cardLastFourDigits) (Just "")
+--   , using_saved_card = txn ^. _expressCheckout
+--   , card_fingerprint = whenNothing  (card ^. _cardFingerprint) (Just "")
+--   , card_isin = if shouldSendCardIsin then (card ^. _cardIsin) else Just ""
+--   , card_type = whenNothing  (card ^. _cardType) (Just "")
+--   , card_brand = whenNothing  (card ^. _cardSwitchProvider) (Just "")
+--   }
+--   where
+--     isSavedToLocker card' txn' = Just $
+--       isTrueMaybe (txn' ^. _addToLocker) && (isBlankMaybe $ card' ^. _cardReferenceId)
 
 -- from src/Externals/EC/Common.purs
 data PaymentInfo = PaymentInfo

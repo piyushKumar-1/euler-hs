@@ -290,9 +290,9 @@ mRisk = Just Risk
   , ebs_risk_percentage = Just "ebs_risk_percentage"
   }
 
-txnCardInfo :: Maybe DB.TxnCardInfo
-txnCardInfo = Just DB.TxnCardInfo
-  { id = Just 200
+txnCardInfo :: Maybe D.TxnCardInfo
+txnCardInfo = Just D.TxnCardInfo
+  { id = D.TxnCardInfoPId 200
   , txnId = "txnId"
   , cardIsin = Just "cardIsin"
   , cardIssuerBankName = Just "cardIssuerBankName"

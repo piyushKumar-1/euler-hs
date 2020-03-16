@@ -293,7 +293,7 @@ execOrderStatusQuery query = do
 
   mCardBrand <- case mTxnCard of
     Nothing                       -> pure Nothing
-    Just (card :: DB.TxnCardInfo) ->
+    Just (card :: D.TxnCardInfo) ->
       getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
 
   returnUrl <- getReturnUrl order
@@ -409,7 +409,7 @@ makeOrderStatusResponse
   -> Maybe D.TxnDetail
   -> Text -- EHS: use getGatewayReferenceId2 to get it
   -> Maybe Risk
-  -> Maybe TxnCardInfo
+  -> Maybe D.TxnCardInfo
   -> Maybe Text -- CardBrand
   -> Maybe [Refund']
   -> Maybe [Chargeback']
@@ -2736,20 +2736,7 @@ addPaymentMethodInfo sendCardIsin txn ordStatus = undefined
 --       addSecondFactorResponseAndTxnFlowInfo txn card orderStatus'
 --     Nothing -> pure ordStatus
 
-
-
--- EHS: refactoring
-
-loadTxnCardInfo :: Int -> Flow (Maybe TxnCardInfo)
-loadTxnCardInfo txnId =
-  withDB eulerDB $ do
-    let predicate TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.txn_card_info eulerDBSchema)
-
+-- EHS: refactoring to loadTxnCardInfo
 
 
 -- ----------------------------------------------------------------------------
@@ -2808,7 +2795,7 @@ addSecondFactorResponseAndTxnFlowInfo txn card orderStatus = undefined
 -- refactored addSecondFactorResponseAndTxnFlowInfo
 getTxnFlowInfoAndMerchantSFR
   :: Int
-  -> DB.TxnCardInfo
+  -> D.TxnCardInfo
   -> Flow (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
 getTxnFlowInfoAndMerchantSFR txnDetId card = do
 
@@ -3029,24 +3016,8 @@ getCardDetails card txn shouldSendCardIsin = do
         isUsingSavedCard _ = just false
 -}
 
-getCardDetails :: TxnCardInfo -> D.TxnDetail -> Bool -> Card
-getCardDetails card txn shouldSendCardIsin = Card
-  { expiry_year = whenNothing (getField @"cardExpYear" card) (Just "")
-  , card_reference = whenNothing (getField @"cardReferenceId" card) (Just "")
-  , saved_to_locker = isSavedToLocker card txn
-  , expiry_month = whenNothing  (getField @"cardExpMonth" card) (Just "")
-  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
-  , card_issuer = whenNothing  (getField @"cardIssuerBankName" card) (Just "")
-  , last_four_digits = whenNothing  (getField @"cardLastFourDigits" card) (Just "")
-  , using_saved_card = getField @"expressCheckout" txn
-  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
-  , card_isin = if shouldSendCardIsin then (getField @"cardIsin" card) else Just ""
-  , card_type = whenNothing  (getField @"cardType" card) (Just "")
-  , card_brand = whenNothing  (getField @"cardSwitchProvider" card) (Just "")
-  }
-  where
-    isSavedToLocker card' txn' = Just $
-      isTrueMaybe (getField @"addToLocker" txn') && (isBlankMaybe $ getField @"cardReferenceId" card')
+-- ported getCardDetails moved to Euler.API.Order
+
 
 -- ----------------------------------------------------------------------------
 -- function: getPayerVpa
@@ -3234,7 +3205,7 @@ updatePaymentMethodAndType txn card ordStatus = undefined
 -- refactored updatePaymentMethodAndType
 getPaymentMethodAndType
   :: D.TxnDetail
-  -> DB.TxnCardInfo
+  -> D.TxnCardInfo
   -> Flow (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -- ^ Result is (payment_method, payment_method_type, payer_vpa, payer_app_name)
   -- when Nothing do not change a field

@@ -813,32 +813,6 @@ checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
     Nothing -> pure mempty
 
 
-
-
-loadRiskManagementAccount :: Int -> Flow (Maybe DB.RiskManagementAccount)
-loadRiskManagementAccount riskMAId =
-  withDB eulerDB $ do
-    let predicate DB.RiskManagementAccount {id} = id ==. B.val_ riskMAId
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.risk_management_account DB.eulerDBSchema)
-
-
-makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
-makeRisk' provider trc = Risk'
-  { provider = provider
-  , status = trc ^. _status
-  , message = trc ^. _message
-  , flagged = whenNothing (trc ^. _flagged) (Just False)
-  , recommended_action = whenNothing (trc ^. _recommendedAction) (Just T.empty)
-  , ebs_risk_level = Nothing
-  , ebs_payment_status = Nothing
-  , ebs_risk_percentage = Nothing
-  , ebs_bin_country = Nothing
-  }
-
 makeRisk :: Risk' -> Flow Risk
 makeRisk risk' = if (fromMaybe T.empty (risk' ^. _provider)) == "ebs"
   then do

@@ -2594,31 +2594,6 @@ addRiskCheckInfoToResponse txn orderStatus = undefined
 
 -- EHS: refactoring
 
-
-loadRiskManagementAccount :: Int -> Flow (Maybe RiskManagementAccount)
-loadRiskManagementAccount riskMAId =
-  withDB eulerDB $ do
-    let predicate RiskManagementAccount {id} = id ==. B.val_ riskMAId
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.risk_management_account eulerDBSchema)
-
-
-makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
-makeRisk' provider trc = Risk'
-  { provider = provider
-  , status = getField @"status" trc
-  , message = getField @"message" trc
-  , flagged = whenNothing (getField @"flagged" trc) (Just False)
-  , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
-  , ebs_risk_level = Nothing
-  , ebs_payment_status = Nothing
-  , ebs_risk_percentage = Nothing
-  , ebs_bin_country = Nothing
-  }
-
 -- EHS: TODO: check if it can become pure
 makeRisk :: Risk' -> Flow Risk
 makeRisk risk' = if (fromMaybe T.empty (getField @"provider" risk')) == "ebs"

@@ -793,6 +793,34 @@ data Risk = Risk
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
+makeRisk' provider trc = Risk'
+  { provider = provider
+  , status = getField @"status" trc
+  , message = getField @"message" trc
+  , flagged = Just $ getField @"flagged" trc
+  , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
+  , ebs_risk_level = Nothing
+  , ebs_payment_status = Nothing
+  , ebs_risk_percentage = Nothing
+  , ebs_bin_country = Nothing
+  }
+
+-- With lens
+
+-- makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
+-- makeRisk' provider trc = Risk'
+--   { provider = provider
+--   , status = trc ^. _status
+--   , message = trc ^. _message
+--   , flagged = Just $ trc ^. _flagged
+--   , recommended_action = whenNothing (trc ^. _recommendedAction) (Just T.empty)
+--   , ebs_risk_level = Nothing
+--   , ebs_payment_status = Nothing
+--   , ebs_risk_percentage = Nothing
+--   , ebs_bin_country = Nothing
+--   }
+
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data TxnDetail' = TxnDetail'
   { txn_id           :: Text

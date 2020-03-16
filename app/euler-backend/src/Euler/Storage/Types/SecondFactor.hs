@@ -16,7 +16,7 @@ import Data.Time
 import qualified Database.Beam as B
 
 data SecondFactorT f = SecondFactor
-  { id :: B.C f (Maybe Text)
+  { id :: B.C f (Maybe Int)
   , version :: B.C f Int
   , otp :: B.C f (Maybe Text)
   , status :: B.C f Text
@@ -27,7 +27,7 @@ data SecondFactorT f = SecondFactor
   , dateCreated :: B.C f LocalTime
   , epgTxnId :: B.C f (Maybe Text)
   , lastUpdated :: B.C f LocalTime
-  , txnDetailId :: B.C f (Maybe Text)
+  , txnDetailId :: B.C f (Maybe Int)
   , gatewayAuthReqParams :: B.C f (Maybe Text)
   , authenticationAccountId :: B.C f (Maybe Text)
   , canAcceptResponse :: B.C f (Maybe Bool)
@@ -38,7 +38,7 @@ data SecondFactorT f = SecondFactor
 
 instance B.Table SecondFactorT where
   data PrimaryKey SecondFactorT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type SecondFactor = SecondFactorT Identity
@@ -74,9 +74,9 @@ secondFactorEMod = B.modifyTableFields
     , responseAttempted = B.fieldNamed "response_attempted"
     }
 
-defaultSecondFactor :: Maybe Text -> LocalTime -> Text -> Text -> Text -> SecondFactor
-defaultSecondFactor id date txnId status t = SecondFactor
-  { id = id
+defaultSecondFactor :: Maybe Int -> LocalTime -> Text -> Text -> Text -> SecondFactor
+defaultSecondFactor pid date txnId status t = SecondFactor
+  { id = pid
   , version = 0
   , otp = Nothing
   , status = status

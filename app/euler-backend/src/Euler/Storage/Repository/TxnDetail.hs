@@ -70,7 +70,7 @@ findTxnByOrderIdMerchantId orderId' merchantId' = do
 
 transformTxnDetail :: DB.TxnDetail -> V D.TxnDetail
 transformTxnDetail r = D.TxnDetail
-  <$> (D.TxnDetailId<$> withField @"id" r (extractJust >=> notNegative))
+  <$> (D.TxnDetailPId<$> withField @"id" r (extractJust >=> notNegative))
   <*> withField @"version" r pure
   <*> withField @"errorMessage" r pure
   <*> withField @"orderId" r textNotEmpty

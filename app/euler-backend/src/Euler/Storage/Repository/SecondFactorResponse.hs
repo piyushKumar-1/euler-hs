@@ -7,8 +7,7 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.TxnDetail (TxnDetId)
-import           Euler.Common.Validators (textNotEmpty)
+import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain as D
 
@@ -19,7 +18,7 @@ import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
 
-findSecondFactorResponse :: Text -> Flow (Maybe D.SecondFactorResponse)
+findSecondFactorResponse :: Int -> Flow (Maybe D.SecondFactorResponse)
 findSecondFactorResponse second_factor_id = do
   sfr <- withDB eulerDB $ do
     let predicate DB.SecondFactorResponse{secondFactorId} =
@@ -34,12 +33,12 @@ findSecondFactorResponse second_factor_id = do
     Success sfr' -> pure sfr'
     Failure e -> do
       logError "Incorrect secondFactorResponse in DB"
-        $  "txnDetailId: " <> second_factor_id <> "error: " <> show e
+        $  "txnDetailId: " <> show second_factor_id <> "error: " <> show e
       throwException internalError
 
 transformSecondFactorResponse :: DB.SecondFactorResponse -> V D.SecondFactorResponse
 transformSecondFactorResponse sfr = D.SecondFactorResponse
-  <$> (D.SecondFactorResponseId <$> withField @"id" sfr (extractJust >=> textNotEmpty))
+  <$> (D.SecondFactorResponsePId <$> withField @"id" sfr (extractJust >=> notNegative))
   <*> withField @"version" sfr pure
   <*> withField @"cavv" sfr pure
   <*> withField @"currency" sfr pure

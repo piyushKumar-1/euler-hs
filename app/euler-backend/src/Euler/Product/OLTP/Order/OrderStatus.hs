@@ -57,7 +57,7 @@ import qualified Euler.Common.Types.Order as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund as Refund
-import           Euler.Common.Types.TxnDetail
+import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
@@ -185,11 +185,11 @@ execOrderStatusQuery query = do
   (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr) <- case mTxn of
     Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
     Just txn -> do
-      let txnDetail_id = D.txnDetail_id $ txn ^. _id
-      mRisk <- getRisk $ show txnDetail_id
-      mTxnCard <- loadTxnCardInfo $ show txnDetail_id
-      mRefunds' <- maybeList <$> (refundDetails txnDetail_id)
-      mChargeback' <- maybeList <$> (chargebackDetails txnDetail_id $ mapTxnDetail txn)
+      let txnDetailPId = D.txnDetailPId $ txn ^. _id
+      mRisk <- getRisk txnDetailPId
+      mTxnCard <- loadTxnCardInfo txnDetailPId
+      mRefunds' <- maybeList <$> (refundDetails txnDetailPId)
+      mChargeback' <- maybeList <$> (chargebackDetails txnDetailPId $ mapTxnDetail txn)
       mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
       pure (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr)
 
@@ -206,7 +206,7 @@ execOrderStatusQuery query = do
 
   txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> do
-      let txnDetail_id = D.txnDetail_id $ txn ^. _id
+      let txnDetail_id = D.txnDetailPId $ txn ^. _id
       getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
     (Nothing, Nothing) -> pure (Nothing, Nothing)
 
@@ -815,7 +815,7 @@ checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
 
 
 
-loadTxnRiskCheck :: Text -> Flow (Maybe DB.TxnRiskCheck)
+loadTxnRiskCheck :: Int -> Flow (Maybe DB.TxnRiskCheck)
 loadTxnRiskCheck txnId =
   withDB eulerDB $ do
     let predicate DB.TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
@@ -895,7 +895,7 @@ addRiskObjDefaultValueAsNull risk' = do
     _ -> return risk
 
 
-getRisk :: Text -> Flow (Maybe Risk)
+getRisk :: Int -> Flow (Maybe Risk)
 getRisk txnId = do
   txnRiskCheck <- loadTxnRiskCheck txnId
   case txnRiskCheck of
@@ -907,7 +907,7 @@ getRisk txnId = do
     Nothing -> pure Nothing
 
 
-loadTxnCardInfo :: Text -> Flow (Maybe DB.TxnCardInfo)
+loadTxnCardInfo :: Int -> Flow (Maybe DB.TxnCardInfo)
 loadTxnCardInfo txnId =
   withDB eulerDB $ do
     let predicate DB.TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
@@ -940,13 +940,13 @@ getCardDetails card txn shouldSendCardIsin = Card
 
 refundDetails :: TxnDetailId -> Flow [Refund']
 refundDetails txnId = do
-  l <- findRefunds $ show txnId
+  l <- findRefunds txnId
   pure $ map mapRefund l
 
 
 chargebackDetails :: Int -> TxnDetail' -> Flow [Chargeback']
 chargebackDetails txnId txn = do
-  chargebacks <- findChargebacks $ show txnId
+  chargebacks <- findChargebacks  txnId
   pure $ map (AO.mapChargeback txn) chargebacks
 
 
@@ -1100,7 +1100,7 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
 
   if (fromMaybe T.empty $ card ^. _authType) == "VIES" then do
 
-    mSecondFactor <- findSecondFactor $ show txnDetId
+    mSecondFactor <- findSecondFactor txnDetId
 
     case mSecondFactor of
       Nothing ->  pure (Nothing, Nothing)
@@ -1115,7 +1115,7 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
 
         let txnFlowInfo = mkTxnFlowInfo authReqParams
 
-        mSecondFactorResponse <- findSecondFactorResponse $ D.sfId $ sf ^. _id
+        mSecondFactorResponse <- findSecondFactorResponse $ D.sfPId $ sf ^. _id
 
         let mMerchantSFR = mkMerchantSecondFactorResponse <$> mSecondFactorResponse
         pure (Just txnFlowInfo, mMerchantSFR)

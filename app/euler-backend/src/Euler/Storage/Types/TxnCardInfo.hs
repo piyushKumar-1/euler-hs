@@ -19,7 +19,7 @@ import qualified Database.Beam as B
 
 
 data TxnCardInfoT f = TxnCardInfo
-  { id :: B.C f (Maybe Text)
+  { id :: B.C f (Maybe Int)
   , txnId :: B.C f Text
   , cardIsin :: B.C f (Maybe Text)
   , cardIssuerBankName :: B.C f (Maybe Text)
@@ -31,7 +31,7 @@ data TxnCardInfoT f = TxnCardInfo
   , nameOnCard :: B.C f (Maybe Text)
   , cardFingerprint :: B.C f (Maybe Text)
   , cardReferenceId :: B.C f (Maybe Text)
-  , txnDetailId :: B.C f (Maybe Text)
+  , txnDetailId :: B.C f (Maybe Int)
   , dateCreated :: B.C f (Maybe LocalTime)
   , paymentMethodType :: B.C f (Maybe PaymentMethodType)
   , paymentMethod :: B.C f (Maybe Text)
@@ -43,7 +43,7 @@ data TxnCardInfoT f = TxnCardInfo
 
 instance B.Table TxnCardInfoT where
   data PrimaryKey TxnCardInfoT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type TxnCardInfo = TxnCardInfoT Identity
@@ -81,7 +81,7 @@ txnCardInfoEMod = B.modifyTableFields
     , authType = B.fieldNamed "auth_type"
     }
 
-defaultTxnCardInfo :: Maybe Text -> Text -> TxnCardInfo
+defaultTxnCardInfo :: Maybe Int -> Text -> TxnCardInfo
 defaultTxnCardInfo mId txnId = TxnCardInfo
   { id = mId
   , txnId = txnId

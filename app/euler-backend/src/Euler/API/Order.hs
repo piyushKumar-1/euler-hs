@@ -725,7 +725,7 @@ data Chargeback' = Chargeback'
 mapChargeback :: TxnDetail' -> D.Chargeback -> Chargeback'
 mapChargeback txn chargeback =
   Chargeback'
-  {  id = chargebackId $ getField @"id" chargeback
+  {  id = chargebackPId $ getField @"id" chargeback
   ,  amount = fromMoney $ getField @"amount" chargeback
   ,  object_reference_id = getField @"objectReferenceId" chargeback
   ,  txn = txn

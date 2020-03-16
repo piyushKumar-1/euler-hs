@@ -8,6 +8,8 @@ import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Types.TxnDetail (TxnDetailId)
+import           Euler.Common.Types.Money
+import           Euler.Common.Validators (textNotEmpty, amountValidators, notNegative)
 import qualified Euler.Product.Domain.Chargeback as D
 import           Euler.Product.Domain.Money
 import qualified Euler.Storage.Types.Chargeback as S
@@ -32,14 +34,14 @@ findChargebacks txnId = do
     Success chargebacks' -> pure chargebacks'
     Failure e -> do
       logError "Incorrect chargeback(s) in DB"
-        $  "txnDetailId: " <> txnId <> "error: " <> show e
+        $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
 
 
 
 transformChargeback :: S.Chargeback -> V D.Chargeback
 transformChargeback r = D.Chargeback
-  <$> (D.ChargebackId <$> withField @"id" r textNotEmpty)
+  <$> (D.ChargebackPId <$> withField @"id" r textNotEmpty)
   <*> withField @"version" r pure -- TODO: validate version?
   <*> (mkMoney <$> withField @"amount" r amountValidators)
   <*> withField @"dateCreated" r pure
@@ -47,7 +49,7 @@ transformChargeback r = D.Chargeback
   <*> withField @"disputeStatus" r textNotEmpty
   <*> withField @"lastUpdated" r pure
   <*> withField @"merchantAccountId" r pure -- TODO: validate merchantAccountId?
-  <*> withField @"txnDetailId" r (insideJust textNotEmpty)
+  <*> withField @"txnDetailId" r (insideJust notNegative)
   <*> withField @"objectReferenceId" r textNotEmpty
 
 

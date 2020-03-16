@@ -6,13 +6,13 @@ import EulerHS.Prelude
 
 import Data.Time (LocalTime)
 
-newtype SecondFactorId = SecondFactorId
-  { sfId :: Text
+newtype SecondFactorPId = SecondFactorPId
+  { sfPId :: Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data SecondFactor = SecondFactor
-  { id :: SecondFactorId
+  { id :: SecondFactorPId
   , version :: Int
   , otp :: Maybe Text
   , status :: Text
@@ -23,7 +23,7 @@ data SecondFactor = SecondFactor
   , dateCreated :: LocalTime
   , epgTxnId :: Maybe Text
   , lastUpdated :: LocalTime
-  , txnDetailId :: Maybe Text
+  , txnDetailId :: Maybe Int
   , gatewayAuthReqParams :: Maybe Text
   , authenticationAccountId :: Maybe Text
   , canAcceptResponse :: Maybe Bool

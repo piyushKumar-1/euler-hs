@@ -7,8 +7,7 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.TxnDetail (TxnDetId)
-import           Euler.Common.Validators (textNotEmpty)
+import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain as D
 
@@ -19,7 +18,7 @@ import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
 
-findSecondFactor :: Text -> Flow (Maybe D.SecondFactor)
+findSecondFactor :: Int -> Flow (Maybe D.SecondFactor)
 findSecondFactor txnDetail_id = do
   sf <- withDB eulerDB $ do
     let predicate DB.SecondFactor{txnDetailId} =
@@ -40,7 +39,7 @@ findSecondFactor txnDetail_id = do
 
 transformSecondFactor :: DB.SecondFactor -> V D.SecondFactor
 transformSecondFactor sf = D.SecondFactor
-  <$> (D.SecondFactorId <$> withField @"id" sf (extractJust >=> textNotEmpty))
+  <$> (D.SecondFactorPId <$> withField @"id" sf (extractJust >=> notNegative))
   <*> withField @"version" sf pure
   <*> withField @"otp" sf pure
   <*> withField @"status" sf textNotEmpty

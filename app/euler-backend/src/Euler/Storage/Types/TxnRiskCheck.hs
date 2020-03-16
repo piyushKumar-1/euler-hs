@@ -14,12 +14,13 @@ module Euler.Storage.Types.TxnRiskCheck
 import EulerHS.Prelude hiding (id)
 
 import Data.Time
+import qualified Data.Text as T
 import Euler.Common.Types.DefaultDate (defaultDate)
 import qualified Database.Beam as B
 
 
 data TxnRiskCheckT f = TxnRiskCheck
-  { id                              :: B.C f Text
+  { id                              :: B.C f Int
   , completeResponse                :: B.C f Text
   , dateCreated                     :: B.C f LocalTime
   , flagged                         :: B.C f (Maybe Bool)
@@ -27,7 +28,7 @@ data TxnRiskCheckT f = TxnRiskCheck
   , recommendedAction               :: B.C f (Maybe Text)
   , resultJson                      :: B.C f (Maybe Text)
   , riskManagementAccountId         :: B.C f Int
-  , txnDetailId                     :: B.C f Text
+  , txnDetailId                     :: B.C f Int
   , message                         :: B.C f (Maybe Text)
   , status                          :: B.C f (Maybe Text) -- FIXME enum?
   , riskStatus                      :: B.C f (Maybe Text) -- FIXME enum?
@@ -40,7 +41,7 @@ data TxnRiskCheckT f = TxnRiskCheck
 
 instance B.Table TxnRiskCheckT where
   data PrimaryKey TxnRiskCheckT f =
-    Id (B.C f Text) deriving (Generic, B.Beamable)
+    Id (B.C f Int) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type TxnRiskCheck = TxnRiskCheckT Identity
@@ -75,17 +76,17 @@ txnRiskCheckEMod = B.modifyTableFields
     , paymentStatusUpdated = B.fieldNamed "payment_status_updated"
     }
 
-defaultTxnRiskCheck ::  TxnRiskCheck
-defaultTxnRiskCheck = TxnRiskCheck
-  { id = mempty
-  , completeResponse = mempty
+defaultTxnRiskCheck :: Int -> Int -> TxnRiskCheck
+defaultTxnRiskCheck pId txnId = TxnRiskCheck
+  { id = pId
+  , completeResponse = T.empty
   , dateCreated = defaultDate
   , flagged = Nothing
   , lastUpdated = defaultDate
   , recommendedAction = Nothing
   , resultJson = Nothing
   , riskManagementAccountId = 0
-  , txnDetailId = mempty
+  , txnDetailId = txnId
   , message = Nothing
   , status = Nothing
   , riskStatus = Nothing

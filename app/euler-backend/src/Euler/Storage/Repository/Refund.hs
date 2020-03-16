@@ -7,8 +7,9 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.TxnDetail (TxnDetailId)
-import           Euler.Product.Domain.Money
+import           Euler.Common.Types.Money
+import           Euler.Common.Validators (amountValidators, textNotEmpty, notNegative)
+
 import qualified Euler.Product.Domain.Refund as D
 
 import qualified Euler.Storage.Types as DB
@@ -19,7 +20,7 @@ import qualified Database.Beam as B
 
 
 
-findRefunds :: TxnDetailId -> Flow [D.Refund]
+findRefunds :: Int -> Flow [D.Refund]
 findRefunds txnId = do
   rs <- withDB eulerDB $ do
     let predicate DB.Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
@@ -32,13 +33,13 @@ findRefunds txnId = do
     Success rs' -> pure rs'
     Failure e -> do
       logError "Incorrect refund(s) in DB"
-        $  "txnDetailId: " <> txnId <> "error: " <> show e
+        $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
 
 
 transformRefund :: DB.Refund -> V D.Refund
 transformRefund r = D.Refund
-  <$> (D.RefundId <$> withField @"id" r (extractJust >=> textNotEmpty))
+  <$> (D.RefundPId <$> withField @"id" r (extractJust >=> notNegative))
   <*> (mkMoney <$> withField @"amount" r amountValidators)
   <*> withField @"authorizationId" r pure
   <*> withField @"dateCreated" r pure

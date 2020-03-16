@@ -56,7 +56,7 @@ decryptPromotionRules ordId promotions = pure C.defaultPromotion' -- EHS: TODO p
 
 transformPromotions :: DB.Promotion -> V D.Promotion
 transformPromotions r = D.Promotion
-  <$> (D.PromotionId <$> withField @"id" r notNegative)
+  <$> (D.PromotionPId <$> withField @"id" r notNegative)
   <*> withField @"dateCreated" r pure
   <*> (C.mkMoney <$> withField @"discountAmount" r amountValidators)
   <*> withField @"lastModified" r pure

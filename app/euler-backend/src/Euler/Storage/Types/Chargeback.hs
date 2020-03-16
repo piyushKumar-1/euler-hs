@@ -23,7 +23,7 @@ data ChargebackT f = Chargeback
   , disputeStatus     :: B.C f Text
   , lastUpdated       :: B.C f LocalTime
   , merchantAccountId :: B.C f Int
-  , txnDetailId       :: B.C f (Maybe Text)
+  , txnDetailId       :: B.C f (Maybe Int)
   , objectReferenceId :: B.C f Text
   }
   deriving (Generic, B.Beamable)

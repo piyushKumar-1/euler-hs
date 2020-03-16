@@ -17,7 +17,7 @@ import qualified Euler.Common.Types.Refund as C
 
 
 data RefundT f = Refund
-  { id                  :: B.C f (Maybe Text)
+  { id                  :: B.C f (Maybe Int)
   , amount              :: B.C f Double
   , authorizationId     :: B.C f (Maybe Text)
   , dateCreated         :: B.C f LocalTime
@@ -25,7 +25,7 @@ data RefundT f = Refund
   , gateway             :: B.C f Text
   , processed           :: B.C f Bool
   , rootReferenceNumber :: B.C f (Maybe Text)
-  , txnDetailId         :: B.C f (Maybe Text)
+  , txnDetailId         :: B.C f (Maybe Int)
   , referenceId         :: B.C f (Maybe Text)
   , status              :: B.C f C.RefundStatus
   , uniqueRequestId     :: B.C f (Maybe Text)
@@ -43,7 +43,7 @@ data RefundT f = Refund
 
 instance B.Table RefundT where
   data PrimaryKey RefundT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type Refund = RefundT Identity

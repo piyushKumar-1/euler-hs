@@ -9,13 +9,13 @@ import qualified Euler.Common.Types as C
 import           Data.Time (LocalTime)
 
 
-newtype PromotionId = PromotionId
-  { promotionId :: Int
+newtype PromotionPId = PromotionPId
+  { promotionPId :: Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data Promotion = Promotion
-  { id               :: PromotionId
+  { id               :: PromotionPId
   , dateCreated      :: LocalTime
   , discountAmount   :: C.Money
   , lastModified     :: LocalTime

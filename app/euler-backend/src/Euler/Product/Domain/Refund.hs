@@ -12,13 +12,13 @@ import           Euler.Product.Domain.Money
 import           Data.Time
 
 
-newtype RefundId = RefundId
-  { refundId :: Text
+newtype RefundPId = RefundPId
+  { refundPId :: Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data Refund = Refund
-  { id                  :: RefundId
+  { id                  :: RefundPId
   , amount              :: Money
   , authorizationId     :: Maybe Text
   , dateCreated         :: LocalTime
@@ -26,7 +26,7 @@ data Refund = Refund
   , gateway             :: Text
   , processed           :: Bool
   , rootReferenceNumber :: Maybe Text
-  , txnDetailId         :: Maybe Text
+  , txnDetailId         :: Maybe Int
   , referenceId         :: Maybe Text
   , status              :: RefundStatus
   , uniqueRequestId     :: Maybe Text

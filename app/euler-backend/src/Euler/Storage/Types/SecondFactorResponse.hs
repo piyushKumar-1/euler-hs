@@ -15,7 +15,7 @@ import Data.Time
 import qualified Database.Beam as B
 
 data SecondFactorResponseT f = SecondFactorResponse
-    { id :: B.C f (Maybe Text)
+    { id :: B.C f (Maybe Int)
     , version :: B.C f Int
     , cavv :: B.C f (Maybe Text)
     , currency :: B.C f  (Maybe Text)
@@ -27,14 +27,14 @@ data SecondFactorResponseT f = SecondFactorResponse
     , status :: B.C f Text
     , xid :: B.C f Text
     , dateCreated :: B.C f LocalTime
-    , secondFactorId :: B.C f (Maybe Text)
+    , secondFactorId :: B.C f (Maybe Int)
     , gatewayAuthResData :: B.C f (Maybe Text)
     }
     deriving (Generic, B.Beamable)
 
 instance B.Table SecondFactorResponseT where
   data PrimaryKey SecondFactorResponseT f =
-    Id (B.C f (Maybe Text)) deriving (Generic, B.Beamable)
+    Id (B.C f (Maybe Int)) deriving (Generic, B.Beamable)
   primaryKey = Id . id
 
 type SecondFactorResponse = SecondFactorResponseT Identity

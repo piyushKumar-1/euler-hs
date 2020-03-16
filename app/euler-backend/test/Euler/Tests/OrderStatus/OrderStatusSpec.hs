@@ -236,7 +236,7 @@ query = OrderStatusQuery
 
 txnDetailJust :: Maybe D.TxnDetail
 txnDetailJust = Just D.TxnDetail
-  { id                       = D.TxnDetailId 100
+  { id                       = D.TxnDetailPId 100
   , version                  = 2
   , errorMessage             = Just "error"
   , orderId                  = "orderId"
@@ -292,7 +292,7 @@ mRisk = Just Risk
 
 txnCardInfo :: Maybe DB.TxnCardInfo
 txnCardInfo = Just DB.TxnCardInfo
-  { id = Just "txnCardInfo_id"
+  { id = Just 200
   , txnId = "txnId"
   , cardIsin = Just "cardIsin"
   , cardIssuerBankName = Just "cardIssuerBankName"
@@ -304,7 +304,7 @@ txnCardInfo = Just DB.TxnCardInfo
   , nameOnCard = Just "Ivanov"
   , cardFingerprint = Just "cardFingerprint"
   , cardReferenceId = Just "cardReferenceId"
-  , txnDetailId = Just "txnCardInfo_id"
+  , txnDetailId = Just 200
   , dateCreated = Just $ LocalTime (fromGregorian 2020 1 13) (TimeOfDay 12 43 0)
   , paymentMethodType = Just UPI
   , paymentMethod = Just "paymentMethod"

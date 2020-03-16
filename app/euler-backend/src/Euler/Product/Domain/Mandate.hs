@@ -14,13 +14,13 @@ import           Data.Time
 
 
 
-newtype MandateId = MandateId
-  { mandateId :: Int
+newtype MandatePId = MandatePId
+  { mandatePId :: Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data Mandate = Mandate
-  {  id                       :: MandateId
+  {  id                       :: MandatePId
   ,  merchantId               :: Text
   ,  endDate                  :: Maybe LocalTime
   ,  startDate                :: Maybe LocalTime

@@ -51,7 +51,7 @@ loadMandate orderPId merchId = do
 
 transformMandate :: S.Mandate -> V D.Mandate
 transformMandate r = D.Mandate
-  <$> (D.MandateId <$> withField @"id" r (extractJust >=> idMoreZero))
+  <$> (D.MandatePId <$> withField @"id" r (extractJust >=> notNegative))
   <*> withField @"merchantId" r textNotEmpty
   <*> withField @"endDate" r pure
   <*> withField @"startDate" r pure

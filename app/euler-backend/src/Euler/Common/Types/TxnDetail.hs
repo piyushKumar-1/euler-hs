@@ -58,5 +58,3 @@ txnStatusToInt CAPTURE_FAILED = 34
 txnStatusToInt VOID_FAILED = 35
 -- txnStatusToInt NEW = 10
 -- txnStatusToInt _ = -1
-
-type TxnDetailId = Text

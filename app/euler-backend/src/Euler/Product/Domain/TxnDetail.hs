@@ -12,13 +12,13 @@ import           Data.Generics.Product.Fields
 import           Data.Time
 
 
-newtype TxnDetailId = TxnDetailId
-  { txnDetail_id :: Int
+newtype TxnDetailPId = TxnDetailPId
+  { txnDetailPId :: Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data TxnDetail = TxnDetail
-  { id                       :: TxnDetailId
+  { id                       :: TxnDetailPId
   , version                  :: Int
   , errorMessage             :: Maybe Text
   , orderId                  :: Text

@@ -1,11 +1,12 @@
 module Euler.Storage.Repository.Order
   ( loadOrder
+  , loadOrderById
   , saveOrder
   , updateOrder
   )
   where
 
-import EulerHS.Prelude
+import EulerHS.Prelude hiding (id)
 
 import           Euler.Storage.DBConfig
 import           EulerHS.Language
@@ -24,6 +25,7 @@ import qualified Database.Beam as B
 import           Euler.Lens
 
 
+-- EHS findOrder would be more accurate
 loadOrder :: C.OrderId -> C.MerchantId -> Flow (Maybe D.Order)
 loadOrder orderId' merchantId' = do
     mbOrderRef <- withDB eulerDB $ do
@@ -46,6 +48,34 @@ loadOrder orderId' merchantId' = do
               <> " merchantId: " <> merchantId'
               <> " error: "      <> show e
             throwException Errs.internalError
+
+-- | Load an order by a surrogate ID value
+loadOrderById :: Int -> Flow (Maybe D.Order)
+loadOrderById id' = do
+  mbOrderRef <- withDB eulerDB $ do
+    let predicate DB.OrderReference {id} =
+          (id ==. B.just_ (B.val_ id'))
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (DB.order_reference DB.eulerDBSchema)
+  transOrder mbOrderRef
+
+transOrder :: Maybe DB.OrderReference -> Flow (Maybe D.Order)
+transOrder mbOrderRef = do
+  case mbOrderRef of
+    Nothing     -> pure Nothing
+    Just ordRef -> do
+      case SV.transSOrderToDOrder ordRef of
+        V.Success order -> pure $ Just order
+        V.Failure e     -> do
+          logError "Incorrect order in DB"
+            $  " id: "         <> (maybe "no value" show $ ordRef ^. _id)
+            <> " orderId: "    <> (fromMaybe "no value" $ ordRef ^. _orderId)
+            <> " merchantId: " <> (fromMaybe "no value" $ ordRef ^. _merchantId)
+            <> " error: "      <> show e
+          throwException Errs.internalError
 
 -- For compatibility with other backends, we should return types that we use together through Redis
 -- If the returned data is not expected to be saved to the Redis, then only domain type should be returned.

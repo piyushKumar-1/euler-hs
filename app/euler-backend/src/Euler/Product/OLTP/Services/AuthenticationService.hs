@@ -33,7 +33,12 @@ import qualified Database.Beam as B
 import Database.Beam ((==.), (&&.))
 
 
-withMacc :: forall req resp . (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp) -> RouteParameters -> req -> Flow resp
+withMacc
+  :: forall req resp .
+  (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp)
+   -> RouteParameters
+   -> req
+   -> Flow resp
 withMacc f rp req = do
   ma <- authenticateRequest rp
   f rp req ma

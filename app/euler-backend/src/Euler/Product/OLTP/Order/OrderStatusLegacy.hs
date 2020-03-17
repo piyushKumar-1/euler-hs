@@ -1138,7 +1138,7 @@ authenticateReqWithClientAuthToken ::
   -> RouteParameters
   -> BackendFlow SyncStatusState _ {merchantAccount :: MerchantAccount, isAuthenticated :: Boolean}
 authenticateReqWithClientAuthToken (OrderStatusRequest req) authToken headers = do
-  maybeAuthTokenData :: Maybe ClientAuthTokenData <- getCachedValEC authToken
+    maybeAuthTokenData :: Maybe ClientAuthTokenData <- getCachedValEC authToken
   case maybeAuthTokenData of
     Just authTokenData -> do
       _ <- updateAuthTokenUsage authToken authTokenData

@@ -17,3 +17,11 @@ data MerchantAccount = MerchantAccount
   , resellerId                :: Maybe ResellerId
   }
   deriving (Eq, Show, Ord, Generic)
+
+defaultMerchantAccount :: MerchantAccount
+defaultMerchantAccount = MerchantAccount
+  { id                    = 123
+  , merchantId            = "234"
+  , resellerId            = Nothing
+  , enableSendingCardIsin = Nothing
+  }

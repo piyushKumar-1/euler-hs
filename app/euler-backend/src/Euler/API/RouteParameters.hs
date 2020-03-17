@@ -26,6 +26,8 @@ module Euler.API.RouteParameters
   , XUserId(..)
   -- Source IP
   , SourceIP(..)
+  -- Client authentication token
+  , ClientAuthToken(..)
   -- Methods
   , collectRPs
   , emptyRPs
@@ -229,3 +231,10 @@ sockAddrToSourceIP sAddr =
       showHex h ""
     separator8 = showString ":"
     separator4 = "."
+
+-- Client authentication token
+newtype ClientAuthToken = ClientAuthToken Text
+  deriving (Eq, Show, Data, Typeable, RouteParameter)
+
+instance ToHttpApiData ClientAuthToken where toUrlPiece = coerce
+instance FromHttpApiData ClientAuthToken where parseUrlPiece = Right. coerce

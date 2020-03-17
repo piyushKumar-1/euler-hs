@@ -252,13 +252,13 @@ txns _ = do
   --       , Txn.params         = ""
   --       }
 
-type OrderStatusGetEndpoint
-  -- Route vals
-  = Capture "orderId" OrderId
-  -- Headers
+type OrderStatusGetEndpoint =
+     Capture "orderId" OrderId
+  -- EHS: use common constants for headers?
   :> Header "Authorization" Authorization
   :> Header "X-Auth-Scope" XAuthScope -- most likely this header is not used in order status
   :> Header "X-Forwarded-For" XForwardedFor
+  :> Header "client_auth_token" ClientAuthToken
   :> Get '[JSON] ApiOrder.OrderStatusResponse
 
 orderStatus ::
@@ -266,13 +266,15 @@ orderStatus ::
   -> Maybe Authorization
   -> Maybe XAuthScope
   -> Maybe XForwardedFor
+  -> Maybe ClientAuthToken
   -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor = do
+orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken = do
   let rps = collectRPs
               --orderId -- is it really needed?
               mbAuth
               mbXAuthScope
               mbXForwarderFor
+              mbClientAuthToken
 
   status <- runFlow "orderStatusById" rps noReqBodyJSON  -- FIXME is noReqBodyJSON appropriate here?
         $ AS.withMacc OrderStatus.handleByOrderId orderId rps

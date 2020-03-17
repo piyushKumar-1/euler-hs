@@ -544,3 +544,23 @@ txnOfferNotFound txnId = ECErrorResponse
       , error_code = Nothing
       }
   }
+
+authTokenNotFound :: ErrorResponse
+authTokenNotFound = ErrorResponse
+  { code = 403
+  , response = ErrorPayload
+      { error_message = "auth token not found in request"
+      , userMessage = "auth token not found in request"
+      , error = True
+      }
+  }
+
+noMerchantAccountForToken :: ErrorResponse
+noMerchantAccountForToken = ErrorResponse
+  { code = 403
+  , response = ErrorPayload
+      { error_message = "Can't load merchant for token from cache"
+      , userMessage = "Can't load merchant for token from cache"
+      , error = True
+      }
+  }

@@ -27,6 +27,7 @@ data TokenizedResource = TokenizedResource
   deriving (Generic, Eq, Show, ToJSON, FromJSON)
 
 -- EHS: rework
+-- EHS: rename, this has nothing to do with tokenizing
 tokenizeResource :: ResourceType -> Text -> Text -> Flow TokenizedResource
 tokenizeResource resourceId resourceType merchantId = do
   token'      <- ("tkn_" <>) <$> getUUID32

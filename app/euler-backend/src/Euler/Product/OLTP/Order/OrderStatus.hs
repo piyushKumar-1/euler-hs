@@ -61,6 +61,9 @@ import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
+-- EHS: this dep should be moved somewhere. Additional business logic for KV DB
+import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
+
 import qualified Euler.Product.Domain as D
 
 import           Euler.Product.OLTP.Card.Card
@@ -133,11 +136,12 @@ handleByOrderId orderId rps merchantAccount  = do
 
   response <- execOrderStatusQuery query
 
-  pure $ mapLeft (const FlowError) response
+  pure $ mapLeft (const FlowError) response where
 
 
 getSendFullGatewayResponse :: RouteParameters -> Bool
 getSendFullGatewayResponse routeParams =
+  -- EHS: magic constants
   case Map.lookup "options.add_full_gateway_response" (unRP routeParams) of
     Nothing  -> False
     Just str -> str == "1" || T.map toLower str == "true"

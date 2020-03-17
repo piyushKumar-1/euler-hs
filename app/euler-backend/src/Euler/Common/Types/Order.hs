@@ -141,13 +141,13 @@ data OrderTokenExpiryData = OrderTokenExpiryData
   }
   deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
 
-defaultOrderTokenExpiryData :: OrderTokenExpiryData
-defaultOrderTokenExpiryData = OrderTokenExpiryData
-  { expiryInSeconds       = 0 -- :: Int
-  , tokenMaxUsage         = 0 -- :: Int
-  , orderToken            = Nothing -- :: Maybe Text
-  , currentDateWithExpiry = Nothing -- :: Maybe Text
-  }
+--defaultOrderTokenExpiryData :: OrderTokenExpiryData
+--defaultOrderTokenExpiryData = OrderTokenExpiryData
+--  { expiryInSeconds       = 0 -- :: Int
+--  , tokenMaxUsage         = 0 -- :: Int
+--  , orderToken            = Nothing -- :: Maybe Text
+--  , currentDateWithExpiry = Nothing -- :: Maybe Text
+--  }
 
 -- EHS: use Money.
 -- EHS: use newtypes.

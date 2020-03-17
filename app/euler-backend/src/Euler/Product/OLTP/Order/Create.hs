@@ -15,6 +15,9 @@ import           Data.Generics.Product.Subtype
 import           Servant.Server (errBody, err400)
 import qualified EulerHS.Extra.Validation as V
 
+-- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
+--import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
+
 import           EulerHS.Language
 import           WebService.Language
 
@@ -94,7 +97,37 @@ doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order
   makeOrderResponse cfg order mAccnt mbReseller
 
 
+-- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
+--      Why this cache exist? What it does?
+updateOrderCache :: D.Order -> Flow ()
+updateOrderCache order = do
+  let orderId    = order ^. _orderId
+  let merchantId = order ^. _merchantId
+  -- EHS: magic constant.
+  void $ rSetex (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
+-- EHS: previously setMandateInCache
+-- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
+--      In the previous code, we're expecting max amount to be set even if mandate is DISABLED.
+--      It's not clear whether this a valid behaviour (seems not).
+-- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
+--      Why this cache exist? What it does?
+updateMandateCache :: D.Order -> Flow ()
+updateMandateCache order = case order ^. _mandate of
+    D.MandateDisabled           -> pure ()
+    D.MandateRequired maxAmount -> updateMandateCache' maxAmount
+    D.MandateOptional maxAmount -> updateMandateCache' maxAmount
+    -- EHS: Need to do something with this. Pass mandate from OrderCreateTemplate
+    -- and use in domain Order simple madate type (without maxAmount value)?
+    D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
+    D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
+  where
+    updateMandateCache' ma = do
+        let merchantId = order ^. _merchantId
+        let orderId    = order ^. _orderId
+        mandate <- createMandate order ma
+        -- EHS: magic constant
+        void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
 
 -- EHS: previously isMandateOrder

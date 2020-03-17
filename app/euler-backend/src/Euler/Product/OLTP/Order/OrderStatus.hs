@@ -51,8 +51,7 @@ import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.Mandate as Mandate
 import           Euler.Common.Types.Merchant
 import           Euler.Common.Types.Money
-import           Euler.Common.Types.Order (OrderId, OrderTokenExpiryData (..),
-                                           defaultOrderTokenExpiryData)
+import           Euler.Common.Types.Order (OrderId)
 import qualified Euler.Common.Types.Order as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.Promotion
@@ -62,7 +61,7 @@ import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
 -- EHS: this dep should be moved somewhere. Additional business logic for KV DB
-import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
+--import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
 
 import qualified Euler.Product.Domain as D
 

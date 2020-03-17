@@ -34,8 +34,8 @@ import Euler.Storage.Types.OrderMetadataV2
 import Euler.Storage.Types.OrderReference
 import Euler.Storage.Types.ResellerAccount
 
-import Euler.KVDB.Redis (rGet, setCacheWithExpiry)
-import Euler.Storage.Types.EulerDB
+--import           Euler.KVDB.Redis (rGet, setCacheWithExpiry)
+import           Euler.Storage.Types.EulerDB
 
 import qualified Prelude              as P (show, notElem)
 import qualified Data.Aeson           as A
@@ -384,7 +384,7 @@ createOrder' orderCreateReq routeParams mAccnt@MerchantAccount{..} isMandate = d
         $ B.insertExpressions [ B.val_ defaultMetaData]
   -- pure () -- createWithErr ecDB (defaultMetaData) internalError
   orderId <- maybe (throwException err500 {errBody = "9"}) pure (getField @"orderId"  orderRef)
-  _ <- setCacheWithExpiry (merchantId' <> "_orderid_" <> orderId) orderRef Config.orderTtl
+  _ <- rSetex (merchantId' <> "_orderid_" <> orderId) orderRef Config.orderTtl
   _ <- when isMandate (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId')
   --skipIfB (setMandateInCache orderCreateReq orderIdPrimary orderId merchantId') (not isMandate)
   pure orderRef
@@ -682,7 +682,7 @@ setMandateInCache req@OrderCreateRequest{..} orderIdPrimary orderId merchantId =
   maxAmount  <- extractMandatory mandate_max_amount
   maxAmountNum  <- fromStringToNumber maxAmount
   defaultMandateData <- mkMandatedata merchantId req orderIdPrimary maxAmountNum
-  _ <- setCacheWithExpiry (merchantId <> "_mandate_data_" <> orderId)
+  _ <- rSetex (merchantId <> "_mandate_data_" <> orderId)
       defaultMandateData Config.mandateTtl
   pure ()
 

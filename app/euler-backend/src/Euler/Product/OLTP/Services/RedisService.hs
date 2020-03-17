@@ -12,6 +12,9 @@ import           WebService.Language
 
 import Euler.Config.ServiceConfiguration (TokenExpiryData(..), ResourceType(..))
 
+--
+--import Euler.KVDB.Redis
+
 import qualified Data.Aeson           as A
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map             as Map

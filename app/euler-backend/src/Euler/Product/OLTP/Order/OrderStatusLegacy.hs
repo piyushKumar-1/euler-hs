@@ -50,8 +50,7 @@ import           Euler.Common.Types.External.Mandate as Mandate
 import           Euler.Common.Types.Gateway as G
 import           Euler.Common.Types.Merchant
 import           Euler.Common.Types.Money
-import           Euler.Common.Types.Order (OrderId, OrderTokenExpiryData (..),
-                                           defaultOrderTokenExpiryData)
+import           Euler.Common.Types.Order (OrderId, OrderTokenExpiryData (..))
 import qualified Euler.Common.Types as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.Promotion
@@ -4515,6 +4514,7 @@ getTokenExpiryData = do
     Nothing -> pure $ defaultTokenData
 -}
 
+{-
 getTokenExpiryData :: Flow OrderTokenExpiryData
 getTokenExpiryData = do
   orderToken <- T.append "tkn_" <$> getUUID32
@@ -4546,7 +4546,7 @@ getTokenExpiryData = do
           , tokenMaxUsage = getField @"tokenMaxUsage" decodedVal
           }
     Nothing -> pure defaultOrderTokenExpiryData
-
+-}
 
 -- ----------------------------------------------------------------------------
 -- function: getAxisUpiTxnIdFromPgr

@@ -6,6 +6,7 @@ import Euler.Product.Domain.Card                  as X
 import Euler.Product.Domain.CardPayment           as X
 import Euler.Product.Domain.Chargeback            as X
 import Euler.Product.Domain.Customer              as X
+import Euler.Product.Domain.Feature               as X
 import Euler.Product.Domain.Mandate               as X
 import Euler.Product.Domain.MerchantAccount       as X
 import Euler.Product.Domain.NBPayment             as X

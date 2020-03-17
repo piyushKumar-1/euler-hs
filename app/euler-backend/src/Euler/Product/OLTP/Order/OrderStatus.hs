@@ -742,7 +742,7 @@ getGatewayReferenceId2
   -> C.MerchantId
   -> Flow Text
 getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
-  let checkGateway = checkGatewayRefIdForVodafone2 merchantId udf2 gateway
+  let checkGateway = checkGatewayRefIdForVodafone merchantId udf2 gateway
   let gatewayT = maybe "" show gateway
 
   ordMeta <- loadOrderMetadataV2 orderPId
@@ -763,22 +763,14 @@ getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
                 Nothing -> checkGateway
 
 
-checkGatewayRefIdForVodafone2
+checkGatewayRefIdForVodafone
   :: C.MerchantId
   -> Maybe Text
   -> Maybe Gateway
   -> Flow Text
-checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
+checkGatewayRefIdForVodafone merchantId udf2 gateway = do
 
-  meybeFeature <- withDB eulerDB $ do
-    let predicate DB.Feature {name, merchantId} =
-          name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
-          &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.feature DB.eulerDBSchema)
+  meybeFeature <- loadFeature merchantId
 
   case meybeFeature of
     Just feature ->

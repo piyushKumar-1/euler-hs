@@ -2416,7 +2416,7 @@ getGatewayReferenceId2
   -> C.MerchantId
   -> Flow Text
 getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
-  let checkGateway = checkGatewayRefIdForVodafone2 merchantId udf2 gateway
+  let checkGateway = checkGatewayRefIdForVodafone merchantId udf2 gateway
   let gatewayT = maybe "" show gateway
 
   ordMeta <- loadOrderMetadataV2 orderPId
@@ -2442,53 +2442,45 @@ getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
 -- done
 -- ----------------------------------------------------------------------------
 
-checkGatewayRefIdForVodafone :: OrderReference -> TxnDetail -> Flow Text
-checkGatewayRefIdForVodafone ordRef txn = do
-  merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500) -- ordRef .^. _merchantId
+-- checkGatewayRefIdForVodafone :: OrderReference -> TxnDetail -> Flow Text
+-- checkGatewayRefIdForVodafone ordRef txn = do
+  -- merchantId' <- whenNothing (getField @"merchantId" ordRef) (throwException err500) -- ordRef .^. _merchantId
 
-  meybeFeature <- withDB eulerDB $ do
-    let predicate Feature {name, merchantId} =
-          name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
-          &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.feature eulerDBSchema)
-
-
-  case meybeFeature of
-    Just feature ->
-        if ((fromMaybe "" $ getField @"gateway" txn) == "HSBC_UPI")
-            && (getField @"enabled" feature)
-            && (isJust $ getField @"udf2" ordRef)
-        then pure $ fromMaybe "" $ getField @"udf2" ordRef
-        else pure mempty -- nullValue unit
-    Nothing -> pure mempty -- nullValue unit
+  -- meybeFeature <- withDB eulerDB $ do
+  --   let predicate Feature {name, merchantId} =
+  --         name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
+  --         &&. merchantId ==. B.just_ (B.val_ merchantId')
+  --   findRow
+  --     $ B.select
+  --     $ B.limit_ 1
+  --     $ B.filter_ predicate
+  --     $ B.all_ (DB.feature eulerDBSchema)
 
 
--- EHS: Partly refactored
-checkGatewayRefIdForVodafone2
+  -- case meybeFeature of
+  --   Just feature ->
+  --       if ((fromMaybe "" $ getField @"gateway" txn) == "HSBC_UPI")
+  --           && (getField @"enabled" feature)
+  --           && (isJust $ getField @"udf2" ordRef)
+  --       then pure $ fromMaybe "" $ getField @"udf2" ordRef
+  --       else pure mempty -- nullValue unit
+  --   Nothing -> pure mempty -- nullValue unit
+
+
+
+checkGatewayRefIdForVodafone
   :: C.MerchantId
   -> Maybe Text
   -> Maybe Gateway
   -> Flow Text
-checkGatewayRefIdForVodafone2 merchantId' udf2 gateway = do
+checkGatewayRefIdForVodafone merchantId udf2 gateway = do
 
-  meybeFeature <- withDB eulerDB $ do
-    let predicate DB.Feature {name, merchantId} =
-          name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
-          &&. merchantId ==. B.just_ (B.val_ merchantId')
-    findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (DB.feature DB.eulerDBSchema)
+  meybeFeature <- loadFeature merchantId
 
   case meybeFeature of
     Just feature ->
         if (gateway == Just HSBC_UPI)
-            && (getField @"enabled" feature)
+            && (feature ^. _enabled)
             && (isJust udf2)
         then pure $ fromMaybe "" udf2
         else pure mempty

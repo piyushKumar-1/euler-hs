@@ -3,7 +3,10 @@ module Euler.Storage.Repository
   )
   where
 
+import Euler.Storage.Repository.Chargeback                as X
 import Euler.Storage.Repository.Customer                  as X
+import Euler.Storage.Repository.Feature                   as X
+import Euler.Storage.Repository.Mandate                   as X
 import Euler.Storage.Repository.MerchantIframePreferences as X
 import Euler.Storage.Repository.MerchantAccount           as X
 import Euler.Storage.Repository.Order                     as X

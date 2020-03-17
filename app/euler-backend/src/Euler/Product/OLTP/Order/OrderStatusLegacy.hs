@@ -81,11 +81,11 @@ import           Euler.Storage.DBConfig
 -- Legenda EHS
 -- porting statistics:
 -- to port '-- TODO port' - 16
--- to update '-- TODO update' - 13
--- completed '-- done' - 38
+-- to update '-- TODO update' - 12
+-- completed '-- done' - 39
 -- total number of functions = 67
 --
--- refactored '-- refactored' - 14
+-- refactored '-- refactored' - 15
 -- to check '-- TODO check' - 1
 --
 -- EPS -- comments from PureScript version
@@ -264,6 +264,7 @@ execOrderStatusQuery query = do
   let orderType = order ^. _orderType
   let orderPId = order ^. _id
   let udf2 = (order ^. _udf) ^. _udf2
+  let orderReturnUrl = order ^. _returnUrl
 
   links <- getPaymentLinks resellerId orderUuid
 
@@ -296,7 +297,7 @@ execOrderStatusQuery query = do
     Just (card :: D.TxnCardInfo) ->
       getCardBrandFromIsin (fromMaybe "" $ getField @"cardIsin" card)
 
-  returnUrl <- getReturnUrl order
+  mReturnUrl <- getReturnUrl merchantId orderReturnUrl
 
   paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
@@ -321,7 +322,7 @@ execOrderStatusQuery query = do
     mCardBrand
     mRefunds'
     mChargeback'
-    returnUrl
+    mReturnUrl
     paymentMethodsAndTypes
     txnFlowInfoAndMerchantSFR
     mMerchantPgr
@@ -413,7 +414,7 @@ makeOrderStatusResponse
   -> Maybe Text -- CardBrand
   -> Maybe [Refund']
   -> Maybe [Chargeback']
-  -> Text
+  -> Maybe Text -- returnUrl
   -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -> (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
   -> Maybe MerchantPaymentGatewayResponse
@@ -432,7 +433,7 @@ makeOrderStatusResponse
   mCardBrand
   mRefunds
   mChargebacks
-  returnUrl
+  mReturnUrl
   paymentMethodsAndTypes
   (txnFlowInfo, merchantSFR)
   mMerchantPgr
@@ -545,7 +546,7 @@ makeOrderStatusResponse
     <<= changeUtf3 ((order ^. _udf) ^. _udf3)
     <<= changeUtf2 ((order ^. _udf) ^. _udf2)
     <<= changeUtf1 ((order ^. _udf) ^. _udf1)
-    <<= changeReturnUrl returnUrl
+    <<= changeReturnUrl mReturnUrl
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
     <<= changeDateCreated (show $ getField @"dateCreated" order)
@@ -614,8 +615,8 @@ changeCustomerEmail customerEmail builder = builder $ mempty {customer_emailT = 
 changeCustomerPhone :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = map Last customerPhone}
 
-changeReturnUrl :: Text -> ResponseBuilder -> OrderStatusResponse
-changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = Just $ Last returnUrl}
+changeReturnUrl :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = fmap Last returnUrl}
 
 changeUtf1 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeUtf1 utf1 builder = builder $ mempty {udf1T = map Last utf1}
@@ -1979,7 +1980,8 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 
 -- ----------------------------------------------------------------------------
 -- function: getReturnUrl
--- TODO update
+-- done
+-- refactored
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1997,43 +1999,54 @@ getReturnUrl orderRef includeParams = do
     Nothing -> pure $ ""
 -}
 
-getReturnUrl ::  D.Order -> Flow Text
-getReturnUrl order = do
-  conn <- getConn eulerDB
-  merchantAccount <- do
-    res <- runDB conn $ do
-      let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ order ^. _merchantId)
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (DB.merchant_account DB.eulerDBSchema)
-    case res of
-      Right mMAcc -> pure mMAcc
-      Left err -> do
-        logError "Find MerchantAccount" $ toText $ P.show err
-        throwException err500
+-- getReturnUrl ::  D.Order -> Flow Text
+-- getReturnUrl order = do
+--   conn <- getConn eulerDB
+--   merchantAccount <- do
+--     res <- runDB conn $ do
+--       let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ order ^. _merchantId)
+--       findRow
+--         $ B.select
+--         $ B.limit_ 1
+--         $ B.filter_ predicate
+--         $ B.all_ (DB.merchant_account DB.eulerDBSchema)
+--     case res of
+--       Right mMAcc -> pure mMAcc
+--       Left err -> do
+--         logError "Find MerchantAccount" $ toText $ P.show err
+--         throwException err500
+--   case merchantAccount of
+--     Just merchantAcc -> do
+--           merchantIframePreferences <- do
+--             res <- runDB conn $ do
+--               let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
+--               findRow
+--                 $ B.select
+--                 $ B.limit_ 1
+--                 $ B.filter_ predicate
+--                 $ B.all_ (DB.merchant_iframe_preferences DB.eulerDBSchema)
+--             case res of
+--               Right mMIP -> pure mMIP
+--               Left err -> do
+--                 logError "SQLDB Interraction." $ toText $ P.show err
+--                 throwException err500
+--           let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
+--               orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" order )
+--           if (orderRefReturnUrl == "")
+--             then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc )
+--             else pure orderRefReturnUrl
+--     Nothing -> pure $ ""
+
+-- refactored
+getReturnUrl :: MerchantId -> Maybe Text -> Flow (Maybe Text)
+getReturnUrl merchantIdOrder returnUrlOrder = do
+  merchantAccount <- loadMerchantByMerchantId merchantIdOrder
   case merchantAccount of
+    Nothing -> pure Nothing
     Just merchantAcc -> do
-          merchantIframePreferences <- do
-            res <- runDB conn $ do
-              let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
-              findRow
-                $ B.select
-                $ B.limit_ 1
-                $ B.filter_ predicate
-                $ B.all_ (DB.merchant_iframe_preferences DB.eulerDBSchema)
-            case res of
-              Right mMIP -> pure mMIP
-              Left err -> do
-                logError "SQLDB Interraction." $ toText $ P.show err
-                throwException err500
-          let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
-              orderRefReturnUrl       = fromMaybe "" (getField @"returnUrl" order )
-          if (orderRefReturnUrl == "")
-            then pure $ fromMaybe merchantIframeReturnUrl (getField @"returnUrl" merchantAcc )
-            else pure orderRefReturnUrl
-    Nothing -> pure $ ""
+      merchantIframePreferences <- loadMerchantPrefsMaybe (merchantAcc ^. _merchantId)
+      let merchantIframeReturnUrl = (^. _returnUrl) =<< merchantIframePreferences
+      pure $ returnUrlOrder <|> (merchantAcc ^. _returnUrl ) <|> merchantIframeReturnUrl
 
 -- ----------------------------------------------------------------------------
 -- function: getChargedTxn

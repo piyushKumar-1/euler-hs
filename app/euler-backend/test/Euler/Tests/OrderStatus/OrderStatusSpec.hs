@@ -187,8 +187,8 @@ payerVpa = Just "payer_vpa"
 payerAppName :: Maybe Text
 payerAppName = Just "payer_app_name"
 
-returnUrlGoogle :: Text
-returnUrlGoogle = "http://google.ru"
+returnUrlGoogle :: Maybe Text
+returnUrlGoogle = Just "http://google.ru"
 
 paymentlinks :: Paymentlinks
 paymentlinks = Paymentlinks

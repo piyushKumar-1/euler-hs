@@ -170,6 +170,7 @@ execOrderStatusQuery query = do
   let orderType = order ^. _orderType
   let orderPId = order ^. _id
   let udf2 = (order ^. _udf) ^. _udf2
+  let orderReturnUrl = order ^. _returnUrl
 
   links <- getPaymentLinks resellerId orderUuid
 
@@ -202,7 +203,7 @@ execOrderStatusQuery query = do
     Just (card :: D.TxnCardInfo) ->
       getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
 
-  returnUrl <- getReturnUrl order
+  mReturnUrl <- getReturnUrl merchantId orderReturnUrl
 
   paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
@@ -227,7 +228,7 @@ execOrderStatusQuery query = do
     mCardBrand
     mRefunds'
     mChargeback'
-    returnUrl
+    mReturnUrl
     paymentMethodsAndTypes
     txnFlowInfoAndMerchantSFR
     mMerchantPgr
@@ -308,7 +309,7 @@ makeOrderStatusResponse
   -> Maybe Text
   -> Maybe [Refund']
   -> Maybe [Chargeback']
-  -> Text
+  -> Maybe Text -- returnUrl
   -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -> (Maybe TxnFlowInfo, Maybe MerchantSecondFactorResponse)
   -> Maybe MerchantPaymentGatewayResponse
@@ -326,7 +327,7 @@ makeOrderStatusResponse
   mCardBrand
   mRefunds
   mChargebacks
-  returnUrl
+  mReturnUrl
   paymentMethodsAndTypes
   (txnFlowInfo, merchantSFR)
   mMerchantPgr
@@ -422,7 +423,7 @@ makeOrderStatusResponse
     <<= changeUtf3 ((order ^. _udf) ^. _udf3)
     <<= changeUtf2 ((order ^. _udf) ^. _udf2)
     <<= changeUtf1 ((order ^. _udf) ^. _udf1)
-    <<= changeReturnUrl returnUrl
+    <<= changeReturnUrl mReturnUrl
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
     <<= changeDateCreated (show $ order ^. _dateCreated)
@@ -481,8 +482,8 @@ changeCustomerEmail customerEmail builder = builder $ mempty {customer_emailT = 
 changeCustomerPhone :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = map Last customerPhone}
 
-changeReturnUrl :: Text -> ResponseBuilder -> OrderStatusResponse
-changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = Just $ Last returnUrl}
+changeReturnUrl :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
+changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = fmap Last returnUrl}
 
 changeUtf1 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeUtf1 utf1 builder = builder $ mempty {udf1T = map Last utf1}
@@ -666,23 +667,15 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     protocol = config ^. _protocol
     host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
 
-getReturnUrl ::  D.Order -> Flow Text
-getReturnUrl order = do
-  let merchIdOrder = order ^. _merchantId
-  merchantAccount <- loadMerchantByMerchantId merchIdOrder
+getReturnUrl :: MerchantId -> Maybe Text -> Flow (Maybe Text)
+getReturnUrl merchantIdOrder returnUrlOrder = do
+  merchantAccount <- loadMerchantByMerchantId merchantIdOrder
   case merchantAccount of
-    Nothing -> pure ""
+    Nothing -> pure Nothing
     Just merchantAcc -> do
-      merchantIframePreferences <-
-        let merchIdMA = merchantAcc ^. _merchantId
-        case merchId of
-          Nothing -> pure Nothing
-          Just merchantId -> loadMerchantPrefs merchantId
-      let merchantIframeReturnUrl = fromMaybe "" ((^. _returnUrl) =<< merchantIframePreferences)
-          orderRefReturnUrl       = fromMaybe "" (order ^. _returnUrl)
-      if (orderRefReturnUrl == "")
-        then pure $ fromMaybe merchantIframeReturnUrl (merchantAcc ^. _returnUrl )
-        else pure orderRefReturnUrl
+      merchantIframePreferences <- loadMerchantPrefsMaybe (merchantAcc ^. _merchantId)
+      let merchantIframeReturnUrl = (^. _returnUrl) =<< merchantIframePreferences
+      pure $ returnUrlOrder <|> (merchantAcc ^. _returnUrl ) <|> merchantIframeReturnUrl
 
 
 getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe Promotion')

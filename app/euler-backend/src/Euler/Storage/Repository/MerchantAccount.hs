@@ -1,23 +1,24 @@
 module Euler.Storage.Repository.MerchantAccount
   ( loadMerchantById
+  , loadMerchantByMerchantId
   )
   where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import           Euler.Storage.DBConfig
+import qualified EulerHS.Extra.Validation as V hiding (transform)
 import           EulerHS.Language
 import           WebService.Language
-import qualified EulerHS.Extra.Validation                  as V hiding (transform)
 
-import qualified Euler.Common.Errors.PredefinedErrors     as Errs
-import qualified Euler.Common.Types                        as C
-import qualified Euler.Product.Domain.MerchantAccount     as D
-import qualified Euler.Storage.Types                       as DB
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Common.Types as C
+import           Euler.Common.Types.Merchant (MerchantId)
+import qualified Euler.Product.Domain.MerchantAccount as D
+import qualified Euler.Storage.Types as DB
 import qualified Euler.Storage.Validators.MerchantAccount as SV
-import Euler.Common.Types.Merchant (MerchantId)
 
-import           Database.Beam ((==.), (&&.), (<-.))
+import           Database.Beam ((&&.), (<-.), (==.))
 import qualified Database.Beam as B
 import           Euler.Lens
 

@@ -1,5 +1,6 @@
 module Euler.Storage.Repository.MerchantIframePreferences
   ( loadMerchantPrefs
+  , loadMerchantPrefsMaybe
   )
   where
 
@@ -35,3 +36,12 @@ loadMerchantPrefs merchantId' = do
     Nothing -> do
       logError @Text "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
       throwException Errs.internalError    -- EHS: error should be specified.
+
+loadMerchantPrefsMaybe :: C.MerchantId -> Flow (Maybe DB.MerchantIframePreferences)
+loadMerchantPrefsMaybe merchantId' = withDB eulerDB $ do
+    let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (DB.merchant_iframe_preferences DB.eulerDBSchema)

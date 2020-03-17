@@ -15,3 +15,12 @@ transSMaccToDomMacc sm = DM.MerchantAccount
     <$> withField @"id" sm (extractJust >=> notNegative)
     <*> withField @"merchantId" sm (extractJust >=> textNotEmpty)
     <*> withField @"resellerId" sm (insideJust textNotEmpty)
+    <*> withField @"enableSendingCardIsin" sm pure
+    <*> withField @"returnUrl" sm pure
+
+
+notNegative :: Validator Int
+notNegative = mkValidator "Should not be negative." (>= 0)
+
+textNotEmpty :: Validator Text
+textNotEmpty = mkValidator "can't be empty" (not . T.null)

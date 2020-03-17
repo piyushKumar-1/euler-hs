@@ -77,7 +77,7 @@ getMerchantAccountForAuthToken ClientAuthTokenData {..} = do
           logError ("AuthTokenService" :: Text) ("No auth token data found in cache")
           throwException Errs.authTokenNotFound
         Just order -> do
-          Rep.loadMerchant $ read $ Text.unpack $ order ^. _merchantId
+          Rep.loadMerchantById $ read $ Text.unpack $ order ^. _merchantId
 
 
     -- EHS: rework

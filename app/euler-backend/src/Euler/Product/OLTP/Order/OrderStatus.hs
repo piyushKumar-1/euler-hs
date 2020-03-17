@@ -668,41 +668,21 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 
 getReturnUrl ::  D.Order -> Flow Text
 getReturnUrl order = do
-  conn <- getConn eulerDB
-  merchantAccount <- do
-    res <- runDB conn $ do
-      let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ $ order ^. _merchantId)
-      findRow
-        $ B.select
-        $ B.limit_ 1
-        $ B.filter_ predicate
-        $ B.all_ (DB.merchant_account DB.eulerDBSchema)
-    case res of
-      Right mMAcc -> pure mMAcc
-      Left err -> do
-        logError "Find MerchantAccount" $ toText $ P.show err
-        throwException err500
+  let merchIdOrder = order ^. _merchantId
+  merchantAccount <- loadMerchantByMerchantId merchIdOrder
   case merchantAccount of
+    Nothing -> pure ""
     Just merchantAcc -> do
-          merchantIframePreferences <- do
-            res <- runDB conn $ do
-              let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ $ fromMaybe "" $ merchantAcc ^. _merchantId)
-              findRow
-                $ B.select
-                $ B.limit_ 1
-                $ B.filter_ predicate
-                $ B.all_ (DB.merchant_iframe_preferences DB.eulerDBSchema)
-            case res of
-              Right mMIP -> pure mMIP
-              Left err -> do
-                logError "SQLDB Interraction." $ toText $ P.show err
-                throwException err500
-          let merchantIframeReturnUrl = fromMaybe "" ((^. _returnUrl) =<< merchantIframePreferences)
-              orderRefReturnUrl       = fromMaybe "" (order ^. _returnUrl)
-          if (orderRefReturnUrl == "")
-            then pure $ fromMaybe merchantIframeReturnUrl (merchantAcc ^. _returnUrl )
-            else pure orderRefReturnUrl
-    Nothing -> pure $ ""
+      merchantIframePreferences <-
+        let merchIdMA = merchantAcc ^. _merchantId
+        case merchId of
+          Nothing -> pure Nothing
+          Just merchantId -> loadMerchantPrefs merchantId
+      let merchantIframeReturnUrl = fromMaybe "" ((^. _returnUrl) =<< merchantIframePreferences)
+          orderRefReturnUrl       = fromMaybe "" (order ^. _returnUrl)
+      if (orderRefReturnUrl == "")
+        then pure $ fromMaybe merchantIframeReturnUrl (merchantAcc ^. _returnUrl )
+        else pure orderRefReturnUrl
 
 
 getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe Promotion')

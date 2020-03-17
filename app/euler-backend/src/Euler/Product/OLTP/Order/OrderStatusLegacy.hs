@@ -81,8 +81,8 @@ import           Euler.Storage.DBConfig
 -- Legenda EHS
 -- porting statistics:
 -- to port '-- TODO port' - 16
--- to update '-- TODO update' - 14
--- completed '-- done' - 37
+-- to update '-- TODO update' - 13
+-- completed '-- done' - 38
 -- total number of functions = 67
 --
 -- refactored '-- refactored' - 14
@@ -1439,7 +1439,8 @@ getCachedResp key = do
 
 -- ----------------------------------------------------------------------------
 -- function: getOrdStatusResp
--- TODO update
+-- done
+-- loadOrder used instead of getOrderReference
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1494,8 +1495,7 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
 --  * addChargeBacks
 --  * addGatewayResponse
 
--- EHS: TODO Можно использовать Сашину функцию, или в репозиторий
--- TODO naming (load)
+-- loadOrder used instead of getOrderReference
 getOrderReference
   :: OrderStatusQuery
   -- :: OrderStatusRequest
@@ -1576,7 +1576,7 @@ getOrderReference query = do
 -- ----------------------------------------------------------------------------
 -- function: getTxnFromTxnUuid
 -- done
--- refactored
+-- refactored to findTxnByOrderIdMerchantIdTxnuuidId
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1594,6 +1594,7 @@ getTxnFromTxnUuid order maybeTxnUuid = do
 -}
 
 -- refactored to findTxnByOrderIdMerchantIdTxnuuidId
+
 -- getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe D.TxnDetail)
 -- getTxnFromTxnUuid order maybeTxnUuid = do
 --   -- EHS: TODO should we throw exceptions?

@@ -17,6 +17,9 @@ import           Servant.Server
 import           WebService.Language
 
 
+--
+--import Euler.KVDB.Redis
+
 import qualified Data.Aeson           as A
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map             as Map

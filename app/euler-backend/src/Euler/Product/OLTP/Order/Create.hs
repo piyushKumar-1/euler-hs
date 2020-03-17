@@ -18,6 +18,9 @@ import           Servant.Server (err400, errBody)
 -- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
 --import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
 
+-- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
+--import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
+
 import           EulerHS.Language
 import           WebService.Language
 
@@ -110,22 +113,22 @@ updateOrderCache order = do
 --      It's not clear whether this a valid behaviour (seems not).
 -- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
 --      Why this cache exist? What it does?
--- updateMandateCache :: D.Order -> Flow ()
--- updateMandateCache order = case order ^. _mandate of
---     D.MandateDisabled           -> pure ()
---     D.MandateRequired maxAmount -> updateMandateCache' maxAmount
---     D.MandateOptional maxAmount -> updateMandateCache' яmaxAmount
---     -- EHS: Need to do something with this. Pass mandate from OrderCreateTemplate
---     -- and use in domain Order simple madate type (without maxAmount value)?
---     -- D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
---     -- D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
---   where
---     updateMandateCache' ma = do
---         let merchantId = order ^. _merchantId
---         let orderId    = order ^. _orderId
---         mandate <- M.createMandate order ma
---         -- EHS: magic constant
---         void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
+updateMandateCache :: D.Order -> Flow ()
+updateMandateCache order = case order ^. _mandate of
+    D.MandateDisabled           -> pure ()
+    D.MandateRequired maxAmount -> updateMandateCache' maxAmount
+    D.MandateOptional maxAmount -> updateMandateCache' maxAmount
+    -- EHS: Need to do something with this. Pass mandate from OrderCreateTemplate
+    -- and use in domain Order simple madate type (without maxAmount value)?
+    D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
+    D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
+  where
+    updateMandateCache' ma = do
+        let merchantId = order ^. _merchantId
+        let orderId    = order ^. _orderId
+        mandate <- createMandate order ma
+        -- EHS: magic constant
+        void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
 
 -- EHS: previously isMandateOrder

@@ -3372,6 +3372,7 @@ getTokenExpiryData = do
     Nothing -> pure $ defaultTokenData
 -}
 
+{-
 getTokenExpiryData :: Flow OrderTokenExpiryData
 getTokenExpiryData = undefined
 {- EHS: legacy

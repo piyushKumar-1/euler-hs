@@ -1,5 +1,6 @@
 module Euler.Encryption
   ( Key (..)
+  , EncryptionError (..)
   , decryptEcb
   , encryptEcb
   , decryptRSAOAEP

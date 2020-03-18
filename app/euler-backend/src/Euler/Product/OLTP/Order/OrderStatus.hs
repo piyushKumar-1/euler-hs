@@ -659,8 +659,8 @@ createPaymentLinks
   -> Flow Paymentlinks
 createPaymentLinks orderUuid maybeResellerEndpoint = do
   config <- runIO getECRConfig
-  let protocol = getField @"protocol" config
-  let host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
+  let protocol = config ^. _protocol
+  let host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
   pure Paymentlinks
     { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
     , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"

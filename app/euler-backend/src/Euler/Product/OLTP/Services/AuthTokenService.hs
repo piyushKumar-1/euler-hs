@@ -12,9 +12,13 @@ import           EulerHS.Language                     as L
 -- EHS: is it ok to have it here?
 import           Servant.Server                       (err500)
 
+import qualified Data.Generics.Product              as DGP
 import qualified Data.Text                            as T
+
 import qualified Euler.API.RouteParameters            as RP
 --import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Config.Config                  as Config (orderTokenExpiry)
+import qualified Euler.Config.ServiceConfiguration    as SC (findByName, decodeValue)
 import           Euler.Common.Types.Order             (ClientAuthTokenData(..), OrderTokenExpiryData (..))
 --import qualified Euler.KVDB.Redis                     as R
 import           Euler.Lens
@@ -22,6 +26,7 @@ import qualified Euler.Product.Domain.Customer        as DMC
 --import qualified Euler.Product.Domain.Order           as DMO
 import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Storage.Repository             as Rep
+
 
 
 authWithToken
@@ -59,53 +64,32 @@ authenticate rps = do
 
 -- former updateAuthTokenUsage
 checkTokenValidityAndIncUsageCounter :: AuthToken -> ClientAuthTokenData -> Flow ()
-checkTokenValidityAndIncUsageCounter token clientAuthToken@ClientAuthTokenData {..} = do
+checkTokenValidityAndIncUsageCounter token tokenData@ClientAuthTokenData {..} = do
   let newUsageCount = maybe 1 (+1) usageCount
-  -- EHS: why did we have here == rather than <=?
-  case (newUsageCount <= tokenMaxUsage) of
+  -- EHS: why did we have here == rather than >=?
+  case (newUsageCount >= tokenMaxUsage) of
     True -> do
       -- EHS: shall we handle rDel result somehow?
       _ <- rDel [token]
       pure ()
     False -> do
-      tokenExpiryData <- getTokenExpiryData
-     -- let ttl = convertDuration $ Seconds $ toNumber tokenExpiryData.expiryInSeconds
-      _ <- pure () --setCacheEC ttl authToken (clientAuthToken {usageCount = Just newUsageCount})
+      expiry <- tokenExpiry
+      _ <- rSetex token (tokenData {usageCount = Just newUsageCount}) expiry
       pure ()
 
-
-getTokenExpiryData :: Flow OrderTokenExpiryData
-getTokenExpiryData = undefined
---getTokenExpiryData = do
---  orderToken <- T.append "tkn_" <$> getUUID32
---  currentDateWithOffset <- getCurrentDateStringWithSecOffset orderTokenExpiry
---  let defaultTokenData = OrderTokenExpiryData
---        { expiryInSeconds = orderTokenExpiry
---        , tokenMaxUsage = orderTokenMaxUsage
---        , orderToken = Just orderToken
---        , currentDateWithExpiry = Just currentDateWithOffset
---        }
---
---  mServiceConfiguration <- withDB eulerDB $ do
---      let predicate ServiceConfiguration {name} =
---            name ==. B.val_ "ORDER_TOKEN_EXPIRY_DATA"
---      findRow
---        $ B.select
---        $ B.limit_ 1
---        $ B.filter_ predicate
---        $ B.all_ (DB.service_configuration eulerDBSchema)
---
---  case mServiceConfiguration of
---    (Just serviceConfiguration) -> do
---      let value = getField @"value" serviceConfiguration
---          mDecodedVal = (decode $ BSL.fromStrict $ T.encodeUtf8 value) :: Maybe OrderTokenExpiryData
---      case mDecodedVal of
---        Nothing -> pure defaultOrderTokenExpiryData
---        Just decodedVal -> pure defaultOrderTokenExpiryData
---          { expiryInSeconds = getField @"expiryInSeconds" decodedVal
---          , tokenMaxUsage = getField @"tokenMaxUsage" decodedVal
---          }
---    Nothing -> pure defaultOrderTokenExpiryData
+-- EHS: former getTokenExpiryData :: Flow OrderTokenExpiryData
+-- EHS: really we need only expireInSeconds value
+tokenExpiry :: Flow Int
+tokenExpiry = do
+  mbServiceConfiguration <- SC.findByName "ORDER_TOKEN_EXPIRY_DATA"
+  case mbServiceConfiguration of
+    Just serviceConfiguration -> do
+      let value = DGP.getField @"value" serviceConfiguration
+      let mbDecodedVal = SC.decodeValue @OrderTokenExpiryData value
+      case mbDecodedVal of
+        Just decodedVal -> pure $ DGP.getField @"expiryInSeconds" decodedVal
+        Nothing -> pure Config.orderTokenExpiry
+    Nothing -> pure Config.orderTokenExpiry
 
 -- former getMerchantAccountForAuthToken from OrderStatus
 findMerchant :: ClientAuthTokenData -> Flow (Maybe DM.MerchantAccount)
@@ -119,7 +103,7 @@ findMerchant ClientAuthTokenData {..} = do
               mbOrder <- Rep.loadOrderById id
               case mbOrder of
                 Just order -> do
-                  Rep.loadMerchant $ read $ T.unpack $ order ^. _merchantId
+                  Rep.loadMerchantById $ read $ T.unpack $ order ^. _merchantId
                 Nothing -> do
                   logError' $ "order with id: " <> resourceId <> " cannot e loaded"
                   throwException err500
@@ -155,4 +139,4 @@ lTag :: Text
 lTag = "AuthTokenService"
 
 --logError' :: Logger.Message -> Flow ()
-logError' = logError lTag
+logError' = logError @Text lTag

@@ -177,7 +177,7 @@ execOrderStatusQuery query = do
   mPromotion' <- getPromotion orderPId orderId
   mMandate' <- getMandate orderPId merchantId orderType
 
-  mTxnDetail1 <- findTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
+  mTxnDetail1 <- loadTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
   mTxnDetail2 <- getLastTxn orderId merchantId
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
@@ -620,11 +620,12 @@ changeMerchantPGR :: Maybe MerchantPaymentGatewayResponse -> ResponseBuilder -> 
 changeMerchantPGR mMerchantPgr builder =
   builder $ mempty {payment_gateway_responseT = map Last mMerchantPgr}
 
--- EHS: TODO add sorting by dateCreated!
+
+
 getLastTxn :: C.OrderId -> C.MerchantId -> Flow (Maybe D.TxnDetail)
 getLastTxn orderId merchantId = do
 
-  txnDetails <- findTxnByOrderIdMerchantId orderId merchantId
+  txnDetails <- loadTxnByOrderIdMerchantId orderId merchantId
 
   case txnDetails of
     [] -> do
@@ -649,23 +650,22 @@ getPaymentLinks :: Maybe Text -> Text ->  Flow Paymentlinks
 getPaymentLinks resellerId orderUuid = do
   mResellerAccount <- loadReseller resellerId
   let mResellerEndpoint = maybe Nothing (^. _resellerApiEndpoint) mResellerAccount
-  pure $ createPaymentLinks orderUuid mResellerEndpoint
+  createPaymentLinks orderUuid mResellerEndpoint
 
 
 createPaymentLinks
-  :: Text
-  -> Maybe Text
-  -> Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint =
-  Paymentlinks
+  :: Text           -- orderUuid (possibly blank string)
+  -> Maybe Text     -- maybeResellerEndpoint
+  -> Flow Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint = do
+  config <- runIO getECRConfig
+  let protocol = getField @"protocol" config
+  let host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
+  pure Paymentlinks
     { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
     , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"
     , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
     }
-  where
-    config = defaultConfig
-    protocol = config ^. _protocol
-    host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
 
 getReturnUrl :: MerchantId -> Maybe Text -> Flow (Maybe Text)
 getReturnUrl merchantIdOrder returnUrlOrder = do
@@ -834,7 +834,7 @@ getRisk txnId = do
 
 refundDetails :: Int -> Flow [Refund']
 refundDetails txnId = do
-  l <- findRefunds txnId
+  l <- loadRefunds txnId
   pure $ map mapRefund l
 
 

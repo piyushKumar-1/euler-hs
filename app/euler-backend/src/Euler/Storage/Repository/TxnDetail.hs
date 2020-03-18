@@ -13,6 +13,7 @@ import           Euler.Common.Validators (amountValidators, isGateway, notNegati
 import qualified Euler.Product.Domain as D
 
 import           Euler.Storage.DBConfig
+import qualified Euler.Storage.Types.TxnDetail as TDB
 import qualified Euler.Storage.Types as DB
 
 import qualified Data.Text as T
@@ -21,12 +22,12 @@ import qualified Database.Beam as B
 
 
 
-findTxnByOrderIdMerchantIdTxnuuidId
+loadTxnByOrderIdMerchantIdTxnuuidId
   :: C.OrderId
   -> C.MerchantId
   -> Text
   -> Flow (Maybe D.TxnDetail)
-findTxnByOrderIdMerchantIdTxnuuidId orderId' merchantId' txnUuid' = do
+loadTxnByOrderIdMerchantIdTxnuuidId orderId' merchantId' txnUuid' = do
   td <- withDB eulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId, txnUuid} =
           orderId ==. B.val_ orderId'
@@ -47,9 +48,9 @@ findTxnByOrderIdMerchantIdTxnuuidId orderId' merchantId' txnUuid' = do
         <> " error: " <> show e
       throwException internalError
 
--- EHS: TODO add sorting by dateCreated!!!
-findTxnByOrderIdMerchantId :: C.OrderId -> C.MerchantId -> Flow [D.TxnDetail]
-findTxnByOrderIdMerchantId orderId' merchantId' = do
+
+loadTxnByOrderIdMerchantId :: C.OrderId -> C.MerchantId -> Flow [D.TxnDetail]
+loadTxnByOrderIdMerchantId orderId' merchantId' = do
   td <- withDB eulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId} =
           orderId ==. B.val_ orderId'
@@ -57,6 +58,7 @@ findTxnByOrderIdMerchantId orderId' merchantId' = do
     findRows
       $ B.select
       $ B.filter_ predicate
+      $ B.orderBy_ (B.desc_ . TDB.dateCreated)
       $ B.all_ (DB.txn_detail DB.eulerDBSchema)
   case traverse transformTxnDetail td of
     Success td' -> pure td'

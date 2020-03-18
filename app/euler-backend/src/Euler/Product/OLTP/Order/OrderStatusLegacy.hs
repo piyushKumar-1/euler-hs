@@ -80,9 +80,9 @@ import           Euler.Storage.DBConfig
 
 -- Legenda EHS
 -- porting statistics:
--- to port '-- TODO port' - 16
--- to update '-- TODO update' - 12
--- completed '-- done' - 39
+-- to port '-- TODO port' - 6
+-- to update '-- TODO update' - 11
+-- completed '-- done' - 47
 -- total number of functions = 67
 --
 -- refactored '-- refactored' - 15
@@ -271,7 +271,7 @@ execOrderStatusQuery query = do
   mPromotion' <- getPromotion orderPId orderId
   mMandate' <- getMandate orderPId merchantId orderType
 
-  mTxnDetail1 <- findTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
+  mTxnDetail1 <- loadTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
   mTxnDetail2 <- getLastTxn orderId merchantId
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
@@ -1577,7 +1577,7 @@ getOrderReference query = do
 -- ----------------------------------------------------------------------------
 -- function: getTxnFromTxnUuid
 -- done
--- refactored to findTxnByOrderIdMerchantIdTxnuuidId
+-- refactored to loadTxnByOrderIdMerchantIdTxnuuidId
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1594,7 +1594,7 @@ getTxnFromTxnUuid order maybeTxnUuid = do
     Nothing -> pure Nothing
 -}
 
--- refactored to findTxnByOrderIdMerchantIdTxnuuidId
+-- refactored to loadTxnByOrderIdMerchantIdTxnuuidId
 
 -- getTxnFromTxnUuid :: DB.OrderReference -> Maybe Text -> Flow (Maybe D.TxnDetail)
 -- getTxnFromTxnUuid order maybeTxnUuid = do
@@ -1602,7 +1602,7 @@ getTxnFromTxnUuid order maybeTxnUuid = do
 --       -- orderId' <- whenNothing (getField @"orderId" order) (throwException err500)
 --       -- merchantId' <- whenNothing (getField @"merchantId" order) (throwException err500)
 
---       findTxnByOrderIdMerchantIdTxnuuidId
+--       loadTxnByOrderIdMerchantIdTxnuuidId
 --         (getField @"orderId" order)
 --         (getField @"merchantId" order)
 --         maybeTxnUuid
@@ -1654,11 +1654,10 @@ getLastTxn orderRef = do
         Nothing -> pure (txns !! 0)
 -}
 
--- EHS: TODO add sorting by dateCreated!
 getLastTxn :: C.OrderId -> C.MerchantId -> Flow (Maybe D.TxnDetail)
 getLastTxn orderId merchantId = do
 
-  txnDetails <- findTxnByOrderIdMerchantId orderId merchantId
+  txnDetails <- loadTxnByOrderIdMerchantId orderId merchantId
 
   case txnDetails of
     [] -> do
@@ -1931,12 +1930,12 @@ getPaymentLinks :: Maybe Text -> Text ->  Flow Paymentlinks
 getPaymentLinks resellerId orderUuid = do
   mResellerAccount <- loadReseller resellerId
   let mResellerEndpoint = maybe Nothing (getField @"resellerApiEndpoint") mResellerAccount
-  pure $ createPaymentLinks orderUuid mResellerEndpoint
+  createPaymentLinks orderUuid mResellerEndpoint
 
 
 -- ----------------------------------------------------------------------------
 -- function: createPaymentLinks
--- TODO update
+-- done
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -1958,24 +1957,16 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 createPaymentLinks
   :: Text           -- orderUuid (possibly blank string)
   -> Maybe Text     -- maybeResellerEndpoint
-  -> Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint =
-  Paymentlinks
+  -> Flow Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint = do
+  config <- runIO getECRConfig
+  let protocol = getField @"protocol" config
+  let host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
+  pure Paymentlinks
     { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
     , mobile =   Just (host <> "/merchant/pay/") <> Just orderUuid <> Just "?mobile=true"
     , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
   }
-  where
-    config = defaultConfig -- getECRConfig -- from (src/Config/Config.purs) looks like constant, but depend on ENV
-    {-
-     data Config = Config
-      { protocol :: String
-      , host :: String
-      , internalECHost :: String
-      }
-    -}
-    protocol = getField @"protocol" config-- (unwrap config).protocol
-    host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
 
 
 -- ----------------------------------------------------------------------------
@@ -2176,6 +2167,7 @@ addPromotionDetails orderRef orderStatus = do
 --   let mPromotion = find (\promotion -> (getField @"status" promotion == "ACTIVE" )) promotions
 --   traverse (decryptPromotionRules ordId) mPromotion
 
+-- EHS TODO decryptPromotionRules
 getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe Promotion')
 getPromotion orderPId orderId = do
   proms <- loadPromotions orderPId
@@ -3378,7 +3370,7 @@ addRefundDetails txn ordStatus = undefined :: Flow OrderStatusResponse
 
 refundDetails :: Int -> Flow [Refund']
 refundDetails txnId = do
-  l <- findRefunds txnId
+  l <- loadRefunds txnId
   pure $ map mapRefund l
 
 
@@ -3549,7 +3541,7 @@ mapChargeback txn chargeback =
 
 -- ----------------------------------------------------------------------------
 -- function: lookupPgRespXml
--- TODO port
+-- done via xml haskell decoding
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3565,7 +3557,7 @@ lookupPgRespXml respxml key defaultValue = do
 
 -- ----------------------------------------------------------------------------
 -- function: lookupRespXml
--- TODO port
+-- done via xml haskell decoding
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3585,7 +3577,7 @@ lookupRespXml xml str1 str2 = do
 
 -- ----------------------------------------------------------------------------
 -- function: lookupRespXml'
--- TODO port
+-- done via xml haskell decoding
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3600,7 +3592,7 @@ lookupRespXml' xml str1 defaultValue = do
 
 -- ----------------------------------------------------------------------------
 -- function: lookupRespXmlVal
--- TODO port
+-- done via xml haskell decoding
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3616,7 +3608,7 @@ lookupRespXmlVal respXml str1 defaultValue = do
 
 -- ----------------------------------------------------------------------------
 -- function: tempLookup
--- TODO port
+-- done via xml haskell decoding
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3634,7 +3626,7 @@ tempLookup xml str1 defaultValue = do
 
 -- ----------------------------------------------------------------------------
 -- function: hierarchyObjectLookup
--- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -3654,7 +3646,7 @@ hierarchyObjectLookup xml key1 key2 = undefined
 
 -- ----------------------------------------------------------------------------
 -- function: getResponseXml
--- done
+-- done via xml haskell decoding
 -- from src/Types/Storage/EC/PaymentGatewayResponse.purs
 -- ----------------------------------------------------------------------------
 
@@ -3723,7 +3715,6 @@ addGatewayResponse :: TxnDetail -> Bool -> OrderStatusResponse -> Flow OrderStat
 addGatewayResponse = undefined
 
 -- former addGatewayResponse
-
 getMerchantPGR :: D.TxnDetail -> Bool -> Flow (Maybe MerchantPaymentGatewayResponse)
 getMerchantPGR txn shouldSendFullGatewayResponse = do
 
@@ -3777,6 +3768,7 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
       -- EHS: it need review and need authentic json data to check
       -- jsonPgr <- createJsonFromPGRXmlResponse $ getMapFromPGRXml pgrXml
       -- jsonPgr <- encode $ getMapFromPGRXml pgrXml
+
       in Just $ toStrict $ TL.decodeUtf8 $ encode $ getMapFromPGRXml pgrXml
     else Nothing
 
@@ -4558,7 +4550,7 @@ getTokenExpiryData = do
 
 -- ----------------------------------------------------------------------------
 -- function: getAxisUpiTxnIdFromPgr
--- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -4576,7 +4568,7 @@ getAxisUpiTxnIdFromPgr txn pgResponse = do
 
 -- ----------------------------------------------------------------------------
 -- function: getAxisUpiRequestIdFromPgr
--- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -4592,7 +4584,7 @@ getAxisUpiRequestIdFromPgr txn pgResponse = do
 
 -- ----------------------------------------------------------------------------
 -- function: createJsonFromPGRXmlResponse
--- TODO port
+-- done via haskell xml decoding to type
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -4603,7 +4595,7 @@ createJsonFromPGRXmlResponse arrayXml = toForeign $ foldl xmlToJsonPgrAccumulate
 
 -- ----------------------------------------------------------------------------
 -- function: xmlToJsonPgrAccumulater
--- TODO port
+-- done via haskell xml decoding to type
 -- ----------------------------------------------------------------------------
 
 {-PS

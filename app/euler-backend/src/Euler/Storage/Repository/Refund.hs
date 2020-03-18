@@ -12,6 +12,7 @@ import           Euler.Common.Validators (amountValidators, textNotEmpty, notNeg
 
 import qualified Euler.Product.Domain.Refund as D
 
+import qualified Euler.Storage.Types.Refund as RDB
 import qualified Euler.Storage.Types as DB
 
 import qualified Data.Text as T
@@ -20,14 +21,14 @@ import qualified Database.Beam as B
 
 
 
-findRefunds :: Int -> Flow [D.Refund]
-findRefunds txnId = do
+loadRefunds :: Int -> Flow [D.Refund]
+loadRefunds txnId = do
   rs <- withDB eulerDB $ do
     let predicate DB.Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
     findRows
       $ B.select
       $ B.filter_ predicate
-      -- TODO: $ B.orderBy_ (B.asc_ . ???dateCreated???)
+      $ B.orderBy_ (B.asc_ . RDB.dateCreated)
       $ B.all_ (DB.refund DB.eulerDBSchema)
   case (traverse transformRefund rs) of
     Success rs' -> pure rs'

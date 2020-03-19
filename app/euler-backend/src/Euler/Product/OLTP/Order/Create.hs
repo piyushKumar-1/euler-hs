@@ -88,10 +88,7 @@ doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order
   _                <- Rep.updateMandateCache order $ order' ^. _mandate
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
-  -- EHS: config should be requested on the start of the logic and passed purely.
-  cfg           <- runIO Config.getECRConfig
-
-  makeOrderResponse cfg order mAccnt mbReseller
+  makeOrderResponse Config.getECRConfig order mAccnt mbReseller
 
 
 

@@ -1,22 +1,25 @@
 module Euler.Storage.Repository.Customer
   ( loadCustomer
+  , findCustomerById
   )
   where
 
 
-import EulerHS.Prelude hiding(id)
+import EulerHS.Prelude hiding (id)
 
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
 
 import qualified Euler.Common.Types                   as C
+import           Euler.Common.Validators              (textNotEmpty)
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Storage.Types                  as DB
 
-import           Database.Beam ((==.), (||.), (&&.))
-import qualified Database.Beam as B
+import           Database.Beam                        ((==.), (||.), (&&.))
+import qualified Database.Beam                        as B
+import           Euler.Lens
 
 
 loadCustomer :: Maybe C.CustomerId -> D.MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
@@ -49,3 +52,33 @@ loadCustomer (Just customerId) mAccntId = do
         -- mobileCountryCode
         mobileNumber
       Nothing              -> Nothing
+
+findCustomerById :: C.CustomerId -> Flow (Maybe D.Customer)
+findCustomerById cId = do
+  mbCustomer :: Maybe DB.Customer <- withDB eulerDB $ do
+        let predicate DB.Customer {id}
+              = id ==.  B.just_ (B.val_ cId)
+        findRow
+          $ B.select
+          $ B.filter_ predicate
+          $ B.all_ (DB.customer DB.eulerDBSchema)
+  case (traverse validator mbCustomer) of
+    Success v -> pure v
+    Failure e -> do
+      logError @Text "findById"
+        $ "Incorrect Customer in DB, id: " <> show cId <> " error: " <> show e
+      throwException Errs.internalError
+
+validator :: DB.Customer -> V D.Customer
+validator v = D.Customer
+  <$> withField @"id" v (extractJust >=> textNotEmpty)
+  <*> withField @"version" v pure
+  <*> withField @"dateCreated" v pure
+  <*> withField @"emailAddress" v (extractJust >=> textNotEmpty)
+  <*> withField @"firstName" v (extractJust >=> textNotEmpty)
+  <*> withField @"lastName" v (extractJust >=> textNotEmpty)
+  <*> withField @"lastUpdated" v pure
+  <*> withField @"merchantAccountId" v pure
+  <*> withField @"mobileCountryCode" v pure
+  <*> withField @"mobileNumber" v pure
+  <*> withField @"objectReferenceId" v (extractJust >=> textNotEmpty)

@@ -8,22 +8,16 @@ import           EulerHS.Language                     as L
 
 -- EHS: how can we import a datatype from a hidden package?
 --import           EulerHS.Core.Types                   (Logger)
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
 
--- EHS: is it ok to have it here?
-import           Servant.Server                       (err500)
-
-import qualified Data.Generics.Product              as DGP
+import qualified Data.Generics.Product                as DGP
 import qualified Data.Text                            as T
 
 import qualified Euler.API.RouteParameters            as RP
---import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Config.Config                  as Config (orderTokenExpiry)
 import qualified Euler.Config.ServiceConfiguration    as SC (findByName, decodeValue)
 import           Euler.Common.Types.Order             (ClientAuthTokenData(..), OrderTokenExpiryData (..))
---import qualified Euler.KVDB.Redis                     as R
 import           Euler.Lens
-import qualified Euler.Product.Domain.Customer        as DMC
---import qualified Euler.Product.Domain.Order           as DMO
 import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Storage.Repository             as Rep
 
@@ -48,19 +42,19 @@ authenticate rps = do
       case mbTokenData of
         Just tokenData -> do
           checkTokenValidityAndIncUsageCounter token tokenData
-          mbMA <- findMerchant tokenData
+          mbMA <- tokenMerchant tokenData
           case mbMA of
             Nothing -> do
               logError' "Can't load merchant for token from cache"
-              throwException err500
+              throwException Errs.internalError
             Just ma -> do
               return ma
         Nothing ->  do
           logError' "No auth token data found in cache"
-          throwException err500
+          throwException Errs.internalError
     Nothing -> do
       logError' "no auth token header presents in request"
-      throwException err500
+      throwException Errs.internalError
 
 -- former updateAuthTokenUsage
 checkTokenValidityAndIncUsageCounter :: AuthToken -> ClientAuthTokenData -> Flow ()
@@ -92,33 +86,37 @@ tokenExpiry = do
     Nothing -> pure Config.orderTokenExpiry
 
 -- former getMerchantAccountForAuthToken from OrderStatus
-findMerchant :: ClientAuthTokenData -> Flow (Maybe DM.MerchantAccount)
-findMerchant ClientAuthTokenData {..} = do
-  case (readType resourceType) of
+tokenMerchant :: ClientAuthTokenData -> Flow (Maybe DM.MerchantAccount)
+tokenMerchant ClientAuthTokenData {..} = do
+  case (readMay resourceType) of
     Just t -> do
       case t of
         ORDER -> do
-          case (readId resourceId) of
+          --case (readId resourceId) of
+          case (readMay @Int resourceId) of
             Just id -> do
               mbOrder <- Rep.loadOrderById id
               case mbOrder of
                 Just order -> do
                   Rep.loadMerchantById $ read $ T.unpack $ order ^. _merchantId
                 Nothing -> do
-                  logError' $ "order with id: " <> resourceId <> " cannot e loaded"
-                  throwException err500
+                  logError' $ "order with id: " <> resourceId <> " cannot be loaded"
+                  throwException Errs.internalError
             Nothing -> do
               logError' $ "malformed resource id: " <> resourceId
-              throwException err500
-        -- EHS: rework
+              throwException Errs.internalError
         CUSTOMER -> do
-          DMC.Customer {..} <- pure DMC.defaultCustomer -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ String otokenData.resourceId]) ecAccessDenied
-          pure $ Just DM.defaultMerchantAccount -- DB.findOneWithErr ecDB (where_ := WHERE ["id" /\ Int merchantAccountId]) ecAccessDenied
-
-    -- EHS: rework
+          mbCustomer <- Rep.findCustomerById resourceId
+          case mbCustomer of
+            Just customer -> do
+              let cId = customer ^. _customerMerchantAccountId
+              Rep.loadMerchantById cId
+            Nothing -> do
+              logError' $ "customer with id: " <> resourceId <> " cannot be loaded"
+              throwException Errs.internalError
     Nothing -> do
         logError' $ "unknown resource type: " <> resourceType
-        throwException err500
+        throwException Errs.internalError
 
 -- | Alias for token representation in a request's header
 type AuthToken = Text
@@ -129,14 +127,13 @@ data AuthTokenResourceType
   | CUSTOMER
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-readType :: Text -> Maybe AuthTokenResourceType
-readType = readMaybe . T.unpack
-
-readId :: Text -> Maybe Int
-readId = read . T.unpack
+-- EHS: looks as if we have lots of similar functions in many modules
+readMay :: Read a => Text -> Maybe a
+readMay = readMaybe . T.unpack
 
 lTag :: Text
 lTag = "AuthTokenService"
 
+-- EHS: how can we import Message type, which resides in a hidden package?
 --logError' :: Logger.Message -> Flow ()
 logError' = logError @Text lTag

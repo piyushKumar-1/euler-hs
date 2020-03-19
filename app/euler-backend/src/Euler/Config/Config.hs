@@ -3,10 +3,14 @@ module Euler.Config.Config where
 
 import           EulerHS.Prelude
 
+import qualified Euler.Encryption as E
+import           EulerHS.Language
 
-import           Data.Time
+-- import           Data.Time
 import           System.Environment (lookupEnv)
 
+
+import qualified Data.ByteString.Base16 as B16
 import qualified Data.Text as Text (pack)
 
 -- EHS: should be Money.
@@ -31,6 +35,7 @@ defaultConfig = Config
     }
 
 data Env = DEV | UAT | PROD | INTEG
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 getEnv :: IO Env
 getEnv = do
@@ -83,3 +88,50 @@ orderTokenExpiry = 900 -- 15 Min
 
 orderTokenMaxUsage :: Int
 orderTokenMaxUsage = 20
+
+
+ecTempCardCred:: Flow (E.Key E.AES256 ByteString)
+ecTempCardCred = do
+  env <- runIO getEnv
+  case env of
+    PROD -> decodeECTempCardKey <$> getECTempCardEncryptedKey
+    UAT -> decodeECTempCardKey <$> getECTempCardEncryptedKey
+    INTEG -> decodeECTempCardKey <$> getECTempCardEncryptedKey
+    _ -> pure ecTempCardCredDefault
+
+getECTempCardEncryptedKey :: Flow (Maybe String)
+getECTempCardEncryptedKey = runIO $ lookupEnv "EC_TEMP_CARD_AES_KEY"
+
+defaultEcTempCardCredKey :: E.Key E.AES256 ByteString
+defaultEcTempCardCredKey = E.Key $ fst $ B16.decode "bd3222130d110b9684dac9cc0903ce111b25e97ae93ddc2925f89c4ed6e41bab"
+
+-- EHS: TODO: port for decryptPromotionRules from Euler.Storage.Repository.Promotion
+-- former decodeKMS
+decodeECTempCardKey :: Maybe String -> E.Key E.AES256 ByteString
+decodeECTempCardKey = undefined
+
+
+-- decrypt :: forall e. String -> Aff e String
+-- decrypt = toAff <<< decodeKMS
+
+-- exports.getECTempCardEncryptedKey = process.env.EC_TEMP_CARD_AES_KEY
+
+-- exports.decodeKMS = function(val) {
+--   AWS.config.update(config.aws);
+--   var kms = new AWS.KMS();
+
+--   var encryptedParams = {
+--     CiphertextBlob: Buffer(val, "base64")
+--   };
+
+--   return kms
+--     .decrypt(encryptedParams)
+--     .promise()
+--     .then(function(data) {
+--       var decryptedString = data.Plaintext.toString("ascii");
+--       return Promise.resolve(decryptedString);
+--     })
+--     .catch(function(err) {
+--       return Promise.reject(new Error(err));
+--     });
+-- };

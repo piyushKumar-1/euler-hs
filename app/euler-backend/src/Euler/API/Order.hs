@@ -276,7 +276,6 @@ data OrderStatusQuery = OrderStatusQuery
   , resellerId              :: Maybe Text
   , isAuthenticated         :: Bool
   , sendCardIsin            :: Bool
-  , txnId                   :: Maybe Text -- ^ optional txn (seems to be always CHARGED?)
   , sendFullGatewayResponse :: Bool
   -- add info to handle case for orderCreate response (see execOrderStatusQuery function)
   }

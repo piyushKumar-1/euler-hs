@@ -97,7 +97,7 @@ ecTempCardCred = do
     PROD -> decodeECTempCardKey <$> getECTempCardEncryptedKey
     UAT -> decodeECTempCardKey <$> getECTempCardEncryptedKey
     INTEG -> decodeECTempCardKey <$> getECTempCardEncryptedKey
-    _ -> pure ecTempCardCredDefault
+    _ -> pure defaultEcTempCardCredKey
 
 getECTempCardEncryptedKey :: Flow (Maybe String)
 getECTempCardEncryptedKey = runIO $ lookupEnv "EC_TEMP_CARD_AES_KEY"

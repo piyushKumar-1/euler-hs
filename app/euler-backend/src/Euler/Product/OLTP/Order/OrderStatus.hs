@@ -90,13 +90,6 @@ myerr400 n = err400 { errBody = "Err # " <> n }
 data FlowError = FlowError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
-(<<=) :: Comonad w => w a -> (w a -> b) -> w b
-(<<=) = (=>>)
-
-type ResponseBuilder = OrderStatusResponseTemp -> OrderStatusResponse
-
-
 type APIKey = Text
 
 data FlowState = FlowState
@@ -129,7 +122,6 @@ handleByOrderId orderId rps merchantAccount  = do
         , resellerId      = merchantAccount ^. _resellerId
         , isAuthenticated = True
         , sendCardIsin    = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-        , txnId           = undefined :: Maybe Text
         , sendFullGatewayResponse = getSendFullGatewayResponse rps
         }
 
@@ -233,6 +225,10 @@ execOrderStatusQuery query = do
     mMerchantPgr
 
 
+(<<=) :: Comonad w => w a -> (w a -> b) -> w b
+(<<=) = (=>>)
+
+type ResponseBuilder = OrderStatusResponseTemp -> OrderStatusResponse
 
 emptyBuilder :: ResponseBuilder -> OrderStatusResponse
 emptyBuilder builder = builder mempty

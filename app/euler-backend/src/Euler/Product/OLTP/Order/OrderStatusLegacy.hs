@@ -152,7 +152,6 @@ handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
         , resellerId      = getField @"resellerId" merchantAccount
         , isAuthenticated = True
         , sendCardIsin    = fromMaybe False $ getField @"enableSendingCardIsin" merchantAccount
-        , txnId           = undefined :: Maybe Text -- TODO
         , sendFullGatewayResponse = getSendFullGatewayResponse rps
         }
 

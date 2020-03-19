@@ -83,10 +83,6 @@ import qualified Database.Beam.Backend.SQL as B
 
 
 
-myerr    n = err403 { errBody = "Err # " <> n }
-myerr400 n = err400 { errBody = "Err # " <> n }
-
-
 data FlowError = FlowError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -116,7 +112,7 @@ handleByOrderId
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId orderId rps merchantAccount  = do
 
-  let query = OrderStatusQuery
+  let request = OrderStatusRequest
         { orderId         = orderId
         , merchantId      = merchantAccount ^. _merchantId
         , resellerId      = merchantAccount ^. _resellerId
@@ -125,7 +121,7 @@ handleByOrderId orderId rps merchantAccount  = do
         , sendFullGatewayResponse = getSendFullGatewayResponse rps
         }
 
-  response <- execOrderStatusQuery query
+  response <- execOrderStatusQuery request
 
   pure $ mapLeft (const FlowError) response where
 
@@ -138,13 +134,13 @@ getSendFullGatewayResponse routeParams =
     Just str -> str == "1" || T.map toLower str == "true"
 
 
-execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery query = do
+execOrderStatusQuery :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery request = do
 
-  let queryOrderId = query ^. _orderId
-  let queryMerchantId = query ^. _merchantId
-  let resellerId = query ^. _resellerId
-  let sendFullGatewayResponse = query ^. _sendFullGatewayResponse
+  let queryOrderId = request ^. _orderId
+  let queryMerchantId = request ^. _merchantId
+  let resellerId = request ^. _resellerId
+  let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
   mOrder <- loadOrder queryOrderId queryMerchantId
 
@@ -211,7 +207,7 @@ execOrderStatusQuery query = do
     links
     mPromotion'
     mMandate'
-    query
+    request
     mTxn
     gatewayRefId
     mRisk
@@ -296,7 +292,7 @@ makeOrderStatusResponse
   -> Paymentlinks
   -> Maybe Promotion'
   -> Maybe Mandate'
-  -> OrderStatusQuery
+  -> OrderStatusRequest
   -> Maybe D.TxnDetail
   -> Text
   -> Maybe Risk
@@ -314,7 +310,7 @@ makeOrderStatusResponse
   paymentLinks
   mPromotion
   mMandate
-  query@OrderStatusQuery{..}
+  request
   mTxn
   gatewayRefId
   mRisk
@@ -329,6 +325,8 @@ makeOrderStatusResponse
   = do
 
   let ordId = order ^. _orderUuid
+  let isAuthenticated = request ^. _isAuthenticated
+  let sendCardIsin = request ^. _sendCardIsin
 
   let mCustomerId = whenNothing  (order ^. _customerId) (Just "")
       email = (\email -> if isAuthenticated then email else Just "")  (order ^. _customerEmail)

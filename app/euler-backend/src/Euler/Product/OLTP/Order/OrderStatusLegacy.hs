@@ -98,17 +98,17 @@ import           Euler.Storage.DBConfig
 -- deferred topics:
 
 -- authenticateReqAndGetMerchantAcc supported unauth-ed access for merchant (merchant's setting). Used only with
--- OrderStatusRequest, so I am not sure it's topical et all.
+-- OrderStatusRequestLegacy, so I am not sure it's topical et all.
 
 -- 40x error with error message
-myerr    n = err403 { errBody = "Err # " <> n }
-myerr400 n = err400 { errBody = "Err # " <> n }
+-- myerr    n = err403 { errBody = "Err # " <> n }
+-- myerr400 n = err400 { errBody = "Err # " <> n }
 
 
 -- PS will be removing gateways one by one from here as part of direct upi integrations.
 -- used in `casematch` function
-eulerUpiGateways :: [Gateway]
-eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
+-- eulerUpiGateways :: [Gateway]
+-- eulerUpiGateways = [HDFC_UPI, INDUS_UPI, KOTAK_UPI, SBI_UPI, ICICI_UPI, HSBC_UPI, VIJAYA_UPI, YESBANK_UPI, PAYTM_UPI]
 
 
 data FlowError = FlowError -- do we have something similar?
@@ -143,9 +143,9 @@ handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
   -- * use unless/when instead of skipIfB/execIfB
   --rejectIfUnauthenticatedCallDisabled merchantAccount `skipIfB` isAuthenticated
 
-  -- turn into the OrderStatusRequest or not?
+  -- turn into the OrderStatusRequestLegacy or not?
 
-  let query = OrderStatusQuery
+  let request = OrderStatusRequest
         { orderId         = orderId
         -- EHS: FIXME -- can it be empty? Use validated domain's type
         , merchantId      = getField @"merchantId" merchantAccount
@@ -155,8 +155,8 @@ handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
         , sendFullGatewayResponse = getSendFullGatewayResponse rps
         }
 
-  --response <- getOrderStatusWithoutAuth2 q query Nothing Nothing
-  response <- execOrderStatusQuery query
+  --response <- getOrderStatusWithoutAuth2 q request Nothing Nothing
+  response <- execOrderStatusQuery request
 
  -- _ <- log "Process Order Status Response" $ response
   pure $ mapLeft (const FlowError) response -- EHS: TODO fix error hadler
@@ -172,26 +172,26 @@ getSendFullGatewayResponse routeParams =
 
 -- EHS: FIXME apparently, this case exists in PS-verison
 -- not sure regarding auth concerns in this case, merchant id is present in the request but the real MAcc goes along in calls
-handleByOrderStatusRequest :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
-handleByOrderStatusRequest ordRequest = let q = undefined :: OrderStatusQuery
+handleByOrderStatusRequest :: OrderStatusRequestLegacy -> Flow (Either Text OrderStatusResponse)
+handleByOrderStatusRequest ordRequest = let q = undefined :: OrderStatusRequest
   in execCachedOrderStatusQuery q
 
 
 -- EHS: main specific API-agnostic handler
 -- former "getOrderStatusWithoutAuth(2)"
 -- no request params, no auth concerns here (the last is not exactly the case)
-execCachedOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
+execCachedOrderStatusQuery :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 
 -- execOrderStatusQuery
---   :: -- OrderStatusRequest -- remove after fix checkAndAddOrderToken
---   -> OrderStatusQuery
+--   :: -- OrderStatusRequestLegacy -- remove after fix checkAndAddOrderToken
+--   -> OrderStatusRequest
 --   -- -> Text {-RouteParameters-}
 --   -- -> MerchantAccount
 --   -- -> Bool
 --   -- -> (Maybe OrderCreateRequest)
 --   -- -> (Maybe OrderReference)
 --   -> Flow OrderStatusResponse -- Foreign
-execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
+execCachedOrderStatusQuery request@OrderStatusRequest{..} = do
   -- merchId <- case (getField @"merchantId" merchantAccount) of
   --               Nothing -> throwException $ myerr "3"
   --               Just v  -> pure v
@@ -203,11 +203,11 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 
               -- EHS: TODO no details here!
               -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
-              -- orderReference <- getOrderReference query
+              -- orderReference <- getOrderReference request
               -- paymentlink <- getPaymentLink resellerId orderReference
-              -- resp <- fillOrderStatusResponse query orderReference paymentlink
+              -- resp <- fillOrderStatusResponse request orderReference paymentlink
 
-              resp <- execOrderStatusQuery query
+              resp <- execOrderStatusQuery request
           -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
               pure resp
             Just resp -> pure $ Right resp
@@ -215,7 +215,7 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 
 
   -- EHS: TODO figure out, what parts of OrderCreateRequest and OrderReference are used in
-  -- checkAndAddOrderToken, add this info to OrderStatusQuery, default it to Nothing for common query
+  -- checkAndAddOrderToken, add this info to OrderStatusRequest, default it to Nothing for common request
 
   -- I absolutely hate the idea to modify cache entries! Did I get right this is the case?
   -- Can we have  different cached results for regular status/order create case instead?
@@ -239,13 +239,13 @@ execCachedOrderStatusQuery query@OrderStatusQuery{..} = do
 
 
 -- EHS: former getOrdStatusResp
-execOrderStatusQuery :: OrderStatusQuery -> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery query = do
+execOrderStatusQuery :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery request = do
 
-  let queryOrderId = query ^. _orderId
-  let queryMerchantId = query ^. _merchantId
-  let resellerId = query ^. _resellerId
-  let sendFullGatewayResponse = query ^. _sendFullGatewayResponse
+  let queryOrderId = request ^. _orderId
+  let queryMerchantId = request ^. _merchantId
+  let resellerId = request ^. _resellerId
+  let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
   mOrder <- loadOrder queryOrderId queryMerchantId
 
@@ -312,7 +312,7 @@ execOrderStatusQuery query = do
     links
     mPromotion'
     mMandate'
-    query
+    request
     mTxn
     gatewayRefId
     mRisk
@@ -404,7 +404,7 @@ makeOrderStatusResponse
   -> Paymentlinks
   -> Maybe Promotion'
   -> Maybe Mandate'
-  -> OrderStatusQuery
+  -> OrderStatusRequest
   -> Maybe D.TxnDetail
   -> Text -- EHS: use getGatewayReferenceId2 to get it
   -> Maybe Risk
@@ -423,7 +423,7 @@ makeOrderStatusResponse
   paymentLinks
   mPromotion
   mMandate
-  query@OrderStatusQuery{..}
+  request
   mTxn
   gatewayRefId
   mRisk
@@ -440,6 +440,8 @@ makeOrderStatusResponse
   -- Validation
 
   let ordId = getField @ "orderUuid" order
+  let isAuthenticated = request ^. _isAuthenticated
+  let sendCardIsin = request ^. _sendCardIsin
 
   let mCustomerId = whenNothing (getField @"customerId" order) (Just "")
       email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" order)
@@ -818,7 +820,7 @@ createOrderStatusResponse orderId merchantId merchantAccount =  do
 -- ----------------------------------------------------------------------------
 
 {-PS
-processOrderStatus :: OrderStatusRequest -> RouteParameters -> BackendFlow SyncStatusState _ Foreign
+processOrderStatus :: OrderStatusRequestLegacy -> RouteParameters -> BackendFlow SyncStatusState _ Foreign
 processOrderStatus req routeParams = do
   let orderId = maybe (unNullOrUndefined $ req ^. _order_id) pure $ routeParams ^. (at "order_id")
   _ <- logOrderIdAndTxnUuid orderId Nothing
@@ -853,7 +855,7 @@ instance OptionEntity FlowStateOption FlowState
 
 {-PS
 getOrderStatusWithoutAuth :: forall st r e rt. Newtype st (TState e) =>
-  OrderStatusRequest -> RouteParameters -> MerchantAccount -> Boolean -> (Maybe OrderCreateReq) -> (Maybe OrderReference) -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} Foreign
+  OrderStatusRequestLegacy -> RouteParameters -> MerchantAccount -> Boolean -> (Maybe OrderCreateReq) -> (Maybe OrderReference) -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} Foreign
 getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = do
   cachedResp <- getCachedOrdStatus isAuthenticated req merchantAccount routeParams --EPS: TODO check for txn based refund
   resp <- case cachedResp of
@@ -876,7 +878,7 @@ getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeO
 
 
 getOrderStatusWithoutAuth
-  :: OrderStatusRequest -- EHS: remove after fix checkAndAddOrderToken
+  :: OrderStatusRequestLegacy -- EHS: remove after fix checkAndAddOrderToken
   -> Text {-RouteParameters-}
   -> DB.MerchantAccount
   -> Bool
@@ -886,15 +888,15 @@ getOrderStatusWithoutAuth
 getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrderCreateReq maybeOrd = undefined
 
 -- getOrderStatusWithoutAuth2
---   :: OrderStatusRequest -- remove after fix checkAndAddOrderToken
---   -> OrderStatusQuery
+--   :: OrderStatusRequestLegacy -- remove after fix checkAndAddOrderToken
+--   -> OrderStatusRequest
 --   -- -> Text {-RouteParameters-}
 --   -- -> MerchantAccount
 --   -- -> Bool
 --   -> (Maybe OrderCreateRequest)
 --   -> (Maybe OrderReference)
 --   -> Flow OrderStatusResponse -- Foreign
--- getOrderStatusWithoutAuth2 req query@OrderStatusQuery{..} maybeOrderCreateReq maybeOrd = do
+-- getOrderStatusWithoutAuth2 req request@OrderStatusRequest{..} maybeOrderCreateReq maybeOrd = do
 --   -- merchId <- case (getField @"merchantId" merchantAccount) of
 --   --               Nothing -> throwException $ myerr "3"
 --   --               Just v  -> pure v
@@ -903,9 +905,9 @@ getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrder
 --   resp <- case cachedResp of
 --             Nothing -> do
 --               -- resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
---               orderReference <- getOrderReference query
+--               orderReference <- getOrderReference request
 --               paymentlink <- mkPaymentLinks resellerId (fromMaybe "" $ orderUuid orderReference)
---               resp <- fillOrderStatusResponse query orderReference paymentlink
+--               resp <- fillOrderStatusResponse request orderReference paymentlink
 --          -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp   -- req needed to get orderId
 --               pure resp
 --             Just resp -> pure resp
@@ -932,7 +934,7 @@ getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrder
 
 {-PS
 checkAndAddOrderToken :: forall st r e rt. Newtype st (TState e) =>
-   OrderStatusRequest -> OrderCreateReq -> RouteParameters -> OrderStatusResponse -> MerchantAccount -> OrderReference -> BackendFlow st _ OrderStatusResponse
+   OrderStatusRequestLegacy -> OrderCreateReq -> RouteParameters -> OrderStatusResponse -> MerchantAccount -> OrderReference -> BackendFlow st _ OrderStatusResponse
 checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantAccount order = do
   let orderIdPrimary = order .^. _id
   merchantId <- unNullOrErr500 (merchantAccount ^. _merchantId)
@@ -944,7 +946,7 @@ checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchan
 -}
 
 {-
-checkAndAddOrderToken :: OrderStatusRequest -> OrderCreateRequest -> {-RouteParameters-} Text -> OrderStatusResponse -> Text {-MerchantAccount-} -> OrderReference -> Flow OrderStatusResponse
+checkAndAddOrderToken :: OrderStatusRequestLegacy -> OrderCreateRequest -> {-RouteParameters-} Text -> OrderStatusResponse -> Text {-MerchantAccount-} -> OrderReference -> Flow OrderStatusResponse
 checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantId order = do
   orderIdPrimary <- maybe (throwException err500) pure (getField @"id" order)
  -- merchantId <- unNullOrErr500 (merchantAccount ^. _merchantId)
@@ -997,7 +999,7 @@ addOrderTokenToOrderStatus orderId orderCreateReq merchantId = do
 -- ----------------------------------------------------------------------------
 
 {-PS
-checkEnableCaseForResponse ::forall st rt e. Newtype st (TState e) => OrderStatusRequest -> RouteParameters -> OrderStatusResponse -> BackendFlow st _ Foreign
+checkEnableCaseForResponse ::forall st rt e. Newtype st (TState e) => OrderStatusRequestLegacy -> RouteParameters -> OrderStatusResponse -> BackendFlow st _ Foreign
 checkEnableCaseForResponse req params resp =
   if isJust (StrMap.lookup "orderId" params) || isPresent (req ^. _orderId) then pure $ snakeCaseToCamelCase (encode resp)
    else pure (encode resp)
@@ -1011,10 +1013,10 @@ checkEnableCaseForResponse req params resp =
 
 {-PS
 authenticateReqAndGetMerchantAcc ::
-     OrderStatusRequest
+     OrderStatusRequestLegacy
   -> RouteParameters
   -> BackendFlow SyncStatusState _ {merchantAccount :: MerchantAccount, isAuthenticated :: Boolean}
-authenticateReqAndGetMerchantAcc ostatusReq@(OrderStatusRequest req) headers = do
+authenticateReqAndGetMerchantAcc ostatusReq@(OrderStatusRequestLegacy req) headers = do
     let optApiKey = getApiKeyFromHeader headers
         maybeAuthToken = StrMap.lookup "client_auth_token" headers
     case [optApiKey, maybeAuthToken] of
@@ -1132,11 +1134,11 @@ updateAuthTokenUsage authToken clientAuthToken@C.ClientAuthTokenData {..} = do
 
 {-PS
 authenticateReqWithClientAuthToken ::
-  OrderStatusRequest
+  OrderStatusRequestLegacy
   -> AuthToken
   -> RouteParameters
   -> BackendFlow SyncStatusState _ {merchantAccount :: MerchantAccount, isAuthenticated :: Boolean}
-authenticateReqWithClientAuthToken (OrderStatusRequest req) authToken headers = do
+authenticateReqWithClientAuthToken (OrderStatusRequestLegacy req) authToken headers = do
     maybeAuthTokenData :: Maybe ClientAuthTokenData <- getCachedValEC authToken
   case maybeAuthTokenData of
     Just authTokenData -> do
@@ -1148,7 +1150,7 @@ authenticateReqWithClientAuthToken (OrderStatusRequest req) authToken headers = 
 
 {-
 authenticateReqWithClientAuthToken ::
- -- OrderStatusRequest
+ -- OrderStatusRequestLegacy
  -- ->
    AuthToken
  -- -> RouteParameters
@@ -1240,8 +1242,8 @@ rejectIfUnauthenticatedCallDisabled mAccnt =
 -- ----------------------------------------------------------------------------
 
 {-PS
-rejectIfMerchantIdMissing :: OrderStatusRequest -> BackendFlow SyncStatusState _ Unit
-rejectIfMerchantIdMissing (OrderStatusRequest req) =
+rejectIfMerchantIdMissing :: OrderStatusRequestLegacy -> BackendFlow SyncStatusState _ Unit
+rejectIfMerchantIdMissing (OrderStatusRequestLegacy req) =
   let maybeMerchantId = unNullOrUndefined req.merchantId
                         <|> (unNullOrUndefined req.merchant_id)
   in
@@ -1260,7 +1262,7 @@ rejectIfMerchantIdMissing (OrderStatusRequest req) =
 getCachedOrdStatus :: forall st e rt r.
   Newtype st (TState e)
   => Boolean
-  -> OrderStatusRequest
+  -> OrderStatusRequestLegacy
   -> MerchantAccount
   -> RouteParameters
   -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} (Maybe OrderStatusResponse)
@@ -1294,7 +1296,7 @@ getCachedOrdStatus isAuthenticated req mAccnt routeParam = do
 
 getCachedOrdStatus -- EHS: really need orderId and merchantId
   :: Bool
- -- -> OrderStatusRequest
+ -- -> OrderStatusRequestLegacy
  -- -> MerchantAccount
  -- -> RouteParameters
   -> Text
@@ -1350,7 +1352,7 @@ getCachedOrdStatus isAuthenticated orderId merchantId = do -- req mAccnt routePa
 {-PS
 addToCache :: forall st rt e r.
   Newtype st (TState e)
-  => OrderStatusRequest
+  => OrderStatusRequestLegacy
   -> Boolean
   -> MerchantAccount
   -> RouteParameters
@@ -1374,7 +1376,7 @@ addToCache req isAuthenticated mAccnt routeParam ordStatusResp = do
 -}
 
 addToCache ::
-     OrderStatusRequest
+     OrderStatusRequestLegacy
   -> Bool
   -> D.MerchantAccount
   -> RouteParameters
@@ -1445,12 +1447,12 @@ getCachedResp key = do
 {-PS
 getOrdStatusResp :: forall st rt e r.
   Newtype st (TState e)
-  => OrderStatusRequest
+  => OrderStatusRequestLegacy
   -> MerchantAccount
   -> Boolean
   -> RouteParameters
   -> BackendFlow st {sessionId :: String, trackers :: StrMap Metric | rt} OrderStatusResponse
-getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routeParam = do
+getOrdStatusResp req@(OrderStatusRequestLegacy ordReq) mAccnt isAuthenticated routeParam = do
 
     orderId     <- getOrderId req routeParam
     merchantId  <- unNullOrErr500 (mAccnt ^. _merchantId)
@@ -1496,18 +1498,18 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
 
 -- loadOrder used instead of getOrderReference
 getOrderReference
-  :: OrderStatusQuery
-  -- :: OrderStatusRequest
+  :: OrderStatusRequest
+  -- :: OrderStatusRequestLegacy
   -- -> MerchantAccount
   -- -> Bool
   -- -> Text -- RouteParameters
   -> Flow OrderReference
--- getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated routeParam = do
-getOrderReference query = do
+-- getOrdStatusResp req {- @(OrderStatusRequestLegacy ordReq) -} mAccnt isAuthenticated routeParam = do
+getOrderReference request = do
     -- orderId'     <- pure routeParam -- getOrderId req routeParam
-    let orderId' = getField @"orderId" query
+    let orderId' = getField @"orderId" request
     -- merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
-    let merchantId' = getField @"merchantId" query
+    let merchantId' = getField @"merchantId" request
 
     (order :: OrderReference) <- do
       conn <- getConn eulerDB
@@ -1530,7 +1532,7 @@ getOrderReference query = do
 
       -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId) ???
 
- -- WARNING Seemingly, txnUuid & txn_uuid are always Nothing in OrderStatusRequest
+ -- WARNING Seemingly, txnUuid & txn_uuid are always Nothing in OrderStatusRequestLegacy
  -- Looks like `getLastTxn` always do the job.
 
  --   let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
@@ -1542,8 +1544,8 @@ getOrderReference query = do
     -- ordResp     <- addMandateDetails order ordResp'
 
 
--- fillOrderStatusResponseTxn :: OrderStatusQuery -> TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
--- fillOrderStatusResponseTxn OrderStatusQuery{..} txn order ordResp = do
+-- fillOrderStatusResponseTxn :: OrderStatusRequest -> TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+-- fillOrderStatusResponseTxn OrderStatusRequest{..} txn order ordResp = do
 --   addTxnDetailsToResponse txn order ordResp
 --     >>= addRiskCheckInfoToResponse txn
 --     >>= addPaymentMethodInfo sendCardIsin txn
@@ -1565,8 +1567,8 @@ getOrderReference query = do
 -- -}
 
 
--- fillOrderStatusResponse :: OrderStatusQuery -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
--- fillOrderStatusResponse OrderStatusQuery{..} ordReference payLinks = do
+-- fillOrderStatusResponse :: OrderStatusRequest -> OrderReference -> Paymentlinks -> Flow OrderStatusResponse
+-- fillOrderStatusResponse OrderStatusRequest{..} ordReference payLinks = do
 --   mkResponse isAuthenticated payLinks ordReference defaultOrderStatusResponse
 --     >>= addPromotionDetails ordReference
 --     >>= addMandateDetails ordReference
@@ -1612,15 +1614,15 @@ getTxnFromTxnUuid order maybeTxnUuid = do
 -- ----------------------------------------------------------------------------
 
 {-PS
-getOrderId :: forall st e r rt. Newtype st (TState e) => OrderStatusRequest -> RouteParameters -> BackendFlow st rt String
-getOrderId (OrderStatusRequest req) routeParam = do
+getOrderId :: forall st e r rt. Newtype st (TState e) => OrderStatusRequestLegacy -> RouteParameters -> BackendFlow st rt String
+getOrderId (OrderStatusRequestLegacy req) routeParam = do
   ordId <- pure $ (StrMap.lookup "orderId" routeParam) <|> (StrMap.lookup "order_id" routeParam)
   let orderid = ordId <|> (unNullOrUndefined req.orderId) <|> (unNullOrUndefined req.order_id)
   maybe (liftErr badRequest) pure orderid
 -}
 
 {-
-getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
+getOrderId :: OrderStatusRequestLegacy -> RouteParameters -> Flow Text
 getOrderId orderReq routeParam = do
   let ordId = lookupRP @OrderId routeParam
   let orderid = ordId <|> getField @"orderId" orderReq <|> getField @"order_id" orderReq

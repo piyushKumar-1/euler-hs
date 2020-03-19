@@ -24,11 +24,20 @@ getOrderStatusResponse' orderId mAcc isAuth rp = do
   pure ordStatusResp
 
 data OrderStatusService = OrderStatusService
-  { getOrderStatusResponse :: Text
-                           -> D.MerchantAccount
-                           -> Bool
-                           -> RP.RouteParameters
-                           ->Flow API.OrderStatusResponse
+  { getOrdStatusResp :: API.OrderStatusRequestLegacy -- default with current order orderId
+                        --  getOrderStatusRequest
+                        --  from src/Types/Communication/OLTP/OrderStatus.purs
+                     -> D.MerchantAccount
+                     -> Bool -- true
+                     -> RP.RouteParameters
+                     -> Flow API.OrderStatusResponse
+  , addOrderStatusResponseToCache :: API.OrderStatusRequestLegacy
+                                  -> Bool
+                                  -> D.MerchantAccount
+                                  -> RP.RouteParameters
+                                  -> API.OrderStatusResponse
+                                  -> Flow ()
+  , getEmptyOrderStatusRequest :: Text -> API.OrderStatusRequestLegacy
   }
 
 
@@ -41,8 +50,8 @@ defaultOrderStatusService = OrderStatusService
 
 --  getOrderStatusRequest
 --  from src/Types/Communication/OLTP/OrderStatus.purs
-getEmptyOrderStatusRequest' :: Text -> API.OrderStatusRequest
-getEmptyOrderStatusRequest' orderId = API.OrderStatusRequest
+getEmptyOrderStatusRequest' :: Text -> API.OrderStatusRequestLegacy
+getEmptyOrderStatusRequest' orderId = API.OrderStatusRequestLegacy
   { txn_uuid =  Nothing
   , merchant_id =  Nothing
   , order_id =  (Just orderId)

@@ -270,7 +270,7 @@ src/Types/Communication/OLTP/Order.js
 -}
 
 -- Looks like domain type to me?
-data OrderStatusQuery = OrderStatusQuery
+data OrderStatusRequest = OrderStatusRequest
   { orderId                 :: OrderId
   , merchantId              :: MerchantId
   , resellerId              :: Maybe Text
@@ -282,7 +282,13 @@ data OrderStatusQuery = OrderStatusQuery
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 -- we can live without it completely
-data OrderStatusRequest = OrderStatusRequest
+-- from Types.Communication.OLTP.OrderStatus
+-- should be decoded with custom FromJSON instance
+-- to avoid duplicate fields
+
+-- EHS: why all these fields are here? No such fields in API Reference.
+-- former OrderStatusRequest
+data OrderStatusRequestLegacy = OrderStatusRequestLegacy
   { txn_uuid    :: Maybe Text
   , merchant_id :: Maybe Text
   , order_id    :: Maybe Text
@@ -292,8 +298,8 @@ data OrderStatusRequest = OrderStatusRequest
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-defaultOrderStatusRequest :: OrderStatusRequest
-defaultOrderStatusRequest  = OrderStatusRequest
+defaultOrderStatusRequest :: OrderStatusRequestLegacy
+defaultOrderStatusRequest  = OrderStatusRequestLegacy
   { txn_uuid     = Nothing -- :: Maybe Text
   , merchant_id  = Nothing -- :: Maybe Text
   , order_id     = Nothing -- :: Maybe Text
@@ -303,9 +309,9 @@ defaultOrderStatusRequest  = OrderStatusRequest
   }
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
--- TODO better naming, probably - mkStatusRequest :: Text -> OrderStatusRequest
-getOrderStatusRequest :: Text -> OrderStatusRequest
-getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
+-- TODO better naming, probably - mkStatusRequest :: Text -> OrderStatusRequestLegacy
+getOrderStatusRequest :: Text -> OrderStatusRequestLegacy
+getOrderStatusRequest ordId = OrderStatusRequestLegacy {  txn_uuid    = Nothing
                                                   , merchant_id = Nothing
                                                   , order_id    = Just ordId
                                                   , txnUuid     = Nothing
@@ -314,9 +320,9 @@ getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing
                                                  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
                                                   }
 
-mkStatusRequest :: Text -> OrderStatusRequest
+mkStatusRequest :: Text -> OrderStatusRequestLegacy
 mkStatusRequest orderId =
-  OrderStatusRequest
+  OrderStatusRequestLegacy
   { txn_uuid    = Nothing
   , merchant_id = Nothing
   , order_id    = Just orderId

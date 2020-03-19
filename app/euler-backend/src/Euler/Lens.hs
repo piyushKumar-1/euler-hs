@@ -155,12 +155,12 @@ makeGenericLenses ''APICustomer.TokenData
 makeGenericLenses ''APIOrder.Card
 makeGenericLenses ''APIOrder.Chargeback'
 makeGenericLenses ''APIOrder.Mandate'
-makeGenericLenses ''APIOrder.OrderStatusQuery
+makeGenericLenses ''APIOrder.OrderStatusRequest
 makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse
 makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse'
 makeGenericLenses ''APIOrder.OrderCreateRequest
 makeGenericLenses ''APIOrder.OrderCreateResponse
-makeGenericLenses ''APIOrder.OrderStatusRequest
+makeGenericLenses ''APIOrder.OrderStatusRequestLegacy
 makeGenericLenses ''APIOrder.OrderStatusResponse
 makeGenericLenses ''APIOrder.OrderTokenResp
 makeGenericLenses ''APIOrder.OrderUpdateRequest

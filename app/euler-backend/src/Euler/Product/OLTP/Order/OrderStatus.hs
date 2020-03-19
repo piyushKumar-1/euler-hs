@@ -13,24 +13,19 @@ module Euler.Product.OLTP.Order.OrderStatus where
 
 import           EulerHS.Prelude hiding (id, First, getFirst, Last, getLast)
 import qualified EulerHS.Prelude as P (id)
-import qualified Prelude as P (show)
 
 import           Euler.Lens
 import           EulerHS.Language
 import           EulerHS.Types
-import           WebService.Language
 
 import           Data.Aeson
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Char (toLower)
 import           Data.Either.Extra
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
-import           Data.Time
 import           Servant.Server
 import           Control.Comonad hiding ((<<=))
 import           Data.Semigroup as S
@@ -39,24 +34,14 @@ import           Control.Monad.Except
 import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order as AO
 import           Euler.API.Refund
-import           Euler.API.RouteParameters (RouteParameters (..), lookupRP)
+import           Euler.API.RouteParameters (RouteParameters (..))
 import qualified Euler.API.RouteParameters as Param
-import           Euler.API.Transaction
-import           Euler.API.Types
 
-import qualified Euler.Common.Metric as Metric
+import           Euler.Common.Types.External.Mandate as Mandate
 import qualified Euler.Common.Types as C
-import           Euler.Common.Types.DefaultDate
-import           Euler.Common.Types.Gateway
-import           Euler.Common.Types.Mandate as Mandate
-import           Euler.Common.Types.Merchant
-import           Euler.Common.Types.Money
-import           Euler.Common.Types.Order (OrderId)
-import qualified Euler.Common.Types.Order as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
-import           Euler.Common.Types.Promotion
-import           Euler.Common.Types.Refund as Refund
 import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
+
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
@@ -64,22 +49,17 @@ import           Euler.Config.Config as Config
 --import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
 
 import qualified Euler.Product.Domain as D
-
 import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
 
 import qualified Euler.Storage.Types as DB
-
 import           Euler.Storage.Repository
-
 import           Euler.Storage.DBConfig
 
 import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
-import           Euler.Services.Version.OrderStatusResponse
 
-import           Database.Beam ((&&.), (/=.), (<-.), (==.))
+import           Database.Beam ((==.))
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
 
 
 
@@ -145,7 +125,7 @@ execOrderStatusQuery request = do
   mOrder <- loadOrder queryOrderId queryMerchantId
 
   (order :: D.Order) <- case mOrder of
-    Just ord -> pure ord
+    Just o -> pure o
     Nothing -> throwException err404
       { errBody = "Order not found "
       <> "OrderId" <> show queryOrderId
@@ -200,7 +180,7 @@ execOrderStatusQuery request = do
     (Just txn, Just txnCard) -> do
       let txnDetail_id = D.txnDetailPId $ txn ^. _id
       getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
-    (Nothing, Nothing) -> pure (Nothing, Nothing)
+    _ -> pure (Nothing, Nothing)
 
   pure $ runExcept $ makeOrderStatusResponse
     order
@@ -290,7 +270,7 @@ buildStatusResponse OrderStatusResponseTemp{..} = OrderStatusResponse
 makeOrderStatusResponse
   :: D.Order
   -> Paymentlinks
-  -> Maybe Promotion'
+  -> Maybe C.Promotion'
   -> Maybe Mandate'
   -> OrderStatusRequest
   -> Maybe D.TxnDetail
@@ -329,14 +309,14 @@ makeOrderStatusResponse
   let sendCardIsin = request ^. _sendCardIsin
 
   let mCustomerId = whenNothing  (order ^. _customerId) (Just "")
-      email = (\email -> if isAuthenticated then email else Just "")  (order ^. _customerEmail)
-      phone = (\phone -> if isAuthenticated then phone else Just "")  (order ^. _customerPhone)
-      amount = fromMoney $ order ^. _amount
-      amountRefunded = fmap sanitizeAmount $ order ^. _amountRefunded
+      email = (\mail -> if isAuthenticated then mail else Just "")  (order ^. _customerEmail)
+      phone = (\phn -> if isAuthenticated then phn else Just "")  (order ^. _customerPhone)
+      amount = C.fromMoney $ order ^. _amount
+      amountRefunded = fmap C.fromMoney $ order ^. _amountRefunded
 
-      getStatus = show . (^. _status)
+      showStatus = show . (^. _status)
       getStatusId = txnStatusToInt . (^. _status)
-      getGatewayId txn = maybe 0 gatewayIdFromGateway $ txn ^. _gateway
+      getGatewayId txn = maybe 0 C.gatewayIdFromGateway $ txn ^. _gateway
       getBankErrorCode txn = whenNothing  (txn ^. _bankErrorCode) (Just "")
       getBankErrorMessage txn = whenNothing  (txn ^. _bankErrorMessage) (Just "")
       getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
@@ -349,7 +329,7 @@ makeOrderStatusResponse
 
       paymentMethod = whenNothing mCardBrand (Just "UNKNOWN")
 
-      maybeTxnCard f = maybe emptyBuilder f mTxnCard
+      -- maybeTxnCard f = maybe emptyBuilder f mTxnCard
       maybeTxn f = maybe emptyBuilder f mTxn
       maybeTxnAndTxnCard f = case (mTxn, mTxnCard) of
         (Just txn, Just txnCard) -> f txn txnCard
@@ -398,7 +378,7 @@ makeOrderStatusResponse
     <<= maybeTxn (changeTxnUuid . (^. _txnUuid))
     <<= maybeTxn (changeTxnId . (^. _txnId))
     <<= maybeTxn (changeStatusId . getStatusId)
-    <<= maybeTxn (changeStatus . getStatus)
+    <<= maybeTxn (changeStatus . showStatus)
 
     <<= changeMandate mMandate
 
@@ -509,11 +489,11 @@ changeUtf10 :: Maybe Text -> ResponseBuilder -> OrderStatusResponse
 changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
 
 
-changePromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
-changePromotion Nothing builder = builder mempty
+changePromotion :: Maybe C.Promotion' -> ResponseBuilder -> OrderStatusResponse
+changePromotion Nothing builder  = builder mempty
 changePromotion mNewProm builder = builder mempty { promotionT = fmap Last mNewProm }
 
-changeAmountAfterPromotion :: Maybe Promotion' -> ResponseBuilder -> OrderStatusResponse
+changeAmountAfterPromotion :: Maybe C.Promotion' -> ResponseBuilder -> OrderStatusResponse
 changeAmountAfterPromotion Nothing builder = builder mempty
 changeAmountAfterPromotion (Just newProm) builder =
   let oldStatus = extract builder
@@ -600,7 +580,7 @@ changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa,
     }
 
 changeTxnFlowInfo :: Maybe TxnFlowInfo -> ResponseBuilder -> OrderStatusResponse
-changeTxnFlowInfo mkTxnFlowInfo builder = builder $ mempty {txn_flow_infoT = fmap Last mkTxnFlowInfo}
+changeTxnFlowInfo txnFlowInfo builder = builder $ mempty {txn_flow_infoT = fmap Last txnFlowInfo}
 
 changeMerchantSecondFactorResponse
   :: Maybe MerchantSecondFactorResponse
@@ -622,7 +602,7 @@ getLastTxn orderId merchantId = do
 
   case txnDetails of
     [] -> do
-      logError "get_last_txn"
+      logError @Text "get_last_txn"
         $ "No last txn found for orderId: " <> show orderId
         <> " :merchant:" <> show merchantId
       pure Nothing
@@ -660,7 +640,7 @@ createPaymentLinks orderUuid maybeResellerEndpoint = do
     , iframe =   Just (host <> "/merchant/ipay/") <> Just orderUuid
     }
 
-getReturnUrl :: MerchantId -> Maybe Text -> Flow (Maybe Text)
+getReturnUrl :: C.MerchantId -> Maybe Text -> Flow (Maybe Text)
 getReturnUrl merchantIdOrder returnUrlOrder = do
   merchantAccount <- loadMerchantByMerchantId merchantIdOrder
   case merchantAccount of
@@ -671,7 +651,7 @@ getReturnUrl merchantIdOrder returnUrlOrder = do
       pure $ returnUrlOrder <|> (merchantAcc ^. _returnUrl ) <|> merchantIframeReturnUrl
 
 
-getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe Promotion')
+getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe C.Promotion')
 getPromotion orderPId orderId = do
   proms <- loadPromotions orderPId
   decryptActivePromotion orderId proms
@@ -682,22 +662,22 @@ mapTxnDetail txn = TxnDetail'
   { txn_id = txn ^. _txnId
   , order_id = txn ^. _orderId
   , txn_uuid = txn ^. _txnUuid
-  , gateway_id = Just $ maybe 0 gatewayIdFromGateway $ txn ^. _gateway
+  , gateway_id = Just $ maybe 0 C.gatewayIdFromGateway $ txn ^. _gateway
   , status = show $ txn ^. _status
   , gateway = show <$> txn ^. _gateway
   , express_checkout = txn ^. _expressCheckout
   , redirect = txn ^. _redirect
   , net_amount = Just $ if isJust (txn ^. _netAmount)
-      then show $ maybe 0 fromMoney (txn ^. _netAmount) -- Forign becomes Text in our TxnDetail'
+      then show $ maybe 0 C.fromMoney (txn ^. _netAmount) -- Forign becomes Text in our TxnDetail'
       else mempty
   , surcharge_amount = Just $ if isJust (txn ^. _surchargeAmount)
-      then show $ maybe 0 fromMoney (txn ^. _surchargeAmount)
+      then show $ maybe 0 C.fromMoney (txn ^. _surchargeAmount)
       else mempty
   , tax_amount = Just $ if isJust (txn ^. _taxAmount)
-      then show $ maybe 0 fromMoney (txn ^. _taxAmount)
+      then show $ maybe 0 C.fromMoney (txn ^. _taxAmount)
       else mempty
   , txn_amount = Just $ if isJust (txn ^. _txnAmount)
-      then show $ maybe 0 fromMoney (txn ^. _txnAmount)
+      then show $ maybe 0 C.fromMoney (txn ^. _txnAmount)
       else mempty
   , currency = txn ^. _currency
   , error_message = Just $ fromMaybe mempty $ txn ^. _bankErrorMessage
@@ -729,7 +709,7 @@ loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
 
 
 getGatewayReferenceId2
-  :: Maybe Gateway
+  :: Maybe C.Gateway
   -> C.OrderPId
   -> Maybe Text -- udf2
   -> C.MerchantId
@@ -741,6 +721,7 @@ getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
   ordMeta <- loadOrderMetadataV2 orderPId
 
   case ordMeta of
+    Nothing -> checkGateway
     Just (ordM :: DB.OrderMetadataV2) ->
       case blankToNothing (ordM ^. _metadata) of
         Nothing -> checkGateway
@@ -759,7 +740,7 @@ getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
 checkGatewayRefIdForVodafone
   :: C.MerchantId
   -> Maybe Text
-  -> Maybe Gateway
+  -> Maybe C.Gateway
   -> Flow Text
 checkGatewayRefIdForVodafone merchantId udf2 gateway = do
 
@@ -767,7 +748,7 @@ checkGatewayRefIdForVodafone merchantId udf2 gateway = do
 
   case meybeFeature of
     Just feature ->
-        if (gateway == Just HSBC_UPI)
+        if (gateway == Just C.HSBC_UPI)
             && (feature ^. _enabled)
             && (isJust udf2)
         then pure $ fromMaybe "" udf2
@@ -838,7 +819,6 @@ chargebackDetails txnId txn = do
 
 
 sanitizeAmount x = x
-sanitizeNullAmount = fmap sanitizeAmount
 
 
 getPaymentMethodAndType
@@ -950,33 +930,33 @@ getPayerVpa mSuccessResponseId = do
     Nothing  -> T.empty
     Just xml -> findEntry "payerVpa" "" $ decodePGRXml $ T.encodeUtf8 xml
 
-getPayerVpaByGateway :: Maybe Int -> Maybe Gateway -> Flow Text
+getPayerVpaByGateway :: Maybe Int -> Maybe C.Gateway -> Flow Text
 getPayerVpaByGateway respId gateway = do
   mPgr <- loadPGR respId
   case mPgr of
     Nothing  -> pure T.empty
     Just pgr -> pure $ findPayerVpaByGateway gateway (pgr ^. _responseXml)
 
-findPayerVpaByGateway :: Maybe Gateway -> Maybe Text -> Text
+findPayerVpaByGateway :: Maybe C.Gateway -> Maybe Text -> Text
 findPayerVpaByGateway _ Nothing = T.empty
 findPayerVpaByGateway gateway (Just xml) =
   case gateway of
     Nothing -> T.empty
     Just gateway' -> case gateway' of
-      AXIS_UPI    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
-      HDFC_UPI    -> findEntry "payerVpa" "" pgrXml
-      INDUS_UPI   -> findEntry "payerVpa" "" pgrXml
-      KOTAK_UPI   -> findEntry "payerVpa" "" pgrXml
-      SBI_UPI     -> findEntry "payerVpa" "" pgrXml
-      ICICI_UPI   -> findEntry "payerVpa" "" pgrXml
-      HSBC_UPI    -> findEntry "payerVpa" "" pgrXml
-      VIJAYA_UPI  -> findEntry "payerVpa" "" pgrXml
-      YESBANK_UPI -> findEntry "payerVpa" "" pgrXml
-      PAYTM_UPI   -> findEntry "payerVpa" "" pgrXml
-      PAYU        -> findEntry "field3" "" pgrXml
-      RAZORPAY    -> findEntry "vpa" "" pgrXml
-      PAYTM_V2    -> findEntry "VPA" "" pgrXml
-      GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
+      C.AXIS_UPI    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
+      C.HDFC_UPI    -> findEntry "payerVpa" "" pgrXml
+      C.INDUS_UPI   -> findEntry "payerVpa" "" pgrXml
+      C.KOTAK_UPI   -> findEntry "payerVpa" "" pgrXml
+      C.SBI_UPI     -> findEntry "payerVpa" "" pgrXml
+      C.ICICI_UPI   -> findEntry "payerVpa" "" pgrXml
+      C.HSBC_UPI    -> findEntry "payerVpa" "" pgrXml
+      C.VIJAYA_UPI  -> findEntry "payerVpa" "" pgrXml
+      C.YESBANK_UPI -> findEntry "payerVpa" "" pgrXml
+      C.PAYTM_UPI   -> findEntry "payerVpa" "" pgrXml
+      C.PAYU        -> findEntry "field3" "" pgrXml
+      C.RAZORPAY    -> findEntry "vpa" "" pgrXml
+      C.PAYTM_V2    -> findEntry "VPA" "" pgrXml
+      C.GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
       _           -> T.empty
   where
     pgrXml = decodePGRXml $ T.encodeUtf8 xml

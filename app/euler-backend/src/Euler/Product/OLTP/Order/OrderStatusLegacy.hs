@@ -447,7 +447,7 @@ makeOrderStatusResponse
       email = (\email -> if isAuthenticated then email else Just "") (getField @"customerEmail" order)
       phone = (\phone -> if isAuthenticated then phone else Just "") (getField @"customerPhone" order)
       amount = fromMoney $ getField @ "amount" order
-      amountRefunded = fmap sanitizeAmount $ getField @"amountRefunded" order
+      amountRefunded = fmap C.fromMoney $ getField @"amountRefunded" order
 
       getStatus = show . getField @"status"
       getStatusId = txnStatusToInt . getField @"status"
@@ -2414,6 +2414,7 @@ getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
   ordMeta <- loadOrderMetadataV2 orderPId
 
   case ordMeta of
+    Nothing -> checkGateway
     Just (ordM :: DB.OrderMetadataV2) ->
       case blankToNothing (getField @"metadata" ordM) of
         Nothing -> checkGateway

@@ -39,7 +39,7 @@ data Order = Order
   , description       :: Maybe Text
   , returnUrl         :: Maybe Text
 
-  , amountRefunded    :: Maybe Double
+  , amountRefunded    :: Maybe Money
   , refundedEntirely  :: Bool
   , autoRefund        :: Bool
 

@@ -37,7 +37,7 @@ transSOrderToDOrder so = DO.Order
 
   <*> withField @"description" so pure
   <*> withField @"returnUrl" so pure
-  <*> withField @"amountRefunded" so pure
+  <*> (fmap mkMoney <$> withField @"amountRefunded" so (insideJust Vs.amountValidators))
   <*> withField @"refundedEntirely" so (extractMaybeWithDefault False)
   <*> withField @"autoRefund" so (extractMaybeWithDefault False)
   <*> withField @"productId" so pure

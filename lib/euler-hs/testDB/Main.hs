@@ -13,7 +13,9 @@ import qualified SQLDB.Tests.QueryExamplesSpec as Ex
 
 main = hspec $ do
   KVDB.spec
-  -- MySQL.spec
   SQLiteDB.spec
   Ex.spec
   -- PGDB.spec
+  -- PGDBP.spec
+  MySQL.spec
+  -- MySQLP.spec

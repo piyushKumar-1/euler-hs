@@ -1,0 +1,49 @@
+version: "3"
+services:
+  redis:
+    image: "redis:5"
+    expose:
+      - "6379"
+
+  stack:
+    image: euler-hs-stack
+    build:
+      context: ./init
+      dockerfile: Dockerfile.stack
+      args:
+        EULER_UID: ${UID}
+        EULER_GID: ${GID}
+    volumes:
+        - .:/euler-hs
+        - stackcache:/.stack
+    command: stack test --fast --ghc-options="-j4 +RTS -A64M -AL256M -qn4 -RTS" -j4
+
+  mysql:
+    image: euler-ps-mysql
+    build:
+      context: ./init
+      dockerfile: Dockerfile.mysql
+    expose:
+      - "3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "root"
+      MYSQL_USER: "cloud"
+      MYSQL_PASSWORD: "scape"
+      MYSQL_DATABASE: "jdb"
+
+  # postgres:
+  #   image: euler-ps-postgres
+  #   build:
+  #     context: ./init
+  #     dockerfile: Dockerfile.postgres
+  #   expose:
+  #     - "5432"
+  #   environment:
+  #     POSTGRES_USER: "cloud"
+  #     POSTGRES_PASSWORD: "scape"
+  #     POSTGRES_DB: "hpcldb"
+
+volumes:
+    stackcache:
+
+

@@ -175,6 +175,7 @@ tests:
     main: Main.hs
     source-dirs: test
     dependencies:
+    - mysql
     - euler-backend
     - hspec
     - hspec-wai

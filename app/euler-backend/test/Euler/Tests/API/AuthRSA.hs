@@ -7,6 +7,7 @@ import Euler.Tests.Common
 
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Data.Text                              as Text
+import qualified Data.ByteString as BS
 
 import           EulerHS.Prelude
 import           EulerHS.Language
@@ -33,6 +34,8 @@ import           Test.Hspec
 import qualified WebService.Types                       as T
 import qualified WebService.Language                    as L
 import           Euler.API.RouteParameters
+
+import Database.MySQL.Base
 
 spec :: Spec
 spec = pure ()
@@ -156,40 +159,73 @@ protected = S.runFlow "sTestFlow" emptyRPs S.noReqBodyJSON . Auth.authenticateUs
 
 ----------------------------------------------------------------------
 
-sqliteConn :: IsString a => a
-sqliteConn = "sqlite"
+mwhen :: Monoid m => Bool -> m -> m
+mwhen True  = id
+mwnen False = const mempty
 
-keepConnsAliveForSecs :: NominalDiffTime
-keepConnsAliveForSecs = 60 * 10 -- 10 mins
+loadMySQLDump :: String -> T.MySQLConfig -> IO ()
+loadMySQLDump path T.MySQLConfig {..} =
+     void $ system $
+      "mysql " <> options <> " " <> connectDatabase <> " 2> /dev/null < " <> path -- ../../init/mysqldump.sql"
+  where
+    options =
+      intercalate " "
+        [                                      "--port="     <> show connectPort
+        , mwhen (not $ null connectHost    ) $ "--host="     <> connectHost
+        , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
+        , mwhen (not $ null connectPassword) $ "--password=" <> connectPassword
+        ]
 
-maxTotalConns :: Int
-maxTotalConns = 8
+mySQLCfg :: T.MySQLConfig
+mySQLCfg = T.MySQLConfig
+  { connectHost     = "mysql"
+  , connectPort     = 3306
+  , connectUser     = "cloud"
+  , connectPassword = "scape"
+  , connectDatabase = "euler_test_db"
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
 
-testDBName :: String
-testDBName = "./test/Euler/TestData/authRSAtest.db"
+mySQLRootCfg :: T.MySQLConfig
+mySQLRootCfg =
+    T.MySQLConfig
+      { connectUser     = "root"
+      , connectPassword = "root"
+      , connectDatabase = ""
+      , ..
+      }
+  where
+    T.MySQLConfig {..} = mySQLCfg
 
-testDBTemplateName :: String
-testDBTemplateName = "./test/Euler/TestData/authRSAtest.db.template"
-
-rmTestDB :: IO ()
-rmTestDB = void $ try @_ @SomeException $ system $ "rm -f " <> testDBName
-
-cpTestDB :: IO ()
-cpTestDB = do
-  res <- try @_ @SomeException $ system $ "cp " <> testDBTemplateName <> " " <> testDBName
-  case res of
-    Right ExitSuccess -> pure ()
-    _                 -> error "Unable to copy rsa test db mockup"
 
 prepareTestDB :: IO() -> IO ()
-prepareTestDB action = bracket_ rmTestDB rmTestDB (cpTestDB >> action)
+prepareTestDB action =
+  bracket (T.createMySQLConn mySQLRootCfg) close $ \rootConn -> do
+    let
+      dropTestDbIfExist :: IO ()
+      dropTestDbIfExist = do
+        query rootConn "drop database if exists euler_test_db"
+
+      createTestDb :: IO ()
+      createTestDb = do
+        query rootConn "create database euler_test_db"
+        query rootConn "grant all privileges on euler_test_db.* to 'cloud'@'%'"
+
+
+    bracket_
+      (dropTestDbIfExist >> createTestDb)
+      (dropTestDbIfExist)
+      (loadMySQLDump "test/Euler/TestData/rsaAuthMySQL.sql" mySQLCfg >> action)
+
+
 
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
   ePool <- initSqlDBConnection
-    $ T.mkSQLitePoolConfig sqliteConn testDBName
-    $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
-  L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
+    $ T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
+  L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to MySQL DB."
 
 prepareDB :: (FlowRuntime -> IO ()) -> IO()
 prepareDB next = withFlowRuntime Nothing $ \flowRt ->
@@ -202,7 +238,13 @@ runServer :: IO () -> FlowRuntime -> IO ()
 runServer act flowRt = do
     let env = S.Env flowRt Nothing mkAppEnv
     serverStartupLock <- newEmptyMVar
-    let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $ setPort port defaultSettings
-    threadId <- forkIO $ runSettings settings $ serve api (eulerServer_ api server env)
+
+    let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $
+          setPort port defaultSettings
+
+    threadId <- forkIO $ runSettings settings $
+      serve api (eulerServer_ api server env)
+
     readMVar serverStartupLock
+
     finally act $ killThread threadId

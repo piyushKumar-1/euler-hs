@@ -17,7 +17,6 @@ import           EulerHS.Language
 import           System.Process
 import           Database.MySQL.Base
 import qualified Database.Beam.MySQL as BM
-import qualified Database.Beam.Postgres as BP
 
 import EulerHS.Extra.Test
 

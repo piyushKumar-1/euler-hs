@@ -43,31 +43,38 @@ import qualified Data.Aeson as A
 import Test.HUnit.Base
 
 import Euler.Lens
+import Database.MySQL.Base
+import           System.Process
 
 
 
-testDBName :: String
-testDBName = "./test/Euler/TestData/tmp_test.db"
+prepareDB :: (FlowRuntime -> IO ()) -> IO()
+prepareDB next = withFlowRuntime Nothing $ \flowRt ->
+  prepareTestDB $
+    try (runFlow flowRt prepareDBConnections) >>= \case
+      Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
+      Right _ -> next flowRt
+  where
+    prepareTestDB :: IO() -> IO ()
+    prepareTestDB action =
+      bracket (T.createMySQLConn mySQLRootCfg) close $ \rootConn -> do
+        let
+          dropTestDbIfExist :: IO ()
+          dropTestDbIfExist = do
+            query rootConn "drop database if exists euler_test_db"
 
-testDBTemplateName :: String
-testDBTemplateName = "./test/Euler/TestData/test.db.template"
+          createTestDb :: IO ()
+          createTestDb = do
+            query rootConn "create database euler_test_db"
+            query rootConn "grant all privileges on euler_test_db.* to 'cloud'@'%'"
 
-rmTestDB :: Flow ()
-rmTestDB = void $ runSysCmd $ "rm -f " <> testDBName
 
-prepareTestDB :: Flow ()
-prepareTestDB = do
-  rmTestDB
-  void $ runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
+        bracket_
+          (dropTestDbIfExist >> createTestDb)
+          (dropTestDbIfExist)
+          (loadMySQLDump "test/Euler/TestData/orderCreateMySQL.sql" mySQLCfg >> action)
 
-withEmptyDB :: (FlowRuntime -> IO ()) -> IO ()
-withEmptyDB act = withFlowRuntime (Just defaultLoggerConfig) (\rt -> do
-  try (runFlow rt prepareTestDB) >>= \case
-    Left (e :: SomeException) ->
-      runFlow rt rmTestDB
-      `finally` error ("Preparing test values failed: " <> show e)
-    Right _ -> act rt `finally` runFlow rt rmTestDB
-    )
+
 
 createMerchantAccount :: Flow DM.MerchantAccount
 createMerchantAccount = case Merchant.transSMaccToDomMacc Merchant.defaultMerchantAccount of
@@ -145,7 +152,7 @@ ordReqForValidators = orderReqTemplate
 
 ordReqExisted :: OrderCreateRequest
 ordReqExisted = orderReqTemplate
-  { order_id = "orderId"
+  { order_id = "Juspay_493"
   , amount = 1.0
   }
 
@@ -453,7 +460,7 @@ redisConn = "redis"
 
 redisConnConfig :: T.RedisConfig
 redisConnConfig = T.RedisConfig
-    { connectHost           = "localhost"
+    { connectHost           = "redis"
     , connectPort           = 6379
     , connectAuth           = Nothing
     , connectDatabase       = 0
@@ -465,8 +472,7 @@ redisConnConfig = T.RedisConfig
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
   ePool <- initSqlDBConnection
-    $ T.mkSQLitePoolConfig sqliteConn "./test/Euler/TestData/tmp_test.db"
-    $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
+    $ T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
   redis <- initKVDBConnection
     $ T.mkKVDBConfig redisConn
     $ redisConnConfig
@@ -474,10 +480,58 @@ prepareDBConnections = do
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
 
+mwhen :: Monoid m => Bool -> m -> m
+mwhen True a  = a
+mwnen False _ = mempty
+
+
+-- file path relative to app/euler-backend
+loadMySQLDump :: String -> T.MySQLConfig -> IO ()
+loadMySQLDump path T.MySQLConfig {..} = do
+    let cmd = "mysql " <> options <> " " <> connectDatabase <> " 2> /dev/null < " <> path -- ../../init/mysqldump.sql"
+    -- putStrLn cmd
+    void $ system cmd
+  where
+    options =
+      intercalate " "
+        [                                      "--port="     <> show connectPort
+        , mwhen (not $ null connectHost    ) $ "--host="     <> connectHost
+        , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
+        , mwhen (not $ null connectPassword) $ "--password=" <> connectPassword
+        ]
+
+mySQLCfg :: T.MySQLConfig
+mySQLCfg = T.MySQLConfig
+  { connectHost     = "mysql"
+  , connectPort     = 3306
+  , connectUser     = "cloud"
+  , connectPassword = "scape"
+  , connectDatabase = "euler_test_db"
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
+
+mySQLRootCfg :: T.MySQLConfig
+mySQLRootCfg =
+    T.MySQLConfig
+      { connectUser     = "root"
+      , connectPassword = "root"
+      , connectDatabase = ""
+      , ..
+      }
+  where
+    T.MySQLConfig {..} = mySQLCfg
+
+
+
+
+
 loop :: IO ()
 loop = do threadDelay 1000; loop
 
 -- shouldBeAnn ::
+{-# INLINE shouldBeAnn #-}
 shouldBeAnn s a b = assertEqual s b a
 
 -- shouldStartWithAnn :: _
@@ -490,15 +544,15 @@ shouldStartWithAnn s v p
 
 spec :: Spec
 spec =
-  around withEmptyDB $
+  around prepareDB $
     describe "API Order methods" $ do
       let runOrderCreate rt ordReq rp = runFlow rt $ do
-            prepareDBConnections
+            -- prepareDBConnections
             Auth.withMacc OrderCreate.orderCreate rp ordReq
             --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
       let getAddressesAfterCreate rt ordReq rp = runFlow rt $ do
-            prepareDBConnections
+            -- prepareDBConnections
             resp <- Auth.withMacc OrderCreate.orderCreate rp ordReq
             let oid = getField @"order_id" resp -- resp ^.  _order_id
             let mid = fromMaybe "" $ getField @"merchant_id" resp -- resp ^. _merchant_id
@@ -508,7 +562,7 @@ spec =
             billingAddr <- Rep.loadAddress billAddrId
             shippingAdr <- Rep.loadAddress shipAddrId
             pure (resp, billingAddr, shippingAdr)
-----------------------------------------------------------------------
+--------------------------------------------------------------------
 
       it "OrderCreate. Authorization - invalid" $ \rt -> do
         let rp = collectRPs
@@ -521,11 +575,11 @@ spec =
         res `shouldBe` Left err
 
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------
 
       it "OrderCreate. Old version. customer_id = Nothing" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
 
@@ -569,11 +623,11 @@ spec =
 
       it "OrderCreate. Old version. customer_id existing in db" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
 
-        resp <- runOrderCreate rt ordReq{customer_id = Just "1"} rp
+        resp <- runOrderCreate rt ordReq{customer_id = Just "cst_2h0dwktdpsefeyk6"} rp
 
         -- Do no threat this as a source of truth. Just fixing current behavior
         do
@@ -611,7 +665,7 @@ spec =
 
       it "OrderCreate. Old version. customer_id not existing in db" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
 
@@ -653,7 +707,7 @@ spec =
 
       it "OrderCreate. Old version with tokenize enabled" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
 
@@ -669,7 +723,7 @@ spec =
 
       it "OrderCreate. Old version with tokenize disabled" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
 
@@ -685,7 +739,7 @@ spec =
 
       it "OrderCreate. New version with tokenize enabled" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
 
@@ -701,7 +755,7 @@ spec =
 
       it "OrderCreate. New version with tokenize disabled" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
 
@@ -717,11 +771,11 @@ spec =
 
       it "OrderCreate. New version. customer_id existing in db" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
 
-        resp <- runOrderCreate rt ordReq{customer_id = Just "1"} rp
+        resp <- runOrderCreate rt ordReq{customer_id = Just "cst_2h0dwktdpsefeyk6"} rp
 
         do
           let OrderAPI.OrderCreateResponse{..} = resp
@@ -742,10 +796,10 @@ spec =
           shouldBeAnn "return_url"      return_url      $ Just "http://example.com"
           shouldBeAnn "refunded"        refunded        $ Just False
           shouldBeAnn "product_id"      product_id      $ Just "prodId"
-          shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
+          shouldBeAnn "merchant_id"     merchant_id     $ Just "juspay_test"
 
           shouldBeAnn "customer_phone"  customer_phone  $ Just ""
-          shouldBeAnn "customer_id"     customer_id     $ Just "1"
+          shouldBeAnn "customer_id"     customer_id     $ Just "cst_2h0dwktdpsefeyk6"
           shouldBeAnn "customer_email"  customer_email  $ Just "customer@email.com"
 
           shouldBeAnn "currency"        currency        $ Just "INR"
@@ -757,7 +811,7 @@ spec =
 
       it "OrderCreate. New version. customer_id not existing in db" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
 
@@ -782,7 +836,7 @@ spec =
           shouldBeAnn "return_url"      return_url      $ Just "http://example.com"
           shouldBeAnn "refunded"        refunded        $ Just False
           shouldBeAnn "product_id"      product_id      $ Just "prodId"
-          shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
+          shouldBeAnn "merchant_id"     merchant_id     $ Just "juspay_test"
 
           shouldBeAnn "customer_phone"  customer_phone  $ Just ""
           shouldBeAnn "customer_id"     customer_id     $ Nothing
@@ -796,7 +850,7 @@ spec =
 
       it "OrderCreate. New version. customer_id = Nothing" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
 
@@ -821,7 +875,7 @@ spec =
           shouldBeAnn "return_url"      return_url      $ Just "http://example.com"
           shouldBeAnn "refunded"        refunded        $ Just False
           shouldBeAnn "product_id"      product_id      $ Just "prodId"
-          shouldBeAnn "merchant_id"     merchant_id     $ Just "1"
+          shouldBeAnn "merchant_id"     merchant_id     $ Just "juspay_test"
 
           shouldBeAnn "customer_phone"  customer_phone  $ Just "" -- same here ???
           shouldBeAnn "customer_id"     customer_id     $ Nothing -- We can get Just customerId, Nothing, Just ""
@@ -835,7 +889,7 @@ spec =
 
       it "Order with ordReqForValidators" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
 
@@ -852,7 +906,7 @@ spec =
 
       it "Order with ordReqMandateFeatureFailData (mandate_max_amount not set)" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should be set."
@@ -864,7 +918,7 @@ spec =
 
       it "Order with ordReqMandateFeatureFailData2 (customer_id not set)" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.customerNotFound
@@ -875,7 +929,7 @@ spec =
 
       it "Order with ordReqMandateFeatureFailData3 (mandate_max_amount = 0)" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.invalidMandateMaxAmount 100001.0
@@ -886,7 +940,7 @@ spec =
 
       it "Order with ordReqMandateFeatureFailData4 (mandate_max_amount < 0)" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.mkValidationError [ "options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
@@ -898,7 +952,7 @@ spec =
 
       it "Order with ordReqMandateFeatureFailData5 (customer not found)" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.customerNotFound
@@ -909,18 +963,18 @@ spec =
 
       it "Order with ordReqOptionalMandateWNegativeMaxAmount" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.mkValidationError ["options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
-                                         , "options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
+                                         ,"options_create_mandate mandate_max_amount mandate_max_amount should not be negative."
                                          ]
         res <- try $ runOrderCreate rt ordReqOptionalMandateWNegativeMaxAmount rp
         res `shouldBe` Left err
 
       it "Order with ordReqOptionalMandateWTooBigMaxAmount" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         let err = Errs.invalidMandateMaxAmount 100001.0
@@ -929,7 +983,7 @@ spec =
 
       it "Order with ordReqOptionalMandateWOmaxAmount" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         res <- try @_ @SomeException $ runOrderCreate rt ordReqOptionalMandateWOmaxAmount rp
@@ -937,7 +991,7 @@ spec =
 
       it "Order with ordReqOptionalMandateWGoodMaxAmount" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
         res <- try @_ @SomeException $ runOrderCreate rt ordReqOptionalMandateWGoodMaxAmount rp
@@ -946,60 +1000,14 @@ spec =
 
 ----------------------------------------------------------------------
 
--- OrderReference get from DB
-
--- OrderReference
---   { id = Just 1
---   , version = 1
---   , amount = Just 10.0
---   , currency = Just INR
---   , dateCreated = 1858-11-18 01:01:01
---   , lastModified = 1858-11-18 01:01:01
---   , merchantId = Just "1"
---   , orderId = Just "orderId"
---   , status = CREATED
---   , customerEmail = Just "customer@email.com"
---   , customerId = Just "customerId"
---   , browser = Nothing
---   , browserVersion = Nothing
---   , popupLoaded = Nothing
---   , popupLoadedTime = Nothing
---   , description = Just "some description"
---   , udf1 = Just "udf1"
---   , udf2 = Nothing
---   , udf3 = Nothing
---   , udf4 = Nothing
---   , udf5 = Nothing
---   , udf6 = Nothing
---   , udf7 = Nothing
---   , udf8 = Nothing
---   , udf9 = Nothing
---   , udf10 = Just "udf10"
---   , returnUrl = Nothing
---   , amountRefunded = Nothing
---   , refundedEntirely = Nothing
---   , preferredGateway = Nothing
---   , customerPhone = Nothing
---   , productId = Nothing
---   , billingAddressId = Nothing
---   , shippingAddressId = Nothing
---   , orderUuid = Just "order_uuid123"
---   , lastSynced = Nothing
---   , orderType = Nothing
---   , mandateFeature = Nothing
---   , autoRefund = Nothing
---   }
-
--- Validation failes internally due to
-
--- ["orderType not present","mandateFeature not present"]
-
       it "Order with ordReqExisted" $ \rt -> do
         let rp = collectRPs
-              (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+              (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
               (Version "2018-07-01")
               (UserAgent "Uagent")
-        let err = Errs.orderAlreadyCreated "orderId"
+
+        let err = Errs.orderAlreadyCreated "Juspay_493"
+
         resp <- try $ runOrderCreate rt ordReqExisted rp
         resp `shouldBe` Left err
 
@@ -1007,7 +1015,7 @@ spec =
 
       it "Order with ordReqMandateFeatureTooBigMandateMaxAmount" $ \rt -> do
         let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
                 (Version "2018-07-01")
                 (UserAgent "Uagent")
 
@@ -1024,7 +1032,7 @@ spec =
 
       it "Order UDF cleaned" $ \rt -> do
           let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
                 (Version "2018-07-01")
                 (UserAgent "Uagent")
 
@@ -1037,7 +1045,7 @@ spec =
             shouldBeAnn "status_id"   status_id   $ 10
             shouldBeAnn "order_id"    order_id    $ "udfId"
             shouldBeAnn "refunded"    refunded    $ Just False
-            shouldBeAnn "merchant_id" merchant_id $ Just "1"
+            shouldBeAnn "merchant_id" merchant_id $ Just "juspay_test"
             shouldBeAnn "currency"    currency    $ Just "INR"
             shouldBeAnn "amount"      amount      $ Just 100.0
 
@@ -1058,7 +1066,7 @@ spec =
 
       it "Order with addresses" $ \rt -> do
           let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
                 (Version "2018-07-01")
                 (UserAgent "Uagent")
 
@@ -1071,7 +1079,7 @@ spec =
             shouldBeAnn "status_id"   status_id   $ 10
             shouldBeAnn "order_id"    order_id    $ "orderWithAddr"
             shouldBeAnn "refunded"    refunded    $ Just False
-            shouldBeAnn "merchant_id" merchant_id $ Just "1"
+            shouldBeAnn "merchant_id" merchant_id $ Just "juspay_test"
             shouldBeAnn "currency"    currency    $ Just "INR"
             shouldBeAnn "amount"      amount      $ Just 100.0
 
@@ -1102,15 +1110,15 @@ spec =
 
             shouldStartWithAnn "id" (T.unpack id) "ordeu_"
 
--- ----------------------------------------------------------------------
+----------------------------------------------------------------------
 
       it "Order with addresses. Valid customerId" $ \rt -> do
           let rp = collectRPs
-                (Authorization "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=")
+                (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
                 (Version "2018-07-01")
                 (UserAgent "Uagent")
 
-          resp <- runOrderCreate rt ordReqWithAddresses{customer_id = Just "1"} rp
+          resp <- runOrderCreate rt ordReqWithAddresses{customer_id = Just "cst_2h0dwktdpsefeyk6"} rp
 
           do
             let OrderAPI.OrderCreateResponse{..} = resp
@@ -1119,9 +1127,9 @@ spec =
             shouldBeAnn "status_id"      status_id       $ 10
             shouldBeAnn "order_id"       order_id        $ "orderWithAddr"
             shouldBeAnn "refunded"       refunded        $ Just False
-            shouldBeAnn "merchant_id"    merchant_id     $ Just "1"
+            shouldBeAnn "merchant_id"    merchant_id     $ Just "juspay_test"
             shouldBeAnn "currency"       currency        $ Just "INR"
             shouldBeAnn "amount"         amount          $ Just 100.0
-            shouldBeAnn "customer_phone" customer_phone  $ Just "555-555-555"
+            shouldBeAnn "customer_phone" customer_phone  $ Just "7795296049"
 
             shouldStartWithAnn "id" (T.unpack id) "ordeu_"

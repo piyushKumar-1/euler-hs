@@ -13,7 +13,7 @@ import EulerHS.Types as T
 import qualified Database.Redis as R
 
 connectInfo :: R.ConnectInfo
-connectInfo = R.defaultConnectInfo -- {R.connectHost = "redis"}
+connectInfo = R.defaultConnectInfo {R.connectHost = "redis"}
 
 
 runWithRedisConn_ :: ResultRecording -> Flow b -> IO b

@@ -52,13 +52,6 @@ loadPromotions orderPId = do
       throwException internalError
 
 
-decryptActivePromotion :: C.OrderId -> [D.Promotion] -> Flow (Maybe C.Promotion')
-decryptActivePromotion _ [] = pure Nothing
-decryptActivePromotion orderId promotions = do
-  let mPromotion = find (\promotion -> (promotion ^. _status) == "ACTIVE" ) promotions
-  traverse (decryptPromotionRules orderId) mPromotion
-
-
 transformPromotions :: DB.Promotion -> V D.Promotion
 transformPromotions r = D.Promotion
   <$> (D.PromotionPId <$> withField @"id" r notNegative)
@@ -71,29 +64,42 @@ transformPromotions r = D.Promotion
   <*> withField @"orderReferenceId" r (insideJust notNegative)
 
 
+getActivePromotion :: C.OrderId -> [D.Promotion] -> Flow (Maybe C.Promotion')
+getActivePromotion _ [] = pure Nothing
+getActivePromotion orderId promotions = do
+  let mPromotion = find (\promotion -> (promotion ^. _status) == "ACTIVE" ) promotions
+  case mPromotion of
+    Nothing -> pure Nothing
+    Just promotion -> do
+      let rulesRaw = promotion ^. _rules
+      rules <- decryptPromotionRules orderId rulesRaw
+      pure $ Just $ mapPromotion rules orderId promotion
 
-decryptPromotionRules :: Text -> D.Promotion -> Flow C.Promotion'
-decryptPromotionRules ordId promotions = do
 
-  -- ecTempCardCred partly implemented. See Euler.Config.Config for details.
+decryptPromotionRules :: C.OrderId -> Text -> Flow C.Rules
+decryptPromotionRules ordId rulesTxt = do
+
+  -- EHS: TODO: ecTempCardCred partly implemented. See Euler.Config.Config for details.
   keyForDecryption <- Config.ecTempCardCred
 
-  let rulesDecoded = B64.decode $ T.encodeUtf8 $ promotions ^. _rules
+  let rulesDecoded = B64.decode $ T.encodeUtf8 rulesTxt -- $ promotion ^. _rules
   rulesjson <- case rulesDecoded of
     Right result -> pure $ E.decryptEcb keyForDecryption result
     Left err -> throwException err500 {errBody = LC.pack err}
 
   let rules = getRulesFromString rulesjson
   let rValue = getMaskedAccNo (rules ^. _value)
+  pure $ rules & _value .~ rValue
 
-  pure $ C.Promotion'
-          { id = Just $ show $ D.promotionPId $ promotions ^. _id
-          , order_id = Just ordId
-          , rules = Just [rules & _value .~ rValue]
-          , created = Just $ show (promotions ^. _dateCreated)
-          , discount_amount = Just $ C.fromMoney $ promotions ^. _discountAmount
-          , status = Just $ promotions ^. _status
-          }
+mapPromotion :: C.Rules -> C.OrderId -> D.Promotion -> C.Promotion'
+mapPromotion rules orderId promotion = C.Promotion'
+  { id = Just $ show $ D.promotionPId $ promotion ^. _id
+  , order_id = Just orderId
+  , rules = Just [rules]
+  , created = Just $ show (promotion ^. _dateCreated)
+  , discount_amount = Just $ C.fromMoney $ promotion ^. _discountAmount
+  , status = Just $ promotion ^. _status
+  }
 
 getRulesFromString :: Either E.EncryptionError ByteString -> C.Rules
 getRulesFromString bs =

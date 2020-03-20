@@ -304,7 +304,7 @@ makeOrderStatusResponse
   mMerchantPgr
   = do
 
-  let ordId = order ^. _orderUuid
+  let orderId = order ^. _orderUuid
   let isAuthenticated = request ^. _isAuthenticated
   let sendCardIsin = request ^. _sendCardIsin
 
@@ -410,7 +410,7 @@ makeOrderStatusResponse
     <<= changeCustomerId mCustomerId
     <<= changeOrderId (order ^. _orderId)
     <<= changeMerchantId (order ^. _merchantId)
-    <<= changeId ordId
+    <<= changeId orderId
 
 
 changeId :: Text -> ResponseBuilder -> OrderStatusResponse
@@ -654,7 +654,7 @@ getReturnUrl merchantIdOrder returnUrlOrder = do
 getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe C.Promotion')
 getPromotion orderPId orderId = do
   proms <- loadPromotions orderPId
-  decryptActivePromotion orderId proms
+  getActivePromotion orderId proms
 
 
 mapTxnDetail :: D.TxnDetail -> TxnDetail'

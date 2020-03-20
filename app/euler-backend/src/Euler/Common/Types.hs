@@ -14,7 +14,6 @@ import Euler.Common.Types.Mandate          as X
 import Euler.Common.Types.Merchant         as X
 import Euler.Common.Types.Money            as X
 import Euler.Common.Types.Order            as X
-import Euler.Common.Types.OrderMetadata    as X
 import Euler.Common.Types.Refund           as X
 import Euler.Common.Types.RMSIDResult      as X
 import Euler.Common.Types.Promotion        as X

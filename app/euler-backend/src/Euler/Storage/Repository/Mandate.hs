@@ -11,9 +11,9 @@ import           EulerHS.Language
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
 import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
+import           Euler.Common.Types.Money
 
 import qualified Euler.Product.Domain.Mandate as D
-import           Euler.Product.Domain.Money
 import           Euler.Storage.Types.EulerDB
 import qualified Euler.Storage.Types.Mandate as S
 
@@ -73,32 +73,3 @@ transformMandate r = D.Mandate
   <*> withField @"currency" r pure
   <*> withField @"merchantGatewayAccountId" r pure
   <*> withField @"metadata" r pure
-
-
--- Validators
-
--- EHS: move validators to separate module
-
-textNotEmpty :: Validator Text
-textNotEmpty = mkValidator "Can't be empty." (not . T.null)
-
-idMoreZero :: Validator Int
-idMoreZero = mkValidator "Can't be less 1." (> 0)
-
-amountValidators :: Validator Double
-amountValidators =
-  parValidate
-    [ max2DecimalDigits
-    , gteOne
-    ]
-
---Will accept double values with upto two decimal places.
-max2DecimalDigits :: Validator Double
-max2DecimalDigits = mkValidator
-  "Will accept double values with upto two decimal places."
-  ((<=3) . length . dropWhile (/='.') . show)
-
-gteOne :: Validator Double
-gteOne = mkValidator
-  "Should be greater than or equal 1"
-  (>=1)

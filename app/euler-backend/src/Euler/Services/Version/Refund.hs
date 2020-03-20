@@ -39,17 +39,17 @@ mkRefundService version = RefundService
 
 setInitiatedBy' :: Version -> Refund' -> Refund'
 setInitiatedBy' version
-  | version < "2018-09-20" || version == "" = setField @"initiated_by" Nothing -- ""
+  | version < "2018-09-20" || version == "" = setField @"initiated_by" ""
   | otherwise = P.id
 
 setType' :: Version -> Refund' -> Refund'
 setType' version
-  | version < "2019-03-12" || version == "" = setField @"refund_type" Nothing -- ""
+  | version < "2019-03-12" || version == "" = setField @"refund_type" ""
   | otherwise = P.id
 
 setSource' :: Version -> Refund' -> Refund'
 setSource' version
-  | version < "2019-03-12" || version == "" = setField @"refund_source" Nothing -- ""
+  | version < "2019-03-12" || version == "" = setField @"refund_source" ""
   | otherwise = P.id
 
 setStatus' :: Version -> Refund' -> Refund'

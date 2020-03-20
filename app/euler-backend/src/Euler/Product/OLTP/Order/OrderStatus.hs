@@ -50,7 +50,7 @@ import           Euler.Config.Config as Config
 
 import qualified Euler.Product.Domain as D
 import           Euler.Product.OLTP.Card.Card
-import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey, getMerchantId)
+import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
 
 import qualified Euler.Storage.Types as DB
 import           Euler.Storage.Repository
@@ -90,7 +90,7 @@ handleByOrderId
   -> Param.OrderId
   -> D.MerchantAccount
   -> Flow (Either FlowError OrderStatusResponse)
-handleByOrderId orderId rps merchantAccount  = do
+handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
 
   let request = OrderStatusRequest
         { orderId         = orderId
@@ -103,7 +103,7 @@ handleByOrderId orderId rps merchantAccount  = do
 
   response <- execOrderStatusQuery request
 
-  pure $ mapLeft (const FlowError) response where
+  pure $ mapLeft (const FlowError) response
 
 
 getSendFullGatewayResponse :: RouteParameters -> Bool

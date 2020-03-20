@@ -100,15 +100,6 @@ data Order = Order
 --   }
 
 
-
-
-<<<<<<< HEAD
-=======
-
->>>>>>> [WIP]
-
-
-
 -- data OrderAddress = OrderAddress
 --   { id :: Maybe Int
 --   , version :: Int

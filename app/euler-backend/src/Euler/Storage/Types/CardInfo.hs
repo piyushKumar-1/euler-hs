@@ -9,8 +9,6 @@ module Euler.Storage.Types.CardInfo
   ) where
 
 import           EulerHS.Prelude hiding (id)
-import           Data.Time
-import           Euler.Common.Types.DefaultDate
 import qualified Database.Beam as B
 
 

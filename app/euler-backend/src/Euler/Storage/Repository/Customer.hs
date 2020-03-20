@@ -5,21 +5,24 @@ module Euler.Storage.Repository.Customer
   where
 
 
-import EulerHS.Prelude hiding (id)
+import           EulerHS.Prelude hiding (id)
 
+import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           Euler.Lens
 
+import           Euler.Common.Errors.PredefinedErrors
+import qualified Euler.Common.Types as C
+import           Euler.Common.Validators
+
+import qualified Euler.Product.Domain as D
+import qualified Euler.Product.Domain.Templates as Ts
+
+import qualified Euler.Storage.Types as DB
 import           Euler.Storage.DBConfig
 
-import qualified Euler.Common.Types                   as C
-import           Euler.Common.Validators              (textNotEmpty)
-import qualified Euler.Product.Domain                 as D
-import qualified Euler.Product.Domain.Templates       as Ts
-import qualified Euler.Storage.Types                  as DB
-
-import           Database.Beam                        ((==.), (||.), (&&.))
-import qualified Database.Beam                        as B
-import           Euler.Lens
+import           Database.Beam ((&&.), (==.), (||.))
+import qualified Database.Beam as B
 
 
 loadCustomer :: Maybe C.CustomerId -> D.MerchantAccountId -> Flow (Maybe Ts.CustomerTemplate)
@@ -67,7 +70,7 @@ findCustomerById cId = do
     Failure e -> do
       logError @Text "findById"
         $ "Incorrect Customer in DB, id: " <> show cId <> " error: " <> show e
-      throwException Errs.internalError
+      throwException internalError
 
 validator :: DB.Customer -> V D.Customer
 validator v = D.Customer

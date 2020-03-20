@@ -120,8 +120,5 @@ type AddressId = Int
 --   && isNothing country
 --   && isNothing postalCode
 --   && isNothing phone
-<<<<<<< HEAD
 --   && isNothing countryCodeIso
-=======
---   && isNothing countryCodeIso
->>>>>>> [WIP]
+

@@ -15,8 +15,6 @@ data PaymentMethodType
   | CARD    -- ^ Credit / Debit Card
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
 
-
-
 data TxnType
   = UPI_COLLECT
   | UPI_PAY

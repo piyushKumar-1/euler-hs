@@ -13,7 +13,7 @@ module Euler.Storage.Types.TxnCardInfo
 
 import EulerHS.Prelude hiding (id)
 
-import Euler.Common.Types.Transaction (PaymentMethodType)
+import Euler.Common.Types.External.Mandate (PaymentMethodType)
 import Data.Time
 import qualified Database.Beam as B
 

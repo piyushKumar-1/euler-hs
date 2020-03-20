@@ -2171,7 +2171,7 @@ addPromotionDetails orderRef orderStatus = do
 getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe Promotion')
 getPromotion orderPId orderId = do
   proms <- loadPromotions orderPId
-  decryptActivePromotion orderId proms
+  getActivePromotion orderId proms
 
 -- ----------------------------------------------------------------------------
 -- function: decryptPromotionRules
@@ -4161,7 +4161,7 @@ versionSpecificTransforms headers orderStatus = do
 
 versionSpecificTransforms :: Text -> OrderStatusResponse -> Flow OrderStatusResponse
 versionSpecificTransforms version orderStatus@OrderStatusResponse{gateway_id} =
-  pure $ transformOrderStatus (mkOrderStatusService version gatewayId) orderStatus
+  pure $ transformOrderStatus (mkOrderStatusService version) gatewayId orderStatus
   where
     gatewayId = fromMaybe 0 gateway_id
 --  let pgResponse = getField @"payment_gateway_response" orderStatus

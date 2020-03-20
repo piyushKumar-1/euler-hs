@@ -32,9 +32,6 @@ import qualified EulerHS.Language as L
 import qualified Database.Beam as B
 import Database.Beam ((==.), (&&.))
 
-import qualified Euler.Storage.Types.SqliteTest as SQLITE
-import Euler.Common.Types.DefaultDate
---import Euler.KVDB.Redis
 
 withMacc
   :: forall req resp .
@@ -227,17 +224,17 @@ ipAddressFilters mAcc mForward =  do
 
 getWhitelistedIps :: DM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
-  ipAddresses <- L.rGet ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  let mId = mAcc ^. _merchantId
+  ipAddresses <- L.rGet ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
-      ir <- do
-        withDB eulerDB $ do
-          let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
-          findRows
-            $ B.select
-            $ B.filter_ predicate
-            $ B.all_ (ingress_rule eulerDBSchema)
+      ir <- withDB eulerDB $ do
+        let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
+        findRows
+          $ B.select
+          $ B.filter_ predicate
+          $ B.all_ (ingress_rule eulerDBSchema)
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir

@@ -3,19 +3,20 @@
 
 module Euler.API.Order where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (First, Last, getFirst, getLast)
 import           Web.FormUrlEncoded
 
-import qualified Data.ByteString.Lazy         as BSL
-import qualified Data.HashMap.Strict          as HM
-import qualified Data.Map.Strict              as Map
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
+import           Data.Aeson
+import qualified Data.ByteString.Lazy as BSL
 import           Data.Generics.Product.Fields
-import           Data.Time
-import           Web.FormUrlEncoded
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
 import           Data.Semigroup
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import           Data.Time
 import           Generics.Deriving.Semigroup (gsappenddefault)
+import           Web.FormUrlEncoded
 
 import           Euler.Common.Types.External.Mandate (MandateFeature)
 import           Euler.Common.Types.External.Order (OrderStatus (..))
@@ -36,16 +37,13 @@ import           Euler.Common.Utils
 
 import           Euler.Product.Domain as D
 
-
-
-
 import           Euler.Storage.Types.Mandate
 
-import           Euler.Product.Domain.Chargeback as D
-import           Euler.Product.Domain.Money
-import           Euler.Product.Domain.Refund as D
-import           Euler.Product.Domain.Mandate as D
+-- import           Euler.Product.Domain.Chargeback as D
+-- import           Euler.Product.Domain.Refund as D
+-- import           Euler.Product.Domain.Mandate as D
 
+import           Euler.Common.Types.Money
 
 -- Previously: OrderCreateReq
 data OrderCreateRequest = OrderCreateRequest
@@ -216,10 +214,6 @@ instance FromJSON OrderCreateRequest where
     options_get_client_auth_token <- o .: "options.get_client_auth_token" <|> o .: "options_get_client_auth_token"
     pure OrderCreateRequest{..}
 
-fromStrValue :: Value -> Maybe Text
-fromStrValue s = case s of
-  String x -> Just x
-  _        -> Nothing
 
 appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
 appendOnlyJust xs (Just k, Just v) = (k,v) : xs
@@ -229,10 +223,6 @@ fromStrValue :: Value -> Maybe Text
 fromStrValue s = case s of
   String x -> Just x
   _        -> Nothing
-
-appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
-appendOnlyJust xs (Just k, Just v) = (k,v) : xs
-appendOnlyJust xs _                = xs
 
 -- instance FromFormUrlEncoded Order where
 --   fromFormUrlEncoded inputs =
@@ -796,10 +786,10 @@ data Mandate' = Mandate'
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data EmandateDetail = EmandateDetail
-  { id :: Maybe Text
-  , bank_name :: Maybe Text
-  , ifsc :: Text
-  , account_number :: Text
+  { id               :: Maybe Text
+  , bank_name        :: Maybe Text
+  , ifsc             :: Text
+  , account_number   :: Text
   , beneficiary_name :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
@@ -983,21 +973,3 @@ data TxnFlowInfo = TxnFlowInfo
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-data ViesFlow
-  = VIES_ENROLLMENT
-  | VIES_REPEAT
-  | INVALID
-  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
-
-data ViesGatewayAuthReqParams = ViesGatewayAuthReqParams
-  { viesReferenceId :: Maybe Text
-  , viesInitError :: Maybe Text
-  , errorCode :: Maybe Text
-  , errorMessage :: Maybe Text
-  , flowStatus :: Maybe Text
-  , flow :: Maybe ViesFlow
-  , crid :: Maybe Text
-  , authFlow :: Maybe Text
-  -- , errorDump :: Maybe Foreign
-  }
-  deriving (Show, Read, Eq, Generic, ToJSON, FromJSON)

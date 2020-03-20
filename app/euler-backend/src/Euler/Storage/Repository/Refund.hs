@@ -63,28 +63,3 @@ transformRefund r = D.Refund
   <*> withField @"lastModified" r pure
 
 
--- Validators
-
--- EHS: move validators to separate module
-
-textNotEmpty :: Validator Text
-textNotEmpty = mkValidator "Can't be empty." (not . T.null)
-
-amountValidators :: Validator Double
-amountValidators =
-  parValidate
-    [ max2DecimalDigits
-    , gteOne
-    ]
-
---Will accept double values with upto two decimal places.
-max2DecimalDigits :: Validator Double
-max2DecimalDigits = mkValidator
-  "Will accept double values with upto two decimal places."
-  ((<=3) . length . dropWhile (/='.') . show)
-
-gteOne :: Validator Double
-gteOne = mkValidator
-  "Should be greater than or equal 1"
-  (>=1)
-

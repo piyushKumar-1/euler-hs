@@ -7,7 +7,7 @@ import           EulerHS.Prelude
 
 import           Euler.Common.Types.Refund (RefundStatus (..))
 import qualified Euler.Common.Types.Refund as RC
-import           Euler.Product.Domain.Money
+import           Euler.Common.Types.Money
 
 import           Data.Time
 

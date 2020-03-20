@@ -1,5 +1,6 @@
 module Euler.Storage.KVRepository.Mandate
   ( updateMandateCache
+  , createMandate
   )
   where
 
@@ -38,33 +39,33 @@ updateMandateCache order mandate = case mandate of
       -- EHS: mandate in cache can be used in another backends (ps, groovy)
       void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
 
-    createMandate :: D.Order -> Double -> Flow DB.Mandate
-    createMandate order' maxAmount = do
-      mandateId   <- getShortUUID
-      currentDate <- getCurrentTimeUTC
-      token       <- getUUID32
-      pure $ DB.Mandate
-        { DB.id = Nothing
-        , DB.merchantId = order' ^. _merchantId
-        , DB.currency = Just $ order' ^. _currency
-        , DB.endDate = Nothing
-        , DB.startDate = Nothing
-        , DB.maxAmount = Just maxAmount
-        , DB.merchantCustomerId = order' ^. _customerId
-        , DB.paymentMethod = Nothing
-        , DB.paymentMethodType = Nothing
-        , DB.paymentMethodId = Nothing
-        , DB.gateway = Nothing
-        , DB.gatewayParams = Nothing
-        , DB.token = token
-        , DB.mandateId = mandateId
-        , DB.status = MEx.CREATED
-        , DB.authOrderId = Just $ order' ^. _id
-        , DB.activatedAt = Nothing
-        , DB.dateCreated = currentDate
-        , DB.lastModified = currentDate
-        , DB.authTxnCardInfo = Nothing
-        , DB.merchantGatewayAccountId = Nothing
-        , DB.metadata = Nothing
-        , DB.mandateType = Nothing
-        }
+createMandate :: D.Order -> Double -> Flow DB.Mandate
+createMandate order' maxAmount = do
+  mandateId   <- getShortUUID
+  currentDate <- getCurrentTimeUTC
+  token       <- getUUID32
+  pure $ DB.Mandate
+    { DB.id = Nothing
+    , DB.merchantId = order' ^. _merchantId
+    , DB.currency = Just $ order' ^. _currency
+    , DB.endDate = Nothing
+    , DB.startDate = Nothing
+    , DB.maxAmount = Just maxAmount
+    , DB.merchantCustomerId = order' ^. _customerId
+    , DB.paymentMethod = Nothing
+    , DB.paymentMethodType = Nothing
+    , DB.paymentMethodId = Nothing
+    , DB.gateway = Nothing
+    , DB.gatewayParams = Nothing
+    , DB.token = token
+    , DB.mandateId = mandateId
+    , DB.status = MEx.CREATED
+    , DB.authOrderId = Just $ order' ^. _id
+    , DB.activatedAt = Nothing
+    , DB.dateCreated = currentDate
+    , DB.lastModified = currentDate
+    , DB.authTxnCardInfo = Nothing
+    , DB.merchantGatewayAccountId = Nothing
+    , DB.metadata = Nothing
+    , DB.mandateType = Nothing
+    }

@@ -24,20 +24,11 @@ getOrderStatusResponse' orderId mAcc isAuth rp = do
   pure ordStatusResp
 
 data OrderStatusService = OrderStatusService
-  { getOrdStatusResp :: API.OrderStatusRequestLegacy -- default with current order orderId
-                        --  getOrderStatusRequest
-                        --  from src/Types/Communication/OLTP/OrderStatus.purs
-                     -> D.MerchantAccount
-                     -> Bool -- true
-                     -> RP.RouteParameters
-                     -> Flow API.OrderStatusResponse
-  , addOrderStatusResponseToCache :: API.OrderStatusRequestLegacy
-                                  -> Bool
-                                  -> D.MerchantAccount
-                                  -> RP.RouteParameters
-                                  -> API.OrderStatusResponse
-                                  -> Flow ()
-  , getEmptyOrderStatusRequest :: Text -> API.OrderStatusRequestLegacy
+  { getOrderStatusResponse :: Text
+                           -> D.MerchantAccount
+                           -> Bool
+                           -> RP.RouteParameters
+                           ->Flow API.OrderStatusResponse
   }
 
 

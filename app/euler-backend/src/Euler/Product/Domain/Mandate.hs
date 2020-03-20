@@ -5,11 +5,11 @@ module Euler.Product.Domain.Mandate where
 
 import           EulerHS.Prelude
 
+import           Euler.Common.Types.Currency (Currency)
+import qualified Euler.Common.Types.External.Mandate as M
 import           Euler.Common.Types.Gateway
-import qualified Euler.Common.Types.Mandate as M
-import           Euler.Product.Domain.Money
+import           Euler.Common.Types.Money
 
--- import           Data.Generics.Product.Fields
 import           Data.Time
 
 
@@ -39,7 +39,7 @@ data Mandate = Mandate
   ,  dateCreated              :: LocalTime
   ,  lastModified             :: LocalTime
   ,  authTxnCardInfo          :: Maybe Text
-  ,  currency                 :: Maybe Text
+  ,  currency                 :: Maybe Currency
   ,  merchantGatewayAccountId :: Maybe Int
   ,  metadata                 :: Maybe Text
   }

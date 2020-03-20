@@ -26,7 +26,7 @@ data TxnDetailT f = TxnDetail
   , txdType                  :: B.C f Text  --- type wird is reserved
   , dateCreated              :: B.C f (Maybe LocalTime)
   , lastModified             :: B.C f (Maybe LocalTime)
-  , successResponseId        :: B.C f (Maybe Text)
+  , successResponseId        :: B.C f (Maybe Int)
   , txnMode                  :: B.C f (Maybe Text)
   , addToLocker              :: B.C f (Maybe Bool)
   , merchantId               :: B.C f (Maybe Text)

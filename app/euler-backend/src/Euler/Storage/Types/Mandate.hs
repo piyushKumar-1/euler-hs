@@ -17,7 +17,6 @@ import Euler.Common.Types.DefaultDate
 import Euler.Common.Types.Gateway (Gateway)
 import Euler.Common.Types.Currency (Currency)
 import qualified Database.Beam as B
-import qualified Euler.Common.Types.Transaction as T
 import qualified Euler.Common.Types.External.Mandate as M
 
 -- from src/Types/Storage/EC/Mandate/Types.purs
@@ -29,7 +28,7 @@ data MandateT f = Mandate
   ,  maxAmount                :: B.C f (Maybe Double)
   ,  merchantCustomerId       :: B.C f (Maybe Text)
   ,  paymentMethod            :: B.C f (Maybe Text)
-  ,  paymentMethodType        :: B.C f (Maybe T.PaymentMethodType)  -- EHS: check this conversion on real DB
+  ,  paymentMethodType        :: B.C f (Maybe M.PaymentMethodType)  -- EHS: check this conversion on real DB
   ,  status                   :: B.C f M.MandateStatus               -- EHS: check this conversion on real DB
   ,  token                    :: B.C f Text
   ,  mandateId                :: B.C f Text

@@ -91,7 +91,7 @@ makeGenericLenses ''STTxnCardInfo.TxnCardInfoT
 makeGenericLenses ''STTxnDetail.TxnDetailT
 makeGenericLenses ''STTxnRiskCheck.TxnRiskCheckT
 
-makeGenericLenses ''PDCard.CardInfo
+-- makeGenericLenses ''PDCard.CardInfo
 makeGenericLenses ''PDCard.StoredCard
 makeGenericLenses ''PDCardPayment.ATMRedirectionPayment
 makeGenericLenses ''PDCardPayment.ATMSeamlessPayment

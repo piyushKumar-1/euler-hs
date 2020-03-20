@@ -277,7 +277,7 @@ orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken = do
               mbClientAuthToken
 
   status <- runFlow "orderStatusById" rps noReqBodyJSON  -- FIXME is noReqBodyJSON appropriate here?
-        $ AS.withMacc OrderStatus.handleByOrderId orderId rps
+        $ AS.withMacc OrderStatus.handleByOrderId rps orderId
 
   case status of
         Left _ -> error "err" -- TODO

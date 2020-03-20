@@ -19,8 +19,4 @@ transSMaccToDomMacc sm = DM.MerchantAccount
     <*> withField @"returnUrl" sm pure
 
 
-notNegative :: Validator Int
-notNegative = mkValidator "Should not be negative." (>= 0)
 
-textNotEmpty :: Validator Text
-textNotEmpty = mkValidator "can't be empty" (not . T.null)

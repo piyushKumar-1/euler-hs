@@ -88,3 +88,28 @@ instance FromBackendRow Sqlite MandateType where
 
 instance FromBackendRow MySQL MandateType where
   fromBackendRow = read . T.unpack <$> fromBackendRow
+
+
+data PaymentMethodType
+  = WALLET
+  | UPI
+  | NB
+  | CARD
+  | PAYLATER
+  | CONSUMER_FINANCE
+  | REWARD
+  | CASH
+  | UNKNOWN -- EHS: previous UNKNOWN Foreign
+  deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be PaymentMethodType where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance FromBackendRow Postgres PaymentMethodType where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow Sqlite PaymentMethodType where
+  fromBackendRow = read . T.unpack <$> fromBackendRow
+
+instance FromBackendRow MySQL PaymentMethodType where
+  fromBackendRow = read . T.unpack <$> fromBackendRow

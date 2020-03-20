@@ -7,11 +7,10 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.TxnDetail (TxnDetailId)
 import           Euler.Common.Types.Money
 import           Euler.Common.Validators (textNotEmpty, amountValidators, notNegative)
 import qualified Euler.Product.Domain.Chargeback as D
-import           Euler.Product.Domain.Money
+import           Euler.Common.Types.Money
 import qualified Euler.Storage.Types.Chargeback as S
 import           Euler.Storage.Types.EulerDB as EDB
 
@@ -20,7 +19,7 @@ import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
 
-findChargebacks :: TxnDetailId -> Flow [D.Chargeback]
+findChargebacks :: Int -> Flow [D.Chargeback]
 findChargebacks txnId = do
   chargebacks <- withDB eulerDB $ do
     let predicate S.Chargeback {txnDetailId}
@@ -51,29 +50,3 @@ transformChargeback r = D.Chargeback
   <*> withField @"merchantAccountId" r pure -- TODO: validate merchantAccountId?
   <*> withField @"txnDetailId" r (insideJust notNegative)
   <*> withField @"objectReferenceId" r textNotEmpty
-
-
--- Validators
-
--- EHS: move validators to separate module
-
-textNotEmpty :: Validator Text
-textNotEmpty = mkValidator "Can't be empty." (not . T.null)
-
-amountValidators :: Validator Double
-amountValidators =
-  parValidate
-    [ max2DecimalDigits
-    , gteOne
-    ]
-
---Will accept double values with upto two decimal places.
-max2DecimalDigits :: Validator Double
-max2DecimalDigits = mkValidator
-  "Will accept double values with upto two decimal places."
-  ((<=3) . length . dropWhile (/='.') . show)
-
-gteOne :: Validator Double
-gteOne = mkValidator
-  "Should be greater than or equal 1"
-  (>=1)

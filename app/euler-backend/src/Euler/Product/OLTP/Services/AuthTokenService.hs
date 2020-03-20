@@ -1,5 +1,5 @@
 module Euler.Product.OLTP.Services.AuthTokenService
-  ( authWithToken
+  ( newHandle
   ) where
 
 import           EulerHS.Prelude                      hiding (id)
@@ -8,7 +8,6 @@ import           EulerHS.Language                     as L
 
 -- EHS: how can we import a datatype from a hidden package?
 --import           EulerHS.Core.Types                   (Logger)
-import qualified Euler.Common.Errors.PredefinedErrors as Errs
 
 import qualified Data.Generics.Product                as DGP
 import qualified Data.Text                            as T
@@ -19,22 +18,16 @@ import qualified Euler.Config.ServiceConfiguration    as SC (findByName, decodeV
 import           Euler.Common.Types.Order             (ClientAuthTokenData(..), OrderTokenExpiryData (..))
 import           Euler.Lens
 import qualified Euler.Product.Domain.MerchantAccount as DM
+import qualified Euler.Product.OLTP.Services.AuthService as X
 import qualified Euler.Storage.Repository             as Rep
 
 
+newHandle :: X.SHandle
+newHandle = X.SHandle
+  {X.authenticate = authenticate
+  }
 
-authWithToken
-  :: forall req resp.
-  (RP.RouteParameters -> req -> DM.MerchantAccount -> Flow resp)
-  -> RP.RouteParameters
-  -> req
-  -> Flow resp
-
-authWithToken f rp req = do
-  merchant <- authenticate rp
-  f rp req merchant
-
-authenticate :: RP.RouteParameters -> Flow DM.MerchantAccount
+authenticate :: RP.RouteParameters -> Flow (Either Text DM.MerchantAccount)
 authenticate rps = do
   case (RP.lookupRP @RP.ClientAuthToken rps) of
     Just token -> do
@@ -45,16 +38,41 @@ authenticate rps = do
           mbMA <- tokenMerchant tokenData
           case mbMA of
             Nothing -> do
-              logError' "Can't load merchant for token from cache"
-              throwException Errs.internalError
+              let err = "Can't load merchant for token from cache"
+              logError' err
+              pure $ Left err
             Just ma -> do
-              return ma
+              return $ Right ma
         Nothing ->  do
-          logError' "No auth token data found in cache"
-          throwException Errs.internalError
+          let err = "No auth token data found in cache"
+          logError' err
+          pure $ Left err
     Nothing -> do
-      logError' "no auth token header presents in request"
-      throwException Errs.internalError
+      let err = "no auth token header presents in request"
+      logError' err
+      pure $ Left err
+
+--authenticate :: RP.RouteParameters -> Flow DM.MerchantAccount
+--authenticate rps = do
+--  case (RP.lookupRP @RP.ClientAuthToken rps) of
+--    Just token -> do
+--      mbTokenData :: Maybe ClientAuthTokenData <- rGet token
+--      case mbTokenData of
+--        Just tokenData -> do
+--          checkTokenValidityAndIncUsageCounter token tokenData
+--          mbMA <- tokenMerchant tokenData
+--          case mbMA of
+--            Nothing -> do
+--              logError' "Can't load merchant for token from cache"
+--              throwException Errs.internalError
+--            Just ma -> do
+--              return ma
+--        Nothing ->  do
+--          logError' "No auth token data found in cache"
+--          throwException Errs.internalError
+--    Nothing -> do
+--      logError' "no auth token header presents in request"
+--      throwException Errs.internalError
 
 -- former updateAuthTokenUsage
 checkTokenValidityAndIncUsageCounter :: AuthToken -> ClientAuthTokenData -> Flow ()
@@ -101,10 +119,10 @@ tokenMerchant ClientAuthTokenData {..} = do
                   Rep.loadMerchantById $ read $ T.unpack $ order ^. _merchantId
                 Nothing -> do
                   logError' $ "order with id: " <> resourceId <> " cannot be loaded"
-                  throwException Errs.internalError
+                  pure Nothing
             Nothing -> do
               logError' $ "malformed resource id: " <> resourceId
-              throwException Errs.internalError
+              pure Nothing
         CUSTOMER -> do
           mbCustomer <- Rep.findCustomerById resourceId
           case mbCustomer of
@@ -113,10 +131,10 @@ tokenMerchant ClientAuthTokenData {..} = do
               Rep.loadMerchantById cId
             Nothing -> do
               logError' $ "customer with id: " <> resourceId <> " cannot be loaded"
-              throwException Errs.internalError
+              pure Nothing
     Nothing -> do
         logError' $ "unknown resource type: " <> resourceType
-        throwException Errs.internalError
+        pure Nothing
 
 -- | Alias for token representation in a request's header
 type AuthToken = Text

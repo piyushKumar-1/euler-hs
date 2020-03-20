@@ -341,7 +341,6 @@ kvdbConfig = mkKVDBConfig Constants.ecRedis redisConfig
 kvdbClusterConfig :: KVDBConfig
 kvdbClusterConfig = mkKVDBClusterConfig Constants.kvRedis redisClusterConfig
 
-
 gatewaySchemeUrl :: String
 gatewaySchemeUrl = case getEnv of
   DEV -> "https://s3.ap-south-1.amazonaws.com/jp-lambda-public-assets/uat/gateway-configs/gateway_schema_uat.json"

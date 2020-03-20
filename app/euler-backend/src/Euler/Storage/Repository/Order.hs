@@ -13,6 +13,8 @@ import qualified EulerHS.Extra.Validation as V
 import           WebService.Language
 
 
+import           Euler.Storage.Repository.EulerDB
+
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain.Order           as D

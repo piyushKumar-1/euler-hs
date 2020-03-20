@@ -7,6 +7,7 @@ import           Data.Time.Clock (NominalDiffTime)
 
 import qualified Euler.Config.Config as Config
 import qualified Euler.Storage.DBConfig as DBC
+import qualified Euler.Options.Options as Opt
 import qualified Euler.Server as Euler
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
@@ -20,27 +21,14 @@ import qualified WebService.Types as T
 eulerApiPort :: Int
 eulerApiPort = 8080
 
--- Redis config data
-
-redisConnConfig :: T.RedisConfig
-redisConnConfig = T.RedisConfig
-    { connectHost           = "localhost"
-    , connectPort           = 6379
-    , connectAuth           = Nothing
-    , connectDatabase       = 0
-    , connectMaxConnections = 50
-    , connectMaxIdleTime    = 30
-    , connectTimeout        = Nothing
-    }
-
 -- Test DB to show how the initialization can look like.
 -- TODO: add real DB services.
 prepareDBConnections :: L.Flow ()
 prepareDBConnections = do
-  ePool <- L.initSqlDBConnection DBC.mysqlDBC
-  redis <- L.initKVDBConnection
-    $ T.mkKVDBConfig Config.redis
-    $ redisConnConfig
+  mysqlCfg <- L.runIO Config.mysqlDBC
+  ePool <- L.initSqlDBConnection mysqlCfg
+  L.setOption Opt.EulerDbCfg mysqlCfg
+  redis <- L.initKVDBConnection Config.kvdbConfig
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 

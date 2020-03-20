@@ -9,6 +9,7 @@ import EulerHS.Prelude hiding(id)
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain                 as D
@@ -25,7 +26,7 @@ loadCustomer (Just customerId) mAccntId = do
 
     -- EHS: after refactoring, we query DB every time when customerId is available.
     -- EHS: DB type Customer should be explicit or qualified
-    mbCustomer :: Maybe DB.Customer <- withDB eulerDB $ do
+    mbCustomer :: Maybe DB.Customer <- withEulerDB $ do
       let predicate DB.Customer {merchantAccountId, id, objectReferenceId}
             = (   id ==.  (B.val_ (Just customerId))
               ||. objectReferenceId ==. (B.val_ (Just customerId))  -- EHS: objectReferenceId is customerId ?

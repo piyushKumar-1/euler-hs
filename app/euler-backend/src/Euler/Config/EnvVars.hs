@@ -314,3 +314,20 @@ devMysqlPoolKeepAlive = fromMaybe 10 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_K
 devMysqlPoolResourcesPerStripe :: Int
 devMysqlPoolResourcesPerStripe = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_RESOURCES_PER_STRIPE"
 
+devRedisConnName :: String
+devRedisConnName = fromMaybe "redis" $ lookupEnv "DEV_REDIS_CONN_NAME"
+
+devRedisConnectHost :: String
+devRedisConnectHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CONNECT_HOST"
+
+devRedisConnectPort :: Word16
+devRedisConnectPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_PORT"
+
+devRedisConnectDatabase :: Integer
+devRedisConnectDatabase = fromMaybe 0 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_DATABASE"
+
+devRedisConnectMaxConnections :: Int
+devRedisConnectMaxConnections = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_MAX_CONNECTIONS"
+
+devRedisConnectMaxIdleTime :: Integer
+devRedisConnectMaxIdleTime = fromMaybe 30 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_MAX_IDLE_TIME"

@@ -9,6 +9,7 @@ import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Storage.Types                  as DB
@@ -20,6 +21,6 @@ import           Euler.Lens
 -- create/save OrderMetadataV2
 saveOrderMetadataV2 :: DB.OrderMetadataV2 -> Flow DB.OrderMetadataV2
 saveOrderMetadataV2 orderMetadataDBVal =
-  unsafeInsertRow (Errs.mkDBError "Inserting order metadata v2 failed.") eulerDB
+  unsafeInsertRowEulerDB (Errs.mkDBError "Inserting order metadata v2 failed.")
     $ B.insert (DB.order_metadata_v2 DB.eulerDBSchema)
     $ B.insertExpressions [ (B.val_ orderMetadataDBVal) & _id .~ B.default_ ]

@@ -11,6 +11,7 @@ import qualified Database.Beam.Sqlite                 as B
 import           Database.Beam ((==.), (&&.))
 import qualified Data.Aeson                           as A
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 import           Euler.Storage.Types.MerchantAccount
 import           Euler.Storage.Types.MerchantKey
 import           Euler.Storage.Types.EulerDB
@@ -52,7 +53,7 @@ authenticateUsingRSAEncryption' next Signed
     let merchantId' = getField @"merchant_id" decodedSignaturePayload
 
     merchantAccount <- do
-      res <- L.withDB eulerDB $ do
+      res <- withEulerDB $ do
         let predicate MerchantAccount {merchantId} =
               merchantId ==. (B.val_ $ Just merchantId')
 
@@ -67,7 +68,7 @@ authenticateUsingRSAEncryption' next Signed
         Just ma -> pure ma
 
     merchantKey <- do
-      res <- L.withDB eulerDB $ do
+      res <- withEulerDB $ do
         let maid = Euler.Storage.Types.MerchantAccount.id
         let predicate MerchantKey {merchantAccountId, scope, status, id = mkid} =
               merchantAccountId ==. (B.val_ $ maid merchantAccount)     &&.

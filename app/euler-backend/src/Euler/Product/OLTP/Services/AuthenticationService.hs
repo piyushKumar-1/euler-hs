@@ -24,6 +24,7 @@ import Euler.Storage.Types.IngressRule
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.EulerDB
 import Euler.Storage.DBConfig (eulerDB)
+import Euler.Storage.Repository.EulerDB
 
 import qualified Prelude as P (show, id)
 import qualified Data.ByteString.Base64 as BH
@@ -62,7 +63,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         throwException $ eulerAccessDenied "Invalid API key."
       Right apiKey' -> do
         mk <- do
-          mMKey <- withDB eulerDB $ do
+          mMKey <- withEulerDB $ do
             let predicate MerchantKey{apiKey, status} = apiKey ==. B.just_ (B.val_ apiKey')
                  &&. status ==. B.just_ "ACTIVE"
             L.findRow
@@ -74,7 +75,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
             Nothing -> throwException ecAccessDenied
            -- findOneWithErr ecDB (where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"]) ecAccessDenied
         merchantAccount' <- do
-          mMAcc <- withDB eulerDB $ do
+          mMAcc <- withEulerDB $ do
             let predicate DBM.MerchantAccount {id} = id ==. (B.val_ $  mk ^. _merchantAccountId)
             L.findRow
               $ B.select
@@ -225,7 +226,7 @@ getWhitelistedIps mAcc = do
     Just ips -> pure (Just ips)
     Nothing -> do
       ir <- do
-        withDB eulerDB $ do
+        withEulerDB $ do
           let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
           findRows
             $ B.select

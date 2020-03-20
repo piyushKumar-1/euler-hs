@@ -9,6 +9,7 @@ import           EulerHS.Extra.Validation as V
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 import           Euler.Storage.Validators.ResellerAccount
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
@@ -26,7 +27,7 @@ import qualified Database.Beam as B
 loadReseller :: Maybe Text -> Flow (Maybe D.ResellerAccount)
 loadReseller Nothing = pure Nothing
 loadReseller (Just resellerId') = do
-  mbResAcc <- withDB eulerDB $ do
+  mbResAcc <- withEulerDB $ do
     -- EHS: DB types should be qualified or explicitly named.
     let predicate DB.ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
     findRow

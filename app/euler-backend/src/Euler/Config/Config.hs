@@ -360,6 +360,35 @@ mysqlDBC = do
 --                        }
 --        <> Conn.benchmark := shouldLogQueryTime)
 
+redisConfig :: RedisConfig
+redisConfig = case getEnv of
+  DEV -> RedisConfig
+    { connectHost           = devRedisConnectHost
+    , connectPort           = devRedisConnectPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisConnectDatabase
+    , connectMaxConnections = devRedisConnectMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisConnectMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+  _ -> RedisConfig -- TODO define for another envs
+    { connectHost           = devRedisConnectHost
+    , connectPort           = devRedisConnectPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisConnectDatabase
+    , connectMaxConnections = devRedisConnectMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisConnectMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+
+redisConnName :: Text
+redisConnName = case getEnv of
+  DEV -> Text.pack devRedisConnName
+  _ -> "redis" -- TODO define for another envs
+
+kvdbConfig :: KVDBConfig
+kvdbConfig = mkKVDBConfig redisConnName redisConfig
+
 gatewaySchemeUrl :: String
 gatewaySchemeUrl = case getEnv of
   DEV -> "https://s3.ap-south-1.amazonaws.com/jp-lambda-public-assets/uat/gateway-configs/gateway_schema_uat.json"

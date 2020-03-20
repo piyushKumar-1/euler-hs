@@ -72,7 +72,7 @@ getEcDbHost = fromMaybe "beta.expresscheckout-db.juspay.in" $ lookupEnv "EC_DB_H
 getEcDbUserName :: String
 getEcDbUserName = fromMaybe "app_rw" $ lookupEnv "EC_DB_USERNAME"
 
-getEcDbPort :: Int
+getEcDbPort :: Word16
 getEcDbPort = fromMaybe 3306 $ readMaybe =<< lookupEnv "EC_DB_PORT"
 
 getEcDbName :: String
@@ -130,7 +130,7 @@ getMysqlPoolMin = fromMaybe 0 $ readMaybe =<< lookupEnv "MYSQL_POOL_MIN"
 getMysqlPoolMax :: Int
 getMysqlPoolMax = fromMaybe 5 $ readMaybe =<< lookupEnv "MYSQL_POOL_MAX"
 
-getMysqlPoolIdleTime :: Int
+getMysqlPoolIdleTime :: Integer
 getMysqlPoolIdleTime = fromMaybe 20000 $ readMaybe =<< lookupEnv "MYSQL_POOL_IDLE_TIME"
 
 getMysqlPoolAcquireTime :: Int
@@ -269,3 +269,34 @@ getMorpheusHostFromConfig = fromMaybe "https://api.juspay.in" $ lookupEnv "MORPH
 
 getDBSyncStream :: String
 getDBSyncStream = fromMaybe "" $ lookupEnv "DBSYNC_STREAM"
+
+-- DEV MySQL parameters
+devMysqlConnectionName :: String
+devMysqlConnectionName = fromMaybe "eulerMysqlDB" $ lookupEnv "DEV_MYSQL_CONNECTION_NAME"
+
+devMysqlConnectHost :: String
+devMysqlConnectHost = fromMaybe "localhost" $ lookupEnv "DEV_MYSQL_CONNECT_HOST"
+
+devMysqlConnectPort :: Word16
+devMysqlConnectPort = fromMaybe 3306 $ readMaybe =<< lookupEnv "DEV_MYSQL_CONNECT_PORT"
+
+devMysqlConnectUser :: String
+devMysqlConnectUser = fromMaybe "cloud" $ lookupEnv "DEV_MYSQL_CONNECT_USER"
+
+devMysqlConnectPassword :: String
+devMysqlConnectPassword = fromMaybe "scape" $ lookupEnv "DEV_MYSQL_CONNECT_PASSWORD"
+
+devMysqlConnectDatabase :: String
+devMysqlConnectDatabase = fromMaybe "jdb" $ lookupEnv "DEV_MYSQL_CONNECT_DATABASE"
+
+devMysqlConnectPath :: String
+devMysqlConnectPath = fromMaybe "" $ lookupEnv "DEV_MYSQL_CONNECT_PATH"
+
+devMysqlPoolStripes :: Int
+devMysqlPoolStripes = fromMaybe 1 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_STRIPES"
+
+devMysqlPoolKeepAlive :: Integer
+devMysqlPoolKeepAlive = fromMaybe 10 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_KEEP_ALIVE"
+
+devMysqlPoolResourcesPerStripe :: Int
+devMysqlPoolResourcesPerStripe = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_RESOURCES_PER_STRIPE"

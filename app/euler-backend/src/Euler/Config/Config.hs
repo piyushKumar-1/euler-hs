@@ -2,6 +2,7 @@
 module Euler.Config.Config where
 
 import EulerHS.Prelude
+import EulerHS.Types
 
 import Euler.Config.EnvVars
 
@@ -187,6 +188,7 @@ redisLoginTokenExpiry = let
 
 
 -- decodeKMS not currently implemented
+decodeKMS :: String -> IO String
 decodeKMS = pure . id
 
 decrypt :: String -> IO String
@@ -206,6 +208,50 @@ ecMandateParamsCred = case getEnv of
   INTEG -> decrypt getECMandateParamsEncryptedKey
   _ -> pure $ "a231ccb856c125486f1891bc5646f30949efcd6d1c14b6acc439ef928b133c32"
 
+getMySQLCfg :: IO MySQLConfig
+getMySQLCfg = case getEnv of
+  DEV -> pure MySQLConfig
+          { connectHost     = devMysqlConnectHost
+          , connectPort     = devMysqlConnectPort
+          , connectUser     = devMysqlConnectUser
+          , connectPassword = devMysqlConnectPassword
+          , connectDatabase = devMysqlConnectDatabase
+          , connectOptions  = [CharsetName "utf8"]
+          , connectPath     = devMysqlConnectPath
+          , connectSSL      = Nothing
+          }
+  _ -> do
+    decodedPassword <- decodeKMS getEcDbPass
+    pure MySQLConfig
+          { connectHost     = getEcDbHost
+          , connectPort     = getEcDbPort
+          , connectUser     = getEcDbUserName
+          , connectPassword = decodedPassword
+          , connectDatabase = getEcDbName
+          , connectOptions  = [CharsetName "utf8"]
+          , connectPath     = ""
+          , connectSSL      = Nothing
+          }
+
+mySqlpoolConfig :: PoolConfig
+mySqlpoolConfig = case getEnv of
+  DEV -> PoolConfig
+    { stripes = devMysqlPoolStripes
+    , keepAlive = fromInteger devMysqlPoolKeepAlive
+    , resourcesPerStripe = devMysqlPoolResourcesPerStripe
+    }
+  _ -> PoolConfig
+    { stripes = devMysqlPoolStripes
+    , keepAlive = fromInteger getMysqlPoolIdleTime
+    , resourcesPerStripe = getMysqlPoolMax
+    }
+
+
+mysqlDBC = do
+  mySqlConfig <- getMySQLCfg
+  case getEnv of
+    DEV -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlpoolConfig
+    _   -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlpoolConfig
 
 ----DB
 ----read

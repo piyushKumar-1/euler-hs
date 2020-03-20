@@ -8,15 +8,13 @@ import           EulerHS.Language
 import           EulerHS.Types
 import           WebService.Language
 
-import qualified Database.Beam         as B
-
+import           Euler.Options.Options (EulerDbCfg(..))
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Database.Beam.MySQL  as BM
 
-data EulerDbCfg = EulerDbCfg
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+import qualified Database.Beam       as B
+import qualified Database.Beam.MySQL as BM
 
-instance OptionEntity EulerDbCfg (DBConfig BM.MySQLM)
+
 
 unsafeInsertRowEulerDB ::
   ( B.Beamable table

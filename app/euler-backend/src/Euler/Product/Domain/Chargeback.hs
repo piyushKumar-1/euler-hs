@@ -2,12 +2,10 @@
 
 module Euler.Product.Domain.Chargeback where
 
-import           EulerHS.Prelude
 
-import           Euler.Common.Types.Money
-
-
-import           Data.Time
+import Data.Time
+import Euler.Common.Types.Money
+import EulerHS.Prelude
 
 
 newtype ChargebackPId = ChargebackPId

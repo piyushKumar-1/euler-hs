@@ -34,9 +34,6 @@ import qualified EulerHS.Language as L
 import qualified Database.Beam as B
 import Database.Beam ((==.), (&&.))
 
-import qualified Euler.Storage.Types.SqliteTest as SQLITE
-import Euler.Common.Types.DefaultDate
---import Euler.KVDB.Redis
 
 withMacc
   :: forall req resp .

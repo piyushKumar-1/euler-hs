@@ -1,51 +1,48 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Euler.Product.OLTP.Services.AuthKeyService
+module Euler.Product.OLTP.Services.Auth.AuthKeyService
   ( newHandle
   )where
 
 
-import            EulerHS.Prelude hiding (id)
+import           EulerHS.Prelude hiding (id)
 import qualified Prelude as P (show, id)
 
-import Euler.Lens
-import EulerHS.Language as L
-import qualified EulerHS.Language as L
-
-import EulerHS.Types hiding (error)
-
 import qualified EulerHS.Extra.Validation as V
+import           EulerHS.Language as L
+import qualified EulerHS.Language as L
+import qualified EulerHS.Runtime                              as R
+import           EulerHS.Types hiding (error)
+import qualified EulerHS.Types                                as T
 
-import Data.Generics.Product
-import Data.Generics.Product.Fields
-import Data.List (intersect)
-import Servant.Server
-
-import            Euler.API.RouteParameters
-import            Euler.Common.Errors.PredefinedErrors
-import            Euler.Common.Types.Merchant
-import qualified Euler.Product.Domain.MerchantAccount as DM
-import qualified Euler.Product.OLTP.Services.AuthService as X
-import qualified Euler.Storage.Types.IngressRule as DBIR
-import qualified Euler.Storage.Types.MerchantAccount as DBM
-import qualified Euler.Storage.Validators.MerchantAccount as MV
-import            Euler.Storage.Types.IngressRule
-import            Euler.Storage.Types.MerchantKey
-import            Euler.Storage.Types.EulerDB
-import            Euler.Storage.DBConfig (eulerDB)
+import qualified Data.ByteString.Base64                       as BH
+import           Data.Generics.Product
+import           Data.Generics.Product.Fields
+import           Data.List (intersect)
+import qualified Data.Text                                    as T
+import           Servant.Server
 
 
-import qualified Data.ByteString.Base64 as BH
-import qualified Data.Text as T
-
-import qualified EulerHS.Runtime as R
-import qualified EulerHS.Types as T
-import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (<-.), (/=.))
-
+import           Euler.API.RouteParameters
+import           Euler.Common.Errors.PredefinedErrors
+import           Euler.Common.Types.DefaultDate
+import           Euler.Common.Types.Merchant
+import           Euler.Lens
+import qualified Euler.Product.Domain.MerchantAccount         as DM
+import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
+import           Euler.Storage.DBConfig (eulerDB)
+import qualified Euler.Storage.Types.IngressRule              as DBIR
+import qualified Euler.Storage.Types.MerchantAccount          as DBM
+import qualified Euler.Storage.Validators.MerchantAccount     as MV
+import           Euler.Storage.Types.IngressRule
+import           Euler.Storage.Types.MerchantKey
+import           Euler.Storage.Types.EulerDB
 import qualified Euler.Storage.Types.SqliteTest as SQLITE
-import Euler.Common.Types.DefaultDate
+
+import qualified Database.Beam                                as B
+import qualified Database.Beam.Backend.SQL                    as B
+import           Database.Beam ((==.), (&&.), (<-.), (/=.))
+
 
 newHandle :: X.SHandle
 newHandle = X.SHandle

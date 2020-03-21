@@ -1,4 +1,8 @@
-module Euler.Product.OLTP.Services.AuthService
+-----------------------------------------------------------------------------
+-- |
+-- Authentication service interface.
+
+module Euler.Product.OLTP.Services.Auth.AuthService
   ( -- * Abstract handles
     SHandle(..)
     -- * Derived functions

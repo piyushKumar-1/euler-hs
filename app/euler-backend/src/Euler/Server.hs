@@ -7,15 +7,15 @@ module Euler.Server where
 
 import           EulerHS.Prelude
 
-import           Network.Socket (SockAddr(..))
-import           Servant
-import           Data.Coerce (coerce)
-
-import Euler.API.RouteParameters
-
+import qualified Control.Exception.Safe as CES (catches)
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy                   as BSL
+import           Data.Coerce (coerce)
 import qualified Data.Map as Map
 import qualified Data.Text  as Text
+import           Network.Socket (SockAddr(..))
+import qualified Prometheus as P
+import           Servant
 
 import qualified EulerHS.Interpreters                   as R
 import qualified EulerHS.Language                       as L
@@ -26,14 +26,17 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.API.Validators.Transaction       as Txn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
-import qualified Euler.Product.Domain.Order as D
-
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
+import           Euler.API.RouteParameters
+import qualified Euler.Common.Errors.ErrorsMapping      as EMap
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
-import qualified Data.ByteString.Lazy                   as BSL
-import qualified Prometheus as P
+import qualified Euler.Product.Domain.Order as D
+import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
+import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
+
 import           WebService.ContentType
                  (JavascriptWrappedJSON, mkDynContentTypeMiddleware, throwJsonError)
 import           WebService.FlexCasing
@@ -43,11 +46,7 @@ import           WebService.PostRewrite
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
-import qualified Euler.Common.Errors.ErrorsMapping as EMap
-import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
-import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
-import qualified Euler.Product.OLTP.Services.AuthenticationService as AS
-import qualified Control.Exception.Safe as CES (catches)
+
 
 
 type EulerAPI
@@ -277,7 +276,7 @@ orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken = do
               mbClientAuthToken
 
   status <- runFlow "orderStatusById" rps noReqBodyJSON  -- FIXME is noReqBodyJSON appropriate here?
-        $ AS.withMacc OrderStatus.handleByOrderId rps orderId
+        $ Auth.withAuth Auth.mkKeyTokenAuthService OrderStatus.handleByOrderId rps orderId
 
   case status of
         Left _ -> error "err" -- TODO
@@ -330,7 +329,7 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
 --    V.Failure err -> error "Not implemented"   -- TODO: EHS: return error.
 --    V.Success validatedOrder ->
   runFlow "orderCreate" rps (toJSON ordReq)
-          $ AS.withMacc OrderCreate.orderCreate rps ordReq -- validatedOrder
+          $ Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate rps ordReq -- validatedOrder
 
 orderUpdate :: Text -> ApiOrder.OrderUpdateRequest -> FlowHandler ApiOrder.OrderStatusResponse
 orderUpdate orderId ordReq = do

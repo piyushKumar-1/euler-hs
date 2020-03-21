@@ -1,25 +1,25 @@
-module Euler.Product.OLTP.Services.AuthTokenService
+module Euler.Product.OLTP.Services.Auth.AuthTokenService
   ( newHandle
   ) where
 
-import           EulerHS.Prelude                      hiding (id)
+import           EulerHS.Prelude                              hiding (id)
 
-import           EulerHS.Language                     as L
+import           EulerHS.Language                             as L
 
 -- EHS: how can we import a datatype from a hidden package?
---import           EulerHS.Core.Types                   (Logger)
+--import           EulerHS.Core.Types                         (Logger)
 
-import qualified Data.Generics.Product                as DGP
-import qualified Data.Text                            as T
-
-import qualified Euler.API.RouteParameters            as RP
-import qualified Euler.Config.Config                  as Config (orderTokenExpiry)
-import qualified Euler.Config.ServiceConfiguration    as SC (findByName, decodeValue)
-import           Euler.Common.Types.Order             (ClientAuthTokenData(..), OrderTokenExpiryData (..))
+import qualified Data.Generics.Product                        as DGP
+import qualified Data.Text                                    as T
+                                                              
+import qualified Euler.API.RouteParameters                    as RP
+import qualified Euler.Config.Config                          as Config (orderTokenExpiry)
+import qualified Euler.Config.ServiceConfiguration            as SC (findByName, decodeValue)
+import           Euler.Common.Types.Order                     (ClientAuthTokenData(..), OrderTokenExpiryData (..))
 import           Euler.Lens
-import qualified Euler.Product.Domain.MerchantAccount as DM
-import qualified Euler.Product.OLTP.Services.AuthService as X
-import qualified Euler.Storage.Repository             as Rep
+import qualified Euler.Product.Domain.MerchantAccount         as DM
+import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
+import qualified Euler.Storage.Repository                     as Rep
 
 
 newHandle :: X.SHandle
@@ -51,28 +51,6 @@ authenticate rps = do
       let err = "no auth token header presents in request"
       logError' err
       pure $ Left err
-
---authenticate :: RP.RouteParameters -> Flow DM.MerchantAccount
---authenticate rps = do
---  case (RP.lookupRP @RP.ClientAuthToken rps) of
---    Just token -> do
---      mbTokenData :: Maybe ClientAuthTokenData <- rGet token
---      case mbTokenData of
---        Just tokenData -> do
---          checkTokenValidityAndIncUsageCounter token tokenData
---          mbMA <- tokenMerchant tokenData
---          case mbMA of
---            Nothing -> do
---              logError' "Can't load merchant for token from cache"
---              throwException Errs.internalError
---            Just ma -> do
---              return ma
---        Nothing ->  do
---          logError' "No auth token data found in cache"
---          throwException Errs.internalError
---    Nothing -> do
---      logError' "no auth token header presents in request"
---      throwException Errs.internalError
 
 -- former updateAuthTokenUsage
 checkTokenValidityAndIncUsageCounter :: AuthToken -> ClientAuthTokenData -> Flow ()

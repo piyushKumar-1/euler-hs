@@ -5,9 +5,7 @@ module Euler.Product.OLTP.Services.Auth.AuthTokenService
 import           EulerHS.Prelude                              hiding (id)
 
 import           EulerHS.Language                             as L
-
--- EHS: how can we import a datatype from a hidden package?
---import           EulerHS.Core.Types                         (Logger)
+import           EulerHS.Types                                (Message)
 
 import qualified Data.Generics.Product                        as DGP
 import qualified Data.Text                                    as T
@@ -127,9 +125,5 @@ data AuthTokenResourceType
 readMay :: Read a => Text -> Maybe a
 readMay = readMaybe . T.unpack
 
-lTag :: Text
-lTag = "AuthTokenService"
-
--- EHS: how can we import Message type, which resides in a hidden package?
---logError' :: Logger.Message -> Flow ()
-logError' = logError @Text lTag
+logError' :: Message -> Flow ()
+logError' = logError @Text "AuthTokenService"

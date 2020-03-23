@@ -11,9 +11,6 @@ import           EulerHS.Prelude                                   hiding (id)
 
 import           EulerHS.Language                                  as L
 
--- EHS: how can we import a datatype from a hidden package?
---import           EulerHS.Core.Types                              (Logger)
-
 import qualified Euler.API.RouteParameters                         as RP
 import qualified Euler.Product.Domain.MerchantAccount              as DM
 import qualified Euler.Product.OLTP.Services.Auth.AuthService      as X

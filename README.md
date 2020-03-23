@@ -229,3 +229,6 @@ prepareDBConnections = do
   ePool2 <- initSqlDBConnection sqlDBcfg2
   setOption DB2Cfg sqlDBcfg2
   throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB2."
+```
+
+[Beam query examples](https://bitbucket.org/juspay/euler-hs/src/7fdf3db82482752f89bfa30579e83e98910fafde/lib/euler-hs/testDB/SQLDB/Tests/QueryExamplesSpec.hs#lines-239)

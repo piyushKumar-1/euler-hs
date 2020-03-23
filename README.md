@@ -44,7 +44,7 @@ git clone [https://user_name@bitbucket.org/juspay/euler-hs.git](https://user_nam
 
 #### Stack
 
-**Build** 
+**Build**
 
 - `stack build` (Will build all the projects)
 - `stack build --fast -j4` (Will skip some optimisations)
@@ -78,3 +78,154 @@ From root project dir run
 - For euler-backend app  `nix-build -A euler-backend`
 
     resulting binary should be in `./result/bin/`
+
+
+#### Examples
+
+#####Using SQL
+
+***Methods for connection management:***
+
+*Takes SQL DB config and create connection that can be used in queries.*
+```haskell
+initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
+```
+
+*Deinit the given connection if you want to deny access over that connection.*
+```haskell
+deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
+```
+
+*Get existing connection. If there is no such connection, returns error.*
+```haskell
+getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
+```
+
+*Get existing SQL connection, or init a new connection.*
+```haskell
+getOrInitSqlConn :: T.DBConfig beM -> L.Flow (T.DBResult (T.SqlConn beM))
+```
+
+***Methods for querying***
+
+*Takes connection, sql query (described using BEAM syntax) and make request.*
+```haskell
+runDB
+  ::
+    ( T.JSONEx a
+    , T.BeamRunner beM
+    , T.BeamRuntime be beM
+    )
+  => T.SqlConn beM
+  -> L.SqlDB beM a
+  -> Flow (T.DBResult a)
+```
+
+*Extracting existing connection from FlowRuntime by given db config and runs sql query (described using BEAM syntax). Acts like 'getSqlDBConnection' + 'runDB'*
+```haskell
+withDB ::
+  ( T.JSONEx a
+  , T.BeamRunner beM
+  , T.BeamRuntime be beM
+  )
+  => T.DBConfig beM -> L.SqlDB beM a -> Flow a
+```
+
+When you start the application, you can initialize all the connections that you plan to use.
+```haskell
+keepConnsAliveForSecs :: NominalDiffTime
+keepConnsAliveForSecs = 60 * 10 -- 10 mins
+
+maxTotalConns :: Int
+maxTotalConns = 8
+
+mySQLCfg :: MySQLConfig
+mySQLCfg = MySQLConfig
+  { connectHost     = "localhost"
+  , connectPort     = 3306
+  , connectUser     = "username"
+  , connectPassword = "password"
+  , connectDatabase = "dbname"
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
+
+sqlDBcfg = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg
+    $ PoolConfig 1 keepConnsAliveForSecs maxTotalConns
+
+prepareDBConnections :: Flow ()
+prepareDBConnections = do
+  ePool <- initSqlDBConnection sqlDBcfg
+  throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB."
+
+```
+
+And then run flow methods with it
+```haskell
+endpointHandler :: RequestType -> Flow (Maybe Int)
+endpointHandler req = do
+    logInfo @String "endpointHandler" "endpointHandler started"
+    validReq <- validateRequest req
+    -- ...
+    -- some other actions
+    -- ...
+    res <- withDB sqlDBcfg $ do
+      let predicate DBTableType {idField} =
+          (idField    ==. B.val_ (validReq ^. reqIdField))
+      findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (dbTableName dbSchema)
+    pure $ (^. intField) <$> res
+```
+
+Also, you can put your dbConfig in Options and take it back later in specialized `withDB` wrappers. Maybe helpful when you should create config on startup, so config can't be hardcoded as constant and easily passed in methods (e.g. read DB password from env var and decode it with some IO operation). You can manage many different db configs
+
+At first define keys for DBs:
+```haskell
+data DB1Cfg = DB1Cfg
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+instance OptionEntity DB1Cfg (DBConfig MySQLM)
+
+data DB2Cfg = DB2Cfg
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+instance OptionEntity DB2Cfg (DBConfig Pg)
+```
+
+Then you can define specialized wrapper for each db:
+```haskell
+withDB1 :: JSONEx a => SqlDB MySQLM a -> Flow a
+withDB1 act = do
+  dbcfg <- getOption DB1Cfg
+  case dbcfg of
+    Just cfg -> withDB cfg act
+    Nothing -> do
+      logError @String "MissingDB identifier" "Can't find DB1 identifier in options"
+      throwException YourException
+
+withDB2 :: JSONEx a => SqlDB Pg a -> Flow a
+withDB2 act = do
+  dbcfg <- getOption DB2Cfg
+  case dbcfg of
+    Just cfg -> withDB cfg act
+    Nothing -> do
+      logError @String "MissingDB identifier" "Can't find DB2 identifier in options"
+      throwException YourException
+```
+On startup initialization just put configs in Options
+
+```haskell
+prepareDBConnections :: Flow ()
+prepareDBConnections = do
+  sqlDBcfg1 <- runIO getFromEnvAndDecodeMySqlDbCfg
+  ePool1 <- initSqlDBConnection sqlDBcfg1
+  setOption DB1Cfg sqlDBcfg1
+  throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB1."
+  sqlDBcfg2 <- runIO getFromEnvAndDecodePostgresDbCfg
+  ePool2 <- initSqlDBConnection sqlDBcfg2
+  setOption DB2Cfg sqlDBcfg2
+  throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB2."

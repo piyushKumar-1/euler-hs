@@ -37,7 +37,9 @@ import           Euler.API.Refund
 import           Euler.API.RouteParameters (RouteParameters (..))
 import qualified Euler.API.RouteParameters as Param
 
+import           Euler.Constant.Constants (orderStatusCacheTTL)
 import qualified Euler.Constant.Feature as FeatureC
+
 import           Euler.Common.Types.External.Mandate as Mandate
 import qualified Euler.Common.Types as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
@@ -1031,3 +1033,23 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
       in Just $ toStrict $ TL.decodeUtf8 $ encode $ getMapFromPGRXml pgrXml
     else Nothing
 
+-- | Cache order status response
+addToCache
+  :: C.OrderPId           -- ^ aks @willbasky PId or Id ?
+  -> D.MerchantAccountId
+  -> Bool
+  -> OrderStatusResponse
+  -> Flow ()
+addToCache orderId merchId isAuth res = do
+  mbFeat <- loadFeature FeatureC.EulerOrderStatusCaching $ show $ merchId
+  let caching = maybe False (^. _enabled) mbFeat
+  case caching of
+    True  -> do
+      _ <-logInfo @Text "Order Status add to cache" $ "adding order status response to cache for merchant_id " <> show merchId <> " orderId " <> show orderId
+      _ <- rSetex (keyPrefix isAuth <> show merchId <> show orderId) res orderStatusCacheTTL
+      -- Monitoring.incrementOrderStatusCacheAddCount merchantId
+      pure ()
+    False -> pure ()
+    where
+      keyPrefix :: Bool -> Text
+      keyPrefix = undefined

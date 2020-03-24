@@ -6,6 +6,7 @@ import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
+import qualified Euler.Constant.Feature               as Const
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Validators (notNegative)
 import qualified Euler.Common.Types as C
@@ -20,11 +21,11 @@ import           Database.Beam ((==.), (&&.))
 import qualified Database.Beam as B
 
 
-loadFeature :: C.MerchantId -> Flow (Maybe D.Feature)
-loadFeature merchantId' = do
+loadFeature :: Const.Feature -> C.MerchantId -> Flow (Maybe D.Feature)
+loadFeature feat merchantId' = do
   feature <- withDB eulerDB $ do
     let predicate DB.Feature {name, merchantId} =
-          name ==. B.val_ "USE_UDF2_FOR_GATEWAY_REFERENCE_ID"
+          name ==. B.val_ (Const.showFeature feat)
           &&. merchantId ==. B.just_ (B.val_ merchantId')
     findRow
       $ B.select
@@ -35,7 +36,7 @@ loadFeature merchantId' = do
     Success f -> pure f
     Failure e -> do
       logError "Incorrect Feature in DB"
-        $  "merchantId: " <> merchantId' <> "error: " <> show e
+        $  "merchantId: " <> merchantId' <> ", error: " <> show e
       throwException internalError
 
 transformFeature :: DB.Feature -> V D.Feature

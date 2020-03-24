@@ -37,6 +37,7 @@ import           Euler.API.Refund
 import           Euler.API.RouteParameters (RouteParameters (..))
 import qualified Euler.API.RouteParameters as Param
 
+import qualified Euler.Constant.Feature as FeatureC
 import           Euler.Common.Types.External.Mandate as Mandate
 import qualified Euler.Common.Types as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
@@ -128,8 +129,8 @@ execOrderStatusQuery request = do
     Just o -> pure o
     Nothing -> throwException err404
       { errBody = "Order not found "
-      <> "OrderId" <> show queryOrderId
-      <> " MerchantId" <> show queryMerchantId }
+      <> "orderId: " <> show queryOrderId
+      <> ", merchantId: " <> show queryMerchantId }
 
   let orderId = order ^. _orderId
   let merchantId = order ^. _merchantId
@@ -744,7 +745,7 @@ checkGatewayRefIdForVodafone
   -> Flow Text
 checkGatewayRefIdForVodafone merchantId udf2 gateway = do
 
-  meybeFeature <- loadFeature merchantId
+  meybeFeature <- loadFeature FeatureC.UseUdf2ForGatewayReferenceId merchantId
 
   case meybeFeature of
     Just feature ->

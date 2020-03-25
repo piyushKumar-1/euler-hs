@@ -2,22 +2,23 @@ module Euler.Product.OLTP.Services.Auth.AuthTokenService
   ( newHandle
   ) where
 
-import           EulerHS.Prelude                              hiding (id)
+import           EulerHS.Prelude                                hiding (id)
 
-import           EulerHS.Language                             as L
-import           EulerHS.Types                                (Message)
+import           EulerHS.Language                               as L
+import           EulerHS.Types                                  (Message)
 
-import qualified Data.Generics.Product                        as DGP
-import qualified Data.Text                                    as T
-                                                              
-import qualified Euler.API.RouteParameters                    as RP
-import qualified Euler.Config.Config                          as Config (orderTokenExpiry)
-import qualified Euler.Config.ServiceConfiguration            as SC (findByName, decodeValue)
-import           Euler.Common.Types.Order                     (ClientAuthTokenData(..), OrderTokenExpiryData (..))
+import qualified Data.Generics.Product                          as DGP
+import qualified Data.Text                                      as T
+
+import qualified Euler.API.RouteParameters                      as RP
+import qualified Euler.Config.Config                            as Config (orderTokenExpiry)
+import qualified Euler.Config.ServiceConfiguration              as SC (findByName, decodeValue)
+import           Euler.Common.Types.Order                       (ClientAuthTokenData(..), OrderTokenExpiryData (..))
 import           Euler.Lens
-import qualified Euler.Product.Domain.MerchantAccount         as DM
-import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
-import qualified Euler.Storage.Repository                     as Rep
+import qualified Euler.Product.Domain.MerchantAccount           as DM
+import qualified Euler.Product.OLTP.Services.Auth.AuthService   as X
+import           Euler.Product.OLTP.Services.TokenService       as TS
+import qualified Euler.Storage.Repository                       as Rep
 
 
 newHandle :: X.SHandle
@@ -69,6 +70,7 @@ checkTokenValidityAndIncUsageCounter token tokenData@ClientAuthTokenData {..} = 
 -- EHS: really we need only expireInSeconds value
 tokenExpiry :: Flow Int
 tokenExpiry = do
+  -- EHS: use enumeration
   mbServiceConfiguration <- SC.findByName "ORDER_TOKEN_EXPIRY_DATA"
   case mbServiceConfiguration of
     Just serviceConfiguration -> do
@@ -114,12 +116,6 @@ tokenMerchant ClientAuthTokenData {..} = do
 
 -- | Alias for token representation in a request's header
 type AuthToken = Text
-
--- | Possible auth token resource types
-data AuthTokenResourceType
-  = ORDER
-  | CUSTOMER
-  deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
 -- EHS: looks as if we have lots of similar functions in many modules
 readMay :: Read a => Text -> Maybe a

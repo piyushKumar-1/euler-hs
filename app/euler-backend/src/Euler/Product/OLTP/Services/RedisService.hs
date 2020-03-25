@@ -1,4 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
+
+-- Maybe more appropriate name would be TokenService? See also TokenService.hs in the same folder.
+
 -- src/Product/OLTP/Services/RedisService.purs
 module Euler.Product.OLTP.Services.RedisService where
 
@@ -30,7 +33,7 @@ data TokenizedResource = TokenizedResource
   deriving (Generic, Eq, Show, ToJSON, FromJSON)
 
 -- EHS: rework
--- EHS: rename, this has nothing to do with tokenizing
+-- EHS: rename, this has nothing to do with tokenizing (seems everyone is fine with that, ok)
 tokenizeResource :: ResourceType -> Text -> Text -> Flow TokenizedResource
 tokenizeResource resourceId resourceType merchantId = do
   token'      <- ("tkn_" <>) <$> getUUID32

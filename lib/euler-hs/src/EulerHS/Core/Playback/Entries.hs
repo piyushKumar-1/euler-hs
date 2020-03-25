@@ -143,23 +143,25 @@ instance MockedResult GenerateGUIDEntry Text where
 -- ----------------------------------------------------------------------
 
 data RunIOEntry = RunIOEntry
-  { jsonResult :: A.Value
+  { description :: Text
+  , jsonResult :: A.Value
   }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 mkRunIOEntry
   :: forall a
    . T.JSONEx a
-  => a
+  => Text
+  -> a
   -> RunIOEntry
-mkRunIOEntry = RunIOEntry .
-  T.resolveJSONEx @a T.jsonEncode toJSON
+mkRunIOEntry descr a = RunIOEntry descr $
+  (T.resolveJSONEx @a T.jsonEncode toJSON) a
 
 instance RRItem RunIOEntry where
   getTag _ = "RunIOEntry"
 
 instance T.JSONEx a => MockedResult RunIOEntry a where
-    getMock (RunIOEntry r) =
+    getMock (RunIOEntry _ r) =
       T.resolveJSONEx @a T.jsonDecode T.fromJSONMaybe r
 
 

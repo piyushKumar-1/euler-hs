@@ -30,7 +30,7 @@ runFlowWithTestInterpreter mv flowRt = foldF (interpretFlowMethod mv flowRt)
 
 interpretFlowMethod :: FlowMockedValues -> R.FlowRuntime -> L.FlowMethod a -> IO a
 
-interpretFlowMethod mmv _ (L.RunIO ioAct next) = do
+interpretFlowMethod mmv _ (L.RunIO descr ioAct next) = do
   v <- takeMockedVal @"mockedRunIO" mmv
   next <$> (pure $ unsafeCoerce v)
 

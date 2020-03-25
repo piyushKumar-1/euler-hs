@@ -53,9 +53,6 @@ import           Euler.Common.Types.TxnDetail                 (TxnStatus (..), t
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
--- EHS: this dep should be moved somewhere. Additional business logic for KV DB
---import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
-
 import qualified Euler.Product.Domain as D
 import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import           Euler.Product.OLTP.Card.Card
@@ -1126,5 +1123,5 @@ getCachedResponse orderId merchId isAuth = do
 
 -- | Build a key used in Redis
 mkCacheKey :: Text -> Text -> Bool -> Text
-mkCacheKey orderId merchId True  = "euler_ostatus_" <> merchId <> orderId
-mkCacheKey orderId merchId False = "euler_ostatus_unauth_" <> merchId <> orderId
+mkCacheKey orderId merchId True  = "euler_ostatus_" <> merchId <> "_" <> orderId
+mkCacheKey orderId merchId False = "euler_ostatus_unauth_" <> merchId <> "_" <> orderId

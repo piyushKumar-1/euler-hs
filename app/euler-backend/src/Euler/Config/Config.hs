@@ -623,3 +623,9 @@ retryExecuteRefundInterval = getRetryExecuteRefundInterval
 
 getSchedulerRunners' :: [String]
 getSchedulerRunners' = LE.upper . LE.trim <$> LE.split (==',') getSchedulerRunners
+
+redis :: Text
+redis = Text.pack standaloneRedisName
+
+redisCluster :: Text
+redisCluster = Text.pack clusterRedisName

@@ -37,7 +37,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Http managers, used for external api calls
   , _options           :: MVar (Map Text Text)
   -- ^ Typed key-value storage
-  , _kvdbConnections   :: MVar (Map ByteString T.NativeKVDBConn)
+  , _kvdbConnections   :: MVar (Map Text T.NativeKVDBConn)
   -- ^ Connections for key-value databases
   , _runMode           :: T.RunMode
   -- ^ ART mode in which current flow runs

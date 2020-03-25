@@ -36,7 +36,7 @@ updateMandateCache order mandate = case mandate of
       mandate' <- createMandate order ma
       -- EHS: magic constant
       -- EHS: mandate in cache can be used in another backends (ps, groovy)
-      void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
+      void $ rSetex Config.redis (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
 
     createMandate :: D.Order -> Double -> Flow DB.Mandate
     createMandate order' maxAmount = do

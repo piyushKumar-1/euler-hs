@@ -230,9 +230,8 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
 interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitKVDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
-    let connTagBS = encodeUtf8 connTag
     connections <- takeMVar _kvdbConnections
-    res <- case Map.lookup connTagBS connections of
+    res <- case Map.lookup connTag connections of
       Just _  -> pure $ Left $
         ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " already created."
       Nothing -> do
@@ -240,24 +239,24 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
     case res of
       Left _ -> putMVar _kvdbConnections connections
       Right conn -> putMVar _kvdbConnections $
-        Map.insert connTagBS (kvdbToNative conn) connections
+        Map.insert connTag (kvdbToNative conn) connections
     pure res
 
 interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitKVDBConnectionEntry conn) $ do
-    let connTagBS = encodeUtf8 $ getPosition @1 conn
+    let connTag = getPosition @1 conn
     connections <- takeMVar _kvdbConnections
-    case (Map.lookup connTagBS connections) of
+    case (Map.lookup connTag connections) of
       Nothing -> putMVar _kvdbConnections connections
       Just _ -> do
         R.kvDisconnect $ kvdbToNative conn
-        putMVar _kvdbConnections $ Map.delete connTagBS connections
+        putMVar _kvdbConnections $ Map.delete connTag connections
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkGetKVDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connMap <- readMVar _kvdbConnections
-    pure $ case (Map.lookup (encodeUtf8 connTag) connMap) of
+    pure $ case (Map.lookup connTag connMap) of
       Just conn -> Right $ T.nativeToKVDB connTag conn
       Nothing   -> Left $
         ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " does not exists."
@@ -277,8 +276,8 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
             $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
       pure $ join eRes
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB act next) =
-    fmap next $ R.runKVDB _runMode _kvdbConnections act
+interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB cName act next) =
+    fmap next $ R.runKVDB cName _runMode _kvdbConnections act
 
 
 interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnection} (L.RunPubSub act next) =

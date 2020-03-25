@@ -112,7 +112,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet Config.redis $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 -- EHS: maxAmount <= 0 verified on validation

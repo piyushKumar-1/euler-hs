@@ -17,4 +17,4 @@ import qualified Euler.Storage.Types as DB
 updateOrderCache :: C.OrderId -> C.MerchantId -> DB.OrderReference -> Flow ()
 updateOrderCache orderId merchantId dbOrder = do
   -- EHS: magic constant.
-  void $ rSetex (merchantId <> "_orderid_" <> orderId) dbOrder Config.orderTtl
+  void $ rSetex Config.redis (merchantId <> "_orderid_" <> orderId) dbOrder Config.orderTtl

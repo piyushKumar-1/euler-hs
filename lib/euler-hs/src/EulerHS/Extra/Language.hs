@@ -47,9 +47,9 @@ getOrInitKVDBConn cfg = do
 
 -- KVDB helpers
 
-rExpire :: (ToJSON k, Integral t) => k -> t -> L.Flow (Either T.KVDBReply Bool)
-rExpire k t = do
-  res <- L.runKVDB $ L.expire (BSL.toStrict $ A.encode k) (toInteger t)
+rExpire :: (ToJSON k, Integral t) => Text -> k -> t -> L.Flow (Either T.KVDBReply Bool)
+rExpire cName k t = do
+  res <- L.runKVDB cName $ L.expire (BSL.toStrict $ A.encode k) (toInteger t)
   case res of
     Right r -> do
       L.logInfo @Text "Redis expire" $ show r
@@ -58,9 +58,9 @@ rExpire k t = do
       L.logError @Text "Redis expire" $ show err
       pure res
 
-rDel :: (ToJSON k) => [k] -> L.Flow (Either T.KVDBReply Integer)
-rDel ks = do
-  res <- L.runKVDB $ L.del (BSL.toStrict . A.encode <$> ks)
+rDel :: (ToJSON k) => Text -> [k] -> L.Flow (Either T.KVDBReply Integer)
+rDel cName ks = do
+  res <- L.runKVDB cName $ L.del (BSL.toStrict . A.encode <$> ks)
   case res of
     Right r -> do
       L.logInfo @Text "Redis del" $ show r
@@ -69,9 +69,9 @@ rDel ks = do
       L.logError @Text "Redis del" $ show err
       pure res
 
-rExists :: (ToJSON k) => k -> L.Flow (Either T.KVDBReply Bool)
-rExists k = do
-  res <- L.runKVDB $ L.exists (BSL.toStrict $ A.encode k)
+rExists :: (ToJSON k) => Text -> k -> L.Flow (Either T.KVDBReply Bool)
+rExists cName k = do
+  res <- L.runKVDB cName $ L.exists (BSL.toStrict $ A.encode k)
   case res of
     Right r -> do
       L.logInfo @Text "Redis exists" $ show r
@@ -81,9 +81,9 @@ rExists k = do
       pure res
 
 rHget :: (ToJSON k, ToJSON f, FromJSON v)
-  => k -> f -> L.Flow (Maybe v)
-rHget k f = do
-  res <- L.runKVDB $
+  => Text -> k -> f -> L.Flow (Maybe v)
+rHget cName k f = do
+  res <- L.runKVDB cName $
     L.hget (BSL.toStrict $ A.encode k)
            (BSL.toStrict $ A.encode f)
   case res of
@@ -94,9 +94,9 @@ rHget k f = do
       pure Nothing
 
 rHset :: (ToJSON k, ToJSON f, ToJSON v)
-  => k -> f -> v -> L.Flow (Either T.KVDBReply Bool)
-rHset k f v = do
-  res <- L.runKVDB $
+  => Text -> k -> f -> v -> L.Flow (Either T.KVDBReply Bool)
+rHset cName k f v = do
+  res <- L.runKVDB cName $
     L.hset (BSL.toStrict $ A.encode k)
            (BSL.toStrict $ A.encode f)
            (BSL.toStrict $ A.encode v)
@@ -108,9 +108,9 @@ rHset k f v = do
       L.logError @Text "Redis hset" $ show err
       pure res
 
-rIncr :: (ToJSON k) => k -> L.Flow (Either T.KVDBReply Integer)
-rIncr k = do
-  res <- L.runKVDB $ L.incr (BSL.toStrict $ A.encode k)
+rIncr :: (ToJSON k) => Text -> k -> L.Flow (Either T.KVDBReply Integer)
+rIncr cName k = do
+  res <- L.runKVDB cName $ L.incr (BSL.toStrict $ A.encode k)
   case res of
     Right r -> do
       L.logInfo @Text "Redis incr" $ show r
@@ -119,9 +119,9 @@ rIncr k = do
       L.logError @Text "Redis incr" $ show err
       pure res
 
-rSet :: (ToJSON k, ToJSON v) => k -> v -> L.Flow (Either T.KVDBReply T.KVDBStatus)
-rSet k v = do
-  res <- L.runKVDB $ L.set (BSL.toStrict $ A.encode k) (BSL.toStrict $ A.encode v)
+rSet :: (ToJSON k, ToJSON v) => Text -> k -> v -> L.Flow (Either T.KVDBReply T.KVDBStatus)
+rSet cName k v = do
+  res <- L.runKVDB cName $ L.set (BSL.toStrict $ A.encode k) (BSL.toStrict $ A.encode v)
   case res of
     Right r -> do
       L.logInfo @Text "Redis set" $ show r
@@ -130,9 +130,9 @@ rSet k v = do
       L.logError @Text "Redis set" $ show err
       pure res
 
-rGet :: (ToJSON k, FromJSON v) => k -> L.Flow (Maybe v)
-rGet k = do
-  mv <- L.runKVDB $ L.get (BSL.toStrict $ A.encode k)
+rGet :: (ToJSON k, FromJSON v) => Text -> k -> L.Flow (Maybe v)
+rGet cName k = do
+  mv <- L.runKVDB cName $ L.get (BSL.toStrict $ A.encode k)
   case mv of
     Right (Just val) -> pure $ A.decode $ BSL.fromStrict val
     Right (Nothing) -> pure Nothing
@@ -140,9 +140,9 @@ rGet k = do
       L.logError @Text "Redis get" $ show err
       pure Nothing
 
-rSetex :: (ToJSON k, ToJSON v, Integral t) => k -> v -> t -> L.Flow (Either T.KVDBReply T.KVDBStatus)
-rSetex k v t = do
-  res <- L.runKVDB $
+rSetex :: (ToJSON k, ToJSON v, Integral t) => Text -> k -> v -> t -> L.Flow (Either T.KVDBReply T.KVDBStatus)
+rSetex cName k v t = do
+  res <- L.runKVDB cName $
     L.setex (BSL.toStrict $ A.encode k) (toInteger t) (BSL.toStrict $ A.encode v)
   case res of
     Right r -> do

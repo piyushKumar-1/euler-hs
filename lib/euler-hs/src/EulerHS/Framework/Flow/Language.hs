@@ -166,7 +166,8 @@ data FlowMethod next where
     -> FlowMethod next
 
   RunKVDB
-    :: KVDB a
+    :: Text
+    -> KVDB a
     -> (T.KVDBAnswer a -> next)
     -> FlowMethod next
 
@@ -208,7 +209,7 @@ instance Functor FlowMethod where
 
   fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
-  fmap f (RunKVDB act next)                   = RunKVDB act (f . next)
+  fmap f (RunKVDB cName act next)                   = RunKVDB cName act (f . next)
 
   fmap f (RunPubSub act next)                 = RunPubSub act (f . next)
 
@@ -474,9 +475,10 @@ throwException ex = liftFC $ ThrowException ex id
 -- >     del ["aaa"]
 -- >     pure res
 runKVDB
-  :: KVDB a -- ^ KVDB action
+  :: Text
+  -> KVDB a -- ^ KVDB action
   -> Flow (T.KVDBAnswer a)
-runKVDB act = liftFC $ RunKVDB act id
+runKVDB cName act = liftFC $ RunKVDB cName act id
 
 
 newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }

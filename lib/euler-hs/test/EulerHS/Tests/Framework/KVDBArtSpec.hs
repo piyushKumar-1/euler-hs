@@ -16,7 +16,7 @@ spec :: Spec
 spec = do
   describe "ART KVDB tests" $ do
     it "get a correct key" $ do
-      result <- replayRecording getKey $ L.runKVDB $ do
+      result <- replayRecording getKey $ L.runKVDB "redis" $ do
         L.set "aaa" "bbb"
         res <- L.get "aaa"
         L.del ["aaa"]
@@ -24,7 +24,7 @@ spec = do
       result `shouldBe` Right (Just "bbb")
 
     it "get a wrong key" $ do
-      result <- replayRecording getWrongKey $ L.runKVDB $ do
+      result <- replayRecording getWrongKey $ L.runKVDB "redis" $ do
         L.set "aaa" "bbb"
         res <- L.get "aaac"
         L.del ["aaa"]
@@ -32,24 +32,24 @@ spec = do
       result `shouldBe` Right Nothing
 
     it "delete existing keys" $ do
-      result <- replayRecording deleteExisting $ L.runKVDB $ do
+      result <- replayRecording deleteExisting $ L.runKVDB "redis" $ do
         L.set "aaa" "bbb"
         L.set "ccc" "ddd"
         L.del ["aaa", "ccc"]
       result `shouldBe` Right 2
 
     it "delete keys (w/ no keys)" $ do
-      result <- replayRecording deleteKeysNoKeys $ L.runKVDB $ do
+      result <- replayRecording deleteKeysNoKeys $ L.runKVDB "redis" $ do
         L.del []
       result `shouldBe` Right 0
 
     it "delete missing keys" $ do
-      result <- replayRecording deleteMissing $ L.runKVDB $ do
+      result <- replayRecording deleteMissing $ L.runKVDB "redis" $ do
         L.del ["zzz", "yyy"]
       result `shouldBe` Right 0
 
     it "get a correct key from transaction" $ do
-      result <- replayRecording getCorrectFromTx $ L.runKVDB $ L.multiExec $ do
+      result <- replayRecording getCorrectFromTx $ L.runKVDB "redis" $ L.multiExec $ do
         L.setTx "aaa" "bbb"
         res <- L.getTx "aaa"
         L.delTx ["aaa"]
@@ -57,14 +57,14 @@ spec = do
       result `shouldBe` Right (T.TxSuccess (Just "bbb"))
 
     it "get incorrect key from transaction" $ do
-      result <- replayRecording getIncorrectFromTx $ L.runKVDB $ L.multiExec $ do
+      result <- replayRecording getIncorrectFromTx $ L.runKVDB "redis" $ L.multiExec $ do
         res <- L.getTx "aaababababa"
         pure res
       result `shouldBe` Right (T.TxSuccess Nothing)
 
     it "setex sets value" $ do
       let hour = 60 * 60
-      result <- replayRecording setExGetKey $ L.runKVDB $ do
+      result <- replayRecording setExGetKey $ L.runKVDB "redis" $ do
         L.setex "aaaex" hour "bbbex"
         res <- L.get "aaaex"
         L.del ["aaaex"]
@@ -73,9 +73,9 @@ spec = do
 
     it "setex ttl works" $ do
       result <- replayRecording setExTtl $ do
-        L.runKVDB $ L.setex "aaaex" 1 "bbbex"
+        L.runKVDB "redis" $ L.setex "aaaex" 1 "bbbex"
         L.runIO $ threadDelay (2 * 10 ^ 6)
-        L.runKVDB $ do
+        L.runKVDB "redis" $ do
           res <- L.get "aaaex"
           L.del ["aaaex"]
           pure res

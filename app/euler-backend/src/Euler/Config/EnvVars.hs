@@ -270,6 +270,12 @@ getMorpheusHostFromConfig = fromMaybe "https://api.juspay.in" $ lookupEnv "MORPH
 getDBSyncStream :: String
 getDBSyncStream = fromMaybe "" $ lookupEnv "DBSYNC_STREAM"
 
+standaloneRedisName :: String
+standaloneRedisName = fromMaybe "redis" $ lookupEnv "STANDALONE_REDIS_NAME"
+
+clusterRedisName :: String
+clusterRedisName = fromMaybe "redisCluster" $ lookupEnv "CLUSTER_REDIS_NAME"
+
 -- DEV MySQL parameters
 devMysqlConnectionName :: String
 devMysqlConnectionName = fromMaybe "eulerMysqlDB" $ lookupEnv "DEV_MYSQL_CONNECTION_NAME"
@@ -300,3 +306,4 @@ devMysqlPoolKeepAlive = fromMaybe 10 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_K
 
 devMysqlPoolResourcesPerStripe :: Int
 devMysqlPoolResourcesPerStripe = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_RESOURCES_PER_STRIPE"
+

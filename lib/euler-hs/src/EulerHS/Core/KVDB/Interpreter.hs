@@ -117,15 +117,15 @@ interpretDbF runRedis runMode (L.KV f) = interpretKeyValueF    runRedis runMode 
 interpretDbF runRedis runMode (L.TX f) = interpretTransactionF runRedis runMode f
 
 
-runKVDB :: D.RunMode -> MVar (Map ByteString NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
-runKVDB runMode kvdbConnMapMVar =
+runKVDB :: Text -> D.RunMode -> MVar (Map Text NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB cName runMode kvdbConnMapMVar =
   fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
     foldF (interpretDbF runRedis runMode) . runExceptT
   where
     runRedis :: R.Redis (Either R.Reply a) -> IO (Either KVDBReply a)
     runRedis redisDsl = do
       connections <- readMVar kvdbConnMapMVar
-      case Map.lookup "redis" connections of
+      case Map.lookup cName connections of
         Nothing   -> pure $ Left $ ExceptionMessage "Can't find redis connection"
         Just conn ->
           case conn of

@@ -5,6 +5,7 @@ import EulerHS.Prelude
 import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defaultSettings)
 import           Data.Time.Clock (NominalDiffTime)
 
+import qualified Euler.Config.Config as Config
 import qualified Euler.Server as Euler
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
@@ -40,8 +41,6 @@ eulerApiPort :: Int
 eulerApiPort = 8080
 
 -- Redis config data
-redisConn :: IsString a => a
-redisConn = "redis"
 
 redisConnConfig :: T.RedisConfig
 redisConnConfig = T.RedisConfig
@@ -62,7 +61,7 @@ prepareDBConnections = do
     $ T.mkSQLitePoolConfig sqliteConn "/tmp/test.db" -- T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg --
     $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
   redis <- L.initKVDBConnection
-    $ T.mkKVDBConfig redisConn
+    $ T.mkKVDBConfig Config.redis
     $ redisConnConfig
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."

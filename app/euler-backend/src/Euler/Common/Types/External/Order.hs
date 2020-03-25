@@ -52,7 +52,6 @@ instance FromBackendRow Sqlite OrderStatus where
 instance FromBackendRow MySQL OrderStatus where
   fromBackendRow = read . T.unpack <$> fromBackendRow
 
-
 orderStatusToInt :: OrderStatus -> Int
 orderStatusToInt CREATED = 1
 orderStatusToInt NEW = 10

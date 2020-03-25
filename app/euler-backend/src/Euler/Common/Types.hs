@@ -18,7 +18,7 @@ import Euler.Common.Types.Refund           as X
 import Euler.Common.Types.RMSIDResult      as X
 import Euler.Common.Types.Promotion        as X
 import Euler.Common.Types.RedisService     as X
-
+import Euler.Common.Types.ViesFlow         as X
 
 
 -- EHS: remove type conflicts:

@@ -1482,28 +1482,28 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
            else nothing
 -}
 
-addTxnDetailsToResponse :: TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
-addTxnDetailsToResponse txn ordRef orderStatus = do
-  let gateway   = fromMaybe "" (getField @"gateway" txn)
-      gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
-  gatewayRefId <- getGatewayReferenceId txn ordRef
-  logInfo "gatewayRefId " gatewayRefId
-  pure $ orderStatus
-    { status = show $ getField @"status" txn
-    , status_id = txnStatusToInt $ getField @"status" txn
-    , txn_id = Just $ getField @"txnId" txn
-    , txn_uuid = getField @"txnUuid" txn
-    , gateway_id = Just gatewayId
-    , gateway_reference_id = Just gatewayRefId
-    , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
-    , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
-    , gateway_payload = addGatewayPayload txn
-    , txn_detail = Just $ mapTxnDetail txn
-    }
-  where addGatewayPayload txn =
-         if (isBlankMaybe $ getField @"gatewayPayload" txn)
-           then getField @"gatewayPayload" txn
-           else Nothing
+-- addTxnDetailsToResponse :: TxnDetail -> OrderReference -> OrderStatusResponse -> Flow OrderStatusResponse
+-- addTxnDetailsToResponse txn ordRef orderStatus = do
+--   let gateway   = fromMaybe "" (getField @"gateway" txn)
+--       gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
+--   gatewayRefId <- getGatewayReferenceId txn ordRef
+--   logInfo "gatewayRefId " gatewayRefId
+--   pure $ orderStatus
+--     { status = show $ getField @"status" txn
+--     , status_id = txnStatusToInt $ getField @"status" txn
+--     , txn_id = Just $ getField @"txnId" txn
+--     , txn_uuid = getField @"txnUuid" txn
+--     , gateway_id = Just gatewayId
+--     , gateway_reference_id = Just gatewayRefId
+--     , bank_error_code = whenNothing (getField @"bankErrorCode" txn) (Just "")
+--     , bank_error_message = whenNothing (getField @"bankErrorMessage" txn) (Just "")
+--     , gateway_payload = addGatewayPayload txn
+--     , txn_detail = Just $ mapTxnDetail txn
+--     }
+--   where addGatewayPayload txn =
+--          if (isBlankMaybe $ getField @"gatewayPayload" txn)
+--            then getField @"gatewayPayload" txn
+--            else Nothing
 
 -- ----------------------------------------------------------------------------
 -- function: mapTxnDetail
@@ -1793,28 +1793,28 @@ addRiskObjDefaultValueAsNull risk' = do
    else pure risk
 -}
 
-addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
-addRiskObjDefaultValueAsNull risk' = do
-  let risk = Risk
-        { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
-        , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
-        , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
-        , flagged = undefined :: Maybe Text -- TODO: getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
-        , recommended_action = getField @"recommended_action" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
-        , ebs_risk_level = Nothing -- NullOrUndefined Nothing
-        , ebs_payment_status = Nothing -- NullOrUndefined Nothing
-        , ebs_risk_percentage = Nothing -- NullOrUndefined Nothing
-        , ebs_bin_country = Nothing -- NullOrUndefined Nothing
-        }
+-- addRiskObjDefaultValueAsNull :: Risk' -> Flow Risk
+-- addRiskObjDefaultValueAsNull risk' = do
+--   let risk = Risk
+--         { provider = getField @"provider" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _provider)) then just (toForeign (unNull (risk' ^. _provider) "")) else just (nullValue unit)
+--         , status = getField @"status" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _status)) then just (toForeign (unNull (risk' ^. _status) "")) else just (nullValue unit)
+--         , message = getField @"message" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _message)) then just (toForeign (unNull (risk' ^. _message) "")) else just (nullValue unit)
+--         , flagged = undefined :: Maybe Text -- TODO: getField @"flagged" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _flagged)) then just (toForeign (unNull (risk' ^. _flagged) false)) else just (nullValue unit)
+--         , recommended_action = getField @"recommended_action" risk' -- : if (isJust $ unNullOrUndefined (risk' ^. _recommended_action)) then just (toForeign (unNull (risk' ^. _recommended_action) "")) else just (nullValue unit)
+--         , ebs_risk_level = Nothing -- NullOrUndefined Nothing
+--         , ebs_payment_status = Nothing -- NullOrUndefined Nothing
+--         , ebs_risk_percentage = Nothing -- NullOrUndefined Nothing
+--         , ebs_bin_country = Nothing -- NullOrUndefined Nothing
+--         }
 
-  case (fromMaybe mempty (getField @"provider" risk')) of
-    "ebs" -> pure (risk
-        { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
-        , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
-        , ebs_risk_percentage = undefined :: Maybe Text -- TODO: getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
-        , ebs_bin_country = getField @"ebs_bin_country" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
-        } :: Risk)
-    _ -> return risk
+--   case (fromMaybe mempty (getField @"provider" risk')) of
+--     "ebs" -> pure (risk
+--         { ebs_risk_level = getField @"ebs_risk_level" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_level)) then just (toForeign (unNull (risk' ^. _ebs_risk_level) "")) else just (nullValue unit)
+--         , ebs_payment_status = getField @"ebs_payment_status" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_payment_status)) then just (toForeign (unNull (risk' ^. _ebs_payment_status) "")) else just (nullValue unit)
+--         , ebs_risk_percentage = undefined :: Maybe Text -- TODO: getField @"ebs_risk_percentage" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_risk_percentage)) then just (toForeign (unNull (risk' ^. _ebs_risk_percentage) 0)) else just (nullValue unit)
+--         , ebs_bin_country = getField @"ebs_bin_country" risk' -- if (isJust $ unNullOrUndefined (risk' ^. _ebs_bin_country)) then just (toForeign (unNull (risk' ^. _ebs_bin_country) "")) else just (nullValue unit)
+--         } :: Risk)
+--     _ -> return risk
 
 
 -- ----------------------------------------------------------------------------
@@ -1990,13 +1990,13 @@ mkTxnFlowInfo params =  TxnFlowInfo
   }
 -}
 
-mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
-mkTxnFlowInfo params = TxnFlowInfo
-  {  flow_type = maybe T.empty show $ getField @"flow" params
-  ,  status = fromMaybe T.empty $ getField @"flowStatus" params
-  ,  error_code = fromMaybe T.empty $ getField @"errorCode" params
-  ,  error_message = fromMaybe T.empty $ getField @"errorMessage" params
-  }
+-- mkTxnFlowInfo :: ViesGatewayAuthReqParams -> TxnFlowInfo
+-- mkTxnFlowInfo params = TxnFlowInfo
+--   {  flow_type = maybe T.empty show $ getField @"flow" params
+--   ,  status = fromMaybe T.empty $ getField @"flowStatus" params
+--   ,  error_code = fromMaybe T.empty $ getField @"errorCode" params
+--   ,  error_message = fromMaybe T.empty $ getField @"errorMessage" params
+--   }
 
 
 -- ----------------------------------------------------------------------------
@@ -2014,13 +2014,13 @@ mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
   }
 -}
 
-mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
-mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
-  { cavv = fromMaybe T.empty $ getField @"cavv" sfr
-  , eci = getField @"eci" sfr
-  , xid = getField @"xid" sfr
-  , pares_status = getField @"status" sfr
-  }
+-- mkMerchantSecondFactorResponse :: SecondFactorResponse -> MerchantSecondFactorResponse
+-- mkMerchantSecondFactorResponse sfr = MerchantSecondFactorResponse
+--   { cavv = fromMaybe T.empty $ getField @"cavv" sfr
+--   , eci = getField @"eci" sfr
+--   , xid = getField @"xid" sfr
+--   , pares_status = getField @"status" sfr
+--   }
 
 
 -- ----------------------------------------------------------------------------

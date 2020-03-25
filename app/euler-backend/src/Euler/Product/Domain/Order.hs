@@ -163,3 +163,9 @@ data Order = Order
 --   , discount_amount = Nothing -- :: Maybe Double
 --   , status          = Nothing -- :: Maybe Text
 --   }
+
+data OrderTokenResp = OrderTokenResp
+  { client_auth_token        :: Maybe Text
+  , client_auth_token_expiry :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

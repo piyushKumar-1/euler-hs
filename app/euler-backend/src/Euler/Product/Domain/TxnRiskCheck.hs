@@ -35,3 +35,17 @@ data TxnRiskCheck = TxnRiskCheck
   , paymentStatusUpdated            :: Maybe Bool
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+data Risk = Risk
+  { provider          :: Maybe Text
+  , status            :: Maybe Text
+  , message           :: Maybe Text
+  , flagged           :: Maybe Bool
+  , recommendedAction :: Maybe Text
+  , ebsRiskLevel      :: Text
+  , ebsPaymentStatus  :: Maybe Text
+  , ebsBinCountry     :: Text
+  , ebsRiskPercentage :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

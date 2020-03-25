@@ -1,19 +1,20 @@
-{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Euler.Storage.Repository.Promotion where
 
-import           EulerHS.Prelude hiding (id, Key)
+import           EulerHS.Prelude hiding (Key, id)
 import           EulerHS.Prelude as P
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
-import qualified Euler.Encryption as E
-import           Euler.Lens
-import qualified Euler.Config.Config as Config
+-- import qualified Euler.Config.Config as Config
+-- import           Euler.Lens
 
-import qualified Euler.Common.Types as C
+-- import           Euler.API.Order
+
 import           Euler.Common.Errors.PredefinedErrors
+import qualified Euler.Common.Types as C
 import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
 
 import qualified Euler.Product.Domain as D
@@ -21,16 +22,8 @@ import qualified Euler.Product.Domain as D
 import           Euler.Storage.DBConfig
 import qualified Euler.Storage.Types as DB
 
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Aeson             as A
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Lazy.Char8 as LC
--- import           Data.Generics.Product.Fields
 import           Database.Beam ((&&.), (==.))
 import qualified Database.Beam as B
-import qualified Data.ByteString.Lazy   as BSL
-import           Servant.Server (errBody, err500)
 
 
 
@@ -64,50 +57,3 @@ transformPromotions r = D.Promotion
   <*> withField @"orderReferenceId" r (insideJust notNegative)
 
 
-getActivePromotion :: C.OrderId -> [D.Promotion] -> Flow (Maybe C.Promotion')
-getActivePromotion _ [] = pure Nothing
-getActivePromotion orderId promotions = do
-  let mPromotion = find (\promotion -> (promotion ^. _status) == "ACTIVE" ) promotions
-  case mPromotion of
-    Nothing -> pure Nothing
-    Just promotion -> do
-      let rulesRaw = promotion ^. _rules
-      rules <- decryptPromotionRules orderId rulesRaw
-      pure $ Just $ mapPromotion rules orderId promotion
-
-
-decryptPromotionRules :: C.OrderId -> Text -> Flow C.Rules
-decryptPromotionRules ordId rulesTxt = do
-
-  -- EHS: TODO: ecTempCardCred partly implemented. See Euler.Config.Config for details.
-  keyForDecryption <- Config.ecTempCardCred
-
-  let rulesDecoded = B64.decode $ T.encodeUtf8 rulesTxt -- $ promotion ^. _rules
-  rulesjson <- case rulesDecoded of
-    Right result -> pure $ E.decryptEcb keyForDecryption result
-    Left err -> throwException err500 {errBody = LC.pack err}
-
-  let rules = getRulesFromString rulesjson
-  let rValue = getMaskedAccNo (rules ^. _value)
-  pure $ rules & _value .~ rValue
-
-mapPromotion :: C.Rules -> C.OrderId -> D.Promotion -> C.Promotion'
-mapPromotion rules orderId promotion = C.Promotion'
-  { id = Just $ show $ D.promotionPId $ promotion ^. _id
-  , order_id = Just orderId
-  , rules = Just [rules]
-  , created = Just $ show (promotion ^. _dateCreated)
-  , discount_amount = Just $ C.fromMoney $ promotion ^. _discountAmount
-  , status = Just $ promotion ^. _status
-  }
-
-getRulesFromString :: Either E.EncryptionError ByteString -> C.Rules
-getRulesFromString bs =
-  case A.decode . BSL.fromStrict <$> bs of
-    Right (Just (rules :: [C.Rules])) -> case find (\r -> r ^. _dimension == "card_number") rules of
-      Just resp  -> resp
-      Nothing -> C.Rules { dimension = "", value = ""}
-    _ -> C.Rules { dimension = "", value = ""}
-
-getMaskedAccNo :: Text -> Text
-getMaskedAccNo txt = T.append (T.map (const 'X') $ T.dropEnd 4 txt) (T.takeEnd 4 txt)

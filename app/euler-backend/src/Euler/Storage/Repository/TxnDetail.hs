@@ -22,12 +22,12 @@ import qualified Database.Beam as B
 
 
 
-loadTxnByOrderIdMerchantIdTxnuuidId
+loadTxnDetail
   :: C.OrderId
   -> C.MerchantId
   -> Text
   -> Flow (Maybe D.TxnDetail)
-loadTxnByOrderIdMerchantIdTxnuuidId orderId' merchantId' txnUuid' = do
+loadTxnDetail orderId' merchantId' txnUuid' = do
   td <- withDB eulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId, txnUuid} =
           orderId ==. B.val_ orderId'
@@ -49,8 +49,8 @@ loadTxnByOrderIdMerchantIdTxnuuidId orderId' merchantId' txnUuid' = do
       throwException internalError
 
 
-loadTxnByOrderIdMerchantId :: C.OrderId -> C.MerchantId -> Flow [D.TxnDetail]
-loadTxnByOrderIdMerchantId orderId' merchantId' = do
+loadTxnDetails :: C.OrderId -> C.MerchantId -> Flow [D.TxnDetail]
+loadTxnDetails orderId' merchantId' = do
   td <- withDB eulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId} =
           orderId ==. B.val_ orderId'

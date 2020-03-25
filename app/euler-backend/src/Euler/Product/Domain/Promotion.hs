@@ -26,10 +26,19 @@ data Promotion = Promotion
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+data PromotionActive = PromotionActive
+  { id             :: PromotionPId
+  , orderId        :: C.OrderId
+  , rules          :: C.Rules
+  , dateCreated    :: LocalTime
+  , discountAmount :: C.Money
+  , status         :: Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
 -- from src/Types/Storage/EC/Promotions.purs
 --data Rules = Rules
 --  { dimension :: Text
 --  , value :: Text
 --  }
-
-

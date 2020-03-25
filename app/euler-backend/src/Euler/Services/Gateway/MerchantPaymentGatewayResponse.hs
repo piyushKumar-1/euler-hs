@@ -10,12 +10,14 @@ import           EulerHS.Prelude hiding (id)
 
 import           Data.Generics.Product.Fields
 
-import           Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse' (..))
+-- import           Euler.API.MerchantPaymentGatewayResponse (MerchantPaymentGatewayResponse' (..))
 
 import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.PaymentGatewayResponseXml
 
 import           Euler.Storage.Types.PaymentGatewayResponse
+
+import qualified Euler.Product.Domain as D
 import           Euler.Product.Domain.TxnDetail
 
 import qualified Data.Char as C
@@ -150,10 +152,10 @@ data PGRField
 
 
 transformMpgrByGateway
-  :: MerchantPaymentGatewayResponse'
+  :: D.MerchantPaymentGatewayResponse
   -> EValueMap
   -> MerchantPGRServiceByGateway
-  -> MerchantPaymentGatewayResponse'
+  -> D.MerchantPaymentGatewayResponse
 transformMpgrByGateway merchPGR xmls MerchantPGRServiceByGateway{..}
   = executePGR merchPGR xmls
   . otherGateways
@@ -275,12 +277,12 @@ data MerchantPGRServiceByGateway = MerchantPGRServiceByGateway
   }
 
 mkMerchantPGRServiceTemp
-  :: PGateway
+  :: Maybe Gateway
   -> TxnDetail
   -> PaymentGatewayResponse
   -> EValueMap
   -> MerchantPGRServiceByGateway
-mkMerchantPGRServiceTemp gateway txn pgr xmls = MerchantPGRServiceByGateway
+mkMerchantPGRServiceTemp gate txn pgr xmls = MerchantPGRServiceByGateway
   { otherGateways = otherGateways' gateway txn pgr
   , ccavenue_v2   = ccavenue_v2' gateway txn pgr
   , blazepay      = blazepay' gateway txn pgr
@@ -337,26 +339,28 @@ mkMerchantPGRServiceTemp gateway txn pgr xmls = MerchantPGRServiceByGateway
   , olamoney      = olamoney' gateway txn pgr xmls
   , amazonpay     = amazonpay' gateway txn pgr xmls
   }
+  where
+    gateway = maybe "" show gate
 
 
 executePGR
-  :: MerchantPaymentGatewayResponse'
+  :: D.MerchantPaymentGatewayResponse
   -> EValueMap
   -> MerchantPGRTemp
-  -> MerchantPaymentGatewayResponse'
+  -> D.MerchantPaymentGatewayResponse
 executePGR merchPGR xmls merchTemp =
   merchPGR
-    { txn_id               = runPGR xmls $ getField @"txnId" merchTemp
-    , rrn                  = runPGR xmls $ getField @"rrn" merchTemp
-    , epg_txn_id           = runPGR xmls $ getField @"epgTxnId" merchTemp
-    , auth_id_code         = runPGR xmls $ getField @"authId" merchTemp
-    , resp_code            = runPGR xmls $ getField @"respCode" merchTemp
-    , resp_message         = runPGR xmls $ getField @"respMessage" merchTemp
-    , offer                = runPGR xmls $ getField @"offer" merchTemp
-    , offer_type           = runPGR xmls $ getField @"offer_type" merchTemp
-    , offer_availed        = runPGR xmls $ getField @"offer_availed" merchTemp
-    , discount_amount      = runPGR xmls $ getField @"discount_amount" merchTemp
-    , offer_failure_reason = runPGR xmls $ getField @"offer_failure_reason" merchTemp
+    { D.txnId              = runPGR xmls $ getField @"txnId" merchTemp
+    , D.rrn                = runPGR xmls $ getField @"rrn" merchTemp
+    , D.epgTxnId           = runPGR xmls $ getField @"epgTxnId" merchTemp
+    , D.authIdCode         = runPGR xmls $ getField @"authId" merchTemp
+    , D.respCode           = runPGR xmls $ getField @"respCode" merchTemp
+    , D.respMessage        = runPGR xmls $ getField @"respMessage" merchTemp
+    , D.offer              = runPGR xmls $ getField @"offer" merchTemp
+    , D.offerType          = runPGR xmls $ getField @"offer_type" merchTemp
+    , D.offerAvailed       = runPGR xmls $ getField @"offer_availed" merchTemp
+    , D.discountAmount     = runPGR xmls $ getField @"discount_amount" merchTemp
+    , D.offerFailureReason = runPGR xmls $ getField @"offer_failure_reason" merchTemp
     }
 
 runPGR

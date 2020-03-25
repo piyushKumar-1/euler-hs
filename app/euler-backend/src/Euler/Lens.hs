@@ -32,11 +32,18 @@ import Euler.Storage.Types.TxnRiskCheck as STTxnRiskCheck
 
 import Euler.Product.Domain.Card as PDCard
 import Euler.Product.Domain.CardPayment as PDCardPayment
+import Euler.Product.Domain.Chargeback as PDChargeback
 import Euler.Product.Domain.Customer as PDCustomer
 import Euler.Product.Domain.MerchantAccount as PDMerchantAccount
+import Euler.Product.Domain.MerchantPaymentGatewayResponse as PDMerchantPaymentGatewayResponse
+import Euler.Product.Domain.MerchantSecondFactorResponse as PDMerchantSecondFactorResponse
 import Euler.Product.Domain.NBPayment as PDNBPayment
 import Euler.Product.Domain.Order as PDOrder
+import Euler.Product.Domain.OrderStatusResponse as PDOrderStatusResponse
 import Euler.Product.Domain.Promotion as PDPromotion
+import Euler.Product.Domain.TxnDetail as PDTxnDetail
+import Euler.Product.Domain.TxnFlowInfo as PDTxnFlowInfo
+import Euler.Product.Domain.TxnRiskCheck as PDTxnRiskCheck
 import Euler.Product.Domain.Transaction as PDTransaction
 import Euler.Product.Domain.UPIPayment as PDUPIPayment
 import Euler.Product.Domain.WalletPayment as PDWalletPayment
@@ -50,6 +57,7 @@ import Euler.Common.Types.GatewayMetadata as CTGatewayMetadata
 import Euler.Common.Types.Order as CTOrder
 import Euler.Common.Types.Promotion as CTPromotion
 import Euler.Common.Types.RMSIDResult as CTRMSIDResult
+import Euler.Common.Types.ViesFlow as CTViesGatewayAuthReqParams
 
 import Euler.API.Authentication as APIAuthentication
 import Euler.API.Card as APICard
@@ -92,18 +100,29 @@ makeGenericLenses ''STTxnDetail.TxnDetailT
 makeGenericLenses ''STTxnRiskCheck.TxnRiskCheckT
 
 -- makeGenericLenses ''PDCard.CardInfo
+makeGenericLenses ''PDCard.Card
 makeGenericLenses ''PDCard.StoredCard
 makeGenericLenses ''PDCardPayment.ATMRedirectionPayment
 makeGenericLenses ''PDCardPayment.ATMSeamlessPayment
 makeGenericLenses ''PDCardPayment.CardPayment
 makeGenericLenses ''PDCardPayment.CardPaymentType
+makeGenericLenses ''PDChargeback.Chargeback
 makeGenericLenses ''PDCustomer.CreateCustomer
 makeGenericLenses ''PDCustomer.Customer
 makeGenericLenses ''PDMerchantAccount.MerchantAccount
+makeGenericLenses ''PDMerchantPaymentGatewayResponse.MerchantPaymentGatewayResponse
+makeGenericLenses ''PDMerchantSecondFactorResponse.MerchantSecondFactorResponse
 makeGenericLenses ''PDNBPayment.NBPayment
 makeGenericLenses ''PDOrder.Order
+makeGenericLenses ''PDOrder.OrderTokenResp
+makeGenericLenses ''PDOrderStatusResponse.OrderStatusResponse
 makeGenericLenses ''PDPromotion.Promotion
+makeGenericLenses ''PDPromotion.PromotionActive
 makeGenericLenses ''PDTransaction.Transaction
+makeGenericLenses ''PDTxnDetail.TxnDetail
+makeGenericLenses ''PDTxnFlowInfo.TxnFlowInfo
+makeGenericLenses ''PDTxnRiskCheck.TxnRiskCheck
+makeGenericLenses ''PDTxnRiskCheck.Risk
 makeGenericLenses ''PDUPIPayment.UPIPayment
 makeGenericLenses ''PDWalletPayment.DirectWalletPayment
 makeGenericLenses ''PDWalletPayment.WalletPayment
@@ -119,10 +138,10 @@ makeGenericLenses ''CTGatewayMetadata.GatewayMetaEntry
 makeGenericLenses ''CTOrder.ClientAuthTokenData
 makeGenericLenses ''CTOrder.OrderTokenExpiryData
 makeGenericLenses ''CTOrder.UDF
-makeGenericLenses ''CTPromotion.Promotion'
 makeGenericLenses ''CTPromotion.Rules
 makeGenericLenses ''CTRMSIDResult.RMSIDResult
 makeGenericLenses ''CTRMSIDResult.Output
+makeGenericLenses ''CTViesGatewayAuthReqParams.ViesGatewayAuthReqParams
 
 makeGenericLenses ''APIAuthentication.Signed
 makeGenericLenses ''APICard.AddCard
@@ -156,8 +175,8 @@ makeGenericLenses ''APIOrder.Card
 makeGenericLenses ''APIOrder.Chargeback'
 makeGenericLenses ''APIOrder.Mandate'
 makeGenericLenses ''APIOrder.OrderStatusRequest
+makeGenericLenses ''APIOrder.Promotion'
 makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse
-makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse'
 makeGenericLenses ''APIOrder.OrderCreateRequest
 makeGenericLenses ''APIOrder.OrderCreateResponse
 makeGenericLenses ''APIOrder.OrderStatusRequestLegacy
@@ -166,7 +185,7 @@ makeGenericLenses ''APIOrder.OrderTokenResp
 makeGenericLenses ''APIOrder.OrderUpdateRequest
 makeGenericLenses ''APIOrder.Paymentlinks
 makeGenericLenses ''APIRefund.Refund'
-makeGenericLenses ''APIOrder.Risk
+makeGenericLenses ''APIOrder.Risk'
 makeGenericLenses ''APIOrder.TxnDetail'
 makeGenericLenses ''APIPayment.JsonError
 makeGenericLenses ''APIPayment.PaymentStatus

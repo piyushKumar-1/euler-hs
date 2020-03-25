@@ -41,6 +41,7 @@ module EulerHS.Framework.Flow.Language
   , callAPI
   , callAPI'
   , runIO
+  , runIO'
   , generateGUID
   , runSysCmd
   , forkFlow
@@ -86,7 +87,8 @@ data FlowMethod next where
 
   RunIO
     :: T.JSONEx a
-    => IO a
+    => Text
+    -> IO a
     -> (a -> next)
     -> FlowMethod next
 
@@ -189,7 +191,7 @@ instance Functor FlowMethod where
 
   fmap f (ThrowException message next)        = ThrowException message (f . next)
 
-  fmap f (RunIO ioAct next)                   = RunIO ioAct (f . next)
+  fmap f (RunIO descr ioAct next)                   = RunIO descr ioAct (f . next)
 
   fmap f (GetOption k next)                   = GetOption k (f . next)
 
@@ -310,8 +312,10 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   logDebug "content id" $ extractContentId content
 -- >   pure content
 runIO :: T.JSONEx a => IO a -> Flow a
-runIO ioAct = liftFC $ RunIO ioAct id
+runIO = runIO' ""
 
+runIO' :: T.JSONEx a => Text -> IO a -> Flow a
+runIO' descr ioAct = liftFC $ RunIO descr ioAct id
 
 -- | Get stored option by typed key.
 getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
@@ -513,7 +517,7 @@ subscribe
   :: [PSL.Channel]    -- ^ List of channels to subscribe
   -> MessageCallback  -- ^ Callback function.
   -> Flow (Flow ())   -- ^ Inner flow is a canceller of current subscription
-subscribe channels cb = fmap runIO $
+subscribe channels cb = fmap (runIO' "subscribe") $
   runPubSub $ PubSub $ \runFlow -> PSL.subscribe channels (runFlow . cb)
 
 
@@ -524,5 +528,5 @@ psubscribe
   :: [PSL.ChannelPattern] -- ^ List of channels to subscribe (wit respect to patterns supported by redis)
   -> PMessageCallback     -- ^ Callback function
   -> Flow (Flow ())       -- ^ Inner flow is a canceller of current subscription
-psubscribe channels cb = fmap runIO $
+psubscribe channels cb = fmap (runIO' "psubscribe") $
   runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)

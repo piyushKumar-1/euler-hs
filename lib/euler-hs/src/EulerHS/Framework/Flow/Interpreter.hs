@@ -77,8 +77,8 @@ interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   fmap next $
     R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunIO ioAct next) =
-  next <$> P.withRunMode _runMode P.mkRunIOEntry ioAct
+interpretFlowMethod R.FlowRuntime {..} (L.RunIO descr ioAct next) =
+  next <$> P.withRunMode _runMode (P.mkRunIOEntry descr) ioAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do

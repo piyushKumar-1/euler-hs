@@ -40,10 +40,11 @@ import qualified Euler.API.RouteParameters as Param
 import           Euler.Constant.Constants (orderStatusCacheTTL)
 import qualified Euler.Constant.Feature as FeatureC
 
-import           Euler.Common.Types.External.Mandate as Mandate
-import qualified Euler.Common.Types as C
+import qualified Euler.Common.Metric                          as Metric
+import           Euler.Common.Types.External.Mandate          as Mandate
+import qualified Euler.Common.Types                           as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
-import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
+import           Euler.Common.Types.TxnDetail                 (TxnStatus (..), txnStatusToInt)
 
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
@@ -53,7 +54,9 @@ import           Euler.Config.Config as Config
 
 import qualified Euler.Product.Domain as D
 import           Euler.Product.OLTP.Card.Card
-import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
+
+
+--import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
 
 import qualified Euler.Storage.Types as DB
 import           Euler.Storage.Repository
@@ -116,92 +119,102 @@ getSendFullGatewayResponse routeParams =
     Nothing  -> False
     Just str -> str == "1" || T.map toLower str == "true"
 
-
 execOrderStatusQuery :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery request = do
 
   let queryOrderId = request ^. _orderId
   let queryMerchantId = request ^. _merchantId
   let resellerId = request ^. _resellerId
+  let isAuth = request ^. _isAuthenticated
   let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
-  mOrder <- loadOrder queryOrderId queryMerchantId
+  mbCached <- getCachedResponse queryOrderId queryMerchantId isAuth
+  case mbCached of
+    Just cached -> pure $ Right cached
+    Nothing -> do
+      mOrder <- loadOrder queryOrderId queryMerchantId
 
-  (order :: D.Order) <- case mOrder of
-    Just o -> pure o
-    Nothing -> throwException err404
-      { errBody = "Order not found "
-      <> "orderId: " <> show queryOrderId
-      <> ", merchantId: " <> show queryMerchantId }
+      (order :: D.Order) <- case mOrder of
+        Just o -> pure o
+        Nothing -> throwException err404
+          { errBody = "Order not found "
+          <> "orderId: " <> show queryOrderId
+          <> ", merchantId: " <> show queryMerchantId }
 
-  let orderId = order ^. _orderId
-  let merchantId = order ^. _merchantId
-  let orderUuid = order ^. _orderUuid
-  let orderType = order ^. _orderType
-  let orderPId = order ^. _id
-  let udf2 = (order ^. _udf) ^. _udf2
-  let orderReturnUrl = order ^. _returnUrl
+      let orderId = order ^. _orderId
+      let merchantId = order ^. _merchantId
+      let orderUuid = order ^. _orderUuid
+      let orderType = order ^. _orderType
+      let orderPId = order ^. _id
+      let udf2 = (order ^. _udf) ^. _udf2
+      let orderReturnUrl = order ^. _returnUrl
 
-  links <- getPaymentLinks resellerId orderUuid
+      links <- getPaymentLinks resellerId orderUuid
 
-  mPromotion' <- getPromotion orderPId orderId
-  mMandate' <- getMandate orderPId merchantId orderType
+      mPromotion' <- getPromotion orderPId orderId
+      mMandate' <- getMandate orderPId merchantId orderType
 
-  mTxnDetail1 <- loadTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
-  mTxnDetail2 <- getLastTxn orderId merchantId
-  let mTxn = (mTxnDetail1 <|> mTxnDetail2)
+      mTxnDetail1 <- loadTxnByOrderIdMerchantIdTxnuuidId orderId merchantId orderUuid
+      mTxnDetail2 <- getLastTxn orderId merchantId
+      let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
-  gatewayRefId <- case mTxn of
-    Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
-    Just txn -> do
-      let gateway = txn ^. _gateway
-      getGatewayReferenceId2 gateway orderPId udf2 merchantId
+      gatewayRefId <- case mTxn of
+        Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
+        Just txn -> do
+          let gateway = txn ^. _gateway
+          getGatewayReferenceId2 gateway orderPId udf2 merchantId
 
-  (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr) <- case mTxn of
-    Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
-    Just txn -> do
-      let txnDetailPId = D.txnDetailPId $ txn ^. _id
-      mRisk <- getRisk txnDetailPId
-      mTxnCard <- loadTxnCardInfo txnDetailPId
-      mRefunds' <- maybeList <$> (refundDetails txnDetailPId)
-      mChargeback' <- maybeList <$> (chargebackDetails txnDetailPId $ mapTxnDetail txn)
-      mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
-      pure (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr)
+      (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr) <- case mTxn of
+        Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
+        Just txn -> do
+          let txnDetailPId = D.txnDetailPId $ txn ^. _id
+          mRisk <- getRisk txnDetailPId
+          mTxnCard <- loadTxnCardInfo txnDetailPId
+          mRefunds' <- maybeList <$> (refundDetails txnDetailPId)
+          mChargeback' <- maybeList <$> (chargebackDetails txnDetailPId $ mapTxnDetail txn)
+          mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
+          pure (mRisk, mTxnCard, mRefunds', mChargeback', mMerchantPgr)
 
-  mCardBrand <- case mTxnCard of
-    Nothing                    -> pure Nothing
-    Just (card :: D.TxnCardInfo) ->
-      getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
+      mCardBrand <- case mTxnCard of
+        Nothing                    -> pure Nothing
+        Just (card :: D.TxnCardInfo) ->
+          getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
 
-  mReturnUrl <- getReturnUrl merchantId orderReturnUrl
+      mReturnUrl <- getReturnUrl merchantId orderReturnUrl
 
-  paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
-    (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
-    _                        -> pure (Nothing, Nothing, Nothing, Nothing)
+      paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
+        (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
+        _                        -> pure (Nothing, Nothing, Nothing, Nothing)
 
-  txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
-    (Just txn, Just txnCard) -> do
-      let txnDetail_id = D.txnDetailPId $ txn ^. _id
-      getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
-    _ -> pure (Nothing, Nothing)
+      txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
+        (Just txn, Just txnCard) -> do
+          let txnDetail_id = D.txnDetailPId $ txn ^. _id
+          getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
+        _ -> pure (Nothing, Nothing)
 
-  pure $ runExcept $ makeOrderStatusResponse
-    order
-    links
-    mPromotion'
-    mMandate'
-    request
-    mTxn
-    gatewayRefId
-    mRisk
-    mTxnCard
-    mCardBrand
-    mRefunds'
-    mChargeback'
-    mReturnUrl
-    paymentMethodsAndTypes
-    txnFlowInfoAndMerchantSFR
-    mMerchantPgr
+      let res = runExcept $ makeOrderStatusResponse
+            order
+            links
+            mPromotion'
+            mMandate'
+            request
+            mTxn
+            gatewayRefId
+            mRisk
+            mTxnCard
+            mCardBrand
+            mRefunds'
+            mChargeback'
+            mReturnUrl
+            paymentMethodsAndTypes
+            txnFlowInfoAndMerchantSFR
+            mMerchantPgr
+
+      case res of
+        Left _ -> pure res
+        Right res' -> do
+          _ <- addToCache orderId merchantId isAuth res'
+          pure $ Right res'
 
 
 (<<=) :: Comonad w => w a -> (w a -> b) -> w b
@@ -1033,23 +1046,71 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
       in Just $ toStrict $ TL.decodeUtf8 $ encode $ getMapFromPGRXml pgrXml
     else Nothing
 
--- | Cache order status response
+-- | Cache an order status response
 addToCache
-  :: C.OrderPId           -- ^ aks @willbasky PId or Id ?
-  -> D.MerchantAccountId
+  -- EHS: clarify types
+  :: Text -- C.OrderPId           -- ^ aks @willbasky PId or Id ?
+  -> Text -- D.MerchantAccountId
   -> Bool
   -> OrderStatusResponse
   -> Flow ()
 addToCache orderId merchId isAuth res = do
-  mbFeat <- loadFeature FeatureC.EulerOrderStatusCaching $ show $ merchId
+  mbFeat <- loadFeature FeatureC.EulerOrderStatusCaching $ merchId
   let caching = maybe False (^. _enabled) mbFeat
   case caching of
     True  -> do
-      _ <-logInfo @Text "Order Status add to cache" $ "adding order status response to cache for merchant_id " <> show merchId <> " orderId " <> show orderId
-      _ <- rSetex (keyPrefix isAuth <> show merchId <> show orderId) res orderStatusCacheTTL
-      -- Monitoring.incrementOrderStatusCacheAddCount merchantId
+      _ <- logInfo @Text "Order Status add to cache"
+            $ "adding order status response to cache for merchant_id "
+              <> merchId <> " orderId " <> orderId
+      _ <- rSetex cacheKey res ttl
+      runIO $ Metric.incrementOrderStatusCacheAddCount merchId
       pure ()
     False -> pure ()
-    where
-      keyPrefix :: Bool -> Text
-      keyPrefix = undefined
+  where
+    cacheKey = mkCacheKey orderId merchId isAuth
+    ttl = orderStatusCacheTTL
+
+
+-- | Try to retrieve a cached response
+getCachedResponse
+  :: Text
+  -> Text
+  -> Bool
+  -> Flow (Maybe OrderStatusResponse)
+getCachedResponse orderId merchId isAuth = do
+  mbFeat <- loadFeature FeatureC.EulerOrderStatusCaching $ merchId
+  let caching = maybe False (^. _enabled) mbFeat
+  case caching of
+    True  -> do
+      _ <- logInfo @Text "Fetch cache from order status"
+             $ "Order status cache feature is enabled for merchand id: " <> merchId
+      val <- rGet cacheKey
+      -- EHS: investigate
+      -- let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
+      -- _ <- Presto.log ("Cache value for this order status cache key " <> key) v
+      -- case (runExcept (decode (camelCaseToSnakeCase resp))) of
+      --  Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
+      --  Left err -> log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
+      case val of
+        Just val' -> do
+          _ <- logInfo @Text "Fetch cache from order status"
+                 $ "Order status response found in cache for merchantId: " <> merchId <> ", orderId: " <> orderId
+          runIO $ Metric.incrementOrderStatusCacheHitCount merchId
+          pure val'
+        Nothing -> do
+          _ <- logInfo @Text "Fetch cache from order status"
+                 $ "Could not find order status response in cache for merchantId: " <> merchId <> ", orderId: " <> orderId
+          runIO $ Metric.incrementOrderStatusCacheMissCount merchId
+          pure Nothing
+    False -> do
+      _ <- logInfo @Text "Fetch cache from order status"
+             $ "Order status cache feature is not enabled for merchand id: " <> merchId
+      pure Nothing
+  where
+      cacheKey = mkCacheKey orderId merchId isAuth
+
+
+-- | Build a key used in Redis
+mkCacheKey :: Text -> Text -> Bool -> Text
+mkCacheKey orderId merchId True  = "euler_ostatus_" <> merchId <> orderId
+mkCacheKey orderId merchId False = "euler_ostatus_unauth_" <> merchId <> orderId

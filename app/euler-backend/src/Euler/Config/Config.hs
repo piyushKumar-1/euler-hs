@@ -7,7 +7,7 @@ import EulerHS.Types
 import Euler.Config.EnvVars
 
 import qualified Data.List.Extra as LE
-import qualified Euler.Encryption as E
+-- import qualified Euler.Encryption as E
 import           EulerHS.Language
 
 

@@ -301,3 +301,25 @@ spec = do
                 await (Just $ T.Microseconds 1000) awaitable
           result <- runFlow rt flow
           result `shouldBe` Nothing
+
+        it "Fork and successful await for 2 flows" $ \rt -> do
+          let flow = do
+                awaitable1 <- forkFlow' "101" (runIO (threadDelay 10000) >> pure i)
+                awaitable2 <- forkFlow' "102" (runIO (threadDelay 100000) >> pure (i+1))
+                mbRes1 <- await Nothing awaitable1
+                mbRes2 <- await Nothing awaitable2
+                pure (mbRes1, mbRes2)
+          result <- runFlow rt flow
+          result `shouldBe` (Just 101, Just 102)
+
+        it "Fork and successful await 1 of 2 flows" $ \rt -> do
+          let flow = do
+                awaitable1 <- forkFlow' "101" (runIO (threadDelay 10000) >> pure i)
+                awaitable2 <- forkFlow' "102" (runIO (threadDelay 1000000) >> pure (i+1))
+                mbRes1 <- await Nothing awaitable1
+                mbRes2 <- await (Just $ T.Microseconds 1000) awaitable2
+                pure (mbRes1, mbRes2)
+          result <- runFlow rt flow
+          result `shouldBe` (Just 101, Nothing)
+
+          

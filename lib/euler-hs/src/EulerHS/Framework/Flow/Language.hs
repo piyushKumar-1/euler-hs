@@ -7,10 +7,7 @@
 module EulerHS.Framework.Flow.Language
   (
   -- * Flow language
-  -- ** Types
-    Description
-  , Flow
-  , ForkGUID
+    Flow
   , FlowMethod(..)
   -- ** Methods
   -- *** SQLDB
@@ -45,6 +42,8 @@ module EulerHS.Framework.Flow.Language
   , generateGUID
   , runSysCmd
   , forkFlow
+  , forkFlow'
+  , await
   , throwException
 
   -- *** PublishSubscribe
@@ -61,20 +60,13 @@ import           Servant.Server (err500)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
 import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Framework.Types as T
 import qualified EulerHS.Core.PubSub.Language as PSL
-
-type Description = Text
-
-type ForkGUID = Text
-
-type ManagerSelector = String
 
 -- | Flow language.
 data FlowMethod next where
   CallServantAPI
     :: T.JSONEx a
-    => Maybe ManagerSelector
+    => Maybe T.ManagerSelector
     -> BaseUrl
     -> T.EulerClient a
     -> (Either ClientError a -> next)
@@ -93,15 +85,15 @@ data FlowMethod next where
     -> FlowMethod next
 
   GetOption
-    :: (ToJSON v, FromJSON v)
-    => Text
-    -> (Maybe v -> next)
+    :: (ToJSON a, FromJSON a)
+    => T.KVDBKey
+    -> (Maybe a -> next)
     -> FlowMethod next
 
   SetOption
-    :: (ToJSON v, FromJSON v)
-    => Text
-    -> v
+    :: (ToJSON a, FromJSON a)
+    => T.KVDBKey
+    -> a
     -> (() -> next)
     -> FlowMethod next
 
@@ -115,10 +107,18 @@ data FlowMethod next where
     -> FlowMethod next
 
   Fork
-    :: Description
-    -> ForkGUID
-    -> Flow s
-    -> (() -> next)
+    :: (FromJSON a, ToJSON a)
+    => T.Description
+    -> T.ForkGUID
+    -> Flow a
+    -> (T.Awaitable a -> next)
+    -> FlowMethod next
+
+  Await
+    :: (FromJSON a, ToJSON a)
+    => T.Microseconds
+    -> T.Awaitable a
+    -> (Maybe a -> next)
     -> FlowMethod next
 
   ThrowException
@@ -189,6 +189,8 @@ instance Functor FlowMethod where
 
   fmap f (Fork desc guid fflow next)          = Fork desc guid fflow (f . next)
 
+  fmap f (Await timeout avaitable next)       = Await timeout avaitable (f . next)
+
   fmap f (ThrowException message next)        = ThrowException message (f . next)
 
   fmap f (RunIO descr ioAct next)                   = RunIO descr ioAct (f . next)
@@ -203,15 +205,15 @@ instance Functor FlowMethod where
 
   fmap f (GetSqlDBConnection cfg next)        = GetSqlDBConnection cfg (f . next)
 
-  fmap f (InitKVDBConnection cfg next)       = InitKVDBConnection cfg (f . next)
+  fmap f (InitKVDBConnection cfg next)        = InitKVDBConnection cfg (f . next)
 
-  fmap f (DeInitKVDBConnection conn next)    = DeInitKVDBConnection conn (f.next)
+  fmap f (DeInitKVDBConnection conn next)     = DeInitKVDBConnection conn (f.next)
 
-  fmap f (GetKVDBConnection cfg next)        = GetKVDBConnection cfg (f . next)
+  fmap f (GetKVDBConnection cfg next)         = GetKVDBConnection cfg (f . next)
 
   fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
 
-  fmap f (RunKVDB cName act next)                   = RunKVDB cName act (f . next)
+  fmap f (RunKVDB cName act next)             = RunKVDB cName act (f . next)
 
   fmap f (RunPubSub act next)                 = RunPubSub act (f . next)
 
@@ -246,7 +248,7 @@ type Flow = F FlowMethod
 
 callServantAPI
   :: T.JSONEx a
-  => Maybe ManagerSelector       -- ^ name of the connection manager to be used
+  => Maybe T.ManagerSelector       -- ^ name of the connection manager to be used
   -> BaseUrl                     -- ^ remote url 'BaseUrl'
   -> T.EulerClient a             -- ^ servant client 'EulerClient'
   -> Flow (Either ClientError a) -- ^ result
@@ -278,7 +280,7 @@ callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
 
-callAPI' :: T.JSONEx a => Maybe ManagerSelector -> BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
+callAPI' :: T.JSONEx a => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
 callAPI' = callServantAPI
 
 callAPI :: T.JSONEx a => BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
@@ -447,16 +449,21 @@ withDB dbConf act = do
 -- >   res <- runIO someAction
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure res
-forkFlow :: T.JSONEx a => Text -> Flow a -> Flow ()
-forkFlow description flow = do
+forkFlow :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow ()
+forkFlow description flow = void $ forkFlow' description flow
+
+forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable a)
+forkFlow' description flow = do
   flowGUID <- generateGUID
   unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
   when   (null description) $ logInfo tag $ "Flow forked. GUID: " <> flowGUID
-  void $ liftFC $ Fork description flowGUID flow id
+  liftFC $ Fork description flowGUID flow id
   where
     tag :: Text
     tag = "ForkFlow"
 
+await :: (FromJSON a, ToJSON a) => T.Microseconds -> T.Awaitable a -> Flow (Maybe a)
+await mcs awaitable = liftFC $ Await mcs awaitable id
 
 -- | Throw given exception.
 --   In module Servant.Server you can find alot of predefined HTTP exceptions

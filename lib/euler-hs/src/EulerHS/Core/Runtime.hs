@@ -34,7 +34,7 @@ createVoidLoggerRuntime = LoggerRuntime <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime handle) = Impl.disposeLogger handle
-clearLoggerRuntime _ = undefined
+clearLoggerRuntime _ = pure ()
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
 createCoreRuntime = pure . CoreRuntime

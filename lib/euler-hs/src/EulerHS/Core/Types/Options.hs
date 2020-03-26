@@ -1,4 +1,4 @@
-module EulerHS.Framework.Types.Options
+module EulerHS.Core.Types.Options
   (
     -- * Options
     -- | Determine the relationship between key & value

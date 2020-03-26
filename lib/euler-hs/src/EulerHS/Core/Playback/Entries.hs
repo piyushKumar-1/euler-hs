@@ -267,3 +267,19 @@ instance RRItem GetKVDBConnectionEntry  where
 
 instance MockedResult GetKVDBConnectionEntry (T.KVDBAnswer T.KVDBConn) where
   getMock (GetKVDBConnectionEntry _) = Just $ Right $ T.Mocked ""
+
+----------------------------------------------------------------------
+
+data AwaitEntry = AwaitEntry
+  { timeout    :: Int
+  , jsonResult :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkAwaitEntry :: (FromJSON v, ToJSON v) => Int -> Maybe v -> AwaitEntry
+mkAwaitEntry mcs mv = AwaitEntry mcs (toJSON mv)
+
+instance RRItem AwaitEntry  where
+  getTag _ = "AwaitEntry"
+
+instance FromJSON v => MockedResult AwaitEntry v where
+  getMock (AwaitEntry _ jsonValue) = T.fromJSONMaybe jsonValue

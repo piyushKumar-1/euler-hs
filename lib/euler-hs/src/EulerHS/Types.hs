@@ -4,4 +4,3 @@ module EulerHS.Types
 
 
 import           EulerHS.Core.Types as X
-import           EulerHS.Framework.Types as X

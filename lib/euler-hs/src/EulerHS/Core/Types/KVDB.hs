@@ -6,7 +6,8 @@ module EulerHS.Core.Types.KVDB
   (
     -- * Core KVDB
     -- ** Types
-    KVDBConn(..)
+    KVDBKey
+  , KVDBConn(..)
   , KVDBAnswer
   , KVDBReply
   , TxResult(..)
@@ -38,6 +39,7 @@ import           EulerHS.Prelude
 import qualified GHC.Generics as G
 
 
+type KVDBKey = Text
 
 -- Key-value database connection
 data KVDBConn
@@ -220,4 +222,3 @@ mkRedisConn (KVDBConfig connTag cfg)   = Redis connTag <$> createRedisConn cfg
 -- | Connect with the given config to the database.
 createRedisConn :: RedisConfig -> IO RD.Connection
 createRedisConn = RD.connect . toRedisConnectInfo
-

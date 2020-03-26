@@ -56,6 +56,8 @@ disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 
+suppressErrors :: IO a -> IO ()
+suppressErrors = void . try @_ @SomeException
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
@@ -104,14 +106,15 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
 
 ----------------------------------------------------------------------
 interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
+  awaitableMVar <- newEmptyMVar
   case R._runMode rt of
-    T.RegularMode              -> void $ forkIO $ void $ runFlow rt flow
+    T.RegularMode              -> void $ forkIO (suppressErrors (runFlow rt flow >>= putMVar awaitableMVar))
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
       finalForkedRecordingsVar <- newEmptyMVar
 
       forkRecordingMVar        <- newMVar V.empty
-      forkForkedRecordingsVar   <- newMVar Map.empty
+      forkForkedRecordingsVar  <- newMVar Map.empty
 
       let freshRecording = T.Recording forkRecordingMVar  forkForkedRecordingsVar
       let emptyRecording = T.Recording finalRecordingMVar finalForkedRecordingsVar
@@ -122,7 +125,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
             , ..
             }
 
-      forkedRecs <- takeMVar $ forkedRecordingsVar
+      forkedRecs <- takeMVar forkedRecordingsVar
       putMVar forkedRecordingsVar $
         Map.insert newFlowGUID emptyRecording forkedRecs
 
@@ -132,7 +135,6 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
         _ <- try @_ @SomeException $ runFlow newRt flow
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
-        pure ()
 
 ----------------------------------------------------------------------
 
@@ -183,15 +185,25 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
           void $ forkIO $ do
-            _ <- try @_ @SomeException $ runFlow newRt flow
+            suppressErrors (runFlow newRt flow >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
             putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
-            pure ()
 
 ----------------------------------------------------------------------
 
-  fmap next $
-    P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
+  void $ P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
+  pure $ next $ T.Awaitable awaitableMVar
+
+----------------------------------------------------------------------
+----------------------------------------------------------------------
+
+interpretFlowMethod R.FlowRuntime {..} (L.Await (T.Microseconds mcs) (T.Awaitable awaitableMVar) next) = do
+  let act = case mcs of
+        0 -> Just <$> takeMVar awaitableMVar
+        _ -> do
+          threadDelay $ fromIntegral mcs
+          tryTakeMVar awaitableMVar
+  fmap next $ P.withRunMode _runMode (P.mkAwaitEntry (fromIntegral mcs)) act
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())

@@ -21,7 +21,6 @@ import qualified Database.Redis as RD
 import qualified System.Mem as SYSM (performGC)
 
 import           System.IO.Unsafe (unsafePerformIO)
-import           EulerHS.Framework.Types ()
 
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T

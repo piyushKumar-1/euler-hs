@@ -60,18 +60,16 @@ suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
 
 awaitMVarWithTimeout :: MVar a -> Int -> IO (Maybe a)
-awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0 0
-                              | otherwise = go portion mcs
+awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
+                              | otherwise = go mcs
   where
     portion = (mcs `div` 10) + 1
-    go cur rest
+    go rest
       | rest <= 0 = tryReadMVar mvar
       | otherwise = do
           tryReadMVar mvar >>= \case
             Just val -> pure $ Just val
-            Nothing  -> do
-              threadDelay cur
-              go (cur + portion) (rest - portion)
+            Nothing  -> threadDelay portion >> go (rest - portion)
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =

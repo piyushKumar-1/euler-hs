@@ -13,9 +13,6 @@ import           Data.Generics.Product.Fields
 import qualified Data.Text as Text
 import qualified Prelude  as P (show)
 
-import Euler.Product.OLTP.Services.RedisService
-
-
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
 import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
@@ -26,6 +23,7 @@ import qualified Euler.Common.Types                   as C
 -- import qualified Euler.Common.Metric                  as Metric
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
+import qualified Euler.Product.OLTP.Services.OrderStatusCacheService as OSCS
 import qualified Euler.Services.OrderStatus           as OSSrv
 import qualified Euler.Services.Version.OrderStatusResponse as VSrv
 import qualified Euler.Storage.Repository as Rep
@@ -95,4 +93,4 @@ doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do
       billingAddressId' <- Rep.updateAddress mbCustomer billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
       shippingAddressId' <- Rep.updateAddress Nothing shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)
       Rep.updateOrder (order ^. _id) newUDF mNewAmount billingAddressId' shippingAddressId'
-      invalidateOrderStatusCache (order ^. _orderId) (order ^. _merchantId)
+      OSCS.invalidateCache (order ^. _orderId) (order ^. _merchantId)

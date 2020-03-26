@@ -41,11 +41,10 @@ import           Euler.API.Refund
 import           Euler.API.RouteParameters (RouteParameters (..))
 import qualified Euler.API.RouteParameters as Param
 
-import           Euler.Constant.Constants (orderStatusCacheTTL)
+
 import qualified Euler.Constant.Feature as FeatureC
 
 import           Euler.Common.Types.External.Mandate as Mandate
-import qualified Euler.Common.Metric                          as Metric
 import qualified Euler.Common.Types                           as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.TxnDetail                 (TxnStatus (..), txnStatusToInt)
@@ -56,10 +55,9 @@ import           Euler.Config.Config as Config
 import qualified Euler.Product.Domain as D
 import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import           Euler.Product.OLTP.Card.Card
+
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
-
-
---import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
+import           Euler.Product.OLTP.Services.OrderStatusCacheService
 
 import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository
@@ -1056,72 +1054,3 @@ getRulesFromString bs =
 getMaskedAccNo :: Text -> Text
 getMaskedAccNo txt = T.append (T.map (const 'X') $ T.dropEnd 4 txt) (T.takeEnd 4 txt)
 
-
--- | Cache an order status response
-addToCache
-  -- EHS: clarify types
-  :: Text -- C.OrderPId           -- ^ aks @willbasky PId or Id ?
-  -> Text -- D.MerchantAccountId
-  -> Bool
-  -> OrderStatusResponse
-  -> Flow ()
-addToCache orderId merchId isAuth res = do
-  mbFeat <- loadFeature FeatureC.EulerOrderStatusCaching $ merchId
-  let caching = maybe False (^. _enabled) mbFeat
-  case caching of
-    True  -> do
-      _ <- logInfo @Text "Order Status add to cache"
-            $ "adding order status response to cache for merchant_id "
-              <> merchId <> " orderId " <> orderId
-      _ <- rSetex cacheKey res ttl
-      runIO $ Metric.incrementOrderStatusCacheAddCount merchId
-      pure ()
-    False -> pure ()
-  where
-    cacheKey = mkCacheKey orderId merchId isAuth
-    ttl = orderStatusCacheTTL
-
-
--- | Try to retrieve a cached response
-getCachedResponse
-  :: Text
-  -> Text
-  -> Bool
-  -> Flow (Maybe OrderStatusResponse)
-getCachedResponse orderId merchId isAuth = do
-  mbFeat <- loadFeature FeatureC.EulerOrderStatusCaching $ merchId
-  let caching = maybe False (^. _enabled) mbFeat
-  case caching of
-    True  -> do
-      _ <- logInfo @Text "Fetch cache from order status"
-             $ "Order status cache feature is enabled for merchand id: " <> merchId
-      val <- rGet cacheKey
-      -- EHS: investigate
-      -- let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
-      -- _ <- Presto.log ("Cache value for this order status cache key " <> key) v
-      -- case (runExcept (decode (camelCaseToSnakeCase resp))) of
-      --  Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
-      --  Left err -> log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
-      case val of
-        Just val' -> do
-          _ <- logInfo @Text "Fetch cache from order status"
-                 $ "Order status response found in cache for merchantId: " <> merchId <> ", orderId: " <> orderId
-          runIO $ Metric.incrementOrderStatusCacheHitCount merchId
-          pure val'
-        Nothing -> do
-          _ <- logInfo @Text "Fetch cache from order status"
-                 $ "Could not find order status response in cache for merchantId: " <> merchId <> ", orderId: " <> orderId
-          runIO $ Metric.incrementOrderStatusCacheMissCount merchId
-          pure Nothing
-    False -> do
-      _ <- logInfo @Text "Fetch cache from order status"
-             $ "Order status cache feature is not enabled for merchand id: " <> merchId
-      pure Nothing
-  where
-      cacheKey = mkCacheKey orderId merchId isAuth
-
-
--- | Build a key used in Redis
-mkCacheKey :: Text -> Text -> Bool -> Text
-mkCacheKey orderId merchId True  = "euler_ostatus_" <> merchId <> "_" <> orderId
-mkCacheKey orderId merchId False = "euler_ostatus_unauth_" <> merchId <> "_" <> orderId

@@ -7,7 +7,7 @@ module Euler.Services.Version.OrderTokenResp
 import EulerHS.Prelude
 
 import           EulerHS.Language
-import           Euler.Product.OLTP.Services.RedisService
+import           Euler.Product.OLTP.Services.TokenService
 
 import qualified Euler.API.Order     as API
 import qualified Euler.Common.Metric as Metric
@@ -35,15 +35,3 @@ getToken' version orderPId merchantId
   | version >= "2018-07-01" = Just <$> acquireOrderToken orderPId merchantId
   | otherwise =  pure Nothing
 --
-acquireOrderToken :: OrderPId -> MerchantId -> Flow API.OrderTokenResp
-acquireOrderToken orderPId merchantId = do
-  -- EHS: magic constant
-  TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
---
---   -- EHS: check this
-  runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
---
-  pure $ API.OrderTokenResp
-    { API.client_auth_token        = Just token
-    , API.client_auth_token_expiry = Just expiry
-    }

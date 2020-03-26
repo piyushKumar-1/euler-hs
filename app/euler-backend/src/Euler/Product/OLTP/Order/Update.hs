@@ -15,7 +15,7 @@ import qualified Prelude  as P (show)
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
-import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
+import qualified Euler.API.Order as API (OrderStatusRequest(..), OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
 import qualified Euler.API.Validators.Order as VO
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
@@ -24,7 +24,11 @@ import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Product.OLTP.Services.OrderStatusCacheService as OSCS
-import qualified Euler.Services.OrderStatus           as OSSrv
+--import qualified Euler.Services.OrderStatus           as OSSrv
+
+-- EHS: shall we abstract this as a service?
+import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+
 import qualified Euler.Services.Version.OrderStatusResponse as VSrv
 import qualified Euler.Storage.Repository as Rep
 
@@ -44,6 +48,7 @@ runOrderUpdate :: RP.RouteParameters
   -> D.MerchantAccount
   -> Flow API.OrderStatusResponse
 runOrderUpdate routeParams req mAcc = do
+  -- EHS: use maybe as it is
   let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
   let service = VSrv.mkOrderStatusService version
   case VO.apiOrderUpdToOrderUpdT req of
@@ -58,26 +63,38 @@ orderUpdate :: RP.RouteParameters
             -> D.MerchantAccount
             -> Flow API.OrderStatusResponse
 orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdateT mAccnt = do
-  let merchantId' = getField @"merchantId" mAccnt
-  orderId' <- maybe
-    (throwException Errs.orderIdNotFoundInPath)
-    pure
-    $ RP.lookupRP @RP.OrderId routeParams
-  (mOrder :: Maybe D.Order) <- Rep.loadOrder orderId' merchantId'
-  resp <- case mOrder of
-    Just order' -> do
-      doOrderUpdate orderUpdateT order' mAccnt
-      resp' <- OSSrv.getOrderStatusResponse
-        OSSrv.defaultOrderStatusService
-        orderId'
-        mAccnt
-        True
-        routeParams
-      let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
-      pure $ transformOrderStatus gatewayId resp'
-    Nothing -> throwException $ Errs.orderDoesNotExist orderId'
-  logInfo @String "order update response: " $ show resp
-  pure API.defaultOrderStatusResponse --resp
+    let merchantId' = getField @"merchantId" mAccnt
+    orderId' <- maybe
+      (throwException Errs.orderIdNotFoundInPath)
+      pure
+      $ RP.lookupRP @RP.OrderId routeParams
+    (mOrder :: Maybe D.Order) <- Rep.loadOrder orderId' merchantId'
+    resp <- case mOrder of
+      Just order' -> do
+        doOrderUpdate orderUpdateT order' mAccnt
+        statusRes <- callOrderStatus orderId' merchantId'
+        case statusRes of -- <- OSSrv.getOrderStatusResponse
+          Right r' -> pure r'
+          -- EHS: use proper exception
+          Left _   -> throwException $ Errs.orderDoesNotExist orderId'
+      Nothing -> throwException $ Errs.orderDoesNotExist orderId'
+    logInfo @String "order update response: " $ show resp
+    pure API.defaultOrderStatusResponse --resp
+  where
+    callOrderStatus orderId merchantId = do
+      -- EHS: provide a "default" template for query?
+      let query = API.OrderStatusRequest
+            { orderId = orderId
+            , merchantId = merchantId
+            , resellerId = Nothing
+            , isAuthenticated = True   -- EHS: is it the case?
+            , sendCardIsin = False
+            , sendFullGatewayResponse = False
+            , sendAuthToken = True
+            , version = RP.lookupRP @RP.Version routeParams
+            }
+      OrderStatus.execOrderStatusQuery query
+
 
 doOrderUpdate :: Ts.OrderUpdateTemplate -> D.Order -> D.MerchantAccount -> Flow ()
 doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do

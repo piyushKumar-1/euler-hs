@@ -39,7 +39,7 @@ import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order as AO
 import           Euler.API.Refund
 import           Euler.API.RouteParameters (RouteParameters (..))
-import qualified Euler.API.RouteParameters as Param
+import qualified Euler.API.RouteParameters as RP
 
 
 import qualified Euler.Constant.Feature as FeatureC
@@ -91,37 +91,65 @@ instance OptionEntity FlowStateOption FlowState
 type AuthToken = Text
 
 
-
+-- | API handler
 handleByOrderId
   :: RouteParameters
-  -> Param.OrderId
+  -- EHS: why RP?
+  -> RP.OrderId
   -> D.MerchantAccount
   -> Flow (Either FlowError OrderStatusResponse)
-handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
+handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
 
-  let request = DO.OrderStatusRequest
-        { orderId         = orderId
-        , merchantId      = merchantAccount ^. _merchantId
-        , resellerId      = merchantAccount ^. _resellerId
-        , isAuthenticated = True
-        , sendCardIsin    = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-        , sendFullGatewayResponse = getSendFullGatewayResponse rps
-        }
+    let request = OrderStatusRequest
+          { orderId                 = orderId
+          , merchantId              = merchantAccount ^. _merchantId
+          , resellerId              = merchantAccount ^. _resellerId
+          , isAuthenticated         = True
+          , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
+          , sendFullGatewayResponse = sendFullGatewayResponse'
+          , sendAuthToken           = False
+          , version                 = version'
+          }
+    response <- execOrderStatusQuery request
+    pure $ mapLeft (const FlowError) response
+  where
+    sendFullGatewayResponse' =
+      -- EHS: magic constants
+      case (Map.lookup "options.add_full_gateway_response" (unRP rps)) of
+        Nothing  -> False
+        Just str -> str == "1" || T.map toLower str == "true"
+    version' = RP.lookupRP @RP.Version rps
 
-  response <- execOrderStatusQuery request
 
-  pure $ mapLeft (const FlowError) response
+-- | Top-level domain-type handler
+execOrderStatusQuery :: DO.OrderStatusRequest-> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery req@OrderStatusRequest{..} = do
+    mbCached <- fastPath
+    result <- case mbCached of
+      Just cached -> pure cached
+      Nothing -> slowPath
+    -- EHS: todo: version transformations and token adding should be done later on
+    -- EHS: gateway transformations? are we done with it?
+    --let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
+    --pure $ transformOrderStatus gatewayId resp'
+    pure $ Right result
+  where
+    fastPath = getCachedResponse orderId merchantId isAuthenticated
+    slowPath = do
+      r <- execOrderStatusQuery' req
+      case r of
+        Left e -> do
+          -- EHS: fixme
+          logError @Text "" ""
+          throwException err500
+        Right r' -> do
+          _ <- addToCache orderId merchantId isAuthenticated r'
+          pure r'
 
 
-getSendFullGatewayResponse :: RouteParameters -> Bool
-getSendFullGatewayResponse routeParams =
-  -- EHS: magic constants
-  case Map.lookup "options.add_full_gateway_response" (unRP routeParams) of
-    Nothing  -> False
-    Just str -> str == "1" || T.map toLower str == "true"
-
-execOrderStatusQuery :: DO.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery request = do
+-- | Slow-path execution of order status query
+execOrderStatusQuery' :: DO.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery' request = do
 
   let queryOrderId = request ^. _orderId
   let queryMerchantId = request ^. _merchantId
@@ -129,93 +157,85 @@ execOrderStatusQuery request = do
   let isAuth = request ^. _isAuthenticated
   let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
-  mbCached <- getCachedResponse queryOrderId queryMerchantId isAuth
-  case mbCached of
-    Just cached -> pure $ Right cached
-    Nothing -> do
-      mOrder <- loadOrder queryOrderId queryMerchantId
+  mOrder <- loadOrder queryOrderId queryMerchantId
 
-      order <- case mOrder of
-        Just o -> pure o
-        Nothing -> throwException err404
-          { errBody = "Order not found "
-          <> "orderId: " <> show queryOrderId
-          <> ", merchantId: " <> show queryMerchantId }
+  order <- case mOrder of
+    Just o -> pure o
+    Nothing -> throwException err404
+      { errBody = "Order not found "
+      <> "orderId: " <> show queryOrderId
+      <> ", merchantId: " <> show queryMerchantId }
 
-      let orderId = order ^. _orderId
-      let merchantId = order ^. _merchantId
-      let orderUuid = order ^. _orderUuid
-      let orderType = order ^. _orderType
-      let orderPId = order ^. _id
-      let udf2 = (order ^. _udf) ^. _udf2
-      let orderReturnUrl = order ^. _returnUrl
+  let orderId = order ^. _orderId
+  let merchantId = order ^. _merchantId
+  let orderUuid = order ^. _orderUuid
+  let orderType = order ^. _orderType
+  let orderPId = order ^. _id
+  let udf2 = (order ^. _udf) ^. _udf2
+  let orderReturnUrl = order ^. _returnUrl
 
-      links <- getPaymentLinks resellerId orderUuid
+  links <- getPaymentLinks resellerId orderUuid
 
-      mPromotionActive <- getPromotion orderPId orderId
-      mMandate <- getMandate orderPId merchantId orderType
+  mPromotionActive <- getPromotion orderPId orderId
+  mMandate <- getMandate orderPId merchantId orderType
 
-      mTxnDetail1 <- loadTxnDetail orderId merchantId orderUuid
-      mTxnDetail2 <- getLastTxn orderId merchantId
-      let mTxn = (mTxnDetail1 <|> mTxnDetail2)
+  mTxnDetail1 <- loadTxnDetail orderId merchantId orderUuid
+  mTxnDetail2 <- getLastTxn orderId merchantId
+  let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
-      gatewayRefId <- case mTxn of
-        Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
-        Just txn -> do
-          let gateway = txn ^. _gateway
-          getGatewayReferenceId2 gateway orderPId udf2 merchantId
+  gatewayRefId <- case mTxn of
+    Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
+    Just txn -> do
+      let gateway = txn ^. _gateway
+      getGatewayReferenceId2 gateway orderPId udf2 merchantId
 
-      (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr) <- case mTxn of
-        Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
-        Just txn -> do
-          let txnDetailPId = D.txnDetailPId $ txn ^. _id
-          mRisk <- getRisk txnDetailPId
-          mTxnCard <- loadTxnCardInfo txnDetailPId
-          mRefunds <- maybeList <$> loadRefunds txnDetailPId
-          mChargeback <- maybeList <$> findChargebacks txnDetailPId
-          mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
-          pure (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr)
+  (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr) <- case mTxn of
+    Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
+    Just txn -> do
+      let txnDetailPId = D.txnDetailPId $ txn ^. _id
+      mRisk <- getRisk txnDetailPId
+      mTxnCard <- loadTxnCardInfo txnDetailPId
+      mRefunds <- maybeList <$> loadRefunds txnDetailPId
+      mChargeback <- maybeList <$> findChargebacks txnDetailPId
+      mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
+      pure (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr)
 
-      mCardBrand <- case mTxnCard of
-        Nothing                    -> pure Nothing
-        Just (card :: D.TxnCardInfo) ->
-          getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
+  mCardBrand <- case mTxnCard of
+    Nothing                    -> pure Nothing
+    Just (card :: D.TxnCardInfo) ->
+      getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
 
-      mReturnUrl <- getReturnUrl merchantId orderReturnUrl
+  mReturnUrl <- getReturnUrl merchantId orderReturnUrl
 
-      paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
-        (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
-        _                        -> pure (Nothing, Nothing, Nothing, Nothing)
+  paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
+    (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
+    _                        -> pure (Nothing, Nothing, Nothing, Nothing)
 
-      txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
-        (Just txn, Just txnCard) -> do
-          let txnDetail_id = D.txnDetailPId $ txn ^. _id
-          getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
-        _ -> pure (Nothing, Nothing)
+  txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
+    (Just txn, Just txnCard) -> do
+      let txnDetail_id = D.txnDetailPId $ txn ^. _id
+      getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
+    _ -> pure (Nothing, Nothing)
 
-      let res = mapRight mkOrderStatusResponse $ runExcept $ makeOrderStatusResponse
-            order
-            links
-            mPromotionActive
-            mMandate
-            request
-            mTxn
-            gatewayRefId
-            mRisk
-            mTxnCard
-            mCardBrand
-            mRefunds
-            mChargeback
-            mReturnUrl
-            paymentMethodsAndTypes
-            txnFlowInfoAndMerchantSFR
-            mMerchantPgr
-
-      case res of
-        Left _ -> pure res
-        Right res' -> do
-          _ <- addToCache orderId merchantId isAuth res'
-          pure $ Right res'
+  pure $ mapRight mkOrderStatusResponse
+       $ runExcept
+       $ makeOrderStatusResponse
+         order
+         links
+         mPromotionActive
+         mMandate
+         request
+         mTxn
+         gatewayRefId
+         mRisk
+         mTxnCard
+         mCardBrand
+         mRefunds
+         mChargeback
+         mReturnUrl
+         paymentMethodsAndTypes
+         txnFlowInfoAndMerchantSFR
+         mMerchantPgr
 
 
 makeOrderStatusResponse

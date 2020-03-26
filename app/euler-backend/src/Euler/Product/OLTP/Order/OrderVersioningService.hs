@@ -29,7 +29,10 @@ data OrderVersioningService = OrderVersioningService
 
 type Version = Text
 
-mkOrderVersioningService :: Maybe Version -> Maybe Bool -> OrderVersioningService
+mkOrderVersioningService
+  :: Maybe Version
+  -> Maybe Bool             -- ^ is auth token needed
+  -> OrderVersioningService
 mkOrderVersioningService (Just version) (Just True)
   | version >= "2018-07-01"  = OrderVersioningService mkTokenizedOrderResponse
 mkOrderVersioningService _ _ = OrderVersioningService mkOrderResponse

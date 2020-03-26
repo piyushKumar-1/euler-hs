@@ -99,7 +99,7 @@ handleByOrderId
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId rps (Param.OrderId orderId) merchantAccount  = do
 
-  let request = OrderStatusRequest
+  let request = DO.OrderStatusRequest
         { orderId         = orderId
         , merchantId      = merchantAccount ^. _merchantId
         , resellerId      = merchantAccount ^. _resellerId
@@ -120,7 +120,7 @@ getSendFullGatewayResponse routeParams =
     Nothing  -> False
     Just str -> str == "1" || T.map toLower str == "true"
 
-execOrderStatusQuery :: OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery :: DO.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery request = do
 
   let queryOrderId = request ^. _orderId
@@ -223,7 +223,7 @@ makeOrderStatusResponse
   -> D.Paymentlinks
   -> Maybe D.PromotionActive
   -> Maybe D.Mandate
-  -> OrderStatusRequest
+  -> DO.OrderStatusRequest
   -> Maybe D.TxnDetail
   -> Text
   -> Maybe D.Risk

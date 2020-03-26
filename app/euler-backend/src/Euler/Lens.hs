@@ -116,6 +116,7 @@ makeGenericLenses ''PDNBPayment.NBPayment
 makeGenericLenses ''PDOrder.Order
 makeGenericLenses ''PDOrder.OrderTokenResp
 makeGenericLenses ''PDOrderStatusResponse.OrderStatusResponse
+makeGenericLenses ''PDOrderStatusResponse.OrderStatusRequest
 makeGenericLenses ''PDPromotion.Promotion
 makeGenericLenses ''PDPromotion.PromotionActive
 makeGenericLenses ''PDTransaction.Transaction
@@ -174,7 +175,6 @@ makeGenericLenses ''APICustomer.TokenData
 makeGenericLenses ''APIOrder.Card
 makeGenericLenses ''APIOrder.Chargeback'
 makeGenericLenses ''APIOrder.Mandate'
-makeGenericLenses ''APIOrder.OrderStatusRequest
 makeGenericLenses ''APIOrder.Promotion'
 makeGenericLenses ''APIMerchantPGR.MerchantPaymentGatewayResponse
 makeGenericLenses ''APIOrder.OrderCreateRequest

@@ -2,14 +2,13 @@
 
 module Euler.Product.Domain.OrderStatusResponse where
 
-import           EulerHS.Prelude
+import qualified Prelude as P
+import           EulerHS.Prelude hiding (show)
 
 import qualified Euler.Common.Types as C
 import           Euler.Common.Types.External.Order
 import           Euler.Common.Types.TxnDetail (TxnStatus)
 import qualified Euler.Product.Domain as D
-
-import           Data.Time (LocalTime)
 
 
 data OrderStatusResponse = OrderStatusResponse
@@ -54,7 +53,6 @@ data OrderStatusResponse = OrderStatusResponse
   ,  txn_uuid                 :: Maybe Text
   ,  gateway_payload          :: Maybe Text
   ,  txn_detail               :: Maybe D.TxnDetail
-  -- ,  payment_gateway_response' :: Maybe MerchantPaymentGatewayResponse'
   ,  payment_gateway_response :: Maybe D.MerchantPaymentGatewayResponse
   ,  gateway_id               :: Maybe Int
   ,  emi_bank                 :: Maybe Text
@@ -62,7 +60,6 @@ data OrderStatusResponse = OrderStatusResponse
   ,  gateway_reference_id     :: Maybe Text
   ,  payer_vpa                :: Maybe Text
   ,  payer_app_name           :: Maybe Text
-  ,  juspay                   :: Maybe D.OrderTokenResp
   ,  second_factor_response   :: Maybe D.SecondFactorResponse
   ,  txn_flow_info            :: Maybe D.TxnFlowInfo
   }
@@ -70,4 +67,20 @@ data OrderStatusResponse = OrderStatusResponse
 
 
 data OrderTxnStatus = OStatus OrderStatus | TStatus TxnStatus | DEFAULT
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Eq, Ord, Generic, ToJSON, FromJSON)
+
+instance Show OrderTxnStatus where
+  show DEFAULT = "DEFAULT"
+  show (OStatus os) = P.show os
+  show (TStatus ts) = P.show ts
+
+
+data OrderStatusRequest = OrderStatusRequest
+  { orderId                 :: C.OrderId
+  , merchantId              :: C.MerchantId
+  , resellerId              :: Maybe Text
+  , isAuthenticated         :: Bool
+  , sendCardIsin            :: Bool
+  , sendFullGatewayResponse :: Bool
+  }
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)

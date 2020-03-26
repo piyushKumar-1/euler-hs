@@ -45,7 +45,7 @@ import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.Mandate as Mandate
 import           Euler.Common.Types.Merchant
 -- EHS: legacy
-import           Euler.Common.Types.Order (OrderTokenExpiryData (..)) --  , defaultOrderTokenExpiryData)
+import           Euler.Common.Types.Order (OrderTokenExpiryData (..))
 import qualified Euler.Common.Types.Order as C
 import           Euler.Common.Types.Promotion
 import           Euler.Common.Types.Refund as Refund
@@ -54,9 +54,10 @@ import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
 import           Euler.Product.Domain.Order (Order)
+import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import           Euler.Product.OLTP.Card.Card
 -- EHS: legacy
-import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey) --, getMerchantId)
+import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
 
 
 import           Euler.Storage.Types.Chargeback
@@ -231,7 +232,7 @@ getOrderStatusWithoutAuth req routeParams merchantAccount isAuthenticated maybeO
 -}
 
 getOrderStatusWithoutAuth
-  :: OrderStatusRequest
+  :: DO.OrderStatusRequest
   -> Text {-RouteParameters-}
   -> MerchantAccount
   -> Bool
@@ -281,7 +282,7 @@ checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchan
     else pure resp
 -}
 
-checkAndAddOrderToken :: OrderStatusRequest -> OrderCreateRequest -> {-RouteParameters-} Text -> OrderStatusResponse -> Text {-MerchantAccount-} -> OrderReference -> Flow OrderStatusResponse
+checkAndAddOrderToken :: DO.OrderStatusRequest -> OrderCreateRequest -> {-RouteParameters-} Text -> OrderStatusResponse -> Text {-MerchantAccount-} -> OrderReference -> Flow OrderStatusResponse
 checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantId order = undefined
 {- EHS: legacy
 checkAndAddOrderToken orderStatusRequest orderCreateReq routeParams resp merchantId order = do
@@ -711,7 +712,7 @@ addToCache req isAuthenticated mAccnt routeParam ordStatusResp = do
 -}
 
 addToCache ::
-     OrderStatusRequest
+     DO.OrderStatusRequest
   -> Bool
   -> MerchantAccount
   -> RouteParameters
@@ -824,7 +825,7 @@ getOrdStatusResp req@(OrderStatusRequest ordReq) mAccnt isAuthenticated routePar
 --  * addGatewayResponse
 
 getOrdStatusResp
-  :: OrderStatusRequest
+  :: DO.OrderStatusRequest
   -> MerchantAccount
   -> Bool
   -> Text -- RouteParameters
@@ -928,7 +929,7 @@ getOrderId (OrderStatusRequest req) routeParam = do
   maybe (liftErr badRequest) pure orderid
 -}
 
-getOrderId :: OrderStatusRequest -> RouteParameters -> Flow Text
+getOrderId :: DO.OrderStatusRequest -> RouteParameters -> Flow Text
 getOrderId orderReq routeParam = undefined
 {- EHS: legacy
 getOrderId orderReq routeParam = do
@@ -3594,7 +3595,7 @@ sanitizeNullAmount = fmap sanitizeAmount
 
 -- seems to be unused
 -- from src/Types/Communication/OLTP/OrderStatus.purs
-getOrderStatusRequest :: Text -> OrderStatusRequest
+getOrderStatusRequest :: Text -> DO.OrderStatusRequest
 getOrderStatusRequest ordId = undefined
 {-
 getOrderStatusRequest ordId = OrderStatusRequest {  txn_uuid    = Nothing

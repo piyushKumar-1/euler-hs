@@ -254,17 +254,7 @@ and in instance  Decode OrderCreateReq with modifyRequestBody from
 src/Types/Communication/OLTP/Order.js
 -}
 
--- Looks like domain type to me?
-data OrderStatusRequest = OrderStatusRequest
-  { orderId                 :: OrderId
-  , merchantId              :: MerchantId
-  , resellerId              :: Maybe Text
-  , isAuthenticated         :: Bool
-  , sendCardIsin            :: Bool
-  , sendFullGatewayResponse :: Bool
-  -- add info to handle case for orderCreate response (see execOrderStatusQuery function)
-  }
-  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
 
 -- we can live without it completely
 -- from Types.Communication.OLTP.OrderStatus
@@ -714,10 +704,11 @@ data EmandateDetail = EmandateDetail
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 mapMandate :: D.Mandate -> Mandate'
-mapMandate D.Mandate {..} = Mandate'
-  { mandate_token = token
-  , mandate_status = Just $ show $ status
-  , mandate_id = mandateId
+mapMandate mandate = Mandate'
+  { mandate_token = getField @"token" mandate
+  , mandate_status = Just $ show $ getField @"status" mandate
+  , mandate_id = getField @"mandateId" mandate
+  , bank_details = Nothing
   }
 
 data Risk' = Risk'

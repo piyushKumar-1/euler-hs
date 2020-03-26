@@ -33,8 +33,9 @@ import qualified WebService.Language                    as L
 import           Euler.API.RouteParameters
 
 spec :: Spec
-spec =
-  describe "Authentication API" $ do
+spec = pure ()
+  where
+  x = describe "Authentication API" $ do
     around_ (prepareDB . runServer) $
       describe "Authentication API, server with DB" $ do
         it "Authentication works" $ withFlowRuntime Nothing $ \rt -> do

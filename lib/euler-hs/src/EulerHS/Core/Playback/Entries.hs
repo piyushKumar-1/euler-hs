@@ -271,12 +271,14 @@ instance MockedResult GetKVDBConnectionEntry (T.KVDBAnswer T.KVDBConn) where
 ----------------------------------------------------------------------
 
 data AwaitEntry = AwaitEntry
-  { timeout    :: Int
+  { timeout    :: Maybe Int
   , jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkAwaitEntry :: (FromJSON v, ToJSON v) => Int -> Maybe v -> AwaitEntry
-mkAwaitEntry mcs mv = AwaitEntry mcs (toJSON mv)
+mkAwaitEntry :: (FromJSON v, ToJSON v) => Maybe T.Microseconds -> Maybe v -> AwaitEntry
+mkAwaitEntry mbMcs mv = AwaitEntry (unwrapMcs <$> mbMcs) (toJSON mv)
+  where
+    unwrapMcs (T.Microseconds mcs) = fromIntegral mcs
 
 instance RRItem AwaitEntry  where
   getTag _ = "AwaitEntry"

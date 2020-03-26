@@ -12,6 +12,7 @@ import           Servant.Server
 import           Servant.Client (BaseUrl(..), Scheme(..), ClientError(..))
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
+import qualified EulerHS.Types  as T
 import           EulerHS.Runtime (withFlowRuntime)
 import           EulerHS.TestData.Types
 import           EulerHS.TestData.API.Client
@@ -19,7 +20,9 @@ import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
 import           EulerHS.Testing.Types (FlowMockedValues'(..))
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
 import           EulerHS.Tests.Framework.Common (initRTWithManagers)
-import EulerHS.Types (HttpManagerNotFound(..))
+import           EulerHS.Types (HttpManagerNotFound(..))
+
+
 user :: Any
 user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
 
@@ -260,3 +263,41 @@ spec = do
           (\e -> do let err = show (e :: E.AssertionFailed)
                     pure err)
         result `shouldBe` "Exception message"
+
+      describe "ForkFlow" $ do
+        let i :: Int = 101
+        it "Fork and successful await infinitely" $ \rt -> do
+          let flow = do
+                awaitable <- forkFlow' "101" (pure i)
+                await Nothing awaitable
+          result <- runFlow rt flow
+          result `shouldBe` (Just 101)
+
+        -- This might or might not happen (race condition)
+        -- it "Fork and successful await 0" $ \rt -> do
+        --   let flow = do
+        --         awaitable <- forkFlow' "101" (pure i)
+        --         await (Just $ T.Microseconds 0) awaitable
+        --   result <- runFlow rt flow
+        --   result `shouldBe` (Just 101)
+
+        it "Fork and successful await with a sufficient timeout 1" $ \rt -> do
+          let flow = do
+                awaitable <- forkFlow' "101" (pure i)
+                await (Just $ T.Microseconds 1000000) awaitable
+          result <- runFlow rt flow
+          result `shouldBe` (Just 101)
+
+        it "Fork and successful await with a sufficient timeout 2" $ \rt -> do
+          let flow = do
+                awaitable <- forkFlow' "101" (runIO (threadDelay 1000) >> pure i)
+                await (Just $ T.Microseconds 1000000) awaitable
+          result <- runFlow rt flow
+          result `shouldBe` (Just 101)
+
+        it "Fork and successful await with an unsufficient timeout" $ \rt -> do
+          let flow = do
+                awaitable <- forkFlow' "101" (runIO (threadDelay 1000000) >> pure i)
+                await (Just $ T.Microseconds 1000) awaitable
+          result <- runFlow rt flow
+          result `shouldBe` Nothing

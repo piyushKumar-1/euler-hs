@@ -116,7 +116,7 @@ data FlowMethod next where
 
   Await
     :: (FromJSON a, ToJSON a)
-    => T.Microseconds
+    => Maybe T.Microseconds
     -> T.Awaitable a
     -> (Maybe a -> next)
     -> FlowMethod next
@@ -193,7 +193,7 @@ instance Functor FlowMethod where
 
   fmap f (ThrowException message next)        = ThrowException message (f . next)
 
-  fmap f (RunIO descr ioAct next)                   = RunIO descr ioAct (f . next)
+  fmap f (RunIO descr ioAct next)             = RunIO descr ioAct (f . next)
 
   fmap f (GetOption k next)                   = GetOption k (f . next)
 
@@ -452,6 +452,15 @@ withDB dbConf act = do
 forkFlow :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow ()
 forkFlow description flow = void $ forkFlow' description flow
 
+-- | Fork given flow with returning a token to await the results.
+--
+-- > myFlow1 = do
+-- >   logInfo "myflow1" "logFromMyFlow1"
+-- >   pure 10
+-- >
+-- > myFlow2 = do
+-- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
+-- >   await Nothing awaitable
 forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable a)
 forkFlow' description flow = do
   flowGUID <- generateGUID
@@ -462,8 +471,20 @@ forkFlow' description flow = do
     tag :: Text
     tag = "ForkFlow"
 
-await :: (FromJSON a, ToJSON a) => T.Microseconds -> T.Awaitable a -> Flow (Maybe a)
-await mcs awaitable = liftFC $ Await mcs awaitable id
+-- | Await for some awaitable (blocking operation).
+-- | mbMcs == Nothing: infinite awaiting.
+-- | mbMcs == Just (Microseconds n): await for approximately n seconds.
+--     Awaiting may succeed ealier.
+--
+-- > myFlow1 = do
+-- >   logInfo "myflow1" "logFromMyFlow1"
+-- >   pure 10
+-- >
+-- > myFlow2 = do
+-- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
+-- >   await Nothing awaitable
+await :: (FromJSON a, ToJSON a) => Maybe T.Microseconds -> T.Awaitable a -> Flow (Maybe a)
+await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
 
 -- | Throw given exception.
 --   In module Servant.Server you can find alot of predefined HTTP exceptions

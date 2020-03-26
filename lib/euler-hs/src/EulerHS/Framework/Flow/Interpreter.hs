@@ -59,6 +59,20 @@ disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
 
+awaitMVarWithTimeout :: MVar a -> Int -> IO (Maybe a)
+awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0 0
+                              | otherwise = go portion mcs
+  where
+    portion = (mcs `div` 10) + 1
+    go cur rest
+      | rest <= 0 = tryReadMVar mvar
+      | otherwise = do
+          tryReadMVar mvar >>= \case
+            Just val -> pure $ Just val
+            Nothing  -> do
+              threadDelay cur
+              go (cur + portion) (rest - portion)
+
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
@@ -197,13 +211,11 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
-interpretFlowMethod R.FlowRuntime {..} (L.Await (T.Microseconds mcs) (T.Awaitable awaitableMVar) next) = do
-  let act = case mcs of
-        0 -> Just <$> takeMVar awaitableMVar
-        _ -> do
-          threadDelay $ fromIntegral mcs
-          tryTakeMVar awaitableMVar
-  fmap next $ P.withRunMode _runMode (P.mkAwaitEntry (fromIntegral mcs)) act
+interpretFlowMethod R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar) next) = do
+  let act = case mbMcs of
+        Nothing  -> Just <$> readMVar awaitableMVar
+        Just (T.Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
+  fmap next $ P.withRunMode _runMode (P.mkAwaitEntry mbMcs) act
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())

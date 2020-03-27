@@ -20,7 +20,6 @@ import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 import           Euler.Product.OLTP.Order.OrderStatus (makeOrderStatusResponse)
 
 import qualified Euler.Product.Domain as D
-import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import qualified Euler.Storage.Types as DB
 
 
@@ -249,8 +248,8 @@ mMandate = Just D.Mandate
   }
 
 
-query :: DO.OrderStatusRequest
-query = DO.OrderStatusRequest
+query :: D.OrderStatusRequest
+query = D.OrderStatusRequest
   { orderId                 = "orderId"
   , merchantId              = "merchantId"
   , resellerId              = Just "resellerId"
@@ -420,8 +419,8 @@ mChargeback = Just
       , taxAmount                = Just $ C.mkMoney 44
       }
 
-orderStatusResponse1 :: DO.OrderStatusResponse
-orderStatusResponse1 = DO.OrderStatusResponse
+orderStatusResponse1 :: D.OrderStatusResponse
+orderStatusResponse1 = D.OrderStatusResponse
   { id = "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just $ C.mkMoney 10
@@ -437,7 +436,7 @@ orderStatusResponse1 = DO.OrderStatusResponse
   , udf = udfFull
   , txn_id = Just "txnId"
   , status_id = 21
-  , status = DO.TStatus CHARGED
+  , status = D.TStatus CHARGED
   , payment_method_type = Just "payment_method_type"
   , auth_type = Just "authType"
   , card = Nothing
@@ -587,8 +586,8 @@ defaultPaymentlinks = D.Paymentlinks
   , mobile = T.empty
   }
 
-orderStatusResponse2 :: DO.OrderStatusResponse
-orderStatusResponse2 = DO.OrderStatusResponse
+orderStatusResponse2 :: D.OrderStatusResponse
+orderStatusResponse2 = D.OrderStatusResponse
   { id = "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just $ C.mkMoney 10
@@ -604,7 +603,7 @@ orderStatusResponse2 = DO.OrderStatusResponse
   , udf = udfFull
   , txn_id = Nothing
   , status_id = 0
-  , status = DO.OStatus OEx.SUCCESS
+  , status = D.OStatus OEx.SUCCESS
   , payment_method_type = Nothing
   , auth_type = Nothing
   , card = Nothing
@@ -713,8 +712,8 @@ orderStatusResponse2 = DO.OrderStatusResponse
     , txn_flow_info = txnFlowInfo
     }
 
-orderStatusResponse3 :: DO.OrderStatusResponse
-orderStatusResponse3 = DO.OrderStatusResponse
+orderStatusResponse3 :: D.OrderStatusResponse
+orderStatusResponse3 = D.OrderStatusResponse
   { id = "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just $ C.mkMoney 20
@@ -730,7 +729,7 @@ orderStatusResponse3 = DO.OrderStatusResponse
   , udf = udfFull
   , txn_id = Just "txnId"
   , status_id = 21
-  , status = DO.TStatus CHARGED
+  , status = D.TStatus CHARGED
   , payment_method_type = Just "payment_method_type"
   , auth_type = Just "authType"
   , card = Nothing

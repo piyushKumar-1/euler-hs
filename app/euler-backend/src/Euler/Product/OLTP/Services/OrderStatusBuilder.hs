@@ -11,7 +11,6 @@ import           Euler.API.Refund
 import qualified Euler.Common.Types as C
 
 import qualified Euler.Product.Domain as D
-import qualified Euler.Product.Domain.OrderStatusResponse as DO
 
 
 import           Control.Comonad hiding ((<<=))
@@ -23,13 +22,13 @@ import           Generics.Deriving.Semigroup (gsappenddefault)
 (<<=) :: Comonad w => w a -> (w a -> b) -> w b
 (<<=) = (=>>)
 
-type OrderStatusResponseBuilder = OrderStatusResponseCollector -> DO.OrderStatusResponse
+type OrderStatusResponseBuilder = OrderStatusResponseCollector -> D.OrderStatusResponse
 
-emptyBuilder :: OrderStatusResponseBuilder -> DO.OrderStatusResponse
+emptyBuilder :: OrderStatusResponseBuilder -> D.OrderStatusResponse
 emptyBuilder builder = builder mempty
 
 buildOrderStatusResponse :: OrderStatusResponseBuilder
-buildOrderStatusResponse OrderStatusResponseCollector{..} = DO.OrderStatusResponse
+buildOrderStatusResponse OrderStatusResponseCollector{..} = D.OrderStatusResponse
   { id                        = fromMaybe T.empty $ fmap getFirst idT
   , merchant_id               = fmap getFirst merchant_idT
   , amount                    = whenNothing (fmap getLast amountT) (Just mempty)
@@ -45,7 +44,7 @@ buildOrderStatusResponse OrderStatusResponseCollector{..} = DO.OrderStatusRespon
   , udf                       = fromMaybe C.emptyUDF $ fmap getLast udfT
   , txn_id                    = fmap getLast txn_idT
   , status_id                 = fromMaybe 0 $ fmap getLast status_idT
-  , status                    = fromMaybe DO.DEFAULT $ fmap getLast statusT
+  , status                    = fromMaybe D.DEFAULT $ fmap getLast statusT
   , payment_method_type       = fmap getLast payment_method_typeT
   , auth_type                 = fmap getLast auth_typeT
   , card                      = fmap getLast cardT
@@ -90,7 +89,7 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   ,  udfT                       :: Maybe (Last C.UDF)
   ,  txn_idT                    :: Maybe (Last Text)
   ,  status_idT                 :: Maybe (Last Int)
-  ,  statusT                    :: Maybe (Last DO.OrderTxnStatus)
+  ,  statusT                    :: Maybe (Last D.OrderTxnStatus)
   ,  payment_method_typeT       :: Maybe (Last Text)
   ,  auth_typeT                 :: Maybe (Last Text)
   ,  cardT                      :: Maybe (Last D.Card)

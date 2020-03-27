@@ -54,11 +54,9 @@ import           Euler.Common.Utils
 import           Euler.Config.Config as Config
 
 import qualified Euler.Product.Domain as D
-import qualified Euler.Product.Domain.OrderStatusResponse as DO
+
 import           Euler.Product.OLTP.Card.Card
-
 import qualified Euler.Product.OLTP.Order.OrderStatusVersioningService as VS
-
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
 import           Euler.Product.OLTP.Services.OrderStatusCacheService
 
@@ -103,7 +101,7 @@ handleByOrderId
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
 
-    let request = DO.OrderStatusRequest
+    let request = D.OrderStatusRequest
           { orderId                 = orderId
           , merchantId              = merchantAccount ^. _merchantId
           , resellerId              = merchantAccount ^. _resellerId
@@ -126,8 +124,8 @@ handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
 
 
 -- | Top-level domain-type handler
-execOrderStatusQuery :: DO.OrderStatusRequest-> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery req@DO.OrderStatusRequest{..} = do
+execOrderStatusQuery :: D.OrderStatusRequest-> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery req@D.OrderStatusRequest{..} = do
     mbCached <- fastPath
     result <- case mbCached of
       Just cached -> pure cached
@@ -154,7 +152,7 @@ execOrderStatusQuery req@DO.OrderStatusRequest{..} = do
 
 
 -- | Slow-path execution of order status query
-execOrderStatusQuery' :: DO.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
+execOrderStatusQuery' :: D.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery' request = do
 
   let queryOrderId = request ^. _orderId
@@ -249,7 +247,7 @@ makeOrderStatusResponse
   -> D.Paymentlinks
   -> Maybe D.PromotionActive
   -> Maybe D.Mandate
-  -> DO.OrderStatusRequest
+  -> D.OrderStatusRequest
   -> Maybe D.TxnDetail
   -> Text
   -> Maybe D.Risk
@@ -261,7 +259,7 @@ makeOrderStatusResponse
   -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -> (Maybe D.TxnFlowInfo, Maybe D.SecondFactorResponse)
   -> Maybe D.MerchantPaymentGatewayResponse
-  -> Except Text DO.OrderStatusResponse
+  -> Except Text D.OrderStatusResponse
 makeOrderStatusResponse
   order
   paymentLinks
@@ -354,7 +352,7 @@ makeOrderStatusResponse
     <<= maybeTxn (changeTxnUuid . (^. _txnUuid))
     <<= maybeTxn (changeTxnId . (^. _txnId))
     <<= maybeTxn (changeStatusId . getStatusId)
-    <<= maybeTxn (changeStatus . DO.TStatus .  (^. _status))
+    <<= maybeTxn (changeStatus . D.TStatus .  (^. _status))
 
     <<= changeMandate mMandate
 
@@ -372,7 +370,7 @@ makeOrderStatusResponse
     <<= changeRefunded (order ^. _refundedEntirely)
     <<= changeCurrency currency
     <<= changeAmount amount
-    <<= changeStatus (DO.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
+    <<= changeStatus (D.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
     <<= changeProductId (order ^. _productId)
     <<= changeCustomerId mCustomerId
     <<= changeOrderId (order ^. _orderId)
@@ -380,59 +378,59 @@ makeOrderStatusResponse
     <<= changeId orderId
 
 
-changeId :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
 
-changeMerchantId :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeMerchantId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = Just $ First mMerchantId}
 
-changeAmount :: C.Money -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeAmount :: C.Money -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeAmount amount builder = builder $ mempty {amountT = Just $ Last amount}
 
-changeOrderId :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeOrderId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeOrderId orderId builder = builder $ mempty {order_idT = Just $ First orderId}
 
-changeCustomerId :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeCustomerId :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCustomerId customerId builder = builder $ mempty {customer_idT = fmap Last customerId}
 
-changeProductId :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeProductId :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeProductId productId builder = builder $ mempty {product_idT = fmap Last productId}
 
-changeStatus :: DO.OrderTxnStatus -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeStatus :: D.OrderTxnStatus -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeStatus status builder = builder $ mempty {statusT = Just $ Last status}
 
-changeCurrency :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeCurrency :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCurrency currency builder = builder $ mempty {currencyT = Just $ Last currency}
 
-changeRefunded :: Bool -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeRefunded :: Bool -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeRefunded refunded builder = builder $ mempty {refundedT = Just $ Last refunded}
 
-changePaymentLinks :: D.Paymentlinks -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changePaymentLinks :: D.Paymentlinks -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Just $ Last paymentLinks}
 
-changeAmountRefunded :: Maybe C.Money -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeAmountRefunded :: Maybe C.Money -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = fmap Last amountRefunded}
 
-changeDateCreated :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeDateCreated :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeDateCreated dateCreated builder = builder $ mempty {date_createdT = Just $ Last dateCreated}
 
-changeCustomerEmail :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeCustomerEmail :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCustomerEmail customerEmail builder = builder $ mempty {customer_emailT = map Last customerEmail}
 
-changeCustomerPhone :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeCustomerPhone :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = map Last customerPhone}
 
-changeReturnUrl :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeReturnUrl :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = fmap Last returnUrl}
 
-changeUtf :: C.UDF -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeUtf :: C.UDF -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeUtf utf builder = builder $ mempty {udfT = Just $ Last utf}
 
-changePromotion :: Maybe D.PromotionActive -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changePromotion :: Maybe D.PromotionActive -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changePromotion Nothing builder  = builder mempty
 changePromotion mNewProm builder = builder mempty { promotionT = fmap Last mNewProm }
 
-changeAmountAfterPromotion :: Maybe D.PromotionActive -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeAmountAfterPromotion :: Maybe D.PromotionActive -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeAmountAfterPromotion Nothing builder = builder mempty
 changeAmountAfterPromotion (Just newProm) builder =
   let oldStatus = extract builder
@@ -442,74 +440,74 @@ changeAmountAfterPromotion (Just newProm) builder =
   in builder mempty { amountT = Just $ Last newAmount }
 
 
-changeMandate :: Maybe D.Mandate -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeMandate :: Maybe D.Mandate -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
 
 
-changeStatusId :: Int -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeStatusId :: Int -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
 
-changeTxnId :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeTxnId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeTxnId txnId builder = builder $ mempty {txn_idT = Just $ Last txnId}
 
-changeTxnUuid :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeTxnUuid :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeTxnUuid txnUuid builder = builder $ mempty {txn_uuidT = fmap Last txnUuid}
 
-changeGatewayId :: Int -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeGatewayId :: Int -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = Just $ Last gatewayId}
 
-changeGatewayRefId :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeGatewayRefId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeGatewayRefId gatewayRefId builder = builder $ mempty {gateway_reference_idT = Just $ Last gatewayRefId}
 
-changeBankErrorCode :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeBankErrorCode :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeBankErrorCode bankErrorCode builder = builder $ mempty {bank_error_codeT = fmap Last bankErrorCode}
 
-changeBankErrorMessage :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeBankErrorMessage :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeBankErrorMessage bankErrorMessage builder = builder $ mempty {bank_error_messageT = fmap Last bankErrorMessage}
 
-changeGatewayPayload :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeGatewayPayload :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeGatewayPayload gatewayPayload builder = builder $ mempty {gateway_payloadT = fmap Last gatewayPayload}
 
-changeTxnDetails :: D.TxnDetail -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeTxnDetails :: D.TxnDetail -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last txnDetail}
 
 
-changeRisk :: Maybe D.Risk -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeRisk :: Maybe D.Risk -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeRisk risk builder = builder $ mempty {riskT = fmap Last risk}
 
 
-changeEmiTenureEmiBank :: Maybe Int -> Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeEmiTenureEmiBank :: Maybe Int -> Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeEmiTenureEmiBank emiTenure emiBank builder = builder $ mempty
   {emi_tenureT = map Last emiTenure
   , emi_bankT = map Last emiBank
   }
 
-changeAuthType :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeAuthType :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeAuthType authType builder = builder $ mempty {auth_typeT = fmap Last authType}
 
-changeEmiPaymentMethod :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeEmiPaymentMethod :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeEmiPaymentMethod paymentMethod builder = builder $ mempty {payment_methodT = fmap Last paymentMethod}
 
-changePaymentMethodType :: Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changePaymentMethodType :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changePaymentMethodType paymentMethodType builder =
   builder $ mempty {payment_method_typeT = Just $ Last paymentMethodType}
 
-changeCard :: D.Card -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeCard :: D.Card -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCard card builder = builder $ mempty {cardT = Just $ Last card}
 
 
-changeRefund :: Maybe [D.Refund] -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeRefund :: Maybe [D.Refund] -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeRefund mRefunds builder = builder $ mempty {refundsT = fmap Last mRefunds}
 
 
-changeChargeBacks :: Maybe [D.Chargeback] -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeChargeBacks :: Maybe [D.Chargeback] -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap Last mChargebacks}
 
 
 changePaymentMethodAndTypeAndVpa
   :: (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
   -> OrderStatusResponseBuilder
-  -> DO.OrderStatusResponse
+  -> D.OrderStatusResponse
 changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa, mPayerAppName) builder =
   builder $ mempty
     { payment_methodT = fmap Last mPaymentMethod
@@ -518,17 +516,17 @@ changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa,
     , payer_app_nameT = fmap Last mPayerAppName
     }
 
-changeTxnFlowInfo :: Maybe D.TxnFlowInfo -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeTxnFlowInfo :: Maybe D.TxnFlowInfo -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeTxnFlowInfo txnFlowInfo builder = builder $ mempty {txn_flow_infoT = fmap Last txnFlowInfo}
 
 changeSecondFactorResponse
   :: Maybe D.SecondFactorResponse
   -> OrderStatusResponseBuilder
-  -> DO.OrderStatusResponse
+  -> D.OrderStatusResponse
 changeSecondFactorResponse mSFR builder =
   builder $ mempty {second_factor_responseT = map Last mSFR}
 
-changeMerchantPGR :: Maybe D.MerchantPaymentGatewayResponse -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeMerchantPGR :: Maybe D.MerchantPaymentGatewayResponse -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeMerchantPGR mMerchantPgr builder =
   builder $ mempty {payment_gateway_responseT = map Last mMerchantPgr}
 

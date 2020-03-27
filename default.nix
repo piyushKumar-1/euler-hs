@@ -18,6 +18,12 @@ let
           ghcWithPackages =
             self.ghc.withPackages;
           # Overrides for broken packages in nix
+          amazonka =
+            self.callPackage ./nix/amazonka.nix { };
+          amazonka-core =
+            self.callPackage ./nix/amazonka-core.nix { };
+          amazonka-kms =
+            self.callPackage ./nix/amazonka-kms.nix { };
           universum =
             self.callPackage ./nix/universum.nix { };
           servant-xml =

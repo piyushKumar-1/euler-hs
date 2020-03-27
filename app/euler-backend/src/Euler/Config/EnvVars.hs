@@ -270,6 +270,12 @@ getMorpheusHostFromConfig = fromMaybe "https://api.juspay.in" $ lookupEnv "MORPH
 getDBSyncStream :: String
 getDBSyncStream = fromMaybe "" $ lookupEnv "DBSYNC_STREAM"
 
+getAwsRegion :: String
+getAwsRegion = fromMaybe "ap-south-1" $ lookupEnv "AWS_REGION"
+
+getKmsKeyId :: String
+getKmsKeyId = fromMaybe "arn:aws:kms:ap-south-1:980691203742:key/2ee54fc6-9bd4-4f9c-8cca-e1c179859a8e" $ lookupEnv "KMS_KEY_ID"
+
 standaloneRedisName :: String
 standaloneRedisName = fromMaybe "redis" $ lookupEnv "STANDALONE_REDIS_NAME"
 

@@ -114,6 +114,9 @@ dependencies:
 - beam-migrate
 - template-haskell
 - hedis
+- amazonka
+- amazonka-core
+- amazonka-kms
 
 library:
   source-dirs:

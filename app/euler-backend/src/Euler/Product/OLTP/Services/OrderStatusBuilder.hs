@@ -42,16 +42,7 @@ buildOrderStatusResponse OrderStatusResponseCollector{..} = DO.OrderStatusRespon
   , customer_phone            = fmap getLast customer_phoneT
   , customer_id               = fmap getLast customer_idT
   , payment_links             = fromMaybe D.defaultPaymentlinks $ fmap getLast payment_linksT
-  , udf1                      = fromMaybe "udf1" $ fmap getLast udf1T
-  , udf2                      = fromMaybe "udf2" $ fmap getLast udf2T
-  , udf3                      = fromMaybe "udf3" $ fmap getLast udf3T
-  , udf4                      = fromMaybe "udf4" $ fmap getLast udf4T
-  , udf5                      = fromMaybe "udf5" $ fmap getLast udf5T
-  , udf6                      = fromMaybe "udf6" $ fmap getLast udf6T
-  , udf7                      = fromMaybe "udf7" $ fmap getLast udf7T
-  , udf8                      = fromMaybe "udf8" $ fmap getLast udf8T
-  , udf9                      = fromMaybe "udf9" $ fmap getLast udf9T
-  , udf10                     = fromMaybe "udf10" $ fmap getLast udf10T
+  , udf                       = fromMaybe C.emptyUDF $ fmap getLast udfT
   , txn_id                    = fmap getLast txn_idT
   , status_id                 = fromMaybe 0 $ fmap getLast status_idT
   , status                    = fromMaybe DO.DEFAULT $ fmap getLast statusT
@@ -71,7 +62,6 @@ buildOrderStatusResponse OrderStatusResponseCollector{..} = DO.OrderStatusRespon
   , txn_uuid                  = fmap getLast txn_uuidT
   , gateway_payload           = fmap getLast gateway_payloadT
   , txn_detail                = fmap getLast txn_detailT
-  -- , payment_gateway_response' = fmap getLast payment_gateway_responseT'
   , payment_gateway_response  = fmap getLast payment_gateway_responseT
   , gateway_id                = fmap getLast gateway_idT
   , emi_bank                  = fmap getLast emi_bankT
@@ -79,7 +69,6 @@ buildOrderStatusResponse OrderStatusResponseCollector{..} = DO.OrderStatusRespon
   , gateway_reference_id      = fmap getLast gateway_reference_idT
   , payer_vpa                 = fmap getLast payer_vpaT
   , payer_app_name            = fmap getLast payer_app_nameT
-  -- , juspay                    = fmap getLast juspayT
   , second_factor_response    = fmap getLast second_factor_responseT
   , txn_flow_info             = fmap getLast txn_flow_infoT
   }
@@ -98,16 +87,7 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   ,  customer_phoneT            :: Maybe (Last Text)
   ,  customer_idT               :: Maybe (Last Text)
   ,  payment_linksT             :: Maybe (Last D.Paymentlinks)
-  ,  udf1T                      :: Maybe (Last Text)
-  ,  udf2T                      :: Maybe (Last Text)
-  ,  udf3T                      :: Maybe (Last Text)
-  ,  udf4T                      :: Maybe (Last Text)
-  ,  udf5T                      :: Maybe (Last Text)
-  ,  udf6T                      :: Maybe (Last Text)
-  ,  udf7T                      :: Maybe (Last Text)
-  ,  udf8T                      :: Maybe (Last Text)
-  ,  udf9T                      :: Maybe (Last Text)
-  ,  udf10T                     :: Maybe (Last Text)
+  ,  udfT                       :: Maybe (Last C.UDF)
   ,  txn_idT                    :: Maybe (Last Text)
   ,  status_idT                 :: Maybe (Last Int)
   ,  statusT                    :: Maybe (Last DO.OrderTxnStatus)
@@ -127,7 +107,6 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   ,  txn_uuidT                  :: Maybe (Last Text)
   ,  gateway_payloadT           :: Maybe (Last Text)
   ,  txn_detailT                :: Maybe (Last D.TxnDetail)
-  -- ,  payment_gateway_responseT' :: Maybe (Last MerchantPaymentGatewayResponse')
   ,  payment_gateway_responseT  :: Maybe (Last D.MerchantPaymentGatewayResponse)
   ,  gateway_idT                :: Maybe (Last Int)
   ,  emi_bankT                  :: Maybe (Last Text)
@@ -155,16 +134,7 @@ defaultOrderStatusResponseCollector = OrderStatusResponseCollector
   ,  customer_phoneT            = mempty
   ,  customer_idT               = mempty
   ,  payment_linksT             = mempty
-  ,  udf1T                      = mempty
-  ,  udf2T                      = mempty
-  ,  udf3T                      = mempty
-  ,  udf4T                      = mempty
-  ,  udf5T                      = mempty
-  ,  udf6T                      = mempty
-  ,  udf7T                      = mempty
-  ,  udf8T                      = mempty
-  ,  udf9T                      = mempty
-  ,  udf10T                     = mempty
+  ,  udfT                       = mempty
   ,  txn_idT                    = mempty
   ,  status_idT                 = mempty
   ,  statusT                    = mempty
@@ -184,7 +154,6 @@ defaultOrderStatusResponseCollector = OrderStatusResponseCollector
   ,  txn_uuidT                  = mempty
   ,  gateway_payloadT           = mempty
   ,  txn_detailT                = mempty
-  -- ,  payment_gateway_responseT' = mempty
   ,  payment_gateway_responseT  = mempty
   ,  gateway_idT                = mempty
   ,  emi_bankT                  = mempty
@@ -192,7 +161,6 @@ defaultOrderStatusResponseCollector = OrderStatusResponseCollector
   ,  gateway_reference_idT      = mempty
   ,  payer_vpaT                 = mempty
   ,  payer_app_nameT            = mempty
-  -- ,  juspayT                    = mempty
   ,  second_factor_responseT    = mempty
   ,  txn_flow_infoT             = mempty
   }

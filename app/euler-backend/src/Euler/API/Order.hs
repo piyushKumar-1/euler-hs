@@ -545,16 +545,16 @@ mkOrderStatusResponse orderStatus = OrderStatusResponse
   ,  customer_phone            = getField @"customer_phone" orderStatus
   ,  customer_id               = getField @"customer_id" orderStatus
   ,  payment_links             = mkPaymentLinks $ getField @"payment_links" orderStatus
-  ,  udf1                      = getField @"udf1" orderStatus
-  ,  udf2                      = getField @"udf2" orderStatus
-  ,  udf3                      = getField @"udf3" orderStatus
-  ,  udf4                      = getField @"udf4" orderStatus
-  ,  udf5                      = getField @"udf5" orderStatus
-  ,  udf6                      = getField @"udf6" orderStatus
-  ,  udf7                      = getField @"udf7" orderStatus
-  ,  udf8                      = getField @"udf8" orderStatus
-  ,  udf9                      = getField @"udf9" orderStatus
-  ,  udf10                     = getField @"udf10" orderStatus
+  ,  udf1                      = fromMaybe "udf1" $ getField @"udf1" udf
+  ,  udf2                      = fromMaybe "udf2" $ getField @"udf2" udf
+  ,  udf3                      = fromMaybe "udf3" $ getField @"udf3" udf
+  ,  udf4                      = fromMaybe "udf4" $ getField @"udf4" udf
+  ,  udf5                      = fromMaybe "udf5" $ getField @"udf5" udf
+  ,  udf6                      = fromMaybe "udf6" $ getField @"udf6" udf
+  ,  udf7                      = fromMaybe "udf7" $ getField @"udf7" udf
+  ,  udf8                      = fromMaybe "udf8" $ getField @"udf8" udf
+  ,  udf9                      = fromMaybe "udf9" $ getField @"udf9" udf
+  ,  udf10                     = fromMaybe "udf10" $ getField @"udf10" udf
   ,  txn_id                    = getField @"txn_id" orderStatus
   ,  status_id                 = getField @"status_id" orderStatus
   ,  status                    = show $ getField @"status" orderStatus
@@ -587,6 +587,7 @@ mkOrderStatusResponse orderStatus = OrderStatusResponse
   ,  txn_flow_info             = mkTxnFlowInfo' <$> getField @"txn_flow_info" orderStatus
   }
   where
+    udf = getField @"udf" orderStatus
     txn = mapTxnDetail <$> getField @"txn_detail" orderStatus
     charges = case txn of
       Nothing -> Nothing

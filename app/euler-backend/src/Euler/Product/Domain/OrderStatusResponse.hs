@@ -24,16 +24,7 @@ data OrderStatusResponse = OrderStatusResponse
   ,  customer_phone           :: Maybe Text
   ,  customer_id              :: Maybe Text
   ,  payment_links            :: D.Paymentlinks
-  ,  udf1                     :: Text
-  ,  udf2                     :: Text
-  ,  udf3                     :: Text
-  ,  udf4                     :: Text
-  ,  udf5                     :: Text
-  ,  udf6                     :: Text
-  ,  udf7                     :: Text
-  ,  udf8                     :: Text
-  ,  udf9                     :: Text
-  ,  udf10                    :: Text
+  ,  udf                      :: C.UDF
   ,  txn_id                   :: Maybe Text
   ,  status_id                :: Int
   ,  status                   :: OrderTxnStatus

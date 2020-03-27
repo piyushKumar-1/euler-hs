@@ -356,16 +356,16 @@ makeOrderStatusResponse
 
     <<= changePromotion mPromotionActive
 
-    <<= changeUtf10 ((order ^. _udf) ^. _udf10)
-    <<= changeUtf9 ((order ^. _udf) ^. _udf9)
-    <<= changeUtf8 ((order ^. _udf) ^. _udf8)
-    <<= changeUtf7 ((order ^. _udf) ^. _udf7)
-    <<= changeUtf6 ((order ^. _udf) ^. _udf6)
-    <<= changeUtf5 ((order ^. _udf) ^. _udf5)
-    <<= changeUtf4 ((order ^. _udf) ^. _udf4)
-    <<= changeUtf3 ((order ^. _udf) ^. _udf3)
-    <<= changeUtf2 ((order ^. _udf) ^. _udf2)
-    <<= changeUtf1 ((order ^. _udf) ^. _udf1)
+    -- <<= changeUtf10 ((order ^. _udf) ^. _udf10)
+    -- <<= changeUtf9 ((order ^. _udf) ^. _udf9)
+    -- <<= changeUtf8 ((order ^. _udf) ^. _udf8)
+    -- <<= changeUtf7 ((order ^. _udf) ^. _udf7)
+    -- <<= changeUtf6 ((order ^. _udf) ^. _udf6)
+    -- <<= changeUtf5 ((order ^. _udf) ^. _udf5)
+    -- <<= changeUtf4 ((order ^. _udf) ^. _udf4)
+    -- <<= changeUtf3 ((order ^. _udf) ^. _udf3)
+    -- <<= changeUtf2 ((order ^. _udf) ^. _udf2)
+    <<= changeUtf (order ^. _udf)
     <<= changeReturnUrl mReturnUrl
     <<= changeCustomerPhone phone
     <<= changeCustomerEmail email
@@ -428,36 +428,8 @@ changeCustomerPhone customerPhone builder = builder $ mempty {customer_phoneT = 
 changeReturnUrl :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
 changeReturnUrl returnUrl builder = builder $ mempty {return_urlT = fmap Last returnUrl}
 
-changeUtf1 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf1 utf1 builder = builder $ mempty {udf1T = map Last utf1}
-
-changeUtf2 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf2 utf2 builder = builder $ mempty {udf2T = map Last utf2}
-
-changeUtf3 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf3 utf3 builder = builder $ mempty {udf3T = map Last utf3}
-
-changeUtf4 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf4 utf4 builder = builder $ mempty {udf4T = map Last utf4}
-
-changeUtf5 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf5 utf5 builder = builder $ mempty {udf5T = map Last utf5}
-
-changeUtf6 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf6 utf6 builder = builder $ mempty {udf6T = map Last utf6}
-
-changeUtf7 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf7 utf7 builder = builder $ mempty {udf7T = map Last utf7}
-
-changeUtf8 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf8 utf8 builder = builder $ mempty {udf8T = map Last utf8}
-
-changeUtf9 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf9 utf9 builder = builder $ mempty {udf9T = map Last utf9}
-
-changeUtf10 :: Maybe Text -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
-changeUtf10 utf10 builder = builder $ mempty {udf10T = map Last utf10}
-
+changeUtf :: C.UDF -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
+changeUtf utf builder = builder $ mempty {udfT = Just $ Last utf}
 
 changePromotion :: Maybe D.PromotionActive -> OrderStatusResponseBuilder -> DO.OrderStatusResponse
 changePromotion Nothing builder  = builder mempty

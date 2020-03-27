@@ -25,9 +25,17 @@ module Euler.Encryption
   , AES.AES128
   , AES.AES256
   , module HMAC
+  , encryptKMS
+  , encryptKMS'
+  , decryptKMS
+  , decryptKMS'
   ) where
 
 import EulerHS.Prelude hiding (Key, keys)
+import EulerHS.Language
+
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Config.Config                  as Config
 
 import           Basement.Block(Block(..))
 import           Data.ByteArray (ByteArray, ByteArrayAccess)
@@ -50,10 +58,17 @@ import qualified Crypto.PubKey.RSA.OAEP as OAEP
 import qualified Crypto.PubKey.RSA.PSS as PSS
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
 import qualified Crypto.Store.X509 as CStore (readPubKeyFile, readPubKeyFileFromMemory)
+import qualified Data.ByteString.Base64 as BH
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as Text (decodeUtf8)
 import qualified Data.X509 as CStore (PrivKey(..), PubKey(..))
 import qualified Data.X509.File as CStore (readKeyFile)
+import qualified Network.AWS.Data as AWS
+import qualified Network.AWS.Types as AWS
+import qualified Control.Monad.Trans.AWS as AWS
+import qualified Network.AWS.KMS.Decrypt as AWS
+import qualified Network.AWS.KMS.Encrypt as AWS
+
 
 
 data Key c a where
@@ -177,3 +192,43 @@ verifyRSASignaturePKCS15 payload sign pubkey = PKCS15.verify (Just SHA256) pubke
 
 signRSASignature :: (MonadRandom m) => RSA.PrivateKey -> ByteString -> m (Either RSA.Error ByteString)
 signRSASignature pk bs = PSS.sign Nothing (PSS.defaultPSSParams SHA256) pk bs
+
+-- | Amazon KMS encryption
+encryptKMS' :: ByteString -> IO (Either Text (Maybe ByteString))
+encryptKMS' str = fmap (bimap show id) $ try @_ @SomeException $ do
+  env <- AWS.newEnv AWS.Discover <&> AWS.envRegion .~ Config.awsRegion
+  AWS.runResourceT . AWS.runAWST env $ do
+    encResp <- AWS.send $ AWS.encrypt Config.kmsKeyId $ str
+    pure $ encResp ^. AWS.ersCiphertextBlob
+
+encryptKMS :: ByteString -> Flow ByteString
+encryptKMS value = do
+  eitherEncValue <- runIO' "encryptKMS" $! encryptKMS' value
+  case eitherEncValue of
+    Right (Just v) -> pure v
+    Right Nothing -> do
+      logError @String "encryptKMS" "ersCiphertextBlob returned as Nothing"
+      throwException Errs.internalError
+    Left err -> do
+      logError @String "encryptKMS" err
+      throwException Errs.internalError
+
+-- | Amazon KMS decryption
+decryptKMS' :: ByteString -> IO (Either Text (Maybe ByteString))
+decryptKMS' value = fmap (bimap show id) $ try @_ @SomeException $ do
+    env <- AWS.newEnv AWS.Discover <&> AWS.envRegion .~ Config.awsRegion
+    AWS.runResourceT . AWS.runAWST env $ do
+      decResp <- AWS.send $ AWS.decrypt value
+      pure $ decResp ^. AWS.drsPlaintext
+
+decryptKMS :: ByteString -> Flow ByteString
+decryptKMS value = do
+  eitherDecValue <- runIO' "encryptKMS" $! decryptKMS' value
+  case eitherDecValue of
+    Right (Just v) -> pure v
+    Right Nothing -> do
+      logError @String "decryptKMS" "drsPlaintext returned as Nothing"
+      throwException Errs.internalError
+    Left err -> do
+      logError @String "decryptKMS" err
+      throwException Errs.internalError

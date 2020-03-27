@@ -8,6 +8,7 @@ import Euler.Config.EnvVars
 
 import qualified Data.List.Extra as LE
 import qualified Data.Text as Text (pack)
+import qualified Network.AWS.Prelude as AWS
 
 
 appVersion :: String
@@ -635,3 +636,9 @@ redis = Text.pack standaloneRedisName
 
 redisCluster :: Text
 redisCluster = Text.pack clusterRedisName
+
+awsRegion :: AWS.Region
+awsRegion = fromRight AWS.Mumbai $ AWS.fromText $ Text.pack getAwsRegion
+
+kmsKeyId :: Text
+kmsKeyId = Text.pack getKmsKeyId

@@ -21,6 +21,7 @@ import qualified Euler.API.Validators.Order as VO
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 -- import qualified Euler.Common.Metric                  as Metric
+import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Product.OLTP.Services.OrderStatusCacheService as OSCS

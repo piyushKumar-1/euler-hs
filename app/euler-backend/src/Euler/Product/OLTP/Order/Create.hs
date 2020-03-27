@@ -102,7 +102,7 @@ updateOrderCache order = do
   let orderId    = order ^. _orderId
   let merchantId = order ^. _merchantId
   -- EHS: magic constant.
-  void $ rSetex (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
+  void $ rSetex Config.redis (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
 -- EHS: previously setMandateInCache
 -- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.

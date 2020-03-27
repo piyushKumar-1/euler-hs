@@ -13,6 +13,7 @@ import qualified Euler.Common.Metric      as Metric
 import           Euler.Constant.Constants (orderStatusCacheTTL)
 import qualified Euler.Constant.Feature   as FeatureC
 import           Euler.Storage.Repository.Feature
+import qualified Euler.Config.Config as C
 
 -- | Cache an order status response
 addToCache
@@ -30,7 +31,7 @@ addToCache orderId merchId isAuth res = do
       _ <- logInfo "Order Status add to cache"
             $ "adding order status response to cache for merchant_id "
               <> merchId <> " orderId " <> orderId
-      _ <- rSetex cacheKey res ttl
+      _ <- rSetex C.redis cacheKey res ttl
       runIO $ Metric.incrementOrderStatusCacheAddCount merchId
       pure ()
     False -> pure ()
@@ -52,7 +53,7 @@ getCachedResponse orderId merchId isAuth = do
     True  -> do
       _ <- logInfo' "Fetch cache from order status"
              $ "Order status cache feature is enabled for merchand id: " <> merchId
-      val <- rGet cacheKey
+      val <- rGet C.redis cacheKey
       -- EHS: investigate
       -- let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
       -- _ <- Presto.log ("Cache value for this order status cache key " <> key) v
@@ -84,7 +85,7 @@ invalidateCache orderId merchantId = do
   -- EHS: logs conformity?
   logInfo' "invalidateOrderStatusCacheStart"
     $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
-  void $ rDel $ mkCacheKey' orderId merchantId <$> allPrefs
+  void $ rDel C.redis $ mkCacheKey' orderId merchantId <$> allPrefs
 
 -- ----------------------------------------------------------------------------
 -- Redis keys related stuff

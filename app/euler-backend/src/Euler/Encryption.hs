@@ -31,41 +31,37 @@ module Euler.Encryption
   , decryptKMS'
   ) where
 
-import EulerHS.Prelude hiding (Key, keys)
-import EulerHS.Language
+import           EulerHS.Language
+import           EulerHS.Prelude hiding (Key, keys)
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Euler.Config.Config                  as Config
+import qualified Euler.Config.Config as Config
 
-import           Basement.Block(Block(..))
-import           Data.ByteArray (ByteArray, ByteArrayAccess)
-import           Data.ByteArray.Encoding (convertToBase, Base(..))
-import           Crypto.Cipher.Types (BlockCipher(..), Cipher(..))
-import           Crypto.Error (CryptoFailable(..), CryptoError(..))
-import           Crypto.Hash (hash, hashlazy, hashInit, hashUpdate
-                             , hashFinalize, Context, Digest)
-import           Crypto.Hash.Algorithms (SHA1(..), SHA256(..), SHA512, HashAlgorithm)
-import           Crypto.MAC.HMAC (hmac, hmacGetDigest, HMAC(..))
+import           Basement.Block (Block (..))
+import           Crypto.Cipher.Types (BlockCipher (..), Cipher (..))
+import           Crypto.Error (CryptoError (..), CryptoFailable (..))
+import           Crypto.Hash (Context, Digest, hash, hashFinalize, hashInit, hashUpdate, hashlazy)
+import           Crypto.Hash.Algorithms (HashAlgorithm, SHA1 (..), SHA256 (..), SHA512)
+import           Crypto.MAC.HMAC (HMAC (..), hmac, hmacGetDigest)
 import           Crypto.Random (MonadRandom)
+import           Data.ByteArray (ByteArray, ByteArrayAccess)
+import           Data.ByteArray.Encoding (Base (..), convertToBase)
 import           Unsafe.Coerce
 
+import qualified Control.Monad.Trans.AWS as AWS
 import qualified Crypto.Cipher.AES as AES (AES128, AES256)
 import qualified Crypto.Data.Padding as PAD
-import qualified Crypto.MAC.HMAC as HMAC (HMAC(..))
-import qualified Crypto.PubKey.RSA as RSA (generateBlinder, Blinder, PrivateKey(..)
-                                          , PublicKey(..), Error)
+import qualified Crypto.MAC.HMAC as HMAC (HMAC (..))
+import qualified Crypto.PubKey.RSA as RSA (Blinder, Error, PrivateKey (..), PublicKey (..),
+                                           generateBlinder)
 import qualified Crypto.PubKey.RSA.OAEP as OAEP
-import qualified Crypto.PubKey.RSA.PSS as PSS
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
+import qualified Crypto.PubKey.RSA.PSS as PSS
 import qualified Crypto.Store.X509 as CStore (readPubKeyFile, readPubKeyFileFromMemory)
-import qualified Data.ByteString.Base64 as BH
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as Text (decodeUtf8)
-import qualified Data.X509 as CStore (PrivKey(..), PubKey(..))
+import qualified Data.X509 as CStore (PrivKey (..), PubKey (..))
 import qualified Data.X509.File as CStore (readKeyFile)
-import qualified Network.AWS.Data as AWS
-import qualified Network.AWS.Types as AWS
-import qualified Control.Monad.Trans.AWS as AWS
 import qualified Network.AWS.KMS.Decrypt as AWS
 import qualified Network.AWS.KMS.Encrypt as AWS
 
@@ -95,7 +91,7 @@ decryptEcb secretKey msg =
 encryptEcb :: forall c a. (BlockCipher c, ByteArray a) => Key c a -> a -> Either EncryptionError a
 encryptEcb secretKey msg =
   case initCipher secretKey of
-    Left e -> Left e
+    Left e  -> Left e
     Right c -> Right $ ecbEncrypt c $ PAD.pad (PAD.PKCS7 bsize) msg
   where
     bsize = blockSize @c undefined
@@ -122,19 +118,19 @@ readRSAPubKeyFile fp = do
   keys <- CStore.readPubKeyFile fp
   case keys of
     (CStore.PubKeyRSA pubKey:_) -> pure $ Right pubKey
-    _ -> pure $ Left "Unrecognized key format"
+    _                           -> pure $ Left "Unrecognized key format"
 
 parseRSAPubKey :: ByteString -> Either Text RSA.PublicKey
 parseRSAPubKey bs = case CStore.readPubKeyFileFromMemory bs of
   (CStore.PubKeyRSA pubKey:_) -> Right pubKey
-  _ -> Left "Unrecognized key format"
+  _                           -> Left "Unrecognized key format"
 
 readRSAPrivateKeyFile :: FilePath -> IO (Either Text RSA.PrivateKey)
 readRSAPrivateKeyFile fp = do
   keys <- CStore.readKeyFile fp
   case keys of
     (CStore.PrivKeyRSA privKey:_) -> pure $ Right privKey
-    _ -> pure $ Left "Unrecognized key format"
+    _                             -> pure $ Left "Unrecognized key format"
 
 sha256hash :: (ByteArrayAccess ba) => ba -> Digest SHA256
 sha256hash = hash

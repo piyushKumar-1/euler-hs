@@ -2,23 +2,23 @@ module Euler.Product.OLTP.Services.Auth.AuthTokenService
   ( newHandle
   ) where
 
-import           EulerHS.Prelude                                hiding (id)
+import           EulerHS.Prelude hiding (id)
 
-import           EulerHS.Language                               as L
-import           EulerHS.Types                                  (Message)
+import           EulerHS.Language as L
+import           EulerHS.Types (Message)
 
-import qualified Data.Generics.Product                          as DGP
-import qualified Data.Text                                      as T
+import qualified Data.Generics.Product as DGP
+import qualified Data.Text as T
 
-import qualified Euler.API.RouteParameters                      as RP
-import qualified Euler.Config.Config                            as Config (orderTokenExpiry)
-import qualified Euler.Config.ServiceConfiguration              as SC (findByName, decodeValue)
-import           Euler.Common.Types.Order                       (ClientAuthTokenData(..), OrderTokenExpiryData (..))
+import qualified Euler.API.RouteParameters as RP
+import           Euler.Common.Types.Order (ClientAuthTokenData (..), OrderTokenExpiryData (..))
+import qualified Euler.Config.Config as Config (orderTokenExpiry, redis)
+import qualified Euler.Config.ServiceConfiguration as SC (decodeValue, findByName)
 import           Euler.Lens
-import qualified Euler.Product.Domain.MerchantAccount           as DM
-import qualified Euler.Product.OLTP.Services.Auth.AuthService   as X
-import           Euler.Product.OLTP.Services.TokenService       as TS
-import qualified Euler.Storage.Repository                       as Rep
+import qualified Euler.Product.Domain.MerchantAccount as DM
+import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
+import           Euler.Product.OLTP.Services.TokenService as TS
+import qualified Euler.Storage.Repository as Rep
 
 
 newHandle :: X.SHandle
@@ -30,7 +30,7 @@ authenticate :: RP.RouteParameters -> Flow (Either Text DM.MerchantAccount)
 authenticate rps = do
   case (RP.lookupRP @RP.ClientAuthToken rps) of
     Just token -> do
-      mbTokenData :: Maybe ClientAuthTokenData <- rGet token
+      mbTokenData :: Maybe ClientAuthTokenData <- rGet Config.redis token
       case mbTokenData of
         Just tokenData -> do
           checkTokenValidityAndIncUsageCounter token tokenData
@@ -59,11 +59,11 @@ checkTokenValidityAndIncUsageCounter token tokenData@ClientAuthTokenData {..} = 
   case (newUsageCount >= tokenMaxUsage) of
     True -> do
       -- EHS: shall we handle rDel result somehow?
-      _ <- rDel [token]
+      _ <- rDel Config.redis [token]
       pure ()
     False -> do
       expiry <- tokenExpiry
-      _ <- rSetex token (tokenData {usageCount = Just newUsageCount}) expiry
+      _ <- rSetex Config.redis token (tokenData {usageCount = Just newUsageCount}) expiry
       pure ()
 
 -- EHS: former getTokenExpiryData :: Flow OrderTokenExpiryData
@@ -78,7 +78,7 @@ tokenExpiry = do
       let mbDecodedVal = SC.decodeValue @OrderTokenExpiryData value
       case mbDecodedVal of
         Just decodedVal -> pure $ DGP.getField @"expiryInSeconds" decodedVal
-        Nothing -> pure Config.orderTokenExpiry
+        Nothing         -> pure Config.orderTokenExpiry
     Nothing -> pure Config.orderTokenExpiry
 
 -- former getMerchantAccountForAuthToken from OrderStatus

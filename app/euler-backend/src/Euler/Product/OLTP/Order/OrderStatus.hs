@@ -15,6 +15,7 @@ import           EulerHS.Prelude hiding (First, Last, getFirst, getLast, id)
 import qualified EulerHS.Prelude as P (id)
 
 import qualified Euler.Encryption as E
+import qualified Euler.Config.Creditails as Cred
 import           Euler.Lens
 import           EulerHS.Language
 import           EulerHS.Types
@@ -121,6 +122,7 @@ handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
         Nothing  -> False
         Just str -> str == "1" || T.map toLower str == "true"
     version' = RP.lookupRP @RP.Version rps
+
 
 
 -- | Top-level domain-type handler
@@ -568,7 +570,7 @@ createPaymentLinks
   -> Maybe Text     -- maybeResellerEndpoint
   -> Flow D.Paymentlinks
 createPaymentLinks orderUuid maybeResellerEndpoint = do
-  config <- runIO getECRConfig
+  let config = getECRConfig
   let protocol = config ^. _protocol
   let host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
   pure D.Paymentlinks
@@ -1018,12 +1020,11 @@ mkPromotionActive rule orderId p = D.PromotionActive
 decryptPromotionRules :: Text -> Flow C.Rules
 decryptPromotionRules rulesTxt = do
 
-  -- EHS: TODO: ecTempCardCred partly implemented. See Euler.Config.Config for details.
-  keyForDecryption <- Config.ecTempCardCred
+  ecCred <- Cred.ecTempCardCred
 
   let rulesDecoded = B64.decode $ T.encodeUtf8 rulesTxt -- $ promotion ^. _rules
   rulesjson <- case rulesDecoded of
-    Right result -> pure $ E.decryptEcb keyForDecryption result
+    Right result -> pure $ E.decryptEcb (E.Key ecCred :: E.Key E.AES256 ByteString) result
     Left err     -> throwException err500 {errBody = LC.pack err}
 
   let rules = getRulesFromString rulesjson

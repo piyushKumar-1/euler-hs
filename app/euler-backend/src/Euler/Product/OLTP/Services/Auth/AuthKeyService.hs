@@ -6,20 +6,20 @@ module Euler.Product.OLTP.Services.Auth.AuthKeyService
 
 
 import           EulerHS.Prelude hiding (id)
-import qualified Prelude as P (show, id)
+import qualified Prelude as P (id, show)
 
 import qualified EulerHS.Extra.Validation as V
 import           EulerHS.Language as L
 import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime                              as R
+import qualified EulerHS.Runtime as R
 import           EulerHS.Types hiding (error)
-import qualified EulerHS.Types                                as T
+import qualified EulerHS.Types as T
 
-import qualified Data.ByteString.Base64                       as BH
+import qualified Data.ByteString.Base64 as BH
 import           Data.Generics.Product
 import           Data.Generics.Product.Fields
 import           Data.List (intersect)
-import qualified Data.Text                                    as T
+import qualified Data.Text as T
 import           Servant.Server
 
 
@@ -27,21 +27,22 @@ import           Euler.API.RouteParameters
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Merchant
+import qualified Euler.Config.Config as Config
 import           Euler.Lens
-import qualified Euler.Product.Domain.MerchantAccount         as DM
+import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
 import           Euler.Storage.DBConfig (eulerDB)
-import qualified Euler.Storage.Types.IngressRule              as DBIR
-import qualified Euler.Storage.Types.MerchantAccount          as DBM
-import qualified Euler.Storage.Validators.MerchantAccount     as MV
-import           Euler.Storage.Types.IngressRule
-import           Euler.Storage.Types.MerchantKey
 import           Euler.Storage.Types.EulerDB
+import           Euler.Storage.Types.IngressRule
+import qualified Euler.Storage.Types.IngressRule as DBIR
+import qualified Euler.Storage.Types.MerchantAccount as DBM
+import           Euler.Storage.Types.MerchantKey
 import qualified Euler.Storage.Types.SqliteTest as SQLITE
+import qualified Euler.Storage.Validators.MerchantAccount as MV
 
-import qualified Database.Beam                                as B
-import qualified Database.Beam.Backend.SQL                    as B
-import           Database.Beam ((==.), (&&.), (<-.), (/=.))
+import           Database.Beam ((&&.), (/=.), (<-.), (==.))
+import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
 
 
 newHandle :: X.SHandle
@@ -113,10 +114,10 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
 getAuthScope :: RouteParameters -> Flow KeyScope
 getAuthScope routeParams = pure $ case (lookupRP @XAuthScope routeParams) of
   Just scope -> case scope of
-    "MERCHANT" -> MERCHANT
-    "CLIENT" -> CLIENT
+    "MERCHANT"  -> MERCHANT
+    "CLIENT"    -> CLIENT
     "DASHBOARD" -> DASHBOARD
-    _ -> MERCHANT
+    _           -> MERCHANT
   Nothing -> MERCHANT
 -- ##############
 
@@ -225,7 +226,7 @@ ipAddressFilters mAcc mForward =  do
 getWhitelistedIps :: DM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
   let mId = mAcc ^. _merchantId
-  ipAddresses <- L.rGet ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  ipAddresses <- L.rGet Config.redis ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
@@ -239,5 +240,5 @@ getWhitelistedIps mAcc = do
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
-        _   <- rSetex ("euler_ip_whitelist_for_" <> mId) ips (5 * 60 * 60 :: Int)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        _   <- rSetex Config.redis ("euler_ip_whitelist_for_" <> mId) ips (5 * 60 * 60 :: Int)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

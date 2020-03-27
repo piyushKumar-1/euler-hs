@@ -1,18 +1,13 @@
 {-# LANGUAGE DeriveAnyClass #-}
 module Euler.Config.Config where
 
-import EulerHS.Prelude
-import EulerHS.Types
+import           EulerHS.Prelude
+import           EulerHS.Types
 
-import Euler.Config.EnvVars
+import           Euler.Config.EnvVars
 
 import qualified Data.List.Extra as LE
--- import qualified Euler.Encryption as E
-import           EulerHS.Language
 
-
-
-import qualified Data.ByteString.Base16 as B16
 import qualified Data.Text as Text (pack)
 import qualified Network.AWS.Prelude as AWS
 
@@ -53,15 +48,15 @@ data JWT = JWT
 getMandatePathPrefix :: String
 getMandatePathPrefix = case getEnv of
   PROD -> "/mandate"
-  _ -> "/ecr/mandate"
+  _    -> "/ecr/mandate"
 
 getEnv :: Env
 getEnv = case _getEnv of
     "development" -> DEV
-    "uat" -> UAT
-    "production" -> PROD
-    "integ" -> INTEG
-    _ -> DEV
+    "uat"         -> UAT
+    "production"  -> PROD
+    "integ"       -> INTEG
+    _             -> DEV
 
 getECRConfig :: Config
 getECRConfig = case getEnv of
@@ -186,10 +181,10 @@ getExpectationsUrl = Text.pack expectationsBaseUrl <> "/"
 getJWTConfig :: JWT
 getJWTConfig = do
   case getEnv of
-    DEV  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
-    UAT  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
-    PROD -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
-    INTEG  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
+    DEV   -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
+    UAT   -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
+    PROD  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
+    INTEG -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
 
 redisLoginTokenExpiry :: String
 redisLoginTokenExpiry = let
@@ -199,52 +194,6 @@ redisLoginTokenExpiry = let
     $ expiry getJWTConfig
   in show $ jwtExpiry * 60
 
-
--- decodeKMS not currently implemented
-decodeKMS :: String -> IO String
-decodeKMS = pure . id
-
-decrypt :: String -> IO String
-decrypt = decodeKMS
-
-ecTempCardCred:: IO String
-ecTempCardCred = case getEnv of
-  PROD -> decrypt getECTempCardEncryptedKey
-  UAT -> decrypt getECTempCardEncryptedKey
-  INTEG -> decrypt getECTempCardEncryptedKey
-  _ -> pure $ "bd3222130d110b9684dac9cc0903ce111b25e97ae93ddc2925f89c4ed6e41bab"
-
-ecMandateParamsCred:: IO String
-ecMandateParamsCred = case getEnv of
-  PROD -> decrypt getECMandateParamsEncryptedKey
-  UAT -> decrypt getECMandateParamsEncryptedKey
-  INTEG -> decrypt getECMandateParamsEncryptedKey
-  _ -> pure $ "a231ccb856c125486f1891bc5646f30949efcd6d1c14b6acc439ef928b133c32"
-
-getMySQLCfg :: IO MySQLConfig
-getMySQLCfg = case getEnv of
-  DEV -> pure MySQLConfig
-          { connectHost     = devMysqlConnectHost
-          , connectPort     = devMysqlConnectPort
-          , connectUser     = devMysqlConnectUser
-          , connectPassword = devMysqlConnectPassword
-          , connectDatabase = devMysqlConnectDatabase
-          , connectOptions  = [CharsetName "utf8"]
-          , connectPath     = devMysqlConnectPath
-          , connectSSL      = Nothing
-          }
-  _ -> do
-    decodedPassword <- decodeKMS getEcDbPass
-    pure MySQLConfig
-          { connectHost     = getEcDbHost
-          , connectPort     = getEcDbPort
-          , connectUser     = getEcDbUserName
-          , connectPassword = decodedPassword
-          , connectDatabase = getEcDbName
-          , connectOptions  = [CharsetName "utf8"]
-          , connectPath     = ""
-          , connectSSL      = Nothing
-          }
 
 mySqlpoolConfig :: PoolConfig
 mySqlpoolConfig = case getEnv of
@@ -259,12 +208,6 @@ mySqlpoolConfig = case getEnv of
     , resourcesPerStripe = getMysqlPoolMax
     }
 
-
-mysqlDBC = do
-  mySqlConfig <- getMySQLCfg
-  case getEnv of
-    DEV -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlpoolConfig
-    _   -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlpoolConfig
 
 ----DB
 ----read
@@ -435,9 +378,6 @@ razorpayOAuthUrl = "https://auth.razorpay.com"
 razorpayClientId :: Bool -> String
 razorpayClientId testMode = if testMode then "A0m8HbNtJUSHjZ" else "A0m8HqOuOvde27"
 
-razorpayClientSecret :: String -> IO String
-razorpayClientSecret clientSecret = decrypt clientSecret
-
 razorpayRedirectUrl :: Bool -> Text
 razorpayRedirectUrl testMode = if testMode
   then getDashboardUrl <> "express-checkout/api/razorpay/callback"
@@ -448,16 +388,13 @@ razorpayOAuthMode testMode = if testMode then "test" else "live"
 
 shouldLogQueryTime :: Bool
 shouldLogQueryTime = case getEnv of
-  DEV -> True
-  UAT -> True
-  PROD -> True
+  DEV   -> True
+  UAT   -> True
+  PROD  -> True
   INTEG -> True
 
 orderTokenExpiry :: Int
 orderTokenExpiry = 900 -- 15 Min
-
-orderTokenMaxUsage :: Int
-orderTokenMaxUsage = 20
 
 paypalTokenTtl :: Int
 paypalTokenTtl = (9 * 60 * 60) - 5
@@ -544,8 +481,8 @@ newtype GatewayUrls = GatewayUrls { payu :: PayUGatewayUrls }
 
 data PayUGatewayUrls = PayUGatewayUrls
   { exerciseMandate :: String
-  , paymentRequest :: String
-  , checkStatus :: String
+  , paymentRequest  :: String
+  , checkStatus     :: String
   }
   deriving (Generic, Eq, Show)
 
@@ -574,9 +511,9 @@ getPayUGatewayUrls = do
         }
 
 data InternalUrls = InternalUrls
-  { addCardToLocker :: String
+  { addCardToLocker    :: String
   , listCardFromLocker :: String
-  , getCardFromLocker :: String
+  , getCardFromLocker  :: String
   }
   deriving (Generic, Eq, Show)
 
@@ -648,58 +585,15 @@ awsRegion = fromRight AWS.Mumbai $ AWS.fromText $ Text.pack getAwsRegion
 
 kmsKeyId :: Text
 kmsKeyId = Text.pack getKmsKeyId
+
+-- Not used?
 -- Two versions needed to use in 'getCurrentDateStringWithOffset' while time library is below 1.9.1
-orderTokenExpiryND :: NominalDiffTime
-orderTokenExpiryND = 900 -- 15 Min
+-- orderTokenExpiryND :: NominalDiffTime
+-- orderTokenExpiryND = 900 -- 15 Min
 
-orderTokenExpiryI :: Int
-orderTokenExpiryI = 900 -- 15 Min
+-- orderTokenExpiryI :: Int
+-- orderTokenExpiryI = 900 -- 15 Min
 
-orderTokenMaxUsage :: Int
-orderTokenMaxUsage = 20
+-- orderTokenMaxUsage :: Int
+-- orderTokenMaxUsage = 20
 
-ecTempCardCred:: Flow (E.Key E.AES256 ByteString)
-ecTempCardCred = do
-  env <- runIO getEnv
-  case env of
-    PROD -> decodeECTempCardKey <$> getECTempCardEncryptedKey
-    UAT -> decodeECTempCardKey <$> getECTempCardEncryptedKey
-    INTEG -> decodeECTempCardKey <$> getECTempCardEncryptedKey
-    _ -> pure ecTempCardCredDefault
-
-getECTempCardEncryptedKey :: Flow (Maybe String)
-getECTempCardEncryptedKey = runIO $ lookupEnv "EC_TEMP_CARD_AES_KEY"
-
-defaultEcTempCardCredKey :: E.Key E.AES256 ByteString
-defaultEcTempCardCredKey = E.Key $ fst $ B16.decode "bd3222130d110b9684dac9cc0903ce111b25e97ae93ddc2925f89c4ed6e41bab"
-
--- EHS: TODO: port for decryptPromotionRules from Euler.Storage.Repository.Promotion
--- former decodeKMS
-decodeECTempCardKey :: Maybe String -> E.Key E.AES256 ByteString
-decodeECTempCardKey = undefined
-
-
--- decrypt :: forall e. String -> Aff e String
--- decrypt = toAff <<< decodeKMS
-
--- exports.getECTempCardEncryptedKey = process.env.EC_TEMP_CARD_AES_KEY
-
--- exports.decodeKMS = function(val) {
---   AWS.config.update(config.aws);
---   var kms = new AWS.KMS();
-
---   var encryptedParams = {
---     CiphertextBlob: Buffer(val, "base64")
---   };
-
---   return kms
---     .decrypt(encryptedParams)
---     .promise()
---     .then(function(data) {
---       var decryptedString = data.Plaintext.toString("ascii");
---       return Promise.resolve(decryptedString);
---     })
---     .catch(function(err) {
---       return Promise.reject(new Error(err));
---     });
--- };

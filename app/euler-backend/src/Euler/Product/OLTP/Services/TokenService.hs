@@ -7,30 +7,32 @@ module Euler.Product.OLTP.Services.TokenService
   , acquireOrderToken
   ) where
 
-import           EulerHS.Prelude hiding (id)
 import           EulerHS.Language
+import           EulerHS.Prelude hiding (id)
 
-import Euler.Lens
+import           Euler.Lens
 
 
 import           Servant.Server
 import           WebService.Language
 
 
-import qualified Data.Aeson           as A
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.Map             as Map
-import qualified Data.Text.Encoding   as TE
+import qualified Data.Map as Map
+import qualified Data.Text.Encoding as TE
 
-import           Euler.Config.ServiceConfiguration (TokenExpiryData(..), ResourceType(..))
+import qualified Euler.Config.Config as C
+import           Euler.Config.ServiceConfiguration (ResourceType (..), TokenExpiryData (..))
 import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Constant.Constants          as Constants (redis_token_expiry_default, token_max_usage_default)
+import qualified Euler.Constant.Constants as Constants (redis_token_expiry_default,
+                                                        token_max_usage_default)
 
 -- EHS: rework imports. Use top level modules.
-import qualified Euler.API.Order                   as API
-import qualified Euler.Common.Types                as D
+import qualified Euler.API.Order as API
+import qualified Euler.Common.Types as D
 --import qualified Euler.Common.Types.External.Order as OEx
-import qualified Euler.Common.Metric               as Metric
+import qualified Euler.Common.Metric as Metric
 --import qualified Euler.Config.Config               as Config
 --import qualified Euler.Config.ServiceConfiguration as SC
 --import           Euler.Lens
@@ -75,7 +77,7 @@ tokenizeResource resourceId resourceType merchantId = do
   TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
   currentDate <- getCurrentDateInMillis
   redisData   <- pure $ getRedisData resourceType resourceId tokenMaxUsage expiryInSeconds currentDate
-  _ <- rSetex token' redisData expiryInSeconds
+  _ <- rSetex C.redis token' redisData expiryInSeconds
   --setCacheWithExpiry Constants.ecRedis token redisData (convertDuration $ Seconds $ toNumber expiryInSeconds)
   _           <- logInfo (resourceType <> "_token_cache") (token' <> (show redisData))
   expiry'     <- getCurrentDateStringWithSecOffset Constants.redis_token_expiry_default

@@ -3014,10 +3014,11 @@ versionSpecificTransforms headers orderStatus = do
 -}
 
 versionSpecificTransforms :: Text -> OrderStatusResponse -> Flow OrderStatusResponse
-versionSpecificTransforms version orderStatus@OrderStatusResponse{gateway_id} =
-  pure $ transformOrderStatus (mkOrderStatusService version) gatewayId orderStatus
-  where
-    gatewayId = fromMaybe 0 gateway_id
+versionSpecificTransforms version orderStatus@OrderStatusResponse{gateway_id} = undefined
+  -- pure $ transformOrderStatus (mkOrderStatusService version) gatewayId orderStatus
+  -- where
+  --   gatewayId = fromMaybe 0 gateway_id
+
 --  let pgResponse = getField @"payment_gateway_response" orderStatus
 --      refunds = fromMaybe [] $ getField @"refunds" orderStatus
 --      gatewayId = fromMaybe 0 $ getField @"gateway_id" orderStatus
@@ -3375,7 +3376,7 @@ getTokenExpiryData = do
 {-
 getTokenExpiryData :: Flow OrderTokenExpiryData
 getTokenExpiryData = undefined
-{- EHS: legacy
+EHS: legacy
 getTokenExpiryData = do
   orderToken <- T.append "tkn_" <$> getUUID32
   currentDateWithOffset <- getCurrentDateStringWithOffset orderTokenExpiryND

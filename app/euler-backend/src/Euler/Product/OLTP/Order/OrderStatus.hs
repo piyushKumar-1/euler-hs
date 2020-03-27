@@ -56,6 +56,8 @@ import qualified Euler.Product.Domain as D
 import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import           Euler.Product.OLTP.Card.Card
 
+import qualified Euler.Product.OLTP.Order.OrderStatusVersioningService as VS
+
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
 import           Euler.Product.OLTP.Services.OrderStatusCacheService
 
@@ -100,7 +102,7 @@ handleByOrderId
   -> Flow (Either FlowError OrderStatusResponse)
 handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
 
-    let request = OrderStatusRequest
+    let request = DO.OrderStatusRequest
           { orderId                 = orderId
           , merchantId              = merchantAccount ^. _merchantId
           , resellerId              = merchantAccount ^. _resellerId
@@ -123,7 +125,7 @@ handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
 
 -- | Top-level domain-type handler
 execOrderStatusQuery :: DO.OrderStatusRequest-> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery req@OrderStatusRequest{..} = do
+execOrderStatusQuery req@DO.OrderStatusRequest{..} = do
     mbCached <- fastPath
     result <- case mbCached of
       Just cached -> pure cached
@@ -132,7 +134,9 @@ execOrderStatusQuery req@OrderStatusRequest{..} = do
     -- EHS: gateway transformations? are we done with it?
     --let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
     --pure $ transformOrderStatus gatewayId resp'
-    pure $ Right result
+    let vHandle = VS.mkHandle version sendAuthToken
+    transformed <- VS.doVersionTransformation vHandle result
+    pure $ Right transformed
   where
     fastPath = getCachedResponse orderId merchantId isAuthenticated
     slowPath = do

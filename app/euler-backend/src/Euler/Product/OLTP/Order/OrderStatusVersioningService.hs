@@ -1,6 +1,6 @@
 module Euler.Product.OLTP.Order.OrderStatusVersioningService
-  ( SHandle(..)
-  , mkService
+  ( mkHandle
+  , doVersionTransformation
   ) where
 
 import EulerHS.Prelude hiding (id)
@@ -23,11 +23,17 @@ newtype SHandle = SHandle
   }
 
 
-mkService :: (Maybe Version) -> TokenNeeded -> SHandle
-mkService = undefined
+mkHandle :: (Maybe Version) -> TokenNeeded -> SHandle
+mkHandle _ _ = SHandle
+    { makeResponse = undefined
+    }
 
+doVersionTransformation :: SHandle -> API.OrderStatusResponse -> Flow API.OrderStatusResponse
+doVersionTransformation SHandle {..} input = do
+  makeResponse input
 
 -- EHS: common type/enumeration?
 type Version = Text
 
 type TokenNeeded = Bool
+

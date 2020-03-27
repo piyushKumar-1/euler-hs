@@ -15,7 +15,7 @@ import qualified Prelude  as P (show)
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
-import qualified Euler.API.Order as API (OrderStatusRequest(..), OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
+import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
 import qualified Euler.API.Validators.Order as VO
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
@@ -83,7 +83,7 @@ orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdat
   where
     callOrderStatus orderId merchantId = do
       -- EHS: provide a "default" template for query?
-      let query = API.OrderStatusRequest
+      let query = D.OrderStatusRequest
             { orderId = orderId
             , merchantId = merchantId
             , resellerId = Nothing

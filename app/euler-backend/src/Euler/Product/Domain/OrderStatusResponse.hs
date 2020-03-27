@@ -8,7 +8,19 @@ import           EulerHS.Prelude hiding (show)
 import qualified Euler.Common.Types as C
 import           Euler.Common.Types.External.Order
 import           Euler.Common.Types.TxnDetail (TxnStatus)
-import qualified Euler.Product.Domain as D
+
+import qualified Euler.Product.Domain.Chargeback as D
+import qualified Euler.Product.Domain.Refund as D
+import qualified Euler.Product.Domain.Mandate as D
+import qualified Euler.Product.Domain.Paymentlinks as D
+import qualified Euler.Product.Domain.Card as D
+import qualified Euler.Product.Domain.Promotion as D
+import qualified Euler.Product.Domain.TxnRiskCheck as D
+import qualified Euler.Product.Domain.TxnDetail as D
+import qualified Euler.Product.Domain.MerchantPaymentGatewayResponse as D
+import qualified Euler.Product.Domain.SecondFactorResponse as D
+import qualified Euler.Product.Domain.MerchantPaymentGatewayResponse as D
+import qualified Euler.Product.Domain.TxnFlowInfo as D
 
 
 data OrderStatusResponse = OrderStatusResponse
@@ -73,5 +85,7 @@ data OrderStatusRequest = OrderStatusRequest
   , isAuthenticated         :: Bool
   , sendCardIsin            :: Bool
   , sendFullGatewayResponse :: Bool
+  , sendAuthToken           :: Bool
+  , version                 :: Maybe Text
   }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)

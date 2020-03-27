@@ -322,7 +322,7 @@ getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 -- >
 -- >  myFlow = do
 -- >    _ <- setOption MerchantIdKey "abc1234567"
--- >    mKey <- getOption MerchantKey
+-- >    mKey <- getOption MerchantIdKey
 -- >    runIO $ putTextLn mKey
 setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id

@@ -360,15 +360,6 @@ makeOrderStatusResponse
 
     <<= changePromotion mPromotionActive
 
-    -- <<= changeUtf10 ((order ^. _udf) ^. _udf10)
-    -- <<= changeUtf9 ((order ^. _udf) ^. _udf9)
-    -- <<= changeUtf8 ((order ^. _udf) ^. _udf8)
-    -- <<= changeUtf7 ((order ^. _udf) ^. _udf7)
-    -- <<= changeUtf6 ((order ^. _udf) ^. _udf6)
-    -- <<= changeUtf5 ((order ^. _udf) ^. _udf5)
-    -- <<= changeUtf4 ((order ^. _udf) ^. _udf4)
-    -- <<= changeUtf3 ((order ^. _udf) ^. _udf3)
-    -- <<= changeUtf2 ((order ^. _udf) ^. _udf2)
     <<= changeUtf (order ^. _udf)
     <<= changeReturnUrl mReturnUrl
     <<= changeCustomerPhone phone

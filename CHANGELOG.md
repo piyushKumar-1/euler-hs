@@ -6,7 +6,7 @@
   - MySQL transactions bug fixed
   - New feature: awaiting for results from forked flows added
   - runIO' with description added
-  - KV DB hardcorded DB name fixed
+  - KV DB hardcorded DB name fixed (breaking change)
   - More documentation on SQL subsystem usage added (see README.md)
 
 * Euler-Backend: small updates

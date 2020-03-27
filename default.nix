@@ -24,6 +24,8 @@ let
             self.callPackage ./nix/amazonka-core.nix { };
           amazonka-kms =
             self.callPackage ./nix/amazonka-kms.nix { };
+          amazonka-test =
+            self.callPackage ./nix/amazonka-test.nix { };
           universum =
             self.callPackage ./nix/universum.nix { };
           servant-xml =

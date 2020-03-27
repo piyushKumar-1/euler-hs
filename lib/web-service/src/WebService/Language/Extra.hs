@@ -27,24 +27,24 @@ throwOnFailedWithLog (Left err) mkException msg = do
 throwOnFailedWithLog _ _ _ = pure ()
 
 getCurrentTimeUTC :: L.Flow LocalTime
-getCurrentTimeUTC = L.runIO getCurrentTimeUTC'
+getCurrentTimeUTC = L.runIO' "getCurrentTimeUTC" getCurrentTimeUTC'
 
 getCurrentTimeUTC' :: IO LocalTime
 getCurrentTimeUTC' = (zonedTimeToLocalTime . utcToZonedTime utc ) <$> getCurrentTime
 
 getCurrentDateInSeconds :: L.Flow Int
-getCurrentDateInSeconds = L.runIO $ do
+getCurrentDateInSeconds = L.runIO' "getCurrentDateInSeconds" $ do
    t <- TP.getPOSIXTime
    pure $ floor t
 
 getCurrentDateInMillis :: L.Flow Int
-getCurrentDateInMillis = L.runIO $ do
+getCurrentDateInMillis = L.runIO' "getCurrentDateInMillis" $ do
    t <- (*1000) <$> TP.getPOSIXTime
    pure $ floor t
 
 getCurrentDateStringWithSecOffset :: Int -> L.Flow Text
 getCurrentDateStringWithSecOffset secs = do
-  L.runIO $ (Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" . addUTCTime (realToFrac secs)) <$> getCurrentTime
+  L.runIO' "getCurrentDateStringWithSecOffset" $ (Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" . addUTCTime (realToFrac secs)) <$> getCurrentTime
 
 
 -- | Unsafe function that logs an error and throws a servant error.

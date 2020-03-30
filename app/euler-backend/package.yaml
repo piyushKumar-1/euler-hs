@@ -42,6 +42,7 @@ dependencies:
 - containers
 - errors
 - euler-hs
+- euler-backend-storage
 - extra
 - hashable
 - HUnit

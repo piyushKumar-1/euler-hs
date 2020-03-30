@@ -24,22 +24,22 @@ import qualified Euler.Product.Domain.TxnFlowInfo as D
 
 
 data OrderStatusResponse = OrderStatusResponse
-  {  id                       :: Text
+  {  id                       :: Maybe Text
   ,  merchant_id              :: Maybe Text
   ,  amount                   :: Maybe C.Money
   ,  currency                 :: Maybe Text
   ,  order_id                 :: Maybe Text
-  ,  date_created             :: Text
+  ,  date_created             :: Maybe Text
   ,  return_url               :: Maybe Text
-  ,  product_id               :: Text
+  ,  product_id               :: Maybe Text
   ,  customer_email           :: Maybe Text
   ,  customer_phone           :: Maybe Text
   ,  customer_id              :: Maybe Text
-  ,  payment_links            :: D.Paymentlinks
-  ,  udf                      :: C.UDF
+  ,  payment_links            :: Maybe D.Paymentlinks
+  ,  udf                      :: Maybe C.UDF
   ,  txn_id                   :: Maybe Text
-  ,  status_id                :: Int
-  ,  status                   :: OrderTxnStatus
+  ,  status_id                :: Maybe Int
+  ,  status                   :: Maybe OrderTxnStatus
   ,  payment_method_type      :: Maybe Text
   ,  auth_type                :: Maybe Text
   ,  card                     :: Maybe D.Card

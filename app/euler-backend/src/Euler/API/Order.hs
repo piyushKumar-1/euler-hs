@@ -533,18 +533,18 @@ defaultOrderStatusResponse = OrderStatusResponse
 
 mkOrderStatusResponse :: DO.OrderStatusResponse -> OrderStatusResponse
 mkOrderStatusResponse orderStatus = OrderStatusResponse
-  {  id                        = getField @"id" orderStatus
+  {  id                        = fromMaybe T.empty $ getField @"id" orderStatus
   ,  merchant_id               = getField @"merchant_id" orderStatus
-  ,  amount                    = fromMoney <$> getField @"amount" orderStatus
+  ,  amount                    = fromMoney <$> whenNothing (getField @"amount" orderStatus) (Just mempty)
   ,  currency                  = getField @"currency" orderStatus
   ,  order_id                  = getField @"order_id" orderStatus
-  ,  date_created              = getField @"date_created" orderStatus
+  ,  date_created              = fromMaybe T.empty $ getField @"date_created" orderStatus
   ,  return_url                = getField @"return_url" orderStatus
-  ,  product_id                = getField @"product_id" orderStatus
+  ,  product_id                = fromMaybe T.empty $ getField @"product_id" orderStatus
   ,  customer_email            = getField @"customer_email" orderStatus
   ,  customer_phone            = getField @"customer_phone" orderStatus
   ,  customer_id               = getField @"customer_id" orderStatus
-  ,  payment_links             = mkPaymentLinks $ getField @"payment_links" orderStatus
+  ,  payment_links             = mkPaymentLinks $ fromMaybe D.defaultPaymentlinks $ getField @"payment_links" orderStatus
   ,  udf1                      = fromMaybe "udf1" $ getField @"udf1" udf
   ,  udf2                      = fromMaybe "udf2" $ getField @"udf2" udf
   ,  udf3                      = fromMaybe "udf3" $ getField @"udf3" udf
@@ -556,8 +556,8 @@ mkOrderStatusResponse orderStatus = OrderStatusResponse
   ,  udf9                      = fromMaybe "udf9" $ getField @"udf9" udf
   ,  udf10                     = fromMaybe "udf10" $ getField @"udf10" udf
   ,  txn_id                    = getField @"txn_id" orderStatus
-  ,  status_id                 = getField @"status_id" orderStatus
-  ,  status                    = show $ getField @"status" orderStatus
+  ,  status_id                 = fromMaybe 0 $ getField @"status_id" orderStatus
+  ,  status                    = show $ fromMaybe D.DEFAULT $ getField @"status" orderStatus
   ,  payment_method_type       = getField @"payment_method_type" orderStatus
   ,  auth_type                 = getField @"auth_type" orderStatus
   ,  card                      = mkCard <$> getField @"card" orderStatus
@@ -587,7 +587,7 @@ mkOrderStatusResponse orderStatus = OrderStatusResponse
   ,  txn_flow_info             = mkTxnFlowInfo' <$> getField @"txn_flow_info" orderStatus
   }
   where
-    udf = getField @"udf" orderStatus
+    udf = fromMaybe C.emptyUDF $ getField @"udf" orderStatus
     txn = mapTxnDetail <$> getField @"txn_detail" orderStatus
     charges = case txn of
       Nothing -> Nothing

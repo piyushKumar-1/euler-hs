@@ -421,22 +421,22 @@ mChargeback = Just
 
 orderStatusResponse1 :: D.OrderStatusResponse
 orderStatusResponse1 = D.OrderStatusResponse
-  { id = "orderUuid"
+  { id = Just "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just $ C.mkMoney 10
   , currency = Just "USD"
   , order_id = Just "orderId"
-  , date_created = "2020-01-12 02:13:00"
+  , date_created = Just "2020-01-12 02:13:00"
   , return_url = Just "http://google.ru"
-  , product_id = "productId"
+  , product_id = Just "productId"
   , customer_email = Just "email@email.ru"
   , customer_phone = Just "911"
   , customer_id = Just "customerId"
-  , payment_links = D.Paymentlinks {iframe = "iFrame", web = "web", mobile = "mobile"}
-  , udf = udfFull
+  , payment_links = Just D.Paymentlinks {iframe = "iFrame", web = "web", mobile = "mobile"}
+  , udf = Just udfFull
   , txn_id = Just "txnId"
-  , status_id = 21
-  , status = D.TStatus CHARGED
+  , status_id = Just 21
+  , status = Just $ D.TStatus CHARGED
   , payment_method_type = Just "payment_method_type"
   , auth_type = Just "authType"
   , card = Nothing
@@ -588,22 +588,22 @@ defaultPaymentlinks = D.Paymentlinks
 
 orderStatusResponse2 :: D.OrderStatusResponse
 orderStatusResponse2 = D.OrderStatusResponse
-  { id = "orderUuid"
+  { id = Just "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just $ C.mkMoney 10
   , currency = Just "USD"
   , order_id = Just "orderId"
-  , date_created = "2020-01-12 02:13:00"
+  , date_created = Just "2020-01-12 02:13:00"
   , return_url = Just "http://google.ru"
-  , product_id = "productId"
+  , product_id = Just "productId"
   , customer_email = Just "email@email.ru"
   , customer_phone = Just "911"
   , customer_id = Just "customerId"
-  , payment_links = D.Paymentlinks {iframe = "iFrame", web = "web", mobile = "mobile"}
-  , udf = udfFull
+  , payment_links = Just D.Paymentlinks {iframe = "iFrame", web = "web", mobile = "mobile"}
+  , udf = Just udfFull
   , txn_id = Nothing
-  , status_id = 0
-  , status = D.OStatus OEx.SUCCESS
+  , status_id = Nothing
+  , status = Just $ D.OStatus OEx.SUCCESS
   , payment_method_type = Nothing
   , auth_type = Nothing
   , card = Nothing
@@ -714,22 +714,22 @@ orderStatusResponse2 = D.OrderStatusResponse
 
 orderStatusResponse3 :: D.OrderStatusResponse
 orderStatusResponse3 = D.OrderStatusResponse
-  { id = "orderUuid"
+  { id = Just "orderUuid"
   , merchant_id = Just "merchantId"
   , amount = Just $ C.mkMoney 20
   , currency = Just "USD"
   , order_id = Just "orderId"
-  , date_created = "2020-01-12 02:13:00"
+  , date_created = Just "2020-01-12 02:13:00"
   , return_url = Just "http://google.ru"
-  , product_id = "productId"
+  , product_id = Just "productId"
   , customer_email = Just "email@email.ru"
   , customer_phone = Just "911"
   , customer_id = Just "customerId"
-  , payment_links = D.Paymentlinks {iframe = "iFrame", web = "web", mobile = "mobile"}
-  , udf = udfFull
+  , payment_links = Just D.Paymentlinks {iframe = "iFrame", web = "web", mobile = "mobile"}
+  , udf = Just udfFull
   , txn_id = Just "txnId"
-  , status_id = 21
-  , status = D.TStatus CHARGED
+  , status_id = Just 21
+  , status = Just $ D.TStatus CHARGED
   , payment_method_type = Just "payment_method_type"
   , auth_type = Just "authType"
   , card = Nothing

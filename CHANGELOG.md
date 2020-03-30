@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [1.7.0.0] - 2020-03-30
+* Euler-HS 1.7.0.0: new features.
+  - Granular DB errors added (breaking change)
+  - Test framework added
+
 ## [1.6.0.0] - 2020-03-27
 * Euler-HS 1.6.0.0: a significant update with new features and fixes.
   - beam-mysql updated: temporary tables fix, autocommit fix, bytestrings encoding fix

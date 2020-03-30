@@ -16,8 +16,8 @@ connectInfo :: R.ConnectInfo
 connectInfo = R.defaultConnectInfo -- {R.connectHost = "redis"}
 
 
-runWithRedisConn_ :: a -> Flow b -> IO b
-runWithRedisConn_ = runWithRedisConn connectInfo
+runWithRedisConn_ :: ResultRecording -> Flow b -> IO b
+runWithRedisConn_ = replayRecording -- runWithRedisConn connectInfo
 
 spec :: Spec
 spec = do

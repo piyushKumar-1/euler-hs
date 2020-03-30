@@ -18,7 +18,7 @@ import           EulerHS.TestData.API.Client
 import           EulerHS.Types as T
 import           Control.Concurrent.MVar (modifyMVar_)
 import           Data.Aeson.Encode.Pretty
-import           Database.Redis (checkedConnect, defaultConnectInfo, pubSubForever)
+import           Database.Redis (checkedConnect, defaultConnectInfo, pubSubForever, ConnectInfo)
 
 
 runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b
@@ -121,16 +121,16 @@ replayRecording rec flow = do
   pure result
 
 -- prints replay in JSON format to console
-runWithRedisConn :: a -> Flow b -> IO b
-runWithRedisConn _ flow = do
+runWithRedisConn :: ConnectInfo -> a -> Flow b -> IO b
+runWithRedisConn connectInfo _ flow = do
     (recording, recResult) <- runFlowRecording withInitRedis flow
-    print $ encode $ recording
+    -- print $ encode $ recording
     -- putStrLn $ encodePretty $ recording
     pure recResult
   where
     withInitRedis :: (FlowRuntime -> IO c) -> FlowRuntime -> IO c
     withInitRedis next _rt = do
-      realRedisConnection <- checkedConnect defaultConnectInfo
+      realRedisConnection <- checkedConnect connectInfo
       let rt = _rt { _pubSubConnection = Just $ realRedisConnection }
 
       cancelWorker <- runPubSubWorker rt (const $ pure ())

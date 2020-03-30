@@ -13,88 +13,93 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 
 
--- Scenarios
-
 uniqueConstraintViolationDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
-uniqueConstraintViolationDbScript cfg = do
-  connection <- connectOrFail cfg
+uniqueConstraintViolationDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
 
-  L.runDB connection
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertValues [User 1 "Eve" "Beon"]
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
+      L.runDB conn
+        $ L.insertRows
+        $ B.insert (_users eulerDb)
+        $ B.insertValues [User 2 "Eve" "Beon"]
 
-  L.runDB connection
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertValues [User 1 "Eve" "Beon"]
+      L.runDB conn
+        $ L.insertRows
+        $ B.insert (_users eulerDb)
+        $ B.insertValues [User 2 "Eve" "Beon"]
 
 
 selectUnknownDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
-selectUnknownDbScript cfg = do
-  connection <- connectOrFail cfg
+selectUnknownDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
 
-  L.runDB connection $ do
-    let predicate User {..} = _userFirstName ==.  "Unknown"
-
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (_users eulerDb)
+    flip (either $ error "Unable to get connection") econn $ \conn ->
+      L.runDB conn $ do
+        let predicate User {..} = _userFirstName ==. "Unknown"
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (_users eulerDb)
 
 
 selectOneDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
-selectOneDbScript cfg = do
-  connection <- connectOrFail cfg
-  L.runDB connection
-    $ L.insertRows
-    $ B.insert (_users eulerDb)
-    $ B.insertExpressions (mkUser <$> susers)
-  L.runDB connection $ do
-    let predicate User {..} = _userFirstName ==.  "John"
+selectOneDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
 
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (_users eulerDb)
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
+      L.runDB conn
+        $ L.insertRows
+        $ B.insert (_users eulerDb)
+        $ B.insertExpressions (mkUser <$> susers)
+
+      L.runDB conn $ do
+        let predicate User {..} = _userFirstName ==. "John"
+
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (_users eulerDb)
 
 
 insertReturningScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult [User])
-insertReturningScript cfg = do
-  connection <- connectOrFail cfg
-  L.runDB connection
-    $ L.insertRowsReturningList
-    $ B.insert (_users eulerDb)
-    $ B.insertExpressions
-      [ User B.default_
-        ( B.val_ "John" )
-        ( B.val_ "Doe"  )
-      , User B.default_
-        ( B.val_ "Doe"  )
-        ( B.val_ "John" )
-      ]
+insertReturningScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn ->
+      L.runDB conn
+        $ L.insertRowsReturningList
+        $ B.insert (_users eulerDb)
+        $ B.insertExpressions
+          [ User B.default_
+            ( B.val_ "John" )
+            ( B.val_ "Doe"  )
+          , User B.default_
+            ( B.val_ "Doe"  )
+            ( B.val_ "John" )
+          ]
 
 
 updateAndSelectDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
-updateAndSelectDbScript cfg = do
-  connection <- connectOrFail cfg
+updateAndSelectDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
 
-  L.runDB connection $ do
-    let predicate1 User {..} = _userFirstName ==. "John"
+    flip (either $ error "Unable to get connection") econn $ \conn ->
+      L.runDB conn $ do
+        let predicate1 User {..} = _userFirstName ==. "John"
 
-    L.updateRows $ B.update (_users eulerDb)
-      (\User {..} -> mconcat
-        [ _userFirstName <-. "Leo"
-        , _userLastName  <-. "San"
-        ]
-      )
-      predicate1
+        L.updateRows $ B.update (_users eulerDb)
+          (\User {..} -> mconcat
+            [ _userFirstName <-. "Leo"
+            , _userLastName  <-. "San"
+            ]
+          )
+          predicate1
 
-    let predicate2 User {..} = _userFirstName ==. "Leo"
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate2
-      $ B.all_ (_users eulerDb)
+        let predicate2 User {..} = _userFirstName ==. "Leo"
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate2
+          $ B.all_ (_users eulerDb)

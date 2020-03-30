@@ -284,19 +284,27 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
         ExceptionMessage $ Text.unpack $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
-  let runMode   = R._runMode flowRt
-  let dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-                . L.logMessage' T.Debug ("RunDB Impl" :: String)
-                . show
+    let runMode   = R._runMode flowRt
+    let dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+                  . L.logMessage' T.Debug ("RunDB Impl" :: String)
+                  . show
 
-  fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
-    (T.MockedPool _) -> error "Mocked Pool not implemented"
-    _ -> do
-      eRes <- R.withTransaction conn $ \nativeConn ->
-            map (first $ T.DBError T.SomeError . show)
-            $ try @_ @SomeException
-            $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
-      pure $ join eRes
+    fmap next $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
+      (T.MockedPool _) -> error "Mocked Pool not implemented"
+      _ -> do
+        eRes <- R.withTransaction conn $ \nativeConn ->
+              fmap (first wrapException)
+              $ try @_ @SomeException
+              $ R.runSqlDB nativeConn dbgLogger sqlDbMethod
+        pure $ join eRes
+  where
+      wrapException :: SomeException -> T.DBError
+      wrapException e = fromMaybe (T.DBError T.UnrecognizedError $ show e) $
+        T.sqliteErrorToDbError   (show e) <$> fromException e <|>
+        T.mysqlErrorToDbError    (show e) <$> fromException e <|>
+        T.postgresErrorToDbError (show e) <$> fromException e <|>
+        empty
+
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB cName act next) =
     fmap next $ R.runKVDB cName _runMode _kvdbConnections act

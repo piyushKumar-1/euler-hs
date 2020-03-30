@@ -114,6 +114,7 @@ library:
   - EulerHS.Types
   - EulerHS.Runtime
   - EulerHS.Extra.Validation
+  - EulerHS.Extra.Test
   ghc-options:
   - -Wall
   - -Wcompat

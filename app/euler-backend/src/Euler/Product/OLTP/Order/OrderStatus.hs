@@ -275,36 +275,22 @@ makeOrderStatusResponse
   paymentMethodsAndTypes
   (txnFlowInfo, secondFactorResp)
   mMerchantPgr
-  = do
-
-  let orderId = order ^. _orderUuid
-  let isAuthenticated = request ^. _isAuthenticated
-  let sendCardIsin = request ^. _sendCardIsin
-
-  let mCustomerId = whenNothing  (order ^. _customerId) (Just "")
-      email = (\mail -> if isAuthenticated then mail else Just "")  (order ^. _customerEmail)
-      phone = (\phn -> if isAuthenticated then phn else Just "")  (order ^. _customerPhone)
-      amount = order ^. _amount
-      amountRefunded = order ^. _amountRefunded
-
-      currency = show $ order ^. _currency
-
+  =
 
 -- <== is equal to =>> and used for quick visual understanding
   pure $ extract $ buildOrderStatusResponse
-    -- finish
 
+    -- finish
     <== changeMerchantPGR mMerchantPgr
 
     <== changeChargeBacks mChargebacks
 
     <== changeRefund mRefunds
 
-
     <== changeSecondFactorResponse secondFactorResp
     <== changeTxnFlowInfo txnFlowInfo
 
-    <== changeCard (getCardDetails mTxnCard mTxn sendCardIsin)
+    <== changeCard (getCardDetails mTxnCard mTxn $ request ^. _sendCardIsin)
 
     <== changePaymentMethodType (getPaymentMethodType mTxnCard)
 
@@ -336,25 +322,25 @@ makeOrderStatusResponse
 
     <== changeUtf (order ^. _udf)
     <== changeReturnUrl mReturnUrl
-    <== changeCustomerPhone phone
-    <== changeCustomerEmail email
+    <== changeCustomerPhone (if request ^. _isAuthenticated then order ^. _customerPhone else Just "")
+    <== changeCustomerEmail (if request ^. _isAuthenticated then order ^. _customerEmail else Just "")
     <== changeDateCreated (order ^. _dateCreated)
-    <== changeAmountRefunded amountRefunded
+    <== changeAmountRefunded (order ^. _amountRefunded)
     <== changePaymentLinks paymentLinks
     <== changeRefunded (order ^. _refundedEntirely)
-    <== changeCurrency currency
-    <== changeAmount amount
+    <== changeCurrency (order ^. _currency)
+    <== changeAmount (order ^. _amount)
     <== changeStatus (Just $ D.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
     <== changeProductId (order ^. _productId)
-    <== changeCustomerId mCustomerId
+    <== changeCustomerId (order ^. _customerId)
     <== changeOrderId (order ^. _orderId)
     <== changeMerchantId (order ^. _merchantId)
-    <== changeId orderId
+    <== changeId (order ^. _orderUuid)
     -- start
 
 
 changeId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeId orderId builder = builder $ mempty {idT = Just $ First orderId}
+changeId orderUuid builder = builder $ mempty {idT = Just $ First orderUuid}
 
 changeMerchantId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeMerchantId mMerchantId builder = builder $ mempty {merchant_idT = Just $ First mMerchantId}
@@ -374,7 +360,7 @@ changeProductId productId builder = builder $ mempty {product_idT = fmap Last pr
 changeStatus :: Maybe D.OrderTxnStatus -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeStatus status builder = builder $ mempty {statusT = fmap Last status}
 
-changeCurrency :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeCurrency :: C.Currency -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCurrency currency builder = builder $ mempty {currencyT = Just $ Last currency}
 
 changeRefunded :: Bool -> OrderStatusResponseBuilder -> D.OrderStatusResponse

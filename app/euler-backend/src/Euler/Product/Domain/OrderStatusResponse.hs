@@ -29,7 +29,7 @@ data OrderStatusResponse = OrderStatusResponse
   {  id                       :: Maybe Text
   ,  merchant_id              :: Maybe Text
   ,  amount                   :: Maybe C.Money
-  ,  currency                 :: Maybe Text
+  ,  currency                 :: Maybe C.Currency
   ,  order_id                 :: Maybe Text
   ,  date_created             :: Maybe LocalTime
   ,  return_url               :: Maybe Text

@@ -74,7 +74,7 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   {  idT                        :: Maybe (First Text)
   ,  merchant_idT               :: Maybe (First Text)
   ,  amountT                    :: Maybe (Last C.Money)
-  ,  currencyT                  :: Maybe (Last Text)
+  ,  currencyT                  :: Maybe (Last C.Currency)
   ,  order_idT                  :: Maybe (First Text)
   ,  date_createdT              :: Maybe (Last LocalTime)
   ,  return_urlT                :: Maybe (Last Text)

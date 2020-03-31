@@ -5,7 +5,6 @@ module Euler.API.MerchantPaymentGatewayResponse where
 
 import           EulerHS.Prelude as P
 
-import           Data.Aeson
 import qualified Data.Char as C
 import           Data.Generics.Product.Fields
 import qualified Data.Map.Strict as Map

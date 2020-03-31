@@ -19,8 +19,8 @@ import qualified Data.Text as T
 import           Generics.Deriving.Semigroup (gsappenddefault)
 
 
-(<<=) :: Comonad w => w a -> (w a -> b) -> w b
-(<<=) = (=>>)
+(<==) :: Comonad w => w a -> (w a -> b) -> w b
+(<==) = (=>>)
 
 type OrderStatusResponseBuilder = OrderStatusResponseCollector -> D.OrderStatusResponse
 
@@ -113,7 +113,6 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   ,  gateway_reference_idT      :: Maybe (Last Text)
   ,  payer_vpaT                 :: Maybe (Last Text)
   ,  payer_app_nameT            :: Maybe (Last Text)
-  ,  juspayT                    :: Maybe (Last D.OrderTokenResp)
   ,  second_factor_responseT    :: Maybe (Last D.SecondFactorResponse)
   ,  txn_flow_infoT             :: Maybe (Last D.TxnFlowInfo)
   }

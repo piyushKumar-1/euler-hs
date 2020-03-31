@@ -19,7 +19,6 @@ import qualified Euler.Product.Domain.TxnRiskCheck as D
 import qualified Euler.Product.Domain.TxnDetail as D
 import qualified Euler.Product.Domain.MerchantPaymentGatewayResponse as D
 import qualified Euler.Product.Domain.SecondFactorResponse as D
-import qualified Euler.Product.Domain.MerchantPaymentGatewayResponse as D
 import qualified Euler.Product.Domain.TxnFlowInfo as D
 
 

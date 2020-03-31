@@ -11,13 +11,11 @@ import           EulerHS.Language
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
 import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
-import           Euler.Common.Types.Money
 
 import qualified Euler.Product.Domain.Mandate as D
 import           Euler.Storage.Types.EulerDB
 import qualified Euler.Storage.Types.Mandate as S
 
-import qualified Data.Text as T
 import           Database.Beam ((&&.), (==.))
 import qualified Database.Beam as B
 import           Servant.Server (err500)

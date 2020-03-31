@@ -20,7 +20,7 @@ import           Euler.Lens
 import           EulerHS.Language
 import           EulerHS.Types
 
-import           Control.Comonad hiding ((<<=))
+import           Control.Comonad (extract)
 import           Control.Monad.Except
 import           Data.Aeson
 import qualified Data.ByteString.Base64 as B64
@@ -158,7 +158,6 @@ execOrderStatusQuery' request = do
   let queryOrderId = request ^. _orderId
   let queryMerchantId = request ^. _merchantId
   let resellerId = request ^. _resellerId
-  let isAuth = request ^. _isAuthenticated
   let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
   mOrder <- loadOrder queryOrderId queryMerchantId
@@ -309,73 +308,75 @@ makeOrderStatusResponse
         (Just txn, Just txnCard) -> f txn txnCard
         _                        -> emptyBuilder
 
-
+-- <== is equal to =>> and used for quick visual understanding
   pure $ extract $ buildOrderStatusResponse
+    -- finish
 
-    <<= changeMerchantPGR mMerchantPgr
+    <== changeMerchantPGR mMerchantPgr
     -- addGatewayResponse
 
-    <<= changeChargeBacks mChargebacks
+    <== changeChargeBacks mChargebacks
 
-    <<= changeRefund mRefunds
+    <== changeRefund mRefunds
 
 
-    <<= changeSecondFactorResponse secondFactorResp
-    <<= changeTxnFlowInfo txnFlowInfo
+    <== changeSecondFactorResponse secondFactorResp
+    <== changeTxnFlowInfo txnFlowInfo
       -- addSecondFactorResponseAndTxnFlowInfo
 
-    <<= maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
+    <== maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changeCard (getCardDetails txnCard txn sendCardIsin)
         else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
+    <== maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changePaymentMethodType "CARD"
         else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
+    <== maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changeEmiPaymentMethod paymentMethod
         else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
-    <<= maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
+    <== maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
+    <== maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
 
-    <<= maybeTxnAndTxnCard (\_ _ -> changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes)
+    <== maybeTxnAndTxnCard (\_ _ -> changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes)
 
-    <<= changeRisk mRisk
+    <== changeRisk mRisk
 
-    <<= maybeTxn changeTxnDetails
-    <<= maybeTxn (changeGatewayPayload . getGatewayPayload)
-    <<= maybeTxn (changeBankErrorMessage . getBankErrorMessage)
-    <<= maybeTxn (changeBankErrorCode . getBankErrorCode)
-    <<= maybeTxn (const $ changeGatewayRefId gatewayRefId)
-    <<= maybeTxn (changeGatewayId . getGatewayId)
-    <<= maybeTxn (changeTxnUuid . (^. _txnUuid))
-    <<= maybeTxn (changeTxnId . (^. _txnId))
-    <<= maybeTxn (changeStatusId . getStatusId)
-    <<= maybeTxn (changeStatus . D.TStatus .  (^. _status))
+    <== maybeTxn changeTxnDetails
+    <== maybeTxn (changeGatewayPayload . getGatewayPayload)
+    <== maybeTxn (changeBankErrorMessage . getBankErrorMessage)
+    <== maybeTxn (changeBankErrorCode . getBankErrorCode)
+    <== maybeTxn (const $ changeGatewayRefId gatewayRefId)
+    <== maybeTxn (changeGatewayId . getGatewayId)
+    <== maybeTxn (changeTxnUuid . (^. _txnUuid))
+    <== maybeTxn (changeTxnId . (^. _txnId))
+    <== maybeTxn (changeStatusId . getStatusId)
+    <== maybeTxn (changeStatus . D.TStatus .  (^. _status))
 
-    <<= changeMandate mMandate
+    <== changeMandate mMandate
 
-    <<= changeAmountAfterPromotion mPromotionActive
+    -- changeAmountAfterPromotion should follow after changePromotion
+    <== changeAmountAfterPromotion mPromotionActive
+    <== changePromotion mPromotionActive
 
-    <<= changePromotion mPromotionActive
-
-    <<= changeUtf (order ^. _udf)
-    <<= changeReturnUrl mReturnUrl
-    <<= changeCustomerPhone phone
-    <<= changeCustomerEmail email
-    <<= changeDateCreated (show $ order ^. _dateCreated)
-    <<= changeAmountRefunded amountRefunded
-    <<= changePaymentLinks paymentLinks
-    <<= changeRefunded (order ^. _refundedEntirely)
-    <<= changeCurrency currency
-    <<= changeAmount amount
-    <<= changeStatus (D.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
-    <<= changeProductId (order ^. _productId)
-    <<= changeCustomerId mCustomerId
-    <<= changeOrderId (order ^. _orderId)
-    <<= changeMerchantId (order ^. _merchantId)
-    <<= changeId orderId
+    <== changeUtf (order ^. _udf)
+    <== changeReturnUrl mReturnUrl
+    <== changeCustomerPhone phone
+    <== changeCustomerEmail email
+    <== changeDateCreated (show $ order ^. _dateCreated)
+    <== changeAmountRefunded amountRefunded
+    <== changePaymentLinks paymentLinks
+    <== changeRefunded (order ^. _refundedEntirely)
+    <== changeCurrency currency
+    <== changeAmount amount
+    <== changeStatus (D.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
+    <== changeProductId (order ^. _productId)
+    <== changeCustomerId mCustomerId
+    <== changeOrderId (order ^. _orderId)
+    <== changeMerchantId (order ^. _merchantId)
+    <== changeId orderId
+    -- start
 
 
 changeId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse

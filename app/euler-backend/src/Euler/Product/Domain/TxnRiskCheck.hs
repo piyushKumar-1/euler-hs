@@ -5,8 +5,6 @@ module Euler.Product.Domain.TxnRiskCheck where
 
 import           EulerHS.Prelude
 
-import           Euler.Common.Types.Money
-
 import           Data.Time
 
 

@@ -249,7 +249,7 @@ makeOrderStatusResponse
   -> Text
   -> Maybe D.Risk
   -> Maybe D.TxnCardInfo
-  -> Maybe Text
+  -> Maybe Text -- cardBrand
   -> Maybe [D.Refund]
   -> Maybe [D.Chargeback]
   -> Maybe Text -- returnUrl
@@ -298,7 +298,6 @@ makeOrderStatusResponse
       emiTenure txn = txn ^. _emiTenure
       emiBank txn = txn ^. _emiBank
 
-      paymentMethod = whenNothing mCardBrand (Just "UNKNOWN")
 
       -- maybeTxnCard f = maybe emptyBuilder f mTxnCard
       maybeTxn f = maybe emptyBuilder f mTxn
@@ -326,9 +325,7 @@ makeOrderStatusResponse
 
     <== changePaymentMethodType (getPaymentMethodType mTxnCard mTxn)
 
-    <== maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
-        then changeEmiPaymentMethod paymentMethod
-        else emptyBuilder)
+    <== changeEmiPaymentMethod (getEmiPaymentMethod mCardBrand  mTxnCard mTxn)
 
     <== maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
     <== maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
@@ -1047,3 +1044,10 @@ getPaymentMethodType (Just txnCard) (Just _) = if isBlankMaybe (txnCard ^. _card
   then Just M.CARD
   else Nothing
 getPaymentMethodType _ _ = Nothing
+
+getEmiPaymentMethod :: Maybe Text -> Maybe D.TxnCardInfo -> Maybe D.TxnDetail -> Maybe Text
+getEmiPaymentMethod (Just cardBrand) (Just txnCard) (Just _) =
+  if isBlankMaybe (txnCard ^. _cardIsin) then Just cardBrand else Nothing
+getEmiPaymentMethod Nothing (Just txnCard) (Just _) =
+  if isBlankMaybe (txnCard ^. _cardIsin) then Just "UNKNOWN" else Nothing
+getEmiPaymentMethod _ _ _ = Nothing

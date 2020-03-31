@@ -289,23 +289,12 @@ makeOrderStatusResponse
 
       currency = show $ order ^. _currency
 
-      isEmi txn = isTrueMaybe  (txn ^. _isEmi)
-      emiTenure txn = txn ^. _emiTenure
-      emiBank txn = txn ^. _emiBank
-
-
-      -- maybeTxnCard f = maybe emptyBuilder f mTxnCard
-      maybeTxn f = maybe emptyBuilder f mTxn
-      maybeTxnAndTxnCard f = case (mTxn, mTxnCard) of
-        (Just txn, Just txnCard) -> f txn txnCard
-        _                        -> emptyBuilder
 
 -- <== is equal to =>> and used for quick visual understanding
   pure $ extract $ buildOrderStatusResponse
     -- finish
 
     <== changeMerchantPGR mMerchantPgr
-    -- addGatewayResponse
 
     <== changeChargeBacks mChargebacks
 
@@ -314,7 +303,6 @@ makeOrderStatusResponse
 
     <== changeSecondFactorResponse secondFactorResp
     <== changeTxnFlowInfo txnFlowInfo
-      -- former addSecondFactorResponseAndTxnFlowInfo
 
     <== changeCard (getCardDetails mTxnCard mTxn sendCardIsin)
 
@@ -322,8 +310,8 @@ makeOrderStatusResponse
 
     <== changeEmiPaymentMethod mCardBrand
 
-    <== maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
-    <== maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
+    <== changeAuthType (getAuthType mTxnCard)
+    <== uncurry changeEmiTenureEmiBank (getEmiTenureEmiBank mTxn)
 
     <== changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes
 
@@ -1075,3 +1063,13 @@ getGatewayPayload :: Maybe D.TxnDetail -> Maybe Text
 getGatewayPayload Nothing = Nothing
 getGatewayPayload (Just txn) = if isBlankMaybe gatewayPayload then gatewayPayload else Nothing
   where gatewayPayload = txn ^. _gatewayPayload
+
+getAuthType :: Maybe D.TxnCardInfo -> Maybe Text
+getAuthType Nothing    = Nothing
+getAuthType (Just txnCard) = txnCard ^. _authType
+
+getEmiTenureEmiBank :: Maybe D.TxnDetail -> (Maybe Int, Maybe Text)
+getEmiTenureEmiBank (Just txn) = if isTrueMaybe  (txn ^. _isEmi)
+    then (txn ^. _emiTenure, txn ^. _emiBank)
+    else (Nothing, Nothing)
+getEmiTenureEmiBank Nothing = (Nothing, Nothing)

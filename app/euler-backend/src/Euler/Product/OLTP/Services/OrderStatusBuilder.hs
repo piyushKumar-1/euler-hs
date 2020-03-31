@@ -4,19 +4,14 @@ module Euler.Product.OLTP.Services.OrderStatusBuilder where
 
 import           EulerHS.Prelude hiding (First, Last, getFirst, getLast)
 
-import           Euler.API.MerchantPaymentGatewayResponse
-import           Euler.API.Order
-import           Euler.API.Refund
-
 import qualified Euler.Common.Types.External.Mandate as M
 import qualified Euler.Common.Types as C
 
 import qualified Euler.Product.Domain as D
 
 
-import           Control.Comonad hiding ((<<=))
+import           Control.Comonad
 import           Data.Semigroup
-import qualified Data.Text as T
 import           Generics.Deriving.Semigroup (gsappenddefault)
 import           Data.Time (LocalTime)
 

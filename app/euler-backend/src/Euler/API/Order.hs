@@ -11,33 +11,23 @@ import qualified Data.ByteString.Lazy as BSL
 import           Data.Generics.Product.Fields
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
-import           Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Time
-import           Generics.Deriving.Semigroup (gsappenddefault)
-import           Web.FormUrlEncoded
 
 import           Euler.Common.Types.External.Mandate (MandateFeature)
 import           Euler.Common.Types.External.Order (OrderStatus (..))
 
 import qualified Euler.Common.Types as C
 import           Euler.Common.Types.Currency (Currency)
-import           Euler.Common.Types.Merchant (MerchantId)
 import           Euler.Common.Types.Money
-import           Euler.Common.Types.Order (OrderId)
 import           Euler.Common.Types.Promotion
 
 import qualified Euler.API.MerchantPaymentGatewayResponse as M
 import           Euler.API.Refund
-import           Euler.API.Types
-
-import           Euler.Common.Utils
 
 import qualified Euler.Product.Domain as D
 import qualified Euler.Product.Domain.OrderStatusResponse as DO
-
-import           Euler.Storage.Types.Mandate
 
 
 -- Previously: OrderCreateReq
@@ -559,7 +549,7 @@ mkOrderStatusResponse orderStatus = OrderStatusResponse
   ,  status_id                 = fromMaybe 0 $ getField @"status_id" orderStatus
   ,  status                    = show $ fromMaybe D.DEFAULT $ getField @"status" orderStatus
   ,  payment_method_type       = show <$> getField @"payment_method_type" orderStatus
-  ,  auth_type                 = getField @"auth_type" orderStatus
+  ,  auth_type                 = whenNothing (getField @"auth_type" orderStatus) (Just T.empty)
   ,  card                      = mkCard <$> getField @"card" orderStatus
   ,  payment_method            = getField @"payment_method" orderStatus
   ,  refunded                  = getField @"refunded" orderStatus

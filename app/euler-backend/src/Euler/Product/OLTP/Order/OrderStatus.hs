@@ -323,7 +323,7 @@ makeOrderStatusResponse
 
     <== changeCard (getCardDetails mTxnCard mTxn sendCardIsin)
 
-    <== changePaymentMethodType (getPaymentMethodType mTxnCard mTxn)
+    <== changePaymentMethodType (getPaymentMethodType mTxnCard)
 
     <== changeEmiPaymentMethod mCardBrand
 
@@ -1039,11 +1039,11 @@ getRulesFromString bs =
 getMaskedAccNo :: Text -> Text
 getMaskedAccNo txt = T.append (T.map (const 'X') $ T.dropEnd 4 txt) (T.takeEnd 4 txt)
 
-getPaymentMethodType :: Maybe D.TxnCardInfo -> Maybe D.TxnDetail -> Maybe M.PaymentMethodType
-getPaymentMethodType (Just txnCard) (Just _) = if isBlankMaybe (txnCard ^. _cardIsin)
+getPaymentMethodType :: Maybe D.TxnCardInfo -> Maybe M.PaymentMethodType
+getPaymentMethodType Nothing = Nothing
+getPaymentMethodType (Just txnCard) = if isBlankMaybe (txnCard ^. _cardIsin)
   then Just M.CARD
   else Nothing
-getPaymentMethodType _ _ = Nothing
 
 getEmiPaymentMethod :: Maybe Text -> Maybe Text -> Maybe Text
 getEmiPaymentMethod cardIsin (Just cardBrand) = if isBlankMaybe cardIsin then Just cardBrand else Nothing

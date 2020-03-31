@@ -8,6 +8,7 @@ import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order
 import           Euler.API.Refund
 
+import qualified Euler.Common.Types.External.Mandate as M
 import qualified Euler.Common.Types as C
 
 import qualified Euler.Product.Domain as D
@@ -90,7 +91,7 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   ,  txn_idT                    :: Maybe (Last Text)
   ,  status_idT                 :: Maybe (Last Int)
   ,  statusT                    :: Maybe (Last D.OrderTxnStatus)
-  ,  payment_method_typeT       :: Maybe (Last Text)
+  ,  payment_method_typeT       :: Maybe (Last M.PaymentMethodType)
   ,  auth_typeT                 :: Maybe (Last Text)
   ,  cardT                      :: Maybe (Last D.Card)
   ,  payment_methodT            :: Maybe (Last Text)

@@ -2,24 +2,25 @@
 
 module Euler.Product.Domain.OrderStatusResponse where
 
-import qualified Prelude as P
 import           EulerHS.Prelude hiding (show)
+import qualified Prelude as P
 
 import qualified Euler.Common.Types as C
+import qualified Euler.Common.Types.External.Mandate as M
 import           Euler.Common.Types.External.Order
 import           Euler.Common.Types.TxnDetail (TxnStatus)
 
-import qualified Euler.Product.Domain.Chargeback as D
-import qualified Euler.Product.Domain.Refund as D
-import qualified Euler.Product.Domain.Mandate as D
-import qualified Euler.Product.Domain.Paymentlinks as D
 import qualified Euler.Product.Domain.Card as D
-import qualified Euler.Product.Domain.Promotion as D
-import qualified Euler.Product.Domain.TxnRiskCheck as D
-import qualified Euler.Product.Domain.TxnDetail as D
+import qualified Euler.Product.Domain.Chargeback as D
+import qualified Euler.Product.Domain.Mandate as D
 import qualified Euler.Product.Domain.MerchantPaymentGatewayResponse as D
+import qualified Euler.Product.Domain.Paymentlinks as D
+import qualified Euler.Product.Domain.Promotion as D
+import qualified Euler.Product.Domain.Refund as D
 import qualified Euler.Product.Domain.SecondFactorResponse as D
+import qualified Euler.Product.Domain.TxnDetail as D
 import qualified Euler.Product.Domain.TxnFlowInfo as D
+import qualified Euler.Product.Domain.TxnRiskCheck as D
 
 
 data OrderStatusResponse = OrderStatusResponse
@@ -39,7 +40,7 @@ data OrderStatusResponse = OrderStatusResponse
   ,  txn_id                   :: Maybe Text
   ,  status_id                :: Maybe Int
   ,  status                   :: Maybe OrderTxnStatus
-  ,  payment_method_type      :: Maybe Text
+  ,  payment_method_type      :: Maybe M.PaymentMethodType
   ,  auth_type                :: Maybe Text
   ,  card                     :: Maybe D.Card
   ,  payment_method           :: Maybe Text
@@ -72,7 +73,7 @@ data OrderTxnStatus = OStatus OrderStatus | TStatus TxnStatus | DEFAULT
   deriving (Eq, Ord, Generic, ToJSON, FromJSON)
 
 instance Show OrderTxnStatus where
-  show DEFAULT = "DEFAULT"
+  show DEFAULT      = "DEFAULT"
   show (OStatus os) = P.show os
   show (TStatus ts) = P.show ts
 

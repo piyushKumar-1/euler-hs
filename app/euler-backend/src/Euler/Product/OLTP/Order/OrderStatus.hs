@@ -45,7 +45,7 @@ import qualified Euler.API.RouteParameters as RP
 
 import qualified Euler.Constant.Feature as FeatureC
 
-import           Euler.Common.Types.External.Mandate as Mandate
+import           Euler.Common.Types.External.Mandate as M
 import qualified Euler.Common.Types                           as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.TxnDetail                 (TxnStatus (..), txnStatusToInt)
@@ -253,7 +253,7 @@ makeOrderStatusResponse
   -> Maybe [D.Refund]
   -> Maybe [D.Chargeback]
   -> Maybe Text -- returnUrl
-  -> (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+  -> (Maybe Text, Maybe M.PaymentMethodType, Maybe Text, Maybe Text)
   -> (Maybe D.TxnFlowInfo, Maybe D.SecondFactorResponse)
   -> Maybe D.MerchantPaymentGatewayResponse
   -> Except Text D.OrderStatusResponse
@@ -324,9 +324,7 @@ makeOrderStatusResponse
 
     <== changeCard (getCardDetails mTxnCard mTxn sendCardIsin)
 
-    <== maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
-        then changePaymentMethodType "CARD"
-        else emptyBuilder)
+    <== changePaymentMethodType (getPaymentMethodType mTxnCard mTxn)
 
     <== maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changeEmiPaymentMethod paymentMethod
@@ -485,9 +483,12 @@ changeAuthType authType builder = builder $ mempty {auth_typeT = fmap Last authT
 changeEmiPaymentMethod :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeEmiPaymentMethod paymentMethod builder = builder $ mempty {payment_methodT = fmap Last paymentMethod}
 
-changePaymentMethodType :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changePaymentMethodType
+  :: Maybe M.PaymentMethodType
+  -> OrderStatusResponseBuilder
+  -> D.OrderStatusResponse
 changePaymentMethodType paymentMethodType builder =
-  builder $ mempty {payment_method_typeT = Just $ Last paymentMethodType}
+  builder $ mempty {payment_method_typeT = fmap Last paymentMethodType}
 
 changeCard :: Maybe D.Card -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCard card builder = builder $ mempty {cardT = fmap Last card}
@@ -502,7 +503,7 @@ changeChargeBacks mChargebacks builder = builder $ mempty {chargebacksT = fmap L
 
 
 changePaymentMethodAndTypeAndVpa
-  :: (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+  :: (Maybe Text, Maybe M.PaymentMethodType, Maybe Text, Maybe Text)
   -> OrderStatusResponseBuilder
   -> D.OrderStatusResponse
 changePaymentMethodAndTypeAndVpa (mPaymentMethod, mPaymentMethodType, mPayerVpa, mPayerAppName) builder =
@@ -751,14 +752,14 @@ sanitizeAmount x = x
 getPaymentMethodAndType
   :: D.TxnDetail
   -> D.TxnCardInfo
-  -> Flow (Maybe Text, Maybe Text, Maybe Text, Maybe Text)
+  -> Flow (Maybe Text, Maybe M.PaymentMethodType, Maybe Text, Maybe Text)
   -- ^ Result is (payment_method, payment_method_type, payer_vpa, payer_app_name)
   -- when Nothing do not change a field
 getPaymentMethodAndType txn card = do
   case (card ^. _cardType) of
     Just "NB" -> pure
       ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
-      , Just "NB"
+      , Just M.NB
       , Nothing
       , Nothing
       )
@@ -769,14 +770,14 @@ getPaymentMethodAndType txn card = do
         Just _           -> pure ""
       pure
         ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
-        , Just "WALLET"
+        , Just M.WALLET
         , Just payerVpa
         , Nothing
         )
 
     Just "UPI" -> do
       let payment_method = Just "UPI"
-          payment_method_type = Just "UPI"
+          payment_method_type = Just M.UPI
           paymentSource = if (fromMaybe "null" $ card ^. _paymentSource) == "null"
             then Just ""
             else whenNothing (card ^. _paymentSource) (Just "null")
@@ -808,25 +809,25 @@ getPaymentMethodAndType txn card = do
 
     Just "PAYLATER" -> pure
         ( Just "JUSPAY"
-        , Just "PAYLATER"
+        , Just M.PAYLATER
         , Nothing
         , Nothing
         )
     Just "CARD" -> pure
       ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
-      , Just "CARD"
+      , Just M.CARD
       , Nothing
       , Nothing
       )
     Just "REWARD" -> pure
       ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
-      , Just "REWARD"
+      , Just M.REWARD
       , Nothing
       , Nothing
       )
     Just "ATM_CARD" -> pure
       ( whenNothing (card ^. _cardIssuerBankName) (Just T.empty)
-      , Just "CARD"
+      , Just M.CARD
       , Nothing
       , Nothing
       )
@@ -835,15 +836,15 @@ getPaymentMethodAndType txn card = do
 
   where
     checkPaymentMethodType card' = case (card' ^. _paymentMethodType) of
-      Just Mandate.CASH -> pure
+      Just M.CASH -> pure
         ( whenNothing (card' ^. _paymentMethod) (Just T.empty)
-        , Just "CASH"
+        , Just M.CASH
         , Nothing
         , Nothing
         )
-      Just Mandate.CONSUMER_FINANCE -> pure
+      Just M.CONSUMER_FINANCE -> pure
         ( whenNothing (card' ^. _paymentMethod) (Just T.empty)
-        , Just "CONSUMER_FINANCE"
+        , Just M.CONSUMER_FINANCE
         , Nothing
         , Nothing
         )
@@ -1041,3 +1042,8 @@ getRulesFromString bs =
 getMaskedAccNo :: Text -> Text
 getMaskedAccNo txt = T.append (T.map (const 'X') $ T.dropEnd 4 txt) (T.takeEnd 4 txt)
 
+getPaymentMethodType :: Maybe D.TxnCardInfo -> Maybe D.TxnDetail -> Maybe M.PaymentMethodType
+getPaymentMethodType (Just txnCard) (Just _) = if isBlankMaybe (txnCard ^. _cardIsin)
+  then Just M.CARD
+  else Nothing
+getPaymentMethodType _ _ = Nothing

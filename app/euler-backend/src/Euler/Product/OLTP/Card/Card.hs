@@ -81,11 +81,12 @@ isin cardData = T.take 6 (getField @"cardNumber" cardData)
 --       if (cardSwitchProvider == "") then (pure Nothing) else pure $ Just cardSwitchProvider
 --     _ -> pure $ Just cardBrand
 
-getCardBrandFromIsin :: Text -> Flow (Maybe Text)
-getCardBrandFromIsin cardIsin' = do
-  let cardBrand = getCardBrand cardIsin'
-  case cardBrand of
-    "" -> do
+getCardBrandFromIsin :: Maybe Text -> Flow (Maybe Text)
+getCardBrandFromIsin Nothing = pure Nothing
+getCardBrandFromIsin (Just cardIsin') = do
+  let mCardBrand = getCardBrand cardIsin'
+  case mCardBrand of
+    Nothing -> do
       cardInfo <- withDB eulerDB $ do
         let predicate CardInfo {cardIsin} = cardIsin ==. B.val_ cardIsin'
         findRow
@@ -94,7 +95,7 @@ getCardBrandFromIsin cardIsin' = do
           $ B.filter_ predicate
           $ B.all_ (EDB.card_info eulerDBSchema)
       pure $ getField @"cardSwitchProvider" <$> cardInfo
-    _ -> pure $ Just cardBrand
+    _ -> pure mCardBrand
 
 
 -- ----------------------------------------------------------------------------
@@ -299,9 +300,8 @@ evalCardISIN isin (fn, _) = fn isin
 -- getCardBrand :: String -> String
 -- getCardBrand cardISIN = maybe "" (\idx -> (maybe "" snd (index allCardsFn idx))) (findIndex (evalCardISIN (trim cardISIN)) allCardsFn)
 
-getCardBrand :: Text -> Text
-getCardBrand cardISIN =
-  maybe "" snd $ L.find (evalCardISIN $ T.strip cardISIN) allCardsFn
+getCardBrand :: Text -> Maybe Text
+getCardBrand cardISIN = snd <$> L.find (evalCardISIN $ T.strip cardISIN) allCardsFn
 
 
 -- ------------------------------------------------------------------------------

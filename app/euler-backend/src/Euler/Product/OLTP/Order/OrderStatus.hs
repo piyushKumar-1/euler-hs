@@ -203,8 +203,7 @@ execOrderStatusQuery' request = do
 
   mCardBrand <- case mTxnCard of
     Nothing                      -> pure Nothing
-    Just (card :: D.TxnCardInfo) ->
-      getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
+    Just (card :: D.TxnCardInfo) -> getCardBrandFromIsin $ card ^. _cardIsin
 
   mReturnUrl <- getReturnUrl merchantId orderReturnUrl
 
@@ -319,13 +318,13 @@ makeOrderStatusResponse
 
     <== changeSecondFactorResponse secondFactorResp
     <== changeTxnFlowInfo txnFlowInfo
-      -- addSecondFactorResponseAndTxnFlowInfo
+      -- former addSecondFactorResponseAndTxnFlowInfo
 
     <== changeCard (getCardDetails mTxnCard mTxn sendCardIsin)
 
     <== changePaymentMethodType (getPaymentMethodType mTxnCard mTxn)
 
-    <== changeEmiPaymentMethod (getEmiPaymentMethod mCardBrand  mTxnCard mTxn)
+    <== changeEmiPaymentMethod (getEmiPaymentMethod mCardBrand mTxnCard mTxn)
 
     <== maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
     <== maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)

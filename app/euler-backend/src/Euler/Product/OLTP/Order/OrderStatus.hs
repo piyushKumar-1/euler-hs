@@ -187,10 +187,8 @@ execOrderStatusQuery' request = do
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
   gatewayRefId <- case mTxn of
-    Nothing -> getGatewayReferenceId2 Nothing orderPId udf2 merchantId
-    Just txn -> do
-      let gateway = txn ^. _gateway
-      getGatewayReferenceId2 gateway orderPId udf2 merchantId
+    Nothing -> getGatewayReferenceId Nothing orderPId udf2 merchantId
+    Just txn -> getGatewayReferenceId (txn ^. _gateway) orderPId udf2 merchantId
 
   (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr) <- case mTxn of
     Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
@@ -204,7 +202,7 @@ execOrderStatusQuery' request = do
       pure (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr)
 
   mCardBrand <- case mTxnCard of
-    Nothing                    -> pure Nothing
+    Nothing                      -> pure Nothing
     Just (card :: D.TxnCardInfo) ->
       getCardBrandFromIsin (fromMaybe "" $ card ^. _cardIsin)
 
@@ -324,9 +322,7 @@ makeOrderStatusResponse
     <== changeTxnFlowInfo txnFlowInfo
       -- addSecondFactorResponseAndTxnFlowInfo
 
-    <== maybeTxnAndTxnCard (\txn txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
-        then changeCard (getCardDetails txnCard txn sendCardIsin)
-        else emptyBuilder)
+    <== changeCard (getCardDetails mTxnCard mTxn sendCardIsin)
 
     <== maybeTxnAndTxnCard (\_ txnCard -> if isBlankMaybe (txnCard ^. _cardIsin)
         then changePaymentMethodType "CARD"
@@ -347,7 +343,7 @@ makeOrderStatusResponse
     <== maybeTxn (changeGatewayPayload . getGatewayPayload)
     <== maybeTxn (changeBankErrorMessage . getBankErrorMessage)
     <== maybeTxn (changeBankErrorCode . getBankErrorCode)
-    <== maybeTxn (const $ changeGatewayRefId gatewayRefId)
+    <== changeGatewayRefId gatewayRefId
     <== maybeTxn (changeGatewayId . getGatewayId)
     <== maybeTxn (changeTxnUuid . (^. _txnUuid))
     <== maybeTxn (changeTxnId . (^. _txnId))
@@ -493,8 +489,8 @@ changePaymentMethodType :: Text -> OrderStatusResponseBuilder -> D.OrderStatusRe
 changePaymentMethodType paymentMethodType builder =
   builder $ mempty {payment_method_typeT = Just $ Last paymentMethodType}
 
-changeCard :: D.Card -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeCard card builder = builder $ mempty {cardT = Just $ Last card}
+changeCard :: Maybe D.Card -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeCard card builder = builder $ mempty {cardT = fmap Last card}
 
 
 changeRefund :: Maybe [D.Refund] -> OrderStatusResponseBuilder -> D.OrderStatusResponse
@@ -605,13 +601,13 @@ loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
     $ B.all_ (DB.order_metadata_v2 DB.eulerDBSchema)
 
 
-getGatewayReferenceId2
+getGatewayReferenceId
   :: Maybe C.Gateway
   -> C.OrderPId
   -> Maybe Text -- udf2
   -> C.MerchantId
   -> Flow Text
-getGatewayReferenceId2 gateway orderPId udf2 merchantId = do
+getGatewayReferenceId gateway orderPId udf2 merchantId = do
   let checkGateway = checkGatewayRefIdForVodafone merchantId udf2 gateway
   let gatewayT = maybe "" show gateway
 
@@ -975,25 +971,29 @@ getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =
       in Just $ toStrict $ TL.decodeUtf8 $ encode $ getMapFromPGRXml pgrXml
     else Nothing
 
-getCardDetails :: D.TxnCardInfo -> D.TxnDetail -> Bool -> D.Card
-getCardDetails card txn shouldSendCardIsin = D.Card
-  { expiryYear = card ^. _cardExpYear
-  , cardReference = card ^. _cardReferenceId
-  , savedToLocker = isSavedToLocker card txn
-  , expiryMonth = card ^. _cardExpMonth
-  , nameOnCard = card ^. _nameOnCard
-  , cardIssuer = card ^. _cardIssuerBankName
-  , lastFourDigits = card ^. _cardLastFourDigits
-  , usingSavedCard = txn ^. _expressCheckout
-  , cardFingerprint = card ^. _cardFingerprint
-  , cardIsin = if shouldSendCardIsin then (card ^. _cardIsin) else Just ""
-  , cardType = card ^. _cardType
-  , cardBrand = card ^. _cardSwitchProvider
-  , shouldSendCardIsin = shouldSendCardIsin
-  }
+getCardDetails :: Maybe D.TxnCardInfo -> Maybe D.TxnDetail -> Bool -> Maybe D.Card
+getCardDetails (Just card) (Just txn) shouldSendCardIsin =
+  if isBlankMaybe (card ^. _cardIsin)
+    then Just D.Card
+      { expiryYear = card ^. _cardExpYear
+      , cardReference = card ^. _cardReferenceId
+      , savedToLocker = isSavedToLocker card txn
+      , expiryMonth = card ^. _cardExpMonth
+      , nameOnCard = card ^. _nameOnCard
+      , cardIssuer = card ^. _cardIssuerBankName
+      , lastFourDigits = card ^. _cardLastFourDigits
+      , usingSavedCard = txn ^. _expressCheckout
+      , cardFingerprint = card ^. _cardFingerprint
+      , cardIsin = if shouldSendCardIsin then (card ^. _cardIsin) else Just ""
+      , cardType = card ^. _cardType
+      , cardBrand = card ^. _cardSwitchProvider
+      , shouldSendCardIsin = shouldSendCardIsin
+      }
+    else Nothing
   where
     isSavedToLocker card' txn' =
       isTrueMaybe (txn' ^. _addToLocker) && (isBlankMaybe $ card' ^. _cardReferenceId)
+getCardDetails _ _ _ = Nothing
 
 getActivePromotion :: C.OrderId -> [D.Promotion] -> Flow (Maybe D.PromotionActive)
 getActivePromotion _ [] = pure Nothing

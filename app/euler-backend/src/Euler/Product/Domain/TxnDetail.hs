@@ -8,7 +8,6 @@ import           EulerHS.Prelude
 import qualified Euler.Common.Types as C
 import qualified Euler.Common.Types.TxnDetail as TDC
 
-import           Data.Generics.Product.Fields
 import           Data.Time
 
 

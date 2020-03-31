@@ -22,6 +22,8 @@ import qualified Euler.Product.Domain.TxnDetail as D
 import qualified Euler.Product.Domain.TxnFlowInfo as D
 import qualified Euler.Product.Domain.TxnRiskCheck as D
 
+import           Data.Time (LocalTime)
+
 
 data OrderStatusResponse = OrderStatusResponse
   {  id                       :: Maybe Text
@@ -29,7 +31,7 @@ data OrderStatusResponse = OrderStatusResponse
   ,  amount                   :: Maybe C.Money
   ,  currency                 :: Maybe Text
   ,  order_id                 :: Maybe Text
-  ,  date_created             :: Maybe Text
+  ,  date_created             :: Maybe LocalTime
   ,  return_url               :: Maybe Text
   ,  product_id               :: Maybe Text
   ,  customer_email           :: Maybe Text

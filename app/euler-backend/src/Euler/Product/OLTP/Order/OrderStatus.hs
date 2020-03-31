@@ -14,8 +14,8 @@ module Euler.Product.OLTP.Order.OrderStatus where
 import           EulerHS.Prelude hiding (First, Last, getFirst, getLast, id)
 import qualified EulerHS.Prelude as P (id)
 
-import qualified Euler.Encryption as E
 import qualified Euler.Config.Creditails as Cred
+import qualified Euler.Encryption as E
 import           Euler.Lens
 import           EulerHS.Language
 import           EulerHS.Types
@@ -23,6 +23,7 @@ import           EulerHS.Types
 import           Control.Comonad (extract)
 import           Control.Monad.Except
 import           Data.Aeson
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy.Char8 as LC
@@ -33,8 +34,8 @@ import           Data.Semigroup as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy.Encoding as TL
+import           Data.Time (LocalTime)
 import           Servant.Server
-import qualified Data.Aeson as A
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters (..))
@@ -43,10 +44,10 @@ import qualified Euler.API.RouteParameters as RP
 
 import qualified Euler.Constant.Feature as FeatureC
 
+import qualified Euler.Common.Types as C
 import           Euler.Common.Types.External.Mandate as M
-import qualified Euler.Common.Types                           as C
 import           Euler.Common.Types.PaymentGatewayResponseXml
-import           Euler.Common.Types.TxnDetail                 (TxnStatus (..), txnStatusToInt)
+import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
 
 import           Euler.Common.Utils
 import           Euler.Config.Config as Config
@@ -127,7 +128,7 @@ execOrderStatusQuery req@D.OrderStatusRequest{..} = do
     mbCached <- fastPath
     result <- case mbCached of
       Just cached -> pure cached
-      Nothing -> slowPath
+      Nothing     -> slowPath
     -- EHS: todo: version transformations and token adding should be done later on
     -- EHS: gateway transformations? are we done with it?
     --let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
@@ -185,7 +186,7 @@ execOrderStatusQuery' request = do
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
   gatewayRefId <- case mTxn of
-    Nothing -> getGatewayReferenceId Nothing orderPId udf2 merchantId
+    Nothing  -> getGatewayReferenceId Nothing orderPId udf2 merchantId
     Just txn -> getGatewayReferenceId (txn ^. _gateway) orderPId udf2 merchantId
 
   (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr) <- case mTxn of
@@ -286,12 +287,6 @@ makeOrderStatusResponse
       amount = order ^. _amount
       amountRefunded = order ^. _amountRefunded
 
-      getStatusId = txnStatusToInt . (^. _status)
-      getGatewayId txn = maybe 0 C.gatewayIdFromGateway $ txn ^. _gateway
-      getBankErrorCode txn = whenNothing  (txn ^. _bankErrorCode) (Just "")
-      getBankErrorMessage txn = whenNothing  (txn ^. _bankErrorMessage) (Just "")
-      getGatewayPayload txn = if isBlankMaybe (mGatewayPayload' txn) then (mGatewayPayload' txn) else Nothing
-        where mGatewayPayload' t = t ^. _gatewayPayload
       currency = show $ order ^. _currency
 
       isEmi txn = isTrueMaybe  (txn ^. _isEmi)
@@ -334,16 +329,16 @@ makeOrderStatusResponse
 
     <== changeRisk mRisk
 
-    <== maybeTxn changeTxnDetails
-    <== maybeTxn (changeGatewayPayload . getGatewayPayload)
-    <== maybeTxn (changeBankErrorMessage . getBankErrorMessage)
-    <== maybeTxn (changeBankErrorCode . getBankErrorCode)
+    <== changeTxnDetails mTxn
+    <== changeGatewayPayload (getGatewayPayload mTxn)
+    <== changeBankErrorMessage (getBankErrorMessage mTxn)
+    <== changeBankErrorCode (getBankErrorCode mTxn)
     <== changeGatewayRefId gatewayRefId
-    <== maybeTxn (changeGatewayId . getGatewayId)
-    <== maybeTxn (changeTxnUuid . (^. _txnUuid))
-    <== maybeTxn (changeTxnId . (^. _txnId))
-    <== maybeTxn (changeStatusId . getStatusId)
-    <== maybeTxn (changeStatus . D.TStatus .  (^. _status))
+    <== changeGatewayId (getGatewayId mTxn)
+    <== changeTxnUuid (getTxnUuid mTxn)
+    <== changeTxnId (getTxnId mTxn)
+    <== changeStatusId (getStatusId mTxn)
+    <== changeStatus (getTxnStatus mTxn)
 
     <== changeMandate mMandate
 
@@ -355,13 +350,13 @@ makeOrderStatusResponse
     <== changeReturnUrl mReturnUrl
     <== changeCustomerPhone phone
     <== changeCustomerEmail email
-    <== changeDateCreated (show $ order ^. _dateCreated)
+    <== changeDateCreated (order ^. _dateCreated)
     <== changeAmountRefunded amountRefunded
     <== changePaymentLinks paymentLinks
     <== changeRefunded (order ^. _refundedEntirely)
     <== changeCurrency currency
     <== changeAmount amount
-    <== changeStatus (D.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
+    <== changeStatus (Just $ D.OStatus $ C.toOrderStatusEx $ order ^. _orderStatus)
     <== changeProductId (order ^. _productId)
     <== changeCustomerId mCustomerId
     <== changeOrderId (order ^. _orderId)
@@ -388,8 +383,8 @@ changeCustomerId customerId builder = builder $ mempty {customer_idT = fmap Last
 changeProductId :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeProductId productId builder = builder $ mempty {product_idT = fmap Last productId}
 
-changeStatus :: D.OrderTxnStatus -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeStatus status builder = builder $ mempty {statusT = Just $ Last status}
+changeStatus :: Maybe D.OrderTxnStatus -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeStatus status builder = builder $ mempty {statusT = fmap Last status}
 
 changeCurrency :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeCurrency currency builder = builder $ mempty {currencyT = Just $ Last currency}
@@ -403,7 +398,7 @@ changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Jus
 changeAmountRefunded :: Maybe C.Money -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = fmap Last amountRefunded}
 
-changeDateCreated :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeDateCreated :: LocalTime -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeDateCreated dateCreated builder = builder $ mempty {date_createdT = Just $ Last dateCreated}
 
 changeCustomerEmail :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
@@ -436,17 +431,17 @@ changeMandate :: Maybe D.Mandate -> OrderStatusResponseBuilder -> D.OrderStatusR
 changeMandate mandate builder = builder $ mempty { mandateT = fmap Last mandate}
 
 
-changeStatusId :: Int -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeStatusId statusId builder = builder $ mempty {status_idT = Just $ Last statusId}
+changeStatusId :: Maybe Int -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeStatusId statusId builder = builder $ mempty {status_idT = fmap Last statusId}
 
-changeTxnId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeTxnId txnId builder = builder $ mempty {txn_idT = Just $ Last txnId}
+changeTxnId :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeTxnId txnId builder = builder $ mempty {txn_idT = fmap Last txnId}
 
 changeTxnUuid :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeTxnUuid txnUuid builder = builder $ mempty {txn_uuidT = fmap Last txnUuid}
 
-changeGatewayId :: Int -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = Just $ Last gatewayId}
+changeGatewayId :: Maybe Int -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeGatewayId gatewayId builder = builder $ mempty {gateway_idT = fmap Last gatewayId}
 
 changeGatewayRefId :: Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeGatewayRefId gatewayRefId builder = builder $ mempty {gateway_reference_idT = Just $ Last gatewayRefId}
@@ -460,9 +455,8 @@ changeBankErrorMessage bankErrorMessage builder = builder $ mempty {bank_error_m
 changeGatewayPayload :: Maybe Text -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeGatewayPayload gatewayPayload builder = builder $ mempty {gateway_payloadT = fmap Last gatewayPayload}
 
-changeTxnDetails :: D.TxnDetail -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = Just $ Last txnDetail}
-
+changeTxnDetails :: Maybe D.TxnDetail -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeTxnDetails txnDetail builder = builder $ mempty {txn_detailT = fmap Last txnDetail}
 
 changeRisk :: Maybe D.Risk -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeRisk risk builder = builder $ mempty {riskT = fmap Last risk}
@@ -1048,3 +1042,36 @@ getPaymentMethodType (Just txnCard) = if isBlankMaybe (txnCard ^. _cardIsin)
 getEmiPaymentMethod :: Maybe Text -> Maybe Text -> Maybe Text
 getEmiPaymentMethod cardIsin (Just cardBrand) = if isBlankMaybe cardIsin then Just cardBrand else Nothing
 getEmiPaymentMethod cardIsin Nothing = if isBlankMaybe cardIsin then Just "UNKNOWN" else Nothing
+
+getBankErrorMessage :: Maybe D.TxnDetail -> Maybe Text
+getBankErrorMessage Nothing    = Nothing
+getBankErrorMessage (Just txn) = txn ^. _bankErrorMessage
+
+getBankErrorCode :: Maybe D.TxnDetail -> Maybe Text
+getBankErrorCode Nothing    = Nothing
+getBankErrorCode (Just txn) = txn ^. _bankErrorCode
+
+getGatewayId :: Maybe D.TxnDetail -> Maybe Int
+getGatewayId Nothing    = Nothing
+getGatewayId (Just txn) = C.gatewayIdFromGateway <$> txn ^. _gateway
+
+getTxnStatus :: Maybe D.TxnDetail -> Maybe D.OrderTxnStatus
+getTxnStatus Nothing    = Nothing
+getTxnStatus (Just txn) = Just $ D.TStatus $ txn ^. _status
+
+getTxnUuid :: Maybe D.TxnDetail -> Maybe Text
+getTxnUuid Nothing    = Nothing
+getTxnUuid (Just txn) = txn ^. _txnUuid
+
+getTxnId :: Maybe D.TxnDetail -> Maybe Text
+getTxnId Nothing    = Nothing
+getTxnId (Just txn) = Just $ txn ^. _txnId
+
+getStatusId :: Maybe D.TxnDetail -> Maybe Int
+getStatusId Nothing    = Nothing
+getStatusId (Just txn) = Just $ txnStatusToInt $ txn ^. _status
+
+getGatewayPayload :: Maybe D.TxnDetail -> Maybe Text
+getGatewayPayload Nothing = Nothing
+getGatewayPayload (Just txn) = if isBlankMaybe gatewayPayload then gatewayPayload else Nothing
+  where gatewayPayload = txn ^. _gatewayPayload

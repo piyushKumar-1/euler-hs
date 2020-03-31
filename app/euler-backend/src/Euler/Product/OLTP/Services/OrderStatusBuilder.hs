@@ -18,6 +18,7 @@ import           Control.Comonad hiding ((<<=))
 import           Data.Semigroup
 import qualified Data.Text as T
 import           Generics.Deriving.Semigroup (gsappenddefault)
+import           Data.Time (LocalTime)
 
 
 (<==) :: Comonad w => w a -> (w a -> b) -> w b
@@ -80,7 +81,7 @@ data OrderStatusResponseCollector = OrderStatusResponseCollector
   ,  amountT                    :: Maybe (Last C.Money)
   ,  currencyT                  :: Maybe (Last Text)
   ,  order_idT                  :: Maybe (First Text)
-  ,  date_createdT              :: Maybe (Last Text)
+  ,  date_createdT              :: Maybe (Last LocalTime)
   ,  return_urlT                :: Maybe (Last Text)
   ,  product_idT                :: Maybe (Last Text)
   ,  customer_emailT            :: Maybe (Last Text)

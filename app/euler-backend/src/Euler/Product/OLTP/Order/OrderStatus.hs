@@ -36,9 +36,7 @@ import qualified Data.Text.Lazy.Encoding as TL
 import           Servant.Server
 import qualified Data.Aeson as A
 
-import           Euler.API.MerchantPaymentGatewayResponse
 import           Euler.API.Order as AO
-import           Euler.API.Refund
 import           Euler.API.RouteParameters (RouteParameters (..))
 import qualified Euler.API.RouteParameters as RP
 
@@ -142,7 +140,7 @@ execOrderStatusQuery req@D.OrderStatusRequest{..} = do
     slowPath = do
       r <- execOrderStatusQuery' req
       case r of
-        Left e -> do
+        Left _ -> do
           -- EHS: fixme
           logError @Text "" ""
           throwException err500
@@ -203,7 +201,10 @@ execOrderStatusQuery' request = do
 
   mCardBrand <- case mTxnCard of
     Nothing                      -> pure Nothing
-    Just (card :: D.TxnCardInfo) -> getCardBrandFromIsin $ card ^. _cardIsin
+    Just (card :: D.TxnCardInfo) -> do
+      let cardIsin = card ^. _cardIsin
+      cardBrand <- getCardBrandFromIsin cardIsin
+      pure $ getEmiPaymentMethod cardIsin cardBrand
 
   mReturnUrl <- getReturnUrl merchantId orderReturnUrl
 
@@ -324,12 +325,12 @@ makeOrderStatusResponse
 
     <== changePaymentMethodType (getPaymentMethodType mTxnCard mTxn)
 
-    <== changeEmiPaymentMethod (getEmiPaymentMethod mCardBrand mTxnCard mTxn)
+    <== changeEmiPaymentMethod mCardBrand
 
     <== maybeTxnAndTxnCard (\_ txnCard -> changeAuthType $ whenNothing (txnCard ^. _authType) (Just ""))
     <== maybeTxnAndTxnCard (\txn _ -> if isEmi txn then changeEmiTenureEmiBank (emiTenure txn) (emiBank txn) else emptyBuilder)
 
-    <== maybeTxnAndTxnCard (\_ _ -> changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes)
+    <== changePaymentMethodAndTypeAndVpa paymentMethodsAndTypes
 
     <== changeRisk mRisk
 
@@ -1044,9 +1045,6 @@ getPaymentMethodType (Just txnCard) (Just _) = if isBlankMaybe (txnCard ^. _card
   else Nothing
 getPaymentMethodType _ _ = Nothing
 
-getEmiPaymentMethod :: Maybe Text -> Maybe D.TxnCardInfo -> Maybe D.TxnDetail -> Maybe Text
-getEmiPaymentMethod (Just cardBrand) (Just txnCard) (Just _) =
-  if isBlankMaybe (txnCard ^. _cardIsin) then Just cardBrand else Nothing
-getEmiPaymentMethod Nothing (Just txnCard) (Just _) =
-  if isBlankMaybe (txnCard ^. _cardIsin) then Just "UNKNOWN" else Nothing
-getEmiPaymentMethod _ _ _ = Nothing
+getEmiPaymentMethod :: Maybe Text -> Maybe Text -> Maybe Text
+getEmiPaymentMethod cardIsin (Just cardBrand) = if isBlankMaybe cardIsin then Just cardBrand else Nothing
+getEmiPaymentMethod cardIsin Nothing = if isBlankMaybe cardIsin then Just "UNKNOWN" else Nothing

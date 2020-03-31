@@ -26,6 +26,7 @@ module EulerHS.Core.Types.KVDB
   , fromRdTxResult
   , hedisReplyToKVDBReply
   , mkKVDBConfig
+  , mkKVDBClusterConfig
   , mkRedisConn
   , nativeToKVDB
   , kvdbToNative
@@ -172,6 +173,7 @@ nativeToKVDB connTag (NativeKVDB conn)   = Redis connTag conn
 
 data KVDBConfig
   = KVDBConfig Text RedisConfig
+  | KVDBClusterConfig Text RedisConfig
   | KVDBMockedConfig Text
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -214,11 +216,20 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
 mkKVDBConfig :: Text -> RedisConfig -> KVDBConfig
 mkKVDBConfig = KVDBConfig
 
+-- | Create cluster configuration KVDBConfig for Redis
+mkKVDBClusterConfig :: Text -> RedisConfig -> KVDBConfig
+mkKVDBClusterConfig = KVDBClusterConfig
+
 -- | Create 'KVDBConn' from 'KVDBConfig'
 mkRedisConn :: KVDBConfig -> IO KVDBConn
-mkRedisConn (KVDBMockedConfig connTag) = pure $ Mocked connTag
-mkRedisConn (KVDBConfig connTag cfg)   = Redis connTag <$> createRedisConn cfg
+mkRedisConn (KVDBMockedConfig connTag)        = pure $ Mocked connTag
+mkRedisConn (KVDBConfig connTag cfg)          = Redis connTag <$> createRedisConn cfg
+mkRedisConn (KVDBClusterConfig connTag cfg)   = Redis connTag <$> createClusterRedisConn cfg
 
 -- | Connect with the given config to the database.
 createRedisConn :: RedisConfig -> IO RD.Connection
 createRedisConn = RD.connect . toRedisConnectInfo
+
+-- | Connect with the given cluster config to the database.
+createClusterRedisConn :: RedisConfig -> IO RD.Connection
+createClusterRedisConn = RD.connectCluster . toRedisConnectInfo

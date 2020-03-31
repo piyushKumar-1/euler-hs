@@ -38,6 +38,10 @@ let
             self.callPackage ./nix/beam-mysql.nix { };
           cryptostore =
             self.callPackage ./nix/cryptostore.nix { };
+          hedis =
+            self.callPackage ./nix/hedis.nix { };
+          crc16 =
+            self.callPackage ./nix/crc16.nix { };
           # Our own packages
           euler-hs =
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };

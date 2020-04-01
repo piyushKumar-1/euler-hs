@@ -28,7 +28,7 @@ data LogLevel = Debug | Info | Warning | Error
 type Format = String
 
 data LoggerConfig
-  = MemoryLoggerConfig
+  = MemoryLoggerConfig LogLevel
   | LoggerConfig
   { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
   , _isAsync      :: Bool
@@ -56,7 +56,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToFile = False
     }
 
-mkMemoryLoggerConfig :: LoggerConfig
+mkMemoryLoggerConfig :: LogLevel -> LoggerConfig
 mkMemoryLoggerConfig = MemoryLoggerConfig
 
 nullLoger :: LoggerConfig

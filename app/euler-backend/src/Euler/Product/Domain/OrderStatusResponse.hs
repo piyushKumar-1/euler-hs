@@ -83,6 +83,7 @@ instance Show OrderTxnStatus where
 data OrderStatusRequest = OrderStatusRequest
   { orderId                 :: C.OrderId
   , merchantId              :: C.MerchantId
+  , merchantReturnUrl       :: Maybe Text
   , resellerId              :: Maybe Text
   , isAuthenticated         :: Bool
   , sendCardIsin            :: Bool

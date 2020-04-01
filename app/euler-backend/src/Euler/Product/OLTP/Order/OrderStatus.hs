@@ -103,6 +103,7 @@ handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
     let request = D.OrderStatusRequest
           { orderId                 = orderId
           , merchantId              = merchantAccount ^. _merchantId
+          , merchantReturnUrl       = merchantAccount ^. _returnUrl
           , resellerId              = merchantAccount ^. _resellerId
           , isAuthenticated         = True
           , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
@@ -154,19 +155,20 @@ execOrderStatusQuery req@D.OrderStatusRequest{..} = do
 execOrderStatusQuery' :: D.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
 execOrderStatusQuery' request = do
 
-  let queryOrderId = request ^. _orderId
-  let queryMerchantId = request ^. _merchantId
+  let reqOrderId = request ^. _orderId
+  let reqMerchantId = request ^. _merchantId
+  let merchantReturnUrl = request ^. _merchantReturnUrl
   let resellerId = request ^. _resellerId
   let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
-  mOrder <- loadOrder queryOrderId queryMerchantId
+  mOrder <- loadOrder reqOrderId reqMerchantId
 
   order <- case mOrder of
     Just o -> pure o
     Nothing -> throwException err404
       { errBody = "Order not found "
-      <> "orderId: " <> show queryOrderId
-      <> ", merchantId: " <> show queryMerchantId }
+      <> "orderId: " <> show reqOrderId
+      <> ", merchantId: " <> show reqMerchantId }
 
   let orderId = order ^. _orderId
   let merchantId = order ^. _merchantId
@@ -207,7 +209,7 @@ execOrderStatusQuery' request = do
       cardBrand <- getCardBrandFromIsin cardIsin
       pure $ getEmiPaymentMethod cardIsin cardBrand
 
-  mReturnUrl <- getReturnUrl merchantId orderReturnUrl
+  mReturnUrl <- getReturnUrl reqMerchantId merchantReturnUrl orderReturnUrl
 
   paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
     (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
@@ -540,15 +542,11 @@ createPaymentLinks orderUuid maybeResellerEndpoint = do
     , iframe = (host <> "/merchant/ipay/") <> orderUuid
     }
 
-getReturnUrl :: C.MerchantId -> Maybe Text -> Flow (Maybe Text)
-getReturnUrl merchantIdOrder returnUrlOrder = do
-  merchantAccount <- loadMerchantByMerchantId merchantIdOrder
-  case merchantAccount of
-    Nothing -> pure Nothing
-    Just merchantAcc -> do
-      merchantIframePreferences <- loadMerchantPrefsMaybe (merchantAcc ^. _merchantId)
-      let merchantIframeReturnUrl = (^. _returnUrl) =<< merchantIframePreferences
-      pure $ returnUrlOrder <|> (merchantAcc ^. _returnUrl ) <|> merchantIframeReturnUrl
+getReturnUrl :: C.MerchantId -> Maybe Text -> Maybe Text -> Flow (Maybe Text)
+getReturnUrl merchantId merchantReturnUrl orderReturnUrl = do
+  merchantIframePreferences <- loadMerchantPrefsMaybe merchantId
+  let merchantIframeReturnUrl = (^. _returnUrl) =<< merchantIframePreferences
+  pure $ orderReturnUrl <|> merchantReturnUrl <|> merchantIframeReturnUrl
 
 
 getPromotion :: C.OrderPId -> C.OrderId -> Flow (Maybe D.PromotionActive)

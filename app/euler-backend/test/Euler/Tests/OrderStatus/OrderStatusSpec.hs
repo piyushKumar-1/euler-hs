@@ -249,6 +249,7 @@ query :: D.OrderStatusRequest
 query = D.OrderStatusRequest
   { orderId                 = "orderId"
   , merchantId              = "merchantId"
+  , merchantReturnUrl       = Nothing
   , resellerId              = Just "resellerId"
   , isAuthenticated         = True
   , sendCardIsin            = True

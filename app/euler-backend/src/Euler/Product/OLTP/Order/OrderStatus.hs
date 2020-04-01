@@ -399,7 +399,7 @@ changeAmountAfterPromotion (Just newProm) builder =
   let oldStatus = extract builder
       mOldAmount = oldStatus ^. _amount
       mOldPromotion = newProm ^. _discountAmount
-      newAmount = sanitizeAmount $ (fromMaybe mempty mOldAmount) <> mOldPromotion
+      newAmount = (fromMaybe mempty mOldAmount) <> mOldPromotion
   in builder mempty { amountT = Just $ Last newAmount }
 
 
@@ -517,7 +517,6 @@ getMandate :: C.OrderPId -> C.MerchantId -> C.OrderType -> Flow (Maybe D.Mandate
 getMandate orderPId merchantId = \case
     C.MANDATE_REGISTER -> do
       loadMandate orderPId merchantId
-      -- pure $ mapMandate <$> mandate
     _ -> pure Nothing
 
 
@@ -648,68 +647,6 @@ makeRisk provider trc = if provider == Just "ebs"
       , ebsBinCountry = ""
       , ebsRiskPercentage = ""
       }
-
-
--- makeRisk :: Risk' -> D.TxnRiskCheck -> Risk
--- makeRisk risk' trc = if risk' ^. _provider == Just "ebs"
---   then case C.decodeRMSIDResult completeResponse of
---     Left _ -> mapRisk trc $ risk' & _ebs_payment_status .~ (trc ^. _riskStatus)
---     Right rmsidResult -> mapRisk trc risk'
---       { ebs_risk_level = Just $ rmsidResult ^. _riskLevel
---       , ebs_payment_status = trc ^. _riskStatus
---       , ebs_bin_country = Just $ (rmsidResult ^. _output) ^. _bincountry
---       , ebs_risk_percentage = readMaybe $ T.unpack $ rmsidResult ^. _riskPercentage
---       }
---   else mapRisk trc risk'
---   where
---     completeResponse = T.encodeUtf8 $ trc ^. _completeResponse
-
--- mapRisk :: D.TxnRiskCheck -> Risk' -> Risk
--- mapRisk trc risk' = case provider of
---   Just "ebs" -> risk
---     { ebs_risk_level = risk' ^. _ebs_risk_level
---     , ebs_payment_status = risk' ^. _ebs_payment_status
---     , ebs_bin_country = risk' ^. _ebs_bin_country
---     , ebs_risk_percentage = Just $ maybe "0" show $ risk' ^.  _ebs_risk_percentage
---     }
---   _ -> risk
---   where
---     provider = risk' ^. _provider
---     risk = Risk
---       { provider = provider
---       , status = risk' ^. _status
---       , message = risk' ^. _message
---       , flagged = show <$> whenNothing (trc ^. _flagged) (Just False)
---       , recommended_action = risk' ^. _recommended_action
---       , ebs_risk_level = Nothing
---       , ebs_payment_status = Nothing
---       , ebs_risk_percentage = Nothing
---       , ebs_bin_country = Nothing
-      -- }
-
--- refundDetails :: Int -> Flow [Refund']
--- refundDetails txnId = do
---   l <- loadRefunds txnId
---   pure $ map mapRefund l
-
-
--- chargebackDetails :: Int -> D.TxnDetailStatus -> Flow [D.ChargebackStatus]
--- chargebackDetails txnId txn = do
---   chargebacks <- findChargebacks  txnId
---   pure $ map mapChargeback chargebacks
-
--- mapChargeback :: D.Chargeback -> D.ChargebackStatus
--- mapChargeback chargeback = D.ChargebackStatus
---   {  id = chargeback ^. _id
---   ,  amount = chargeback ^. _amount
---   ,  objectReferenceId = chargeback ^. _objectReferenceId
---   ,  dateResolved = chargeback ^. _dateResolved
---   ,  dateCreated = chargeback ^. _dateCreated
---   ,  lastUpdated = chargeback ^. _lastUpdated
---   ,  disputeStatus = chargeback ^. _disputeStatus
---   }
-
-sanitizeAmount x = x
 
 
 getPaymentMethodAndType
@@ -888,14 +825,6 @@ mkTxnFlowInfo params = D.TxnFlowInfo
   ,  errorMessage = params ^. _errorMessage
   }
 
--- mkMerchantSecondFactorResponse :: D.SecondFactorResponse -> D.MerchantSecondFactorResponse
--- mkMerchantSecondFactorResponse sfr = D.MerchantSecondFactorResponse
---   { cavv = sfr ^. _cavv
---   , eci = sfr ^. _eci
---   , xid = sfr ^. _xid
---   , paresStatus = sfr ^. _status
-  -- }
-
 getMerchantPGR :: D.TxnDetail -> Bool -> Flow (Maybe D.MerchantPaymentGatewayResponse)
 getMerchantPGR txn shouldSendFullGatewayResponse = do
 
@@ -913,10 +842,8 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
             Just xml -> getMapFromPGRXml $ decodePGRXml $ T.encodeUtf8 xml
       let date = show <$> pgr ^. _dateCreated
       let mPgr = D.defaultMerchantPaymentGatewayResponse & _created .~ date
-      -- let gateway' = maybe "" show gateway
       let merchantPgr = transformMpgrByGateway mPgr pgrXml $ mkMerchantPGRServiceTemp gateway txn pgr pgrXml
       let gatewayResp = getGatewayResponseInJson pgr shouldSendFullGatewayResponse
-      -- let merchantPgr = makeMerchantPaymentGatewayResponse gatewayResponse merchantPgr'
       pure $ Just (merchantPgr & _gatewayResponse .~ gatewayResp)
 
 getGatewayResponseInJson
@@ -985,7 +912,7 @@ decryptPromotionRules rulesTxt = do
 
   ecCred <- Cred.ecTempCardCred
 
-  let rulesDecoded = B64.decode $ T.encodeUtf8 rulesTxt -- $ promotion ^. _rules
+  let rulesDecoded = B64.decode $ T.encodeUtf8 rulesTxt
   rulesjson <- case rulesDecoded of
     Right result -> pure $ E.decryptEcb (E.Key ecCred :: E.Key E.AES256 ByteString) result
     Left err     -> throwException err500 {errBody = LC.pack err}

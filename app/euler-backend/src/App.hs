@@ -77,7 +77,9 @@ runEulerBackendApp' settings = do
   let loggerCfg = T.defaultLoggerConfig
         { T._logToFile = True
         , T._logFilePath = "/tmp/euler-backend.log"
-        , T._isAsync = True
+        , T._isAsync = False
+        , T._level = T.Debug
+        , T._logToConsole = True
         }
 
   R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do

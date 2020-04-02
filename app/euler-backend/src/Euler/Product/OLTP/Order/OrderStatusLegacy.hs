@@ -90,7 +90,7 @@ import qualified Database.Beam.Backend.SQL as B
 import           Euler.Storage.DBConfig
 
 -- porting statistics:
--- to port '-- TODO port' - 21
+-- to port '-- TODO port' - 16
 -- to update '-- TODO update' - 23
 -- to update '-- TODO update' - 22
 -- completed '-- done' - 30
@@ -2513,6 +2513,7 @@ mapChargeback txn chargeback =
 -- ----------------------------------------------------------------------------
 -- function: lookupPgRespXml
 -- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2529,6 +2530,7 @@ lookupPgRespXml respxml key defaultValue = do
 -- ----------------------------------------------------------------------------
 -- function: lookupRespXml
 -- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2564,6 +2566,7 @@ lookupRespXml' xml str1 defaultValue = do
 -- ----------------------------------------------------------------------------
 -- function: lookupRespXmlVal
 -- TODO port
+-- not used in OrderStatus
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2580,6 +2583,7 @@ lookupRespXmlVal respXml str1 defaultValue = do
 -- ----------------------------------------------------------------------------
 -- function: tempLookup
 -- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2598,6 +2602,7 @@ tempLookup xml str1 defaultValue = do
 -- ----------------------------------------------------------------------------
 -- function: hierarchyObjectLookup
 -- TODO port
+-- not used
 -- ----------------------------------------------------------------------------
 
 {-PS
@@ -2616,7 +2621,7 @@ hierarchyObjectLookup :: Text -> Text -> Text -> Flow Text
 hierarchyObjectLookup xml key1 key2 = undefined
 
 -- ----------------------------------------------------------------------------
--- function: hierarchyObjectLookup
+-- function: getResponseXml
 -- TODO port
 -- from src/Types/Storage/EC/PaymentGatewayResponse.purs
 -- ----------------------------------------------------------------------------

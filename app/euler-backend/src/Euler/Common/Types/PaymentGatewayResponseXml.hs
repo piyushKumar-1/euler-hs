@@ -345,101 +345,6 @@ instance ToXml GroovyHM where
       element "myHashMap" mempty $ concat $ toXml <$> coerce @_ @[Entry] (Map.toList m)
 
 
-
-test :: Either String PGRXml
-test = decodePGRXml $ TE.encodeUtf8 $ T.pack [r|
-<org.codehaus.groovy.grails.web.json.JSONObject>
-  <myHashMap>
-    <entry>
-      <string>responseMessage</string>
-      <string>SUCCESS</string>
-    </entry>
-    <entry>
-      <string>responseCode</string>
-      <string>SUCCESS</string>
-    </entry>
-    <entry>
-      <string>udfParameters</string>
-      <string>{}</string>
-    </entry>
-    <entry>
-      <string>payload</string>
-      <org.codehaus.groovy.grails.web.json.JSONObject>
-        <myHashMap>
-          <entry>
-            <string>amount</string>
-            <string>1.00</string>
-          </entry>
-          <entry>
-            <string>gatewayTransactionId</string>
-            <string>AXISJUSPAYc4b572555c954b04abc3835fc</string>
-          </entry>
-          <entry>
-            <string>gatewayResponseMessage</string>
-            <string>TRANSACTION HAS DECLINED</string>
-          </entry>
-          <entry>
-            <string>transactionTimestamp</string>
-            <string>2017-05-15T15:11:06+00:00</string>
-          </entry>
-          <entry>
-            <string>merchantId</string>
-            <string>JPMERCHANT</string>
-          </entry>
-          <entry>
-            <string>gatewayResponseCode</string>
-            <string>ZA</string>
-          </entry>
-          <entry>
-            <string>merchantRequestId</string>
-            <string>aupi28</string>
-          </entry>
-          <entry>
-            <string>merchantChannelId</string>
-            <string>JPMERCHANT</string>
-          </entry>
-        </myHashMap>
-      </org.codehaus.groovy.grails.web.json.JSONObject>
-    </entry>
-    <entry>
-      <string>checksum</string>
-      <string>b43ac9dcfb502b3e8e0a5578e40e18d0db8dbf19d88f419146aa12ca1771d47a</string>
-    </entry>
-    <entry>
-      <string>customResponse</string>
-      <string>{}</string>
-    </entry>
-  </myHashMap>
-</org.codehaus.groovy.grails.web.json.JSONObject>
-|]
-
-test2 :: Either String PGRXml
-test2 = decodePGRXml $ TE.encodeUtf8 $ T.pack [r|
-<linked-hash-map>
-  <entry>
-    <string>soap:Envelope</string>
-    <string>
-      <xmlns:xsi>http://www.w3.org/2001/XMLSchema-instance</xmlns:xsi>
-      <xmlns:xsd>http://www.w3.org/2001/XMLSchema</xmlns:xsd>
-      <xmlns:soap>http://schemas.xmlsoap.org/soap/envelope/</xmlns:soap>
-      <soap:Body>
-        <AuthTransactionResponse>
-          <xmlns>http://in.worldline.com/</xmlns>
-          <AuthTransactionResult>
-            <Responsecode>E3</Responsecode>
-            <RequestID>bajaj_9069_65123</RequestID>
-            <OrderNo>bajaj_9069_65</OrderNo>
-            <Key>4962575618567464</Key>
-            <Errordescription>Transaction Status : Failed [E3].  Reason : SCHEME NOT AVAILABLE.</Errordescription>
-            <DEALID>914214224048</DEALID>
-          </AuthTransactionResult>
-        </AuthTransactionResponse>
-      </soap:Body>
-    </string>
-  </entry>
-</linked-hash-map>
-|]
-
 {-
 
 <org.codehaus.groovy.grails.web.json.JSONObject>
@@ -1436,7 +1341,123 @@ test2 = decodePGRXml $ TE.encodeUtf8 $ T.pack [r|
 </org.codehaus.groovy.grails.web.json.JSONObject>
 
 
+-}
 
 
+{-
+
+Valid data from Shubhanshu Mani got 2 April 2020
+
+*************************** 1. row ***************************
+                id: 3465
+           version: 0
+         bank_code: AXIS_UPI
+      date_created: 2019-09-04 09:01:17
+      response_xml: <linked-hash-map>
+    <entry>
+        <string>upiRequestId</string>
+        <string>AXISSDKV35b5c3e4c813141f28ac4806523</string>
+    </entry>
+    <entry>
+        <string>updatedAt</string>
+        <string>2019-08-31T18:32:08.731Z</string>
+    </entry>
+    <entry>
+        <string>type</string>
+        <string>COLLECT</string>
+    </entry>
+    <entry>
+        <string>transactionSource</string>
+        <string>MERCHANT</string>
+    </entry>
+    <entry>
+        <string>transactionRef</string>
+        <string>eulv1zoJ4N1t3ZQiSrR</string>
+    </entry>
+    <entry>
+        <string>transactionAt</string>
+        <string>2019-08-31T18:32:08.731Z</string>
+    </entry>
+    <entry>
+        <string>status</string>
+        <string>SUCCESS</string>
+    </entry>
+    <entry>
+        <string>selfInitiated</string>
+        <string>true</string>
+    </entry>
+    <entry>
+        <string>remarks</string>
+        <string>olacabs</string>
+    </entry>
+    <entry>
+        <string>payerVpa</string>
+        <string>debopriya.das1001-1@okicici</string>
+    </entry>
+    <entry>
+        <string>payeeVpa</string>
+        <string>ola.money@axisbank</string>
+    </entry>
+    <entry>
+        <string>mode</string>
+        <string>UPI</string>
+    </entry>
+    <entry>
+        <string>id</string>
+        <string>A3fcd7b059584c8083f02cedae55382</string>
+    </entry>
+    <entry>
+        <string>expiry</string>
+        <string>2019-08-31T19:01:05.000Z</string>
+    </entry>
+    <entry>
+        <string>custRef</string>
+        <string>924400083153</string>
+    </entry>
+    <entry>
+        <string>currency</string>
+        <string>INR</string>
+    </entry>
+    <entry>
+        <string>createdAt</string>
+        <string>2019-08-31T18:31:05.198Z</string>
+    </entry>
+    <entry>
+        <string>callbackUrl</string>
+        <string>https://api.juspay.in/v2/pay/webhooks/olacabs/axis_upi</string>
+    </entry>
+    <entry>
+        <string>amount</string>
+        <string>400.00</string>
+    </entry>
+    <entry>
+        <string>PayeeVpaId</string>
+        <string>Ab2f9910bce948c797f1ec02988f9f6</string>
+    </entry>
+    <entry>
+        <string>OrderId</string>
+        <string>875b4f1034e4a308b943498a9d32b2</string>
+    </entry>
+    <entry>
+        <string>CustomerId</string>
+        <string>A376c403fe124046a4039356794ff08</string>
+    </entry>
+    <entry>
+        <string>AgencyId</string>
+        <string>Adeb26cfbe7140f3aa3e4c9f085994c</string>
+    </entry>
+</linked-hash-map>
+            txn_id: amounttest03
+   icici_resp_code: NULL
+icici_resp_message: NULL
+    axis_resp_code: NULL
+ axis_resp_message: NULL
+    hdfc_resp_code: NULL
+ hdfc_resp_message: NULL
+         resp_code: FAILURE
+      resp_message: FAILURE
 
 -}
+
+
+

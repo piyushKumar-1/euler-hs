@@ -5,7 +5,7 @@ module Euler.Tests.EncDec.XML.PaymentGatewayResponse
   )
   where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import           Data.Coerce
 import           Test.Hspec
@@ -13,14 +13,16 @@ import           Text.RawString.QQ
 import           Xmlbf
 import           Xmlbf.Xeno
 
-import qualified Data.Binary.Builder   as BB
+import qualified Data.Binary.Builder as BB
 import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy  as BSL
-import qualified Data.Map.Strict       as Map
-import qualified Data.Text.Lazy.Encoding as TLE
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as TLE
 
-import Euler.Common.Types.PaymentGatewayResponseXml
+import           Euler.Common.Types.PaymentGatewayResponseXml
+import           Euler.Common.Types.Gateway
+import           Euler.Product.OLTP.Order.OrderStatus (findPayerVpaByGateway)
 
 
 spec :: Spec
@@ -89,6 +91,76 @@ spec =
     it "XmlMap hash map: find entry: FAIL" $  do
       let res = findEntry "SomeTextEntryWrong" "default" (decodePGRXml $ BC.pack rawXmlMapXML)
       res `shouldBe` "default"
+
+    it "findPayerVpaByGateway,xml is Nothing" $  do
+      let res = findPayerVpaByGateway (Just PAYU) Nothing
+      res `shouldBe` ""
+
+    it "findPayerVpaByGateway, gateway is AXIS_UPI" $  do
+      let res = findPayerVpaByGateway (Just AXIS_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is HDFC_UPI" $  do
+      let res = findPayerVpaByGateway (Just HDFC_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is INDUS_UPI" $  do
+      let res = findPayerVpaByGateway (Just INDUS_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is KOTAK_UPI" $  do
+      let res = findPayerVpaByGateway (Just KOTAK_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is SBI_UPI" $  do
+      let res = findPayerVpaByGateway (Just SBI_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is ICICI_UPI" $  do
+      let res = findPayerVpaByGateway (Just ICICI_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is HSBC_UPI" $  do
+      let res = findPayerVpaByGateway (Just HSBC_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is VIJAYA_UPI" $  do
+      let res = findPayerVpaByGateway (Just VIJAYA_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is HSBC_UPI" $  do
+      let res = findPayerVpaByGateway (Just YESBANK_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is HSBC_UPI" $  do
+      let res = findPayerVpaByGateway (Just YESBANK_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is PAYTM_UPI" $  do
+      let res = findPayerVpaByGateway (Just PAYTM_UPI) $ Just rawXmlForPayersVpa
+      res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is PAYU" $  do
+      let res = findPayerVpaByGateway (Just PAYU) $ Just rawXmlForField3
+      res `shouldBe` "8771989042073390"
+
+{-  no valid actual data
+    it "findPayerVpaByGateway, gateway is RAZORPAY" $  do
+      let res = findPayerVpaByGateway (Just RAZORPAY) $ Just rawXmlForVpa
+      res `shouldBe` ""
+
+    it "findPayerVpaByGateway, gateway is PAYTM_V2" $  do
+      let res = findPayerVpaByGateway (Just PAYTM_V2) $ Just rawXmlForVPA
+      res `shouldBe` ""
+
+    it "findPayerVpaByGateway, gateway is GOCASHFREE" $  do
+      let res = findPayerVpaByGateway (Just GOCASHFREE) $ Just rawXmlForPayersVPA
+      res `shouldBe` ""
+-}
+    it "findPayerVpaByGateway, gateway is other" $  do
+      let res = findPayerVpaByGateway (Just TPSL) $ Just rawXmlForField3
+      res `shouldBe` ""
+
 
 
 testLHM :: PGRXml
@@ -275,3 +347,201 @@ rawXmlMapXML = [r|<map>
     <int>5</int>
   </entry>
 </map>|]
+
+
+rawXmlForField3 :: Text
+rawXmlForField3 = [r|
+<linked-hash-map>
+  <entry>
+    <string>phone</string>
+    <string>9999999999</string>
+  </entry>
+  <entry>
+    <string>mode</string>
+    <string>DC</string>
+  </entry>
+  <entry>
+    <string>mihpayid</string>
+    <string>6583311051</string>
+  </entry>
+  <entry>
+    <string>firstname</string>
+    <string>Firstname</string>
+  </entry>
+  <entry>
+    <string>email</string>
+    <string>juspay_test_user_101@gmail.com</string>
+  </entry>
+  <entry>
+    <string>amount</string>
+    <string>10.00</string>
+  </entry>
+  <entry>
+    <string>bankcode</string>
+    <string>MAST</string>
+  </entry>
+  <entry>
+    <string>unmappedstatus</string>
+    <string>failed</string>
+  </entry>
+  <entry>
+    <string>bank_ref_num</string>
+    <string>8771989042073390</string>
+  </entry>
+  <entry>
+    <string>error_Message</string>
+    <string>Bank denied transaction on the card.</string>
+  </entry>
+  <entry>
+    <string>PG_TYPE</string>
+    <string>HDFCPG</string>
+  </entry>
+  <entry>
+    <string>status</string>
+    <string>failure</string>
+  </entry>
+  <entry>
+    <string>discount</string>
+    <string>0.00</string>
+  </entry>
+  <entry>
+    <string>net_amount_debit</string>
+    <string>0.00</string>
+  </entry>
+  <entry>
+    <string>error</string>
+    <string>E324</string>
+  </entry>
+  <entry>
+    <string>field3</string>
+    <string>8771989042073390</string>
+  </entry>
+  <entry>
+    <string>field4</string>
+    <string>8771989042073390</string>
+  </entry>
+  <entry>
+    <string>field5</string>
+    <string>DENIED BY RISK</string>
+  </entry>
+  <entry>
+    <string>field7</string>
+    <string>Y</string>
+  </entry>
+  <entry>
+    <string>field9</string>
+    <string>DENIED BY RISK</string>
+  </entry>
+  <entry>
+    <string>cardCategory</string>
+    <string>domestic</string>
+  </entry>
+</linked-hash-map>
+|]
+
+rawXmlForPayersVpa :: Text
+rawXmlForPayersVpa = [r|
+<linked-hash-map>
+    <entry>
+        <string>upiRequestId</string>
+        <string>AXISSDKV35b5c3e4c813141f28ac4806523</string>
+    </entry>
+    <entry>
+        <string>updatedAt</string>
+        <string>2019-08-31T18:32:08.731Z</string>
+    </entry>
+    <entry>
+        <string>type</string>
+        <string>COLLECT</string>
+    </entry>
+    <entry>
+        <string>transactionSource</string>
+        <string>MERCHANT</string>
+    </entry>
+    <entry>
+        <string>transactionRef</string>
+        <string>eulv1zoJ4N1t3ZQiSrR</string>
+    </entry>
+    <entry>
+        <string>transactionAt</string>
+        <string>2019-08-31T18:32:08.731Z</string>
+    </entry>
+    <entry>
+        <string>status</string>
+        <string>SUCCESS</string>
+    </entry>
+    <entry>
+        <string>selfInitiated</string>
+        <string>true</string>
+    </entry>
+    <entry>
+        <string>remarks</string>
+        <string>olacabs</string>
+    </entry>
+    <entry>
+        <string>payerVpa</string>
+        <string>debopriya.das1001-1@okicici</string>
+    </entry>
+    <entry>
+        <string>payeeVpa</string>
+        <string>ola.money@axisbank</string>
+    </entry>
+    <entry>
+        <string>mode</string>
+        <string>UPI</string>
+    </entry>
+    <entry>
+        <string>id</string>
+        <string>A3fcd7b059584c8083f02cedae55382</string>
+    </entry>
+    <entry>
+        <string>expiry</string>
+        <string>2019-08-31T19:01:05.000Z</string>
+    </entry>
+    <entry>
+        <string>custRef</string>
+        <string>924400083153</string>
+    </entry>
+    <entry>
+        <string>currency</string>
+        <string>INR</string>
+    </entry>
+    <entry>
+        <string>createdAt</string>
+        <string>2019-08-31T18:31:05.198Z</string>
+    </entry>
+    <entry>
+        <string>callbackUrl</string>
+        <string>https://api.juspay.in/v2/pay/webhooks/olacabs/axis_upi</string>
+    </entry>
+    <entry>
+        <string>amount</string>
+        <string>400.00</string>
+    </entry>
+    <entry>
+        <string>PayeeVpaId</string>
+        <string>Ab2f9910bce948c797f1ec02988f9f6</string>
+    </entry>
+    <entry>
+        <string>OrderId</string>
+        <string>875b4f1034e4a308b943498a9d32b2</string>
+    </entry>
+    <entry>
+        <string>CustomerId</string>
+        <string>A376c403fe124046a4039356794ff08</string>
+    </entry>
+    <entry>
+        <string>AgencyId</string>
+        <string>Adeb26cfbe7140f3aa3e4c9f085994c</string>
+    </entry>
+</linked-hash-map>
+|]
+
+rawXmlForVpa :: Text
+rawXmlForVpa = undefined
+
+rawXmlForVPA :: Text
+rawXmlForVPA = undefined
+
+rawXmlForPayersVPA :: Text
+rawXmlForPayersVPA = undefined

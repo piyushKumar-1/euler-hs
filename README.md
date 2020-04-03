@@ -1,8 +1,5 @@
 # EulerHS Project
 
-* [Books on Software Architecture in Haskell](#Books-on-Software-Architecture-in-Haskell)
-* [Application Architectures](#Application-Architectures)
-
 ### EulerHS Framework
 
 ***euler-hs/Flow*** is a free monadic framework for building backend and console applications in Haskell.

@@ -1,5 +1,12 @@
 # Changelog for euler-hs
 
+## [1.8.0.0] - 2020-04-03
+* Euler-HS 1.8.0.0: new features and fixes.
+  - Redis cluster support (switched to other hedis fork).
+  - Framework and Logger performance tuned.
+* Euler-backend 0.8.0.0:
+  - DB model and storage types separated into own repo.
+
 ## [1.7.0.0] - 2020-03-30
 * Euler-HS 1.7.0.0: new features.
   - Granular DB errors added (breaking change)

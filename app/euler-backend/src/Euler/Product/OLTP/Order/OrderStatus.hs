@@ -770,7 +770,7 @@ findPayerVpaByGateway gateway (Just xml) =
       C.PAYU        -> findEntry "field3" "" pgrXml
       C.RAZORPAY    -> findEntry "vpa" "" pgrXml
       C.PAYTM_V2    -> findEntry "VPA" "" pgrXml
-      C.GOCASHFREE  -> findEntry "payersVPA" "" pgrXml
+      C.GOCASHFREE  -> findPayersVPA "payersVPA" "" pgrXml
       _             -> T.empty
   where
     pgrXml = decodePGRXml $ T.encodeUtf8 xml

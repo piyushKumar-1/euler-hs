@@ -13,6 +13,7 @@ module Euler.Common.Types.PaymentGatewayResponseXml
  -- , OpusPGResponse(..)
   , decodePGRXml
   , findEntry
+  , findPayersVPA
   , getMapFromPGRXml
   , lookupXML
   , lookupXMLKeys
@@ -21,7 +22,6 @@ module Euler.Common.Types.PaymentGatewayResponseXml
 
 import           EulerHS.Prelude as P
 
-import qualified Data.Aeson as A
 import qualified Data.Binary.Builder as BB
 import           Data.Coerce
 import qualified Data.Map.Lazy as LMap
@@ -52,12 +52,22 @@ fromPGRXml = \case
 -- former  lookupRespXml'
 -- Need review!!
 findEntry :: Text -> Text -> Either String PGRXml -> Text
-findEntry entry defaultEntry pgrXml = do
+findEntry entry defaultEntry pgrXml =
   let value = either (const Nothing) (lookupEntry $ TL.fromStrict entry) pgrXml
-  case value of
-    Just (EText val) -> TL.toStrict val
-    Just _           -> defaultEntry
-    Nothing          -> defaultEntry
+  in
+    case value of
+      Just (EText val) -> TL.toStrict val
+      Just _           -> defaultEntry
+      Nothing          -> defaultEntry
+
+findPayersVPA :: Text -> Text -> Either String PGRXml -> Text
+findPayersVPA entry defaultEntry pgrXml =
+  let paymentDetailsNodes = fromRight [] $ fromRawXml $ TE.encodeUtf8 $ findEntry "paymentDetails" defaultEntry pgrXml
+      valueList = fmap TL.toStrict $ rights $ runParser (pElement entry pText) . pure <$> paymentDetailsNodes
+  in
+    case valueList of
+      (x:_) -> x
+      [] -> defaultEntry
 
 lookupEntry :: TL.Text -> PGRXml -> Maybe EValue
 lookupEntry name = Map.lookup name . coerce . fromPGRXml

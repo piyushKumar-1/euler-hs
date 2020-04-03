@@ -321,5 +321,3 @@ spec = do
                 pure (mbRes1, mbRes2)
           result <- runFlow rt flow
           result `shouldBe` (Just 101, Nothing)
-
-          

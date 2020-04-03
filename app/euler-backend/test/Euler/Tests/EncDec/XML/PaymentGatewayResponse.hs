@@ -18,6 +18,8 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 
 import           Euler.Common.Types.PaymentGatewayResponseXml
@@ -148,16 +150,16 @@ spec =
       let res = findPayerVpaByGateway (Just RAZORPAY) $ Just rawXmlForVpa
       res `shouldBe` "9962779655@upi"
 
-{-  no valid actual data
-
+    -- Symbol Singla: PAYTM_V2 gateway was supposed to send this key in response, but they never did.
+    -- So, There’s no xml with VPA inside
     it "findPayerVpaByGateway, gateway is PAYTM_V2" $  do
       let res = findPayerVpaByGateway (Just PAYTM_V2) $ Just rawXmlForVPA
-      res `shouldBe` ""
+      res `shouldBe` "" -- empty text is OK.
 
     it "findPayerVpaByGateway, gateway is GOCASHFREE" $  do
       let res = findPayerVpaByGateway (Just GOCASHFREE) $ Just rawXmlForPayersVPA
-      res `shouldBe` ""
--}
+      res `shouldBe` "7602476670@paytm"
+
     it "findPayerVpaByGateway, gateway is other" $  do
       let res = findPayerVpaByGateway (Just TPSL) $ Just rawXmlForField3
       res `shouldBe` ""
@@ -616,101 +618,7 @@ rawXmlForVpa = [r|
 |]
 
 rawXmlForVPA :: Text
-rawXmlForVPA = undefined
+rawXmlForVPA = [r|<linked-hash-map><entry><string>txTime</string><string>2020-03-23 07:57:54</string></entry><entry><string>txStatus</string><string>FAILED</string></entry><entry><string>txMsg</string><string>ZM::INVALID UPI PIN</string></entry><entry><string>status</string><string>OK</string></entry><entry><string>referenceId</string><string>106936653</string></entry><entry><string>paymentMode</string><string>UPI</string></entry><entry><string>paymentDetails</string><string><utr>008307784654</utr><paymentMode/><payersVPA>7602476670@paytm</payersVPA><cardScheme/><cardNumber/><cardCountry/><bankName/><authIdCode/></string></entry><entry><string>orderStatus</string><string>ACTIVE</string></entry><entry><string>orderExpiryTime</string><string>2020-04-22 07:57:54</string></entry><entry><string>orderCurrency</string><string>INR</string></entry><entry><string>orderAmount</string><string>8.00</string></entry></linked-hash-map>|]
 
 rawXmlForPayersVPA :: Text
-rawXmlForPayersVPA = undefined
-
-{-
-<linked-hash-map>
-  <entry>
-    <string>txTime</string>
-    <string>2020-03-12 13:07:23</string>
-  </entry>
-  <entry>
-    <string>txStatus</string>
-    <string>SUCCESS</string>
-  </entry>
-  <entry>
-    <string>txMsg</string>
-    <string>Transaction Successful</string>
-  </entry>
-  <entry>
-    <string>status</string>
-    <string>OK</string>
-  </entry>
-  <entry>
-    <string>referenceId</string>
-    <string>275499</string>
-  </entry>
-  <entry>
-    <string>paymentMode</string>
-    <string>NET_BANKING</string>
-  </entry>
-  <entry>
-    <string>paymentDetails</string>
-    <string>
-      <utr/>
-        <paymentMode>NET_BANKING</paymentMode>
-      <payersVPA/>
-        <cardScheme/>
-          <cardNumber/>
-            <cardCountry/>
-              <bankName>HDFC Bank</bankName>
-                <authIdCode/>
-    </string>
-  </entry>
-  <entry>
-    <string>orderStatus</string>
-    <string>PAID</string>
-  </entry>
-  <entry>
-    <string>orderCurrency</string>
-    <string>INR</string>
-  </entry>
-  <entry>
-    <string>orderAmount</string>
-    <string>1.00</string>
-  </entry></linked-hash-map>
-
-<linked-hash-map>
-  <entry>
-    <string>head</string>
-    <string>
-      <responseTimestamp>1585827966806</responseTimestamp>
-      <Version/>
-    </string>
-  </entry>
-  <entry>
-    <string>body</string>
-    <string>
-      <txnInfo/>
-        <resultInfo>
-          <retry/>
-            <resultStatus>S</resultStatus>
-            <resultMsg>Success</resultMsg>
-            <resultCode>0000</resultCode>
-        </resultInfo>
-        <callBackUrl/>
-          <bankForm>
-            <redirectForm>
-              <type>redirect</type>
-              <method>POST</method>
-              <headers><Content-Type>application/x-www-form-urlencoded</Content-Type></headers>
-              <content>
-                <vpa>Paytm@icici</vpa>
-                <txnAmount>77.59</txnAmount>
-                <txnToken>b4d21d0cb5974f439cbcb29168e0c6ad1585827962772</txnToken>
-              </content>
-              <actionUrl>https://securegw-stage.paytm.in/theia/api/v1/upiPollPage?mid=mgtepl60123960746960&amp;orderId=1mgtech-PO09220422910043-2</actionUrl>
-            </redirectForm>
-            <pageType>redirect</pageType>
-            <displayField/>
-              <directForms/>
-          </bankForm>
-    </string>
-  </entry>
-</linked-hash-map>
-
-
--}
+rawXmlForPayersVPA = [r|<linked-hash-map><entry><string>txTime</string><string>2020-03-23 07:57:54</string></entry><entry><string>txStatus</string><string>FAILED</string></entry><entry><string>txMsg</string><string>ZM::INVALID UPI PIN</string></entry><entry><string>status</string><string>OK</string></entry><entry><string>referenceId</string><string>106936653</string></entry><entry><string>paymentMode</string><string>UPI</string></entry><entry><string>paymentDetails</string><string><utr>008307784654</utr><paymentMode/><payersVPA>7602476670@paytm</payersVPA><cardScheme/><cardNumber/><cardCountry/><bankName/><authIdCode/></string></entry><entry><string>orderStatus</string><string>ACTIVE</string></entry><entry><string>orderExpiryTime</string><string>2020-04-22 07:57:54</string></entry><entry><string>orderCurrency</string><string>INR</string></entry><entry><string>orderAmount</string><string>8.00</string></entry></linked-hash-map>|]

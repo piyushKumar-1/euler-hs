@@ -144,10 +144,11 @@ spec =
       let res = findPayerVpaByGateway (Just PAYU) $ Just rawXmlForField3
       res `shouldBe` "8771989042073390"
 
-{-  no valid actual data
     it "findPayerVpaByGateway, gateway is RAZORPAY" $  do
       let res = findPayerVpaByGateway (Just RAZORPAY) $ Just rawXmlForVpa
-      res `shouldBe` ""
+      res `shouldBe` "9962779655@upi"
+
+{-  no valid actual data
 
     it "findPayerVpaByGateway, gateway is PAYTM_V2" $  do
       let res = findPayerVpaByGateway (Just PAYTM_V2) $ Just rawXmlForVPA
@@ -538,10 +539,178 @@ rawXmlForPayersVpa = [r|
 |]
 
 rawXmlForVpa :: Text
-rawXmlForVpa = undefined
+rawXmlForVpa = [r|
+<linked-hash-map>
+  <entry>
+    <string>vpa</string>
+    <string>9962779655@upi</string>
+  </entry>
+  <entry>
+    <string>tax</string>
+    <string>0</string>
+  </entry>
+  <entry>
+    <string>status</string>
+    <string>captured</string>
+  </entry>
+  <entry>
+    <string>order_id</string>
+    <string>order_EZKpkOXIxbaxWe</string>
+  </entry>
+  <entry>
+    <string>notes</string>
+    <string>
+      <transaction_id>razorpay_uat-5799624706-1</transaction_id>
+      <txn_uuid>cjcdx3fjurui801t</txn_uuid>
+    </string>
+  </entry>
+  <entry>
+    <string>method</string>
+    <string>upi</string>
+  </entry>
+  <entry>
+    <string>international</string>
+    <string>false</string>
+  </entry>
+  <entry>
+    <string>id</string>
+    <string>pay_EZKpkc1R3Mdomq</string>
+  </entry>
+  <entry>
+    <string>fee</string>
+    <string>2</string>
+  </entry>
+  <entry>
+    <string>entity</string>
+    <string>payment</string>
+  </entry>
+  <entry>
+    <string>email</string>
+    <string>cjabgonvpjse@example.com</string>
+  </entry>
+  <entry>
+    <string>currency</string>
+    <string>INR</string>
+  </entry>
+  <entry>
+    <string>created_at</string>
+    <string>1585768887</string>
+  </entry>
+  <entry>
+    <string>contact</string>
+    <string>+919570202425</string>
+  </entry>
+  <entry>
+    <string>captured</string>
+    <string>true</string>
+  </entry>
+  <entry>
+    <string>amount_refunded</string>
+    <string>0</string>
+  </entry>
+  <entry>
+    <string>amount</string>
+    <string>100</string>
+  </entry>
+</linked-hash-map>
+|]
 
 rawXmlForVPA :: Text
 rawXmlForVPA = undefined
 
 rawXmlForPayersVPA :: Text
 rawXmlForPayersVPA = undefined
+
+{-
+<linked-hash-map>
+  <entry>
+    <string>txTime</string>
+    <string>2020-03-12 13:07:23</string>
+  </entry>
+  <entry>
+    <string>txStatus</string>
+    <string>SUCCESS</string>
+  </entry>
+  <entry>
+    <string>txMsg</string>
+    <string>Transaction Successful</string>
+  </entry>
+  <entry>
+    <string>status</string>
+    <string>OK</string>
+  </entry>
+  <entry>
+    <string>referenceId</string>
+    <string>275499</string>
+  </entry>
+  <entry>
+    <string>paymentMode</string>
+    <string>NET_BANKING</string>
+  </entry>
+  <entry>
+    <string>paymentDetails</string>
+    <string>
+      <utr/>
+        <paymentMode>NET_BANKING</paymentMode>
+      <payersVPA/>
+        <cardScheme/>
+          <cardNumber/>
+            <cardCountry/>
+              <bankName>HDFC Bank</bankName>
+                <authIdCode/>
+    </string>
+  </entry>
+  <entry>
+    <string>orderStatus</string>
+    <string>PAID</string>
+  </entry>
+  <entry>
+    <string>orderCurrency</string>
+    <string>INR</string>
+  </entry>
+  <entry>
+    <string>orderAmount</string>
+    <string>1.00</string>
+  </entry></linked-hash-map>
+
+<linked-hash-map>
+  <entry>
+    <string>head</string>
+    <string>
+      <responseTimestamp>1585827966806</responseTimestamp>
+      <Version/>
+    </string>
+  </entry>
+  <entry>
+    <string>body</string>
+    <string>
+      <txnInfo/>
+        <resultInfo>
+          <retry/>
+            <resultStatus>S</resultStatus>
+            <resultMsg>Success</resultMsg>
+            <resultCode>0000</resultCode>
+        </resultInfo>
+        <callBackUrl/>
+          <bankForm>
+            <redirectForm>
+              <type>redirect</type>
+              <method>POST</method>
+              <headers><Content-Type>application/x-www-form-urlencoded</Content-Type></headers>
+              <content>
+                <vpa>Paytm@icici</vpa>
+                <txnAmount>77.59</txnAmount>
+                <txnToken>b4d21d0cb5974f439cbcb29168e0c6ad1585827962772</txnToken>
+              </content>
+              <actionUrl>https://securegw-stage.paytm.in/theia/api/v1/upiPollPage?mid=mgtepl60123960746960&amp;orderId=1mgtech-PO09220422910043-2</actionUrl>
+            </redirectForm>
+            <pageType>redirect</pageType>
+            <displayField/>
+              <directForms/>
+          </bankForm>
+    </string>
+  </entry>
+</linked-hash-map>
+
+
+-}

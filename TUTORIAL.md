@@ -30,7 +30,7 @@ Or reference the git commit, like this:
   commit: e5a667fe6396441c7dcf1c7755c69345f00d0eee
 ```
 
-# Free Monad background 
+# Free Monad background
 From https://github.com/graninas/software-design-in-haskell:
 
 - http://www.haskellforall.com/2012/06/you-could-have-invented-free-monads.html
@@ -46,7 +46,7 @@ Basic framework: _lib/euler-hs/src/EulerHS/Framework/Flow_
 `FlowMethod` datatype defines basic operations such as
 - State (key value): GetOption, SetOption
 - Logging: EvalLogger
-- DB conectivity
+- DB connectivity
 
 FreeChurch monad: `type Flow = F FlowMethod`
 

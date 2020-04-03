@@ -19,7 +19,7 @@ import qualified Data.Text.Encoding   as TE
 
 import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Constant.Constants  as Constants (redis_token_expiry_default, token_max_usage_default)
+import qualified Euler.Constants  as Constants (redis_token_expiry_default, token_max_usage_default)
 
 data TokenizedResource = TokenizedResource
   { token  :: Text

@@ -1,26 +1,49 @@
-# euler-hs
+# EulerHS Project
 
-## euler-hs & euler-backend
+* [Books on Software Architecture in Haskell](#Books-on-Software-Architecture-in-Haskell)
+* [Application Architectures](#Application-Architectures)
 
-Library ***euler-hs*** - backend DSL on free monads.
+### EulerHS Framework
 
-Application ***euler-backend*** - haskell re-implementation of euler-ps API, based on euler-hs.
+***euler-hs/Flow*** is a free monadic framework for building backend and console applications in Haskell.
 
-### Installation
+The framework exports the Flow monad which provides the following facilities:
 
-Pre-requisites:
+  - SQL DB interaction (using the `beam` library). Postgres, MySQL and SQLite DBs supported.
+  - KV DB interaction. Redis is supported.
+  - Forking flows in separate threads (green threads are used).
+  - HTTP services interaction (using servant-client facilities).
+  - Logging (tiny-logger inside).
+  - Typed mutable options.
+  - Pub/Sub mechanism (using Redis pub sub subsystem).
+  - Safe call to IO actions.
+  - Running system commands.
+  - ART (Automatic Regression Testing) - white box testing facilities.
+  - Integration testing framework.
 
-**Stack**, install from [https://docs.haskellstack.org/en/stable/README/](https://docs.haskellstack.org/en/stable/README/)
+### Euler Backend
 
-Or
+***euler-backend*** is a web/REST/HTTP application, a direct port of euler-ps for implementing
+  [Juspay APIs](https://www.juspay.in/docs/api/ec/) in Haskell.
+  The application is based on the Servant web framework.
+  for HTTP facilities and the Flow framework for business logic.
 
-**Nix package manager**: [A minimal guide to getting started with the Nix package manager on any Linux or OSX machine.](https://chris-martin.org/2016/installing-nix-package-manager) (current nix-channel is nixos-19.09)
+# Installation
 
-and set in your ~/.cabal/config
+### Build tools
 
-write-ghc-environment-files: never
+You can use any of the two building tools supported:
 
-nix: True
+- **Stack**, install from [https://docs.haskellstack.org/en/stable/README/](https://docs.haskellstack.org/en/stable/README/)
+- **Nix package manager**: [A minimal guide to getting started with the Nix package manager on any Linux or OSX machine.](https://chris-martin.org/2016/installing-nix-package-manager) (current nix-channel is nixos-19.09)
+  Setup in your ~/.cabal/config
+
+  ```
+  write-ghc-environment-files: never
+  nix: True
+  ```
+
+### Dependencies
 
 **Install development tools and libraries with your distro package manager:**
 
@@ -63,6 +86,9 @@ git clone [https://user_name@bitbucket.org/juspay/euler-hs.git](https://user_nam
     - `stack test euler-hs:sql`
 - euler-backend tests:
     - `stack test euler-backend`
+- ART tests:
+    - `cd ./app/euler-backend`
+    - `art.sh`
 
 **Run:**
 
@@ -80,9 +106,13 @@ From root project dir run
     resulting binary should be in `./result/bin/`
 
 
-#### Examples
+# Usage guidelines
 
-#####Using SQL
+***See also:***
+
+* [Tutorial](./TUTORIAL.md)
+* [Architecture diagram](./docs/Architecture.png)
+* [Beam query examples](./lib/euler-hs/testDB/SQLDB/Tests/QueryExamplesSpec.hs)
 
 ***Methods for connection management:***
 
@@ -196,7 +226,7 @@ data DB2Cfg = DB2Cfg
 instance OptionEntity DB2Cfg (DBConfig Pg)
 ```
 
-Then you can define specialized wrapper for each db:
+Then you can define a specialized wrapper for each db:
 ```haskell
 withDB1 :: JSONEx a => SqlDB MySQLM a -> Flow a
 withDB1 act = do
@@ -230,5 +260,3 @@ prepareDBConnections = do
   setOption DB2Cfg sqlDBcfg2
   throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB2."
 ```
-
-[Beam query examples](https://bitbucket.org/juspay/euler-hs/src/7fdf3db82482752f89bfa30579e83e98910fafde/lib/euler-hs/testDB/SQLDB/Tests/QueryExamplesSpec.hs#lines-239)

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
-module Euler.Constant.Constants where
+module Euler.Constants where
 
 import EulerHS.Prelude
 import Data.Scientific as S

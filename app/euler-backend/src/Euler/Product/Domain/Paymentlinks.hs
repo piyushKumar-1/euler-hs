@@ -5,9 +5,6 @@ module Euler.Product.Domain.Paymentlinks where
 import           EulerHS.Prelude
 
 
-import           Data.Time (LocalTime)
-
-
 data Paymentlinks = Paymentlinks
   { iframe :: Text
   , web    :: Text

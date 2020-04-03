@@ -5,8 +5,6 @@ module Euler.Product.Domain.Feature where
 
 import           EulerHS.Prelude
 
-import           Euler.Common.Types.Money
-
 import           Data.Time
 
 

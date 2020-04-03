@@ -39,6 +39,7 @@ import Euler.Product.Domain.MerchantPaymentGatewayResponse as PDMerchantPaymentG
 import Euler.Product.Domain.MerchantSecondFactorResponse as PDMerchantSecondFactorResponse
 import Euler.Product.Domain.NBPayment as PDNBPayment
 import Euler.Product.Domain.Order as PDOrder
+import Euler.Product.Domain.OrderMetadataV2 as PDOrderMetadataV2
 import Euler.Product.Domain.OrderStatusResponse as PDOrderStatusResponse
 import Euler.Product.Domain.Promotion as PDPromotion
 import Euler.Product.Domain.TxnDetail as PDTxnDetail
@@ -114,6 +115,7 @@ makeGenericLenses ''PDMerchantPaymentGatewayResponse.MerchantPaymentGatewayRespo
 makeGenericLenses ''PDMerchantSecondFactorResponse.MerchantSecondFactorResponse
 makeGenericLenses ''PDNBPayment.NBPayment
 makeGenericLenses ''PDOrder.Order
+makeGenericLenses ''PDOrderMetadataV2.OrderMetadataV2
 makeGenericLenses ''PDOrder.OrderTokenResp
 makeGenericLenses ''PDOrderStatusResponse.OrderStatusResponse
 makeGenericLenses ''PDOrderStatusResponse.OrderStatusRequest

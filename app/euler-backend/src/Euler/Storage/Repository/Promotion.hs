@@ -8,11 +8,6 @@ import           EulerHS.Prelude as P
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
--- import qualified Euler.Config.Config as Config
--- import           Euler.Lens
-
--- import           Euler.API.Order
-
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
 import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
@@ -22,7 +17,7 @@ import qualified Euler.Product.Domain as D
 import           Euler.Storage.DBConfig
 import qualified Euler.Storage.Types as DB
 
-import           Database.Beam ((&&.), (==.))
+import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
 

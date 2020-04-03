@@ -13,6 +13,7 @@ import Euler.Product.Domain.MerchantPaymentGatewayResponse as X
 import Euler.Product.Domain.MerchantSecondFactorResponse   as X
 import Euler.Product.Domain.NBPayment                      as X
 import Euler.Product.Domain.Order                          as X
+import Euler.Product.Domain.OrderMetadataV2                as X
 import Euler.Product.Domain.OrderStatusResponse            as X
 import Euler.Product.Domain.Paymentlinks                   as X
 import Euler.Product.Domain.Promotion                      as X

@@ -4,24 +4,30 @@ module Euler.Product.Domain.OrderMetadataV2 where
 
 import EulerHS.Prelude
 import Data.Time
-import Euler.Common.Types.DefaultDate
+-- import Euler.Common.Types.DefaultDate
 
---data OrderMetadataV2 = OrderMetadataV2
---  { id               :: Maybe Int
---  , browser          :: Maybe Text
---  , browserVersion   :: Maybe Text
---  , dateCreated      :: LocalTime
---  , device           :: Maybe Text
---  , lastUpdated      :: LocalTime
---  , metadata         :: Maybe Text
---  , mobile           :: Maybe Bool
---  , operatingSystem  :: Maybe Text
---  , orderReferenceId :: Int
---  , ipAddress        :: Maybe Text
---  , referer          :: Maybe Text
---  , userAgent        :: Maybe Text
---  }
---  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+newtype OrderMetadataV2PId = OrderMetadataV2PId
+  { orderMetadataV2PId :: Int
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data OrderMetadataV2 = OrderMetadataV2
+  { id               :: OrderMetadataV2PId
+  , browser          :: Maybe Text
+  , browserVersion   :: Maybe Text
+  , dateCreated      :: LocalTime
+  , device           :: Maybe Text
+  , lastUpdated      :: LocalTime
+  , metadata         :: Maybe Text
+  , mobile           :: Maybe Bool
+  , operatingSystem  :: Maybe Text
+  , orderReferenceId :: Int
+  , ipAddress        :: Maybe Text
+  , referer          :: Maybe Text
+  , userAgent        :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 --
 --defaultOrderMetadataV2 = OrderMetadataV2
 --  { id               = Nothing -- :: Maybe Int

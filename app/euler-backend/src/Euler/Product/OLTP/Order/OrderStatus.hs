@@ -59,14 +59,10 @@ import qualified Euler.Product.OLTP.Order.OrderStatusVersioningService as VS
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
 import           Euler.Product.OLTP.Services.OrderStatusCacheService
 
-import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository
 import qualified Euler.Storage.Types as DB
 
 import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
-
-import           Database.Beam ((==.))
-import qualified Database.Beam as B
 
 
 
@@ -524,18 +520,18 @@ getPaymentLinks :: Maybe Text -> Text ->  Flow D.Paymentlinks
 getPaymentLinks resellerId orderUuid = do
   mResellerAccount <- loadReseller resellerId
   let mResellerEndpoint = maybe Nothing (^. _resellerApiEndpoint) mResellerAccount
-  createPaymentLinks orderUuid mResellerEndpoint
+  pure $ createPaymentLinks orderUuid mResellerEndpoint
 
 
 createPaymentLinks
   :: Text           -- orderUuid (possibly blank string)
   -> Maybe Text     -- maybeResellerEndpoint
-  -> Flow D.Paymentlinks
-createPaymentLinks orderUuid maybeResellerEndpoint = do
+  -> D.Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint =
   let config = getECRConfig
-  let protocol = config ^. _protocol
-  let host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
-  pure D.Paymentlinks
+      protocol = config ^. _protocol
+      host = maybe (protocol <> "://" <> (config ^. _host)) P.id maybeResellerEndpoint
+  in D.Paymentlinks
     { web =   (host <> "/merchant/pay/") <> orderUuid
     , mobile = (host <> "/merchant/pay/") <> orderUuid <> "?mobile=true"
     , iframe = (host <> "/merchant/ipay/") <> orderUuid
@@ -553,16 +549,6 @@ getPromotion orderPId orderId = do
   proms <- loadPromotions orderPId
   getActivePromotion orderId proms
 
-loadOrderMetadataV2 :: Int -> Flow (Maybe DB.OrderMetadataV2)
-loadOrderMetadataV2 ordRefId = withDB eulerDB $ do
-  let predicate DB.OrderMetadataV2 {orderReferenceId} =
-        orderReferenceId ==. B.val_ ordRefId
-  findRow
-    $ B.select
-    $ B.limit_ 1
-    $ B.filter_ predicate
-    $ B.all_ (DB.order_metadata_v2 DB.eulerDBSchema)
-
 
 getGatewayReferenceId
   :: Maybe C.Gateway
@@ -578,7 +564,7 @@ getGatewayReferenceId gateway orderPId udf2 merchantId = do
 
   case ordMeta of
     Nothing -> checkGateway
-    Just (ordM :: DB.OrderMetadataV2) ->
+    Just (ordM :: D.OrderMetadataV2) ->
       case blankToNothing (ordM ^. _metadata) of
         Nothing -> checkGateway
         Just md -> do

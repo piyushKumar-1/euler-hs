@@ -7,10 +7,6 @@ import           EulerHS.Extra.Validation as V
 import           Euler.Common.Validators
 import qualified Euler.Product.Domain.Card as DC
 import qualified Euler.API.Card as AC
-import           Data.Char (isDigit)
-
-import qualified Data.Text as T
-import Data.Attoparsec.Text
 
 
 instance Transform AC.AddCardInputRequest DC.StoredCard where

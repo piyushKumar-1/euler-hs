@@ -80,8 +80,13 @@ data Gateway =
   | SIMPL
   | GOOGLEPAY
   | GOCASHFREE
+  | PAYFORT
   | FSSPAY
   | CASH
+  | MORPHEUS
+  | FREECHARGE_V2
+  | LAZYPAY
+  | ITZCASH
   | DEFAULT
   deriving (Show, Read, Eq, Ord, Generic, Data, Enum, Bounded, ToJSON, ToJSONKey, FromJSON, FromJSONKey)
 
@@ -160,8 +165,13 @@ gateways =
   , SIMPL
   , GOOGLEPAY
   , GOCASHFREE
+  , PAYFORT
   , FSSPAY
   , CASH
+  , MORPHEUS
+  , FREECHARGE_V2
+  , LAZYPAY
+  , ITZCASH
   , DEFAULT
   ]
 
@@ -210,13 +220,17 @@ gatewayList =
   , (OLAPOSTPAID, 40)
   , (SIMPL, 41)
   , (GOOGLEPAY, 42)
+  , (FREECHARGE_V2, 43)
+  , (ITZCASH, 44)
   , (STRIPE, 50)
   , (GOCASHFREE, 70)
+  , (PAYFORT, 75)
   , (FSSPAY, 73)
   , (DUMMY, 100)
   , (HDFC_IVR, 201)
   , (ZESTMONEY, 250)
   , (EPAYLATER, 251)
+  , (LAZYPAY, 252)
   , (AXISNB, 300)
   , (ICICINB, 302)
   , (TPSL_SI, 400)
@@ -232,6 +246,7 @@ gatewayList =
   , (PAYTM_UPI, 509)
   , (LINEPAY, 600)
   , (CASH, 700)
+  , (MORPHEUS, 800)
   ]
 
 gatewayMap :: Map.Map Gateway GatewayId

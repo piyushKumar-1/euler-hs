@@ -826,9 +826,8 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
       let pgrXml  = case pgr ^. _responseXml of
             Nothing  -> Map.empty
             Just xml -> getMapFromPGRXml $ decodePGRXml $ T.encodeUtf8 xml
-      let date = show <$> pgr ^. _dateCreated
-      let mPgr = D.defaultMerchantPaymentGatewayResponse & _created .~ date
-      let merchantPgr = transformMpgrByGateway mPgr pgrXml $ mkMerchantPGRServiceTemp gateway txn pgr pgrXml
+      let MerchantPGRServiceByGateway{..} = mkMerchantPGRService gateway
+      let merchantPgr = transformMpgrByGateway txn pgr pgrXml
       let gatewayResp = getGatewayResponseInJson pgr shouldSendFullGatewayResponse
       pure $ Just (merchantPgr & _gatewayResponse .~ gatewayResp)
 

@@ -90,6 +90,7 @@ git clone [https://user_name@bitbucket.org/juspay/euler-hs.git](https://user_nam
 **Run:**
 
 - `stack run euler-backend`
+- Alternatively, you can use the shell script `./runEulerBackend.sh` that will set environment variables and run the program with some RTS options.
 
 #### Nix
 

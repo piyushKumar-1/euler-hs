@@ -244,123 +244,16 @@ mySqlPoolConfig = case getEnv of
     , resourcesPerStripe = devMysqlPoolResourcesPerStripe
     }
   _ -> PoolConfig
-    { stripes = devMysqlPoolStripes
+    { stripes = getMysqlPoolStripes
     , keepAlive = fromInteger getMysqlPoolIdleTime
     , resourcesPerStripe = getMysqlPoolMax
     }
-
 
 mysqlDBC = do
   mySqlConfig <- getMySQLCfg
   case getEnv of
     DEV -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlPoolConfig
     _   -> pure $ mkMySQLPoolConfig (Text.pack Constants.ecDB) mySqlConfig mySqlPoolConfig
-
-----DB
-----read
---host
---port
---username
---password
---database
-----write
---host
---port
---username
---password
---database
-----pool
---min: getMysqlPoolMin
---max: getMysqlPoolMax
---idle: getMysqlPoolIdleTime
---acquire: getMysqlPoolAcquireTime
---ecDBCred :: Env -> IO (Options ConnOpts)
---ecDBCred env =
---  case env of
---    DEV -> pure (Conn.dialect := MySQL
---             <> Conn.host := "127.0.0.1"
---             <> Conn.port := 3306
---             <> Conn.username := "cloud"
---             <> Conn.password := "scape"
---             <> Conn.database := "jdb"
---             <> Conn.pool := { min: getMysqlPoolMin
---                             , max: getMysqlPoolMax
---                             , idle: getMysqlPoolIdleTime
---                             , acquire: getMysqlPoolAcquireTime
---                             }
---            <> Conn.benchmark := shouldLogQueryTime)
---    UAT -> do
---      password <- decrypt getEcDbPass
---      replicaPassword <- decrypt getEcDbPassR1
---      pure (Conn.dialect := MySQL
---        <> Conn.replication :=
---            { read: [{ host: getEcDbHostR1
---                    , username: getEcDbUserNameR1
---                    , password: replicaPassword
---                    , database: getEcDbNameR1
---                    , port: getEcDbPortR1
---                    }]
---            , write: { host: getEcDbHost
---                     , username: getEcDbUserName
---                     , password: password
---                     , database: getEcDbName
---                     , port: getEcDbPort
---                     }
---            }
---        <> Conn.pool := { min: getMysqlPoolMin
---                        , max: getMysqlPoolMax
---                        , idle: getMysqlPoolIdleTime
---                        , acquire: getMysqlPoolAcquireTime
---                        }
---        <> Conn.benchmark := shouldLogQueryTime)
---    INTEG -> do
---      password <- decrypt getEcDbPass
---      replicaPassword <- decrypt getEcDbPassR1
---      pure (Conn.dialect := MySQL
---        <> Conn.replication :=
---            { read: [{ host: getEcDbHostR1
---                    , username: getEcDbUserNameR1
---                    , password: replicaPassword
---                    , database: getEcDbNameR1
---                    , port: getEcDbPortR1
---                    }]
---            , write: { host: getEcDbHost
---                      , username: getEcDbUserName
---                      , password: password
---                      , database: getEcDbName
---                      , port: getEcDbPort
---                      }
---            }
---        <> Conn.pool := { min: getMysqlPoolMin
---                        , max: getMysqlPoolMax
---                        , idle: getMysqlPoolIdleTime
---                        , acquire: getMysqlPoolAcquireTime
---                        }
---        <> Conn.benchmark := shouldLogQueryTime)
---    PROD -> do
---      password <- decrypt getEcDbPass
---      replicaPassword <- decrypt getEcDbPassR1
---      pure (Conn.dialect := MySQL
---        <> Conn.replication :=
---            { read: [{ host: getEcDbHostR1
---                    , username: getEcDbUserNameR1
---                    , password: replicaPassword
---                    , database: getEcDbNameR1
---                    , port: getEcDbPortR1
---                    }]
---            , write: { host: getEcDbHost
---                     , username: getEcDbUserName
---                     , password: password
---                     , database: getEcDbName
---                     , port: getEcDbPort
---                     }
---            }
---        <> Conn.pool := { min: getMysqlPoolMin
---                        , max: getMysqlPoolMax
---                        , idle: getMysqlPoolIdleTime
---                        , acquire: getMysqlPoolAcquireTime
---                        }
---        <> Conn.benchmark := shouldLogQueryTime)
 
 redisConfig :: RedisConfig
 redisConfig = case getEnv of

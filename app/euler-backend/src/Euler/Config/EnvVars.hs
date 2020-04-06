@@ -133,6 +133,9 @@ getMysqlPoolMin = fromMaybe 0 $ readMaybe =<< lookupEnv "MYSQL_POOL_MIN"
 getMysqlPoolMax :: Int
 getMysqlPoolMax = fromMaybe 5 $ readMaybe =<< lookupEnv "MYSQL_POOL_MAX"
 
+getMysqlPoolStripes :: Int
+getMysqlPoolStripes = fromMaybe 1 $ readMaybe =<< lookupEnv "MYSQL_POOL_STRIPES"
+
 getMysqlPoolIdleTime :: Integer
 getMysqlPoolIdleTime = fromMaybe 20000 $ readMaybe =<< lookupEnv "MYSQL_POOL_IDLE_TIME"
 

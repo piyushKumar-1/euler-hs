@@ -757,7 +757,7 @@ findPayerVpaByGateway gateway (Just xml) =
   case gateway of
     Nothing -> T.empty
     Just gateway' -> case gateway' of
-      C.AXIS_UPI    -> findEntry "payerVpa" (findEntry "customerVpa" "" pgrXml) pgrXml
+      C.AXIS_UPI    -> findEntry "payerVpa" (findAXIS_UPI "payload" "customerVpa" "" pgrXml) pgrXml
       C.HDFC_UPI    -> findEntry "payerVpa" "" pgrXml
       C.INDUS_UPI   -> findEntry "payerVpa" "" pgrXml
       C.KOTAK_UPI   -> findEntry "payerVpa" "" pgrXml
@@ -770,7 +770,7 @@ findPayerVpaByGateway gateway (Just xml) =
       C.PAYU        -> findEntry "field3" "" pgrXml
       C.RAZORPAY    -> findEntry "vpa" "" pgrXml
       C.PAYTM_V2    -> findEntry "VPA" "" pgrXml
-      C.GOCASHFREE  -> findPayersVPA "payersVPA" "" pgrXml
+      C.GOCASHFREE  -> findGOCASHFREE "payersVPA" "" pgrXml
       _             -> T.empty
   where
     pgrXml = decodePGRXml $ T.encodeUtf8 xml

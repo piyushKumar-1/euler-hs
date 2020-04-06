@@ -13,7 +13,8 @@ module Euler.Common.Types.PaymentGatewayResponseXml
  -- , OpusPGResponse(..)
   , decodePGRXml
   , findEntry
-  , findPayersVPA
+  , findGOCASHFREE
+  , findAXIS_UPI
   , getMapFromPGRXml
   , lookupXML
   , lookupXMLKeys
@@ -60,8 +61,17 @@ findEntry entry defaultEntry pgrXml =
       Just _           -> defaultEntry
       Nothing          -> defaultEntry
 
-findPayersVPA :: Text -> Text -> Either String PGRXml -> Text
-findPayersVPA entry defaultEntry pgrXml =
+findAXIS_UPI :: Text -> Text -> Text -> Either String PGRXml -> Text
+findAXIS_UPI key1 key2 defaultEntry pgrXml =
+  let value = either (const Nothing) (lookupEntry $ TL.fromStrict key1) pgrXml
+  in
+    case value of
+      Just (EGroovyHM (GroovyHM m)) -> lookupXML m key2 defaultEntry
+      Just (EText _)                -> defaultEntry
+      Nothing                       -> defaultEntry
+
+findGOCASHFREE :: Text -> Text -> Either String PGRXml -> Text
+findGOCASHFREE entry defaultEntry pgrXml =
   let paymentDetailsNodes = fromRight [] $ fromRawXml $ TE.encodeUtf8 $ findEntry "paymentDetails" defaultEntry pgrXml
       valueList = fmap TL.toStrict $ rights $ runParser (pElement entry pText) . pure <$> paymentDetailsNodes
   in
@@ -1468,6 +1478,4 @@ icici_resp_message: NULL
       resp_message: FAILURE
 
 -}
-
-
 

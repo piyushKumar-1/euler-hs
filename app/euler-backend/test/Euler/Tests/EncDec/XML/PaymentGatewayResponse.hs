@@ -98,9 +98,13 @@ spec =
       let res = findPayerVpaByGateway (Just PAYU) Nothing
       res `shouldBe` ""
 
-    it "findPayerVpaByGateway, gateway is AXIS_UPI" $  do
+    it "findPayerVpaByGateway, gateway is AXIS_UPI, case with payersVpa" $  do
       let res = findPayerVpaByGateway (Just AXIS_UPI) $ Just rawXmlForPayersVpa
       res `shouldBe` "debopriya.das1001-1@okicici"
+
+    it "findPayerVpaByGateway, gateway is AXIS_UPI, case with customerVpa" $  do
+      let res = findPayerVpaByGateway (Just AXIS_UPI) $ Just rawXmlCustomerVpa
+      res `shouldBe` "7795296049@upi"
 
     it "findPayerVpaByGateway, gateway is HDFC_UPI" $  do
       let res = findPayerVpaByGateway (Just HDFC_UPI) $ Just rawXmlForPayersVpa
@@ -622,3 +626,78 @@ rawXmlForVPA = [r|<linked-hash-map><entry><string>txTime</string><string>2020-03
 
 rawXmlForPayersVPA :: Text
 rawXmlForPayersVPA = [r|<linked-hash-map><entry><string>txTime</string><string>2020-03-23 07:57:54</string></entry><entry><string>txStatus</string><string>FAILED</string></entry><entry><string>txMsg</string><string>ZM::INVALID UPI PIN</string></entry><entry><string>status</string><string>OK</string></entry><entry><string>referenceId</string><string>106936653</string></entry><entry><string>paymentMode</string><string>UPI</string></entry><entry><string>paymentDetails</string><string><utr>008307784654</utr><paymentMode/><payersVPA>7602476670@paytm</payersVPA><cardScheme/><cardNumber/><cardCountry/><bankName/><authIdCode/></string></entry><entry><string>orderStatus</string><string>ACTIVE</string></entry><entry><string>orderExpiryTime</string><string>2020-04-22 07:57:54</string></entry><entry><string>orderCurrency</string><string>INR</string></entry><entry><string>orderAmount</string><string>8.00</string></entry></linked-hash-map>|]
+
+rawXmlCustomerVpa :: Text
+rawXmlCustomerVpa = [r|
+<org.codehaus.groovy.grails.web.json.JSONObject>
+  <myHashMap>
+    <entry>
+      <string>responseMessage</string>
+      <string>SUCCESS</string>
+    </entry>
+    <entry>
+      <string>responseCode</string>
+      <string>SUCCESS</string>
+    </entry>
+    <entry>
+      <string>udfParameters</string>
+      <string>{}</string>
+    </entry>
+    <entry>
+      <string>payload</string>
+      <org.codehaus.groovy.grails.web.json.JSONObject>
+        <myHashMap>
+          <entry>
+            <string>amount</string>
+            <string>1.00</string>
+          </entry>
+          <entry>
+            <string>merchantCustomerId</string>
+            <string>juspay_test_user_101</string>
+          </entry>
+          <entry>
+            <string>gatewayTransactionId</string>
+            <string>AXISSDKV3c6928bb5b4f044db8c563895e1</string>
+          </entry>
+          <entry>
+            <string>customerVpa</string>
+            <string>7795296049@upi</string>
+          </entry>
+          <entry>
+            <string>gatewayResponseMessage</string>
+            <string>Failure</string>
+          </entry>
+          <entry>
+            <string>transactionTimestamp</string>
+            <string>2017-06-14T11:24:00+00:00</string>
+          </entry>
+          <entry>
+            <string>merchantId</string>
+            <string>JPMERCHANT</string>
+          </entry>
+          <entry>
+            <string>gatewayResponseCode</string>
+            <string>T04</string>
+          </entry>
+          <entry>
+            <string>merchantRequestId</string>
+            <string>juspay_test-1497445488-2</string>
+          </entry>
+          <entry>
+            <string>merchantChannelId</string>
+            <string>JPMERCHANT</string>
+          </entry>
+        </myHashMap>
+      </org.codehaus.groovy.grails.web.json.JSONObject>
+    </entry>
+    <entry>
+      <string>checksum</string>
+      <string>361f638a15fcb7874749cdbeb5017f46ba0f3a70cf561f7960f909d6aa8ebcf0</string>
+    </entry>
+    <entry>
+      <string>customResponse</string>
+      <string>{}</string>
+    </entry>
+  </myHashMap>
+</org.codehaus.groovy.grails.web.json.JSONObject>
+|]

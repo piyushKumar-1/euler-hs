@@ -6,6 +6,7 @@ import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defau
 import           Data.Time.Clock (NominalDiffTime)
 
 import qualified Euler.Config.Config as Config
+import qualified Euler.Constants as Constants
 import qualified Euler.Server as Euler
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
@@ -40,18 +41,6 @@ mySQLCfg = T.MySQLConfig
 eulerApiPort :: Int
 eulerApiPort = 8080
 
--- Redis config data
-
-redisConnConfig :: T.RedisConfig
-redisConnConfig = T.RedisConfig
-    { connectHost           = "localhost"
-    , connectPort           = 6379
-    , connectAuth           = Nothing
-    , connectDatabase       = 0
-    , connectMaxConnections = 50
-    , connectMaxIdleTime    = 30
-    , connectTimeout        = Nothing
-    }
 
 -- Test DB to show how the initialization can look like.
 -- TODO: add real DB services.
@@ -60,29 +49,21 @@ prepareDBConnections = do
   ePool <- L.initSqlDBConnection
     $ T.mkSQLitePoolConfig sqliteConn "/tmp/test.db" -- T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg --
     $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
-  redis <- L.initKVDBConnection
-    $ T.mkKVDBConfig Config.redis
-    $ redisConnConfig
+  ecRedis <- L.initKVDBConnection
+    $ T.mkKVDBConfig Constants.ecRedis
+    $ Config.redisConfig
+  kvRedis <- L.initKVDBConnection
+    $ T.mkKVDBClusterConfig Constants.kvRedis
+    $ Config.redisClusterConfig
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
-  L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
+  L.throwOnFailedWithLog ecRedis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
+  L.throwOnFailedWithLog kvRedis T.KVDBConnectionFailedException "Failed to connect to Redis cluster DB."
 
-prepareDBConnections' :: L.Flow ()
-prepareDBConnections' = pure ()
 
--- TODO: use a real connection config and switch from
--- prepareDBConnections' to prepareDBConnections.
 
 runEulerBackendApp' :: Settings -> IO ()
 runEulerBackendApp' settings = do
-  let loggerCfg = T.defaultLoggerConfig
-        { T._logToFile = True
-        , T._logFilePath = "/tmp/euler-backend.log"
-        , T._isAsync = False
-        , T._level = T.Debug
-        , T._logToConsole = True
-        }
-
-  R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do
+  R.withFlowRuntime (Just Config.loggerConfig) $ \flowRt -> do
     putStrLn @String "Runtime created."
     putStrLn @String "Initializing DB connections..."
     try (R.runFlow flowRt prepareDBConnections) >>= \case

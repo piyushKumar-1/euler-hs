@@ -6,6 +6,8 @@ import EulerHS.Types
 
 import Euler.Config.EnvVars
 
+import qualified Euler.Constants as Constants
+
 import qualified Data.List.Extra as LE
 import qualified Data.Text as Text (pack)
 import qualified Network.AWS.Prelude as AWS
@@ -234,8 +236,8 @@ getMySQLCfg = case getEnv of
           , connectSSL      = Nothing
           }
 
-mySqlpoolConfig :: PoolConfig
-mySqlpoolConfig = case getEnv of
+mySqlPoolConfig :: PoolConfig
+mySqlPoolConfig = case getEnv of
   DEV -> PoolConfig
     { stripes = devMysqlPoolStripes
     , keepAlive = fromInteger devMysqlPoolKeepAlive
@@ -251,8 +253,8 @@ mySqlpoolConfig = case getEnv of
 mysqlDBC = do
   mySqlConfig <- getMySQLCfg
   case getEnv of
-    DEV -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlpoolConfig
-    _   -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlpoolConfig
+    DEV -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlPoolConfig
+    _   -> pure $ mkMySQLPoolConfig (Text.pack Constants.ecDB) mySqlConfig mySqlPoolConfig
 
 ----DB
 ----read
@@ -359,6 +361,90 @@ mysqlDBC = do
 --                        , acquire: getMysqlPoolAcquireTime
 --                        }
 --        <> Conn.benchmark := shouldLogQueryTime)
+
+redisConfig :: RedisConfig
+redisConfig = case getEnv of
+  DEV -> RedisConfig
+    { connectHost           = devRedisHost
+    , connectPort           = devRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisDatabase
+    , connectMaxConnections = devRedisMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+  UAT -> RedisConfig
+    { connectHost           = uatRedisHost
+    , connectPort           = uatRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = uatRedisDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  INTEG -> RedisConfig
+    { connectHost           = integRedisHost
+    , connectPort           = integRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = integRedisDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  PROD -> RedisConfig
+    { connectHost           = productionRedisHost
+    , connectPort           = productionRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = productionRedisDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+
+redisClusterConfig :: RedisConfig
+redisClusterConfig = case getEnv of
+  DEV -> RedisConfig
+    { connectHost           = devRedisClusterHost
+    , connectPort           = devRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisClusterDatabase
+    , connectMaxConnections = devRedisClusterMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisClusterMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+  UAT -> RedisConfig
+    { connectHost           = uatRedisClusterHost
+    , connectPort           = uatRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = uatRedisClusterDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  INTEG -> RedisConfig
+    { connectHost           = integRedisClusterHost
+    , connectPort           = integRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = integRedisClusterDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  PROD -> RedisConfig
+    { connectHost           = productionRedisClusterHost
+    , connectPort           = productionRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = productionRedisClusterDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+
+kvdbConfig :: KVDBConfig
+kvdbConfig = mkKVDBConfig Constants.ecRedis redisConfig
+
+kvdbClusterConfig :: KVDBConfig
+kvdbClusterConfig = mkKVDBClusterConfig Constants.kvRedis redisClusterConfig
 
 gatewaySchemeUrl :: String
 gatewaySchemeUrl = case getEnv of
@@ -625,14 +711,19 @@ retryExecuteRefundInterval = getRetryExecuteRefundInterval
 getSchedulerRunners' :: [String]
 getSchedulerRunners' = LE.upper . LE.trim <$> LE.split (==',') getSchedulerRunners
 
-redis :: Text
-redis = Text.pack standaloneRedisName
-
-redisCluster :: Text
-redisCluster = Text.pack clusterRedisName
 
 awsRegion :: AWS.Region
 awsRegion = fromRight AWS.Mumbai $ AWS.fromText $ Text.pack getAwsRegion
 
 kmsKeyId :: Text
 kmsKeyId = Text.pack getKmsKeyId
+
+loggerConfig :: LoggerConfig
+loggerConfig = LoggerConfig
+  { _format = "" -- Not used for tiny logger
+  , _logToFile = loggerLogToFile
+  , _logFilePath = loggerLogFilePath
+  , _isAsync = loggerIsAsync
+  , _level = loggerLevel
+  , _logToConsole = loggerLogToConsole
+  }

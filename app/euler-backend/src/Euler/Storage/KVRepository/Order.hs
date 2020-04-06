@@ -8,6 +8,7 @@ import EulerHS.Prelude
 import           EulerHS.Language
 import qualified Euler.Common.Types  as C
 import qualified Euler.Config.Config as Config
+import qualified Euler.Constants     as Constants
 import qualified Euler.Storage.Types as DB
 
 
@@ -17,4 +18,4 @@ import qualified Euler.Storage.Types as DB
 updateOrderCache :: C.OrderId -> C.MerchantId -> DB.OrderReference -> Flow ()
 updateOrderCache orderId merchantId dbOrder = do
   -- EHS: magic constant.
-  void $ rSetex Config.redis (merchantId <> "_orderid_" <> orderId) dbOrder Config.orderTtl
+  void $ rSetex Constants.ecRedis (merchantId <> "_orderid_" <> orderId) dbOrder Config.orderTtl

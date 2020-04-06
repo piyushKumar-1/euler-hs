@@ -19,7 +19,7 @@ import qualified Data.Text.Encoding   as TE
 
 import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Constants  as Constants (redis_token_expiry_default, token_max_usage_default)
+import qualified Euler.Constants  as Constants (redis_token_expiry_default, token_max_usage_default, ecRedis)
 
 data TokenizedResource = TokenizedResource
   { token  :: Text
@@ -34,7 +34,7 @@ tokenizeResource resourceId resourceType merchantId = do
   TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
   currentDate <- getCurrentDateInMillis
   redisData   <- pure $ getRedisData resourceType resourceId tokenMaxUsage expiryInSeconds currentDate
-  _ <- rSetex Config.redis token' redisData expiryInSeconds
+  _ <- rSetex Constants.ecRedis token' redisData expiryInSeconds
   --setCacheWithExpiry Constants.ecRedis token redisData (convertDuration $ Seconds $ toNumber expiryInSeconds)
   _           <- logInfo (resourceType <> "_token_cache") (token' <> (show redisData))
   expiry'     <- getCurrentDateStringWithSecOffset Constants.redis_token_expiry_default
@@ -74,16 +74,14 @@ parseAndDecodeJson tval errorCode errorMessage = case (A.eitherDecode $ BSL.from
 
 invalidateCardListForMerchantCustomer :: Text -> Text -> Flow ()
 invalidateCardListForMerchantCustomer merchantId customerId =
-  void $ rDel Config.redis ["ec_cards_:" <> merchantId <> ":" <> customerId]
+  void $ rDel Constants.ecRedis ["ec_cards_:" <> merchantId <> ":" <> customerId]
 
 
 invalidateOrderStatusCache :: Text -> Text -> Flow ()
 invalidateOrderStatusCache orderId merchantId = do
   logInfo @String "invalidateOrderStatusCacheStart" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
-  void $ rDel Config.redis
-        [ "euler_ostatus_" <> merchantId <> "_" <> orderId
-        , "euler_ostatus_unauth_" <> merchantId <> "_" <> orderId
-        , "ostatus_" <> merchantId <> "_" <> orderId
-        , "ostatus_unauth_" <> merchantId <> "_" <> orderId
-        ]
+  void $ rDel Constants.ecRedis [ "euler_ostatus_" <> merchantId <> "_" <> orderId ]
+  void $ rDel Constants.ecRedis [ "euler_ostatus_unauth_" <> merchantId <> "_" <> orderId ]
+  void $ rDel Constants.ecRedis [ "ostatus_" <> merchantId <> "_" <> orderId ]
+  void $ rDel Constants.ecRedis [ "ostatus_unauth_" <> merchantId <> "_" <> orderId ]
   logInfo @String "invalidateOrderStatusCacheEnd" $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId

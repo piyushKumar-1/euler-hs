@@ -42,6 +42,7 @@ import           Euler.Product.Domain.MerchantAccount
 import qualified Euler.Product.Domain.Templates    as Ts
 import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
 import qualified Euler.Config.Config               as Config
+import qualified Euler.Constants                   as Constants
 import           Euler.Lens
 
 orderCreate
@@ -113,7 +114,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet Config.redis $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet Constants.ecRedis $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 -- EHS: maxAmount <= 0 verified on validation

@@ -4,10 +4,12 @@ module Euler.Config.EnvVars where
 
 import EulerHS.Prelude
 
+import qualified EulerHS.Types as T
 import qualified Data.Map as Map
 import           Data.Char (toUpper)
 import           System.Environment (getEnvironment)
 import           System.IO.Unsafe (unsafePerformIO)
+
 
 toTitle :: String -> String
 toTitle "" = ""
@@ -62,6 +64,7 @@ getEulerDbNameR1 :: String
 getEulerDbNameR1 = fromMaybe getEulerDbName $ lookupEnv "EULER_NAME_R1"
 
 --
+
 
 getEcDbPass :: String
 getEcDbPass = fromMaybe "nodefaultvalue" $ lookupEnv "EC_DB_PASSWORD";
@@ -277,11 +280,7 @@ getAwsRegion = fromMaybe "ap-south-1" $ lookupEnv "AWS_REGION"
 getKmsKeyId :: String
 getKmsKeyId = fromMaybe "arn:aws:kms:ap-south-1:980691203742:key/2ee54fc6-9bd4-4f9c-8cca-e1c179859a8e" $ lookupEnv "KMS_KEY_ID"
 
-standaloneRedisName :: String
-standaloneRedisName = fromMaybe "redis" $ lookupEnv "STANDALONE_REDIS_NAME"
 
-clusterRedisName :: String
-clusterRedisName = fromMaybe "redisCluster" $ lookupEnv "CLUSTER_REDIS_NAME"
 
 -- DEV MySQL parameters
 devMysqlConnectionName :: String
@@ -314,3 +313,109 @@ devMysqlPoolKeepAlive = fromMaybe 10 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_K
 devMysqlPoolResourcesPerStripe :: Int
 devMysqlPoolResourcesPerStripe = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_RESOURCES_PER_STRIPE"
 
+-- Redis parameters
+
+devRedisHost :: String
+devRedisHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CONNECT_HOST"
+
+devRedisPort :: Word16
+devRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_PORT"
+
+devRedisDatabase :: Integer
+devRedisDatabase = fromMaybe 0 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_DATABASE"
+
+devRedisMaxConnections :: Int
+devRedisMaxConnections = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_MAX_CONNECTIONS"
+
+devRedisMaxIdleTime :: Integer
+devRedisMaxIdleTime = fromMaybe 30 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_MAX_IDLE_TIME"
+
+uatRedisHost :: String
+uatRedisHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "REDIS_HOST"
+
+uatRedisPort :: Word16
+uatRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "REDIS_PORT"
+
+uatRedisDB :: Integer
+uatRedisDB = fromMaybe 10 $ readMaybe =<< lookupEnv "REDIS_DB"
+
+integRedisHost :: String
+integRedisHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "REDIS_HOST"
+
+integRedisPort :: Word16
+integRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "REDIS_PORT"
+
+integRedisDB :: Integer
+integRedisDB = fromMaybe 10 $ readMaybe =<< lookupEnv "REDIS_DB"
+
+productionRedisHost :: String
+productionRedisHost = fromMaybe "localhost" $ lookupEnv "REDIS_HOST"
+
+productionRedisPort :: Word16
+productionRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "REDIS_PORT"
+
+productionRedisDB :: Integer
+productionRedisDB = fromMaybe 0 $ readMaybe =<< lookupEnv "REDIS_DB"
+
+-- Redis cluster parameters
+
+redisClusterConnName :: String
+redisClusterConnName = fromMaybe "redisCluster" $ lookupEnv "REDIS_CLUSTER_CONN_NAME"
+
+devRedisClusterHost :: String
+devRedisClusterHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CLUSTER_CONNECT_HOST"
+
+devRedisClusterPort :: Word16
+devRedisClusterPort = fromMaybe 30001 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_PORT"
+
+devRedisClusterDatabase :: Integer
+devRedisClusterDatabase = fromMaybe 0 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_DATABASE"
+
+devRedisClusterMaxConnections :: Int
+devRedisClusterMaxConnections = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_MAX_CONNECTIONS"
+
+devRedisClusterMaxIdleTime :: Integer
+devRedisClusterMaxIdleTime = fromMaybe 30 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_MAX_IDLE_TIME"
+
+uatRedisClusterHost :: String
+uatRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "KV_REDIS_HOST"
+
+uatRedisClusterPort :: Word16
+uatRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "KV_REDIS_PORT"
+
+uatRedisClusterDB :: Integer
+uatRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
+
+integRedisClusterHost :: String
+integRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "KV_REDIS_HOST"
+
+integRedisClusterPort :: Word16
+integRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "KV_REDIS_PORT"
+
+integRedisClusterDB :: Integer
+integRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
+
+productionRedisClusterHost :: String
+productionRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "KV_REDIS_HOST"
+
+productionRedisClusterPort :: Word16
+productionRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "KV_REDIS_PORT"
+
+productionRedisClusterDB :: Integer
+productionRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
+
+-- Logger parameters
+loggerIsAsync :: Bool
+loggerIsAsync = fromMaybe False $ readMaybe =<< toTitle <$> lookupEnv "LOGGER_IS_ASYNC"
+
+loggerLevel :: T.LogLevel
+loggerLevel = fromMaybe T.Debug $ readMaybe =<< lookupEnv "LOGGER_LEVEL"
+
+loggerLogFilePath :: String
+loggerLogFilePath = fromMaybe "/tmp/euler-backend.log" $ lookupEnv "LOGGER_FILE_PATH"
+
+loggerLogToConsole :: Bool
+loggerLogToConsole = fromMaybe True $ readMaybe =<< toTitle <$> lookupEnv "LOGGER_TO_CONSOLE"
+
+loggerLogToFile :: Bool
+loggerLogToFile = fromMaybe True $ readMaybe =<< toTitle <$> lookupEnv "LOGGER_TO_FILE"

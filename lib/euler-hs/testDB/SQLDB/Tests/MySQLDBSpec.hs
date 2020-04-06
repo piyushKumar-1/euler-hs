@@ -24,7 +24,7 @@ import EulerHS.Extra.Test
 
 mySQLCfg :: T.MySQLConfig
 mySQLCfg = T.MySQLConfig
-  { connectHost     = "127.0.0.1"
+  { connectHost     = "mysql"
   , connectPort     = 3306
   , connectUser     = "cloud"
   , connectPassword = "scape"

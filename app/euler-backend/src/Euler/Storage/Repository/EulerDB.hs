@@ -37,7 +37,7 @@ unsafeInsertRowEulerDB ex insertStmt = do
 
 withEulerDB :: JSONEx a => SqlDB BM.MySQLM a -> Flow a
 withEulerDB act = do
-  dbcfg <- getOption EulerDbCfg
+  (dbcfg :: Maybe (DBConfig BM.MySQLM)) <- getOption EulerDbCfg
   case dbcfg of
     Just cfg -> withDB cfg act
     Nothing -> do

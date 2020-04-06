@@ -39,17 +39,17 @@ import           Data.Generics.Product.Fields
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Errors.Types as Errs
 import qualified Euler.API.Validators.Order as VO
+import qualified Euler.Options.Options as Opt
 import qualified Data.Aeson as A
-import Test.HUnit.Base
-
-import Euler.Lens
-import Database.MySQL.Base
+import           Test.HUnit.Base
+import           Euler.Lens
+import           Database.MySQL.Base
 import           System.Process
 
 
 
 prepareDB :: (FlowRuntime -> IO ()) -> IO()
-prepareDB next = withFlowRuntime Nothing $ \flowRt ->
+prepareDB next = withFlowRuntime (Just defaultLoggerConfig) $ \flowRt ->
   prepareTestDB $
     try (runFlow flowRt prepareDBConnections) >>= \case
       Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
@@ -471,11 +471,14 @@ redisConnConfig = T.RedisConfig
 
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
-  ePool <- initSqlDBConnection
-    $ T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
+  let cfg = T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
+
+  ePool <- initSqlDBConnection cfg
+  setOption Opt.EulerDbCfg cfg
+
   redis <- initKVDBConnection
-    $ T.mkKVDBConfig redisConn
-    $ redisConnConfig
+    $ T.mkKVDBConfig redisConn $ redisConnConfig
+
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 

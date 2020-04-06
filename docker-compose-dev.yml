@@ -31,17 +31,17 @@ services:
       MYSQL_PASSWORD: "scape"
       MYSQL_DATABASE: "jdb"
 
-  # postgres:
-  #   image: euler-ps-postgres
-  #   build:
-  #     context: ./init
-  #     dockerfile: Dockerfile.postgres
-  #   ports:
-  #     - "5432:5432"
-  #   environment:
-  #     POSTGRES_USER: "cloud"
-  #     POSTGRES_PASSWORD: "scape"
-  #     POSTGRES_DB: "hpcldb"
+  postgres:
+    image: euler-ps-postgres
+    build:
+      context: ./init
+      dockerfile: Dockerfile.postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: "cloud"
+      POSTGRES_PASSWORD: "scape"
+      POSTGRES_DB: "hpcldb"
 
 volumes:
     stackcache:

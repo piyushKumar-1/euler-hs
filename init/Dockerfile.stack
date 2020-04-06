@@ -2,8 +2,6 @@ FROM ubuntu:18.04
 ARG EULER_UID
 ARG EULER_GID
 
-
-
 RUN mkdir /.stack
 RUN chown -R ${EULER_UID:-0}:${EULER_GID:-0} /.stack
 VOLUME /.stack
@@ -17,7 +15,7 @@ RUN curl -sSL https://get.haskellstack.org/ | sh
 RUN locale-gen en_US.utf8
 ENV LC_ALL en_US.utf8
 
-RUN apt-get install -y --no-install-recommends iputils-ping mysql-client-core-5.7
+RUN apt-get install -y --no-install-recommends mysql-client-core-5.7
 
 USER ${EULER_UID:-0}
 

@@ -23,7 +23,7 @@ import EulerHS.Extra.Test
 
 pgCfg :: T.PostgresConfig
 pgCfg = T.PostgresConfig
-  { connectHost = "127.0.0.1" --String
+  { connectHost = "mysql" --String
   , connectPort = 5432 --Word16
   , connectUser = "cloud" -- String
   , connectPassword = "scape" -- String

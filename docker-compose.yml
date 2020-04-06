@@ -16,6 +16,7 @@ services:
     volumes:
         - .:/euler-hs
         - stackcache:/.stack
+    #command: sleep 100000
     command: stack test --fast --ghc-options="-j4 +RTS -A64M -AL256M -qn4 -RTS" -j4
 
   mysql:

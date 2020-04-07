@@ -119,7 +119,7 @@ data FlowMethod next where
     :: (FromJSON a, ToJSON a)
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
-    -> (Maybe (Either Text a) -> next)
+    -> (Either T.AwaitingError a -> next)
     -> FlowMethod next
 
   ThrowException
@@ -499,7 +499,11 @@ forkFlow' description flow = do
 -- > myFlow2 = do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
-await :: (FromJSON a, ToJSON a) => Maybe T.Microseconds -> T.Awaitable (Either Text a) -> Flow (Maybe (Either Text a))
+await
+  :: (FromJSON a, ToJSON a)
+  => Maybe T.Microseconds
+  -> T.Awaitable (Either Text a)
+  -> Flow (Either T.AwaitingError a)
 await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
 
 -- | Throw given exception.

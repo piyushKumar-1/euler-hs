@@ -273,44 +273,32 @@ instance MockedResult GetKVDBConnectionEntry (T.KVDBAnswer T.KVDBConn) where
 
 data AwaitEntry = AwaitEntry
   { timeout    :: Maybe Int
-  , jsonResult :: Maybe (Either Text A.Value)
+  , jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkAwaitEntry :: (FromJSON v, ToJSON v) => Maybe T.Microseconds -> Maybe (Either Text v) -> AwaitEntry
-mkAwaitEntry mbMcs = \case
-    Nothing -> AwaitEntry (unwrapMcs <$> mbMcs) Nothing
-    Just (Left err) -> AwaitEntry (unwrapMcs <$> mbMcs) $ Just $ Left err
-    Just (Right res) -> AwaitEntry (unwrapMcs <$> mbMcs) $ Just $ Right $ toJSON res
+mkAwaitEntry :: (FromJSON v, ToJSON v) => Maybe T.Microseconds -> Either T.AwaitingError v -> AwaitEntry
+mkAwaitEntry mbMcs val = AwaitEntry (unwrapMcs <$> mbMcs) (toJSON val)
   where
     unwrapMcs (T.Microseconds mcs) = fromIntegral mcs
 
 instance RRItem AwaitEntry  where
   getTag _ = "AwaitEntry"
 
-instance (FromJSON v) => MockedResult AwaitEntry (Maybe (Either Text v)) where
-  getMock (AwaitEntry _ jsonValue) =
-    case jsonValue of
-      Nothing -> Nothing
-      Just (Left err) -> Just $ Just $ Left err
-      Just (Right res) -> pure $ Right <$> T.fromJSONMaybe res
+instance (FromJSON v) => MockedResult AwaitEntry v where
+  getMock (AwaitEntry _ jsonValue) = T.fromJSONMaybe jsonValue
 
 ----------------------------------------------------------------------
 
 data RunSafeFlowEntry = RunSafeFlowEntry
-  { safeResult :: Either Text A.Value
+  { jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 mkRunSafeFlowEntry :: (FromJSON v, ToJSON v) => Either Text v -> RunSafeFlowEntry
-mkRunSafeFlowEntry = \case
-  Left err -> RunSafeFlowEntry (Left err)
-  Right res -> RunSafeFlowEntry (Right $ toJSON res)
+mkRunSafeFlowEntry val = RunSafeFlowEntry $ toJSON val
 
 instance RRItem RunSafeFlowEntry  where
   getTag _ = "RunSafeFlowEntry"
 
 instance (FromJSON v) => MockedResult RunSafeFlowEntry (Either Text v) where
-  getMock (RunSafeFlowEntry safeResult) =
-    case safeResult of
-      Left err -> Just $ Left err
-      Right r  -> Right <$> T.fromJSONMaybe r
+  getMock (RunSafeFlowEntry jsonValue) = T.fromJSONMaybe jsonValue
 

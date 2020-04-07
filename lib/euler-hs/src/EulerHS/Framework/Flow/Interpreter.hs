@@ -60,16 +60,22 @@ disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
 
-awaitMVarWithTimeout :: MVar a -> Int -> IO (Maybe a)
+awaitMVarWithTimeout :: MVar (Either Text a) -> Int -> IO (Either T.AwaitingError a)
 awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
                               | otherwise = go mcs
   where
     portion = (mcs `div` 10) + 1
     go rest
-      | rest <= 0 = tryReadMVar mvar
+      | rest <= 0 = do
+        mValue <- tryReadMVar mvar
+        pure $ case mValue of
+          Nothing -> Left T.AwaitingTimeout
+          Just (Right val) -> Right val
+          Just (Left err) -> Left $ T.ForkedFlowError err
       | otherwise = do
           tryReadMVar mvar >>= \case
-            Just val -> pure $ Just val
+            Just (Right val) -> pure $ Right val
+            Just (Left err) -> pure $ Left $ T.ForkedFlowError err
             Nothing  -> threadDelay portion >> go (rest - portion)
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
@@ -121,7 +127,7 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
 interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   case R._runMode rt of
-    T.RegularMode              -> void $ forkIO ((runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+    T.RegularMode -> void $ forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
 
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
@@ -209,14 +215,17 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
   void $ P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
   pure $ next $ T.Awaitable awaitableMVar
-  -- pure $ next $ mapRight T.Awaitable eitherForked
 
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
 interpretFlowMethod R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar) next) = do
   let act = case mbMcs of
-        Nothing                   -> Just <$> readMVar awaitableMVar
+        Nothing -> do
+          val <- readMVar awaitableMVar
+          case val of
+            Left err -> pure $ Left $ T.ForkedFlowError err
+            Right res -> pure $ Right res
         Just (T.Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
   fmap next $ P.withRunMode _runMode (P.mkAwaitEntry mbMcs) act
 

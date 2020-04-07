@@ -298,14 +298,28 @@ spec = do
                 awaitable <- forkFlow' "101" (pure i)
                 await Nothing awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just $ Right 101)
+          result `shouldBe` (Right 101)
 
-        it "Fork and successful await infinitely with exception" $ \rt -> do
+        it "SafeFlow, fork and successful await infinitely" $ \rt -> do
+          let flow = do
+                awaitable <- forkFlow' "101" $ runSafeFlow (pure i :: Flow Int)
+                await Nothing awaitable
+          result <- runFlow rt flow
+          result `shouldBe` (Right $ Right 101)
+
+        it "SafeFlow with exception, fork and successful await infinitely" $ \rt -> do
           let flow = do
                 awaitable <- forkFlow' "101" (throwException internalError :: Flow Int)
                 await Nothing awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just $ Left $ show internalError)
+          result `shouldBe` (Left $ T.ForkedFlowError $ show internalError)
+
+        it "Safe flow with exception and return power" $ \rt -> do
+          let flow = do
+                void $ runSafeFlow (throwException internalError :: Flow Int)
+                runIO (pure ("hi" :: String))
+          result <- runFlow rt flow
+          result `shouldBe` "hi"
 
         -- This might or might not happen (race condition)
         -- it "Fork and successful await 0" $ \rt -> do
@@ -320,21 +334,21 @@ spec = do
                 awaitable <- forkFlow' "101" (pure i)
                 await (Just $ T.Microseconds 1000000) awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just $ Right 101)
+          result `shouldBe` (Right 101)
 
         it "Fork and successful await with a sufficient timeout 2" $ \rt -> do
           let flow = do
                 awaitable <- forkFlow' "101" (runIO (threadDelay 1000) >> pure i)
                 await (Just $ T.Microseconds 1000000) awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just $ Right 101)
+          result `shouldBe` (Right 101)
 
         it "Fork and successful await with an unsufficient timeout" $ \rt -> do
           let flow = do
                 awaitable <- forkFlow' "101" (runIO (threadDelay 1000000) >> pure i)
                 await (Just $ T.Microseconds 1000) awaitable
           result <- runFlow rt flow
-          result `shouldBe` Nothing
+          result `shouldBe` (Left T.AwaitingTimeout)
 
         it "Fork and successful await for 2 flows" $ \rt -> do
           let flow = do
@@ -344,7 +358,7 @@ spec = do
                 mbRes2 <- await Nothing awaitable2
                 pure (mbRes1, mbRes2)
           result <- runFlow rt flow
-          result `shouldBe` (Just $ Right 101, Just $ Right 102)
+          result `shouldBe` (Right 101, Right 102)
 
         it "Fork and successful await 1 of 2 flows" $ \rt -> do
           let flow = do
@@ -354,6 +368,6 @@ spec = do
                 mbRes2 <- await (Just $ T.Microseconds 1000) awaitable2
                 pure (mbRes1, mbRes2)
           result <- runFlow rt flow
-          result `shouldBe` (Just $ Right 101, Nothing)
+          result `shouldBe` (Right 101, Left T.AwaitingTimeout)
 
 

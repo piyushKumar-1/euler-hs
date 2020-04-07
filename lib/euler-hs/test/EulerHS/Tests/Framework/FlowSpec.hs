@@ -1,26 +1,53 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module EulerHS.Tests.Framework.FlowSpec where
 
-import           EulerHS.Prelude hiding (getOption, get)
-import           Test.Hspec hiding (runIO)
-import           Network.Wai.Handler.Warp
-import           Data.Aeson               (encode)
-import qualified Data.ByteString.Lazy as BSL
-import           Unsafe.Coerce
-import qualified Data.UUID as UUID (fromText)
 import qualified Control.Exception as E
-import           Servant.Server
-import           Servant.Client (BaseUrl(..), Scheme(..), ClientError(..))
+import           Data.Aeson (encode)
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
-import qualified EulerHS.Types  as T
+import           EulerHS.Prelude hiding (get, getOption)
 import           EulerHS.Runtime (withFlowRuntime)
-import           EulerHS.TestData.Types
 import           EulerHS.TestData.API.Client
 import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
-import           EulerHS.Testing.Types (FlowMockedValues'(..))
+import           EulerHS.TestData.Types
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
+import           EulerHS.Testing.Types (FlowMockedValues' (..))
 import           EulerHS.Tests.Framework.Common (initRTWithManagers)
-import           EulerHS.Types (HttpManagerNotFound(..))
+import           EulerHS.Types (HttpManagerNotFound (..))
+import qualified EulerHS.Types as T
+import           Network.Wai.Handler.Warp
+import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
+import           Servant.Server
+import           Test.Hspec hiding (runIO)
+import           Unsafe.Coerce
+
+data ErrorResponse = ErrorResponse
+   { code     :: Int
+   , response :: ErrorPayload
+   }
+  deriving (Eq, Show, Generic)
+
+instance Exception ErrorResponse
+
+data ErrorPayload = ErrorPayload
+  { error         :: Bool
+  , error_message :: Text
+  , userMessage   :: Text
+  }
+  deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
+internalError :: ErrorResponse
+internalError = ErrorResponse
+  { code = 500
+  , response = ErrorPayload
+      { error_message = "Internal Server Error"
+      , userMessage = "Internal Server Error"
+      , error = True
+      }
+  }
 
 
 user :: Any
@@ -101,7 +128,7 @@ spec = do
             let error = displayException (ConnectionError (toException $ HttpManagerNotFound "notexist"))
             userEither <- runFlow rt $ callServantAPI (Just "notexist") url getUser
             case userEither of
-              Left e -> displayException e `shouldBe` error
+              Left e  -> displayException e `shouldBe` error
               Right x -> fail "Success result not expected"
 
 
@@ -271,7 +298,14 @@ spec = do
                 awaitable <- forkFlow' "101" (pure i)
                 await Nothing awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just 101)
+          result `shouldBe` (Just $ Right 101)
+
+        it "Fork and successful await infinitely with exception" $ \rt -> do
+          let flow = do
+                awaitable <- forkFlow' "101" (throwException internalError :: Flow Int)
+                await Nothing awaitable
+          result <- runFlow rt flow
+          result `shouldBe` (Just $ Left $ show internalError)
 
         -- This might or might not happen (race condition)
         -- it "Fork and successful await 0" $ \rt -> do
@@ -286,14 +320,14 @@ spec = do
                 awaitable <- forkFlow' "101" (pure i)
                 await (Just $ T.Microseconds 1000000) awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just 101)
+          result `shouldBe` (Just $ Right 101)
 
         it "Fork and successful await with a sufficient timeout 2" $ \rt -> do
           let flow = do
                 awaitable <- forkFlow' "101" (runIO (threadDelay 1000) >> pure i)
                 await (Just $ T.Microseconds 1000000) awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Just 101)
+          result `shouldBe` (Just $ Right 101)
 
         it "Fork and successful await with an unsufficient timeout" $ \rt -> do
           let flow = do
@@ -310,7 +344,7 @@ spec = do
                 mbRes2 <- await Nothing awaitable2
                 pure (mbRes1, mbRes2)
           result <- runFlow rt flow
-          result `shouldBe` (Just 101, Just 102)
+          result `shouldBe` (Just $ Right 101, Just $ Right 102)
 
         it "Fork and successful await 1 of 2 flows" $ \rt -> do
           let flow = do
@@ -320,6 +354,6 @@ spec = do
                 mbRes2 <- await (Just $ T.Microseconds 1000) awaitable2
                 pure (mbRes1, mbRes2)
           result <- runFlow rt flow
-          result `shouldBe` (Just 101, Nothing)
+          result `shouldBe` (Just $ Right 101, Nothing)
 
-          
+

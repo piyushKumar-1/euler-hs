@@ -11,6 +11,7 @@ module EulerHS.Framework.Flow.Interpreter
 
 import           Control.Exception (throwIO)
 import qualified Data.DList as DL
+import           Data.Either.Extra (mapLeft)
 import qualified Data.Map as Map
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
@@ -75,7 +76,7 @@ interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
       let mbClientMngr = case mbMgrSel of
-            Nothing -> Right _defaultHttpClientManager
+            Nothing       -> Right _defaultHttpClientManager
             Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
       case mbClientMngr of
         Right mngr -> catchAny
@@ -120,7 +121,8 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
 interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   case R._runMode rt of
-    T.RegularMode              -> void $ forkIO (suppressErrors (runFlow rt flow >>= putMVar awaitableMVar))
+    T.RegularMode              -> void $ forkIO ((runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
       finalForkedRecordingsVar <- newEmptyMVar
@@ -144,7 +146,8 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
       void $ forkIO $ do
-        _ <- try @_ @SomeException $ runFlow newRt flow
+        -- suppressErrors $ runFlow newRt flow
+        suppressErrors $ runFlow newRt (L.runSafeFlow flow)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
 
@@ -197,7 +200,8 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
           void $ forkIO $ do
-            suppressErrors (runFlow newRt flow >>= putMVar awaitableMVar)
+            -- suppressErrors (runFlow newRt flow >>= putMVar awaitableMVar)
+            suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
             putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
 
@@ -205,19 +209,25 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
   void $ P.withRunMode (R._runMode rt) (P.mkForkEntry desc newFlowGUID) (pure ())
   pure $ next $ T.Awaitable awaitableMVar
+  -- pure $ next $ mapRight T.Awaitable eitherForked
 
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
 interpretFlowMethod R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar) next) = do
   let act = case mbMcs of
-        Nothing  -> Just <$> readMVar awaitableMVar
+        Nothing                   -> Just <$> readMVar awaitableMVar
         Just (T.Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
   fmap next $ P.withRunMode _runMode (P.mkAwaitEntry mbMcs) act
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())
   throwIO ex
+
+interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow flow next) = do
+  fmap next $ P.withRunMode _runMode P.mkRunSafeFlowEntry $ do
+    fl <- try @_ @SomeException $ runFlow rt flow
+    pure $ mapLeft show fl
 
 interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do
@@ -327,3 +337,6 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnec
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)
+
+-- runSafeFlow :: R.FlowRuntime -> L.Flow a -> IO (Either SomeException a)
+-- runSafeFlow flowRt = try @_ @SomeException . foldF (interpretFlowMethod flowRt)

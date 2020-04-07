@@ -45,6 +45,7 @@ module EulerHS.Framework.Flow.Language
   , forkFlow'
   , await
   , throwException
+  , runSafeFlow
 
   -- *** PublishSubscribe
   , publish
@@ -111,14 +112,14 @@ data FlowMethod next where
     => T.Description
     -> T.ForkGUID
     -> Flow a
-    -> (T.Awaitable a -> next)
+    -> (T.Awaitable (Either Text a) -> next)
     -> FlowMethod next
 
   Await
     :: (FromJSON a, ToJSON a)
     => Maybe T.Microseconds
-    -> T.Awaitable a
-    -> (Maybe a -> next)
+    -> T.Awaitable (Either Text a)
+    -> (Maybe (Either Text a) -> next)
     -> FlowMethod next
 
   ThrowException
@@ -126,6 +127,12 @@ data FlowMethod next where
      . Exception e
     => e
     -> (a -> next)
+    -> FlowMethod next
+
+  RunSafeFlow
+    :: (FromJSON a, ToJSON a)
+    => Flow a
+    -> ((Either Text a) -> next)
     -> FlowMethod next
 
   -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
@@ -192,6 +199,8 @@ instance Functor FlowMethod where
   fmap f (Await timeout avaitable next)       = Await timeout avaitable (f . next)
 
   fmap f (ThrowException message next)        = ThrowException message (f . next)
+
+  fmap f (RunSafeFlow flow next)              = RunSafeFlow flow (f . next)
 
   fmap f (RunIO descr ioAct next)             = RunIO descr ioAct (f . next)
 
@@ -451,6 +460,13 @@ withDB dbConf act = do
 -- >   pure res
 forkFlow :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow ()
 forkFlow description flow = void $ forkFlow' description flow
+-- forkFlow description flow = do
+--   let x = forkFlow' description flow
+--   pure ()
+  -- either (const ()) (const ()) <$> forkFlow' description flow
+  -- case eFlow of
+  --   Left _ -> pure ()
+  --   Right _ -> pure ()
 
 -- | Fork given flow with returning a token to await the results.
 --
@@ -461,7 +477,7 @@ forkFlow description flow = void $ forkFlow' description flow
 -- > myFlow2 = do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
-forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable a)
+forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
   flowGUID <- generateGUID
   unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
@@ -483,7 +499,7 @@ forkFlow' description flow = do
 -- > myFlow2 = do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
-await :: (FromJSON a, ToJSON a) => Maybe T.Microseconds -> T.Awaitable a -> Flow (Maybe a)
+await :: (FromJSON a, ToJSON a) => Maybe T.Microseconds -> T.Awaitable (Either Text a) -> Flow (Maybe (Either Text a))
 await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
 
 -- | Throw given exception.
@@ -497,6 +513,12 @@ await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
 -- >     Success -> ...
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
+
+-- | The method allow to catch the exception from the forked flow
+-- in the interpreter and turn it into some type of an error.
+
+runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> Flow (Either Text a)
+runSafeFlow flow = liftFC $ RunSafeFlow flow id
 
 -- | Execute given kvdb actions.
 --

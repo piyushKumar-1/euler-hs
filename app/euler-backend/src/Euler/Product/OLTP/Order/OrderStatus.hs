@@ -69,22 +69,22 @@ import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
 data FlowError = FlowError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-type APIKey = Text
+--type APIKey = Text
 
-data FlowState = FlowState
-  { merchantId :: Maybe Text
-  , orderId    :: Text
-  }
-  deriving (Generic, Show, Eq, ToJSON, FromJSON )
-
-
-data FlowStateOption = FlowStateOption
-  deriving (Generic, Show, Eq, ToJSON, FromJSON )
-
-instance OptionEntity FlowStateOption FlowState
-
-
-type AuthToken = Text
+--data FlowState = FlowState
+--  { merchantId :: Maybe Text
+--  , orderId    :: Text
+--  }
+--  deriving (Generic, Show, Eq, ToJSON, FromJSON )
+--
+--
+--data FlowStateOption = FlowStateOption
+--  deriving (Generic, Show, Eq, ToJSON, FromJSON )
+--
+--instance OptionEntity FlowStateOption FlowState
+--
+--
+--type AuthToken = Text
 
 
 -- | API handler
@@ -126,10 +126,6 @@ execOrderStatusQuery req@D.OrderStatusRequest{..} = do
     result <- case mbCached of
       Just cached -> pure cached
       Nothing     -> slowPath
-    -- EHS: todo: version transformations and token adding should be done later on
-    -- EHS: gateway transformations? are we done with it?
-    --let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
-    --pure $ transformOrderStatus gatewayId resp'
     let vHandle = VS.mkHandle version sendAuthToken
     transformed <- VS.doVersionTransformation vHandle result
     pure $ Right transformed

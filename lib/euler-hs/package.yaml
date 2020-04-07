@@ -103,6 +103,7 @@ dependencies:
 - servant-client-core
 - servant-server
 - vector
+- dlist
 
 library:
   source-dirs:

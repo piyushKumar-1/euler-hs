@@ -134,6 +134,16 @@ spec = do
       L.logDebug   @String "Debug"   "L.logDebug"
       L.logWarning @String "Warning" "L.logWarning"
 
+    it "SafeFlow, throwException" $ do
+      res <- runFlowWithArt $ do
+        runSafeFlow $ (throwException err403 {errBody = "403"} :: Flow Text)
+      res `shouldBe` (Left $ show err403{errBody = "403"})
+
+    it "SafeFlow, RunSysCmd" $ do
+      res <- runFlowWithArt $ do
+        runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+      res `shouldBe` (Right "safe hello\n")
+
     it "Fork" $ runFlowWithArt $ do
       L.forkFlow "Fork" $
         L.logInfo @String "Fork" "Hello"

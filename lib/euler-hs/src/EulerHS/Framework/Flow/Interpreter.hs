@@ -152,7 +152,6 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
       void $ forkIO $ do
-        -- suppressErrors $ runFlow newRt flow
         suppressErrors $ runFlow newRt (L.runSafeFlow flow)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
@@ -206,7 +205,6 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
           void $ forkIO $ do
-            -- suppressErrors (runFlow newRt flow >>= putMVar awaitableMVar)
             suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
             putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
@@ -234,7 +232,7 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   throwIO ex
 
 interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow flow next) = do
-  fmap next $ P.withRunMode _runMode P.mkRunSafeFlowEntry $ do
+  fmap next $ do
     fl <- try @_ @SomeException $ runFlow rt flow
     pure $ mapLeft show fl
 

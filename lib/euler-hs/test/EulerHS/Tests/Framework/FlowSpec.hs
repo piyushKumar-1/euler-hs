@@ -321,6 +321,12 @@ spec = do
           result <- runFlow rt flow
           result `shouldBe` "hi"
 
+        it "Safe flow, RunSysCmd" $ \rt -> do
+          let flow = do
+                runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+          result <- runFlow rt flow
+          result `shouldBe` (Right "safe hello\n")
+
         -- This might or might not happen (race condition)
         -- it "Fork and successful await 0" $ \rt -> do
         --   let flow = do

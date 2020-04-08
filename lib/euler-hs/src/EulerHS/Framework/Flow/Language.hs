@@ -520,7 +520,15 @@ throwException ex = liftFC $ ThrowException ex id
 
 -- | The method allow to catch the exception from the forked flow
 -- in the interpreter and turn it into some type of an error.
-
+--
+-- > myFlow = do
+-- >   runSafeFlow $ throwException err403 {errBody = reason}
+--
+-- > myFlow = do
+-- >   eitherContent <- runSafeFlow $ runIO $ readFromFile file
+-- >   case eitherContent of
+-- >     Left err -> ...
+-- >     Right content -> ...
 runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> Flow (Either Text a)
 runSafeFlow flow = liftFC $ RunSafeFlow flow id
 

@@ -286,19 +286,3 @@ instance RRItem AwaitEntry  where
 
 instance (FromJSON v) => MockedResult AwaitEntry v where
   getMock (AwaitEntry _ jsonValue) = T.fromJSONMaybe jsonValue
-
-----------------------------------------------------------------------
-
-data RunSafeFlowEntry = RunSafeFlowEntry
-  { jsonResult :: A.Value
-  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
-
-mkRunSafeFlowEntry :: (FromJSON v, ToJSON v) => Either Text v -> RunSafeFlowEntry
-mkRunSafeFlowEntry val = RunSafeFlowEntry $ toJSON val
-
-instance RRItem RunSafeFlowEntry  where
-  getTag _ = "RunSafeFlowEntry"
-
-instance (FromJSON v) => MockedResult RunSafeFlowEntry (Either Text v) where
-  getMock (RunSafeFlowEntry jsonValue) = T.fromJSONMaybe jsonValue
-

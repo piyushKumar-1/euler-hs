@@ -9,6 +9,7 @@ import EulerHS.Prelude
 import           EulerHS.Language
 
 import qualified Euler.Config.Config                 as Config
+import qualified Euler.Constants                     as Constants
 import qualified Euler.Common.Types                  as D
 import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Product.Domain                as D
@@ -37,7 +38,7 @@ updateMandateCache order mandate = case mandate of
       mandate' <- createMandate order ma
       -- EHS: magic constant
       -- EHS: mandate in cache can be used in another backends (ps, groovy)
-      void $ rSetex Config.redis (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
+      void $ rSetex Constants.ecRedis (merchantId <> "_mandate_data_" <> orderId) mandate' Config.mandateTtl
 
 createMandate :: D.Order -> Double -> Flow DB.Mandate
 createMandate order' maxAmount = do

@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
-module Euler.Constant.Constants where
+module Euler.Constants where
 
 import EulerHS.Prelude
 import Data.Scientific as S
@@ -7,7 +7,7 @@ import Data.Scientific as S
 defaultCurrency :: IsString s => s
 defaultCurrency = "INR"
 
-ecDB :: IsString s => s
+ecDB :: String
 ecDB = "ECRDB"
 
 eulerDB :: IsString s => s
@@ -16,10 +16,10 @@ eulerDB = "Euler"
 defaultVersion :: Int
 defaultVersion = 1
 
-ecRedis :: IsString s => s
+ecRedis :: Text
 ecRedis = "ECRRedis"
 
-kvRedis :: IsString s => s
+kvRedis :: Text
 kvRedis = "KVRedis"
 
 ecRedisDBQueue :: IsString s => s

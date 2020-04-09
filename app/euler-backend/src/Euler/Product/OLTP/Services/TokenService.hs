@@ -22,23 +22,15 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as TE
 
-import qualified Euler.Config.Config as C
-import           Euler.Config.ServiceConfiguration (ResourceType (..), TokenExpiryData (..))
+import qualified Euler.Config.Config               as Config
 import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Constant.Constants as Constants (redis_token_expiry_default,
-                                                        token_max_usage_default)
+import qualified Euler.Constants  as Constants (redis_token_expiry_default, token_max_usage_default, ecRedis)
 
--- EHS: rework imports. Use top level modules.
 import qualified Euler.API.Order as API
 import qualified Euler.Common.Types as D
---import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Common.Metric as Metric
---import qualified Euler.Config.Config               as Config
---import qualified Euler.Config.ServiceConfiguration as SC
---import           Euler.Lens
---import qualified Euler.Product.Domain              as D
---import qualified Euler.Product.Domain.Order        as D
---import           Euler.Product.Domain.MerchantAccount
+
+
 
 -- | Possible auth token resource types
 data AuthTokenResourceType
@@ -70,14 +62,13 @@ data TokenizedResource = TokenizedResource
   deriving (Generic, Eq, Show, ToJSON, FromJSON)
 
 -- EHS: rework
--- EHS: rename, this has nothing to do with tokenizing (seems everyone is fine with that, ok)
 tokenizeResource :: ResourceType -> Text -> Text -> Flow TokenizedResource
 tokenizeResource resourceId resourceType merchantId = do
   token'      <- ("tkn_" <>) <$> getUUID32
   TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
   currentDate <- getCurrentDateInMillis
   redisData   <- pure $ getRedisData resourceType resourceId tokenMaxUsage expiryInSeconds currentDate
-  _ <- rSetex C.redis token' redisData expiryInSeconds
+  _ <- rSetex Constants.ecRedis token' redisData expiryInSeconds
   --setCacheWithExpiry Constants.ecRedis token redisData (convertDuration $ Seconds $ toNumber expiryInSeconds)
   _           <- logInfo (resourceType <> "_token_cache") (token' <> (show redisData))
   expiry'     <- getCurrentDateStringWithSecOffset Constants.redis_token_expiry_default
@@ -119,4 +110,4 @@ parseAndDecodeJson tval errorCode errorMessage = case (A.eitherDecode $ BSL.from
 -- EHS: seems there is no any usages for this one
 --invalidateCardListForMerchantCustomer :: Text -> Text -> Flow ()
 --invalidateCardListForMerchantCustomer merchantId customerId =
---  void $ rDel ["ec_cards_:" <> merchantId <> ":" <> customerId]
+--  void $ rDel Constants.ecRedis ["ec_cards_:" <> merchantId <> ":" <> customerId]

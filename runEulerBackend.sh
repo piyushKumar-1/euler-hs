@@ -1,0 +1,46 @@
+# RTS options
+REAL_CORES=$(lscpu --all --parse=CORE,SOCKET | grep -Ev "^#" | sort -u | wc -l)
+echo "Real cores = $REAL_CORES"
+
+RTS_OPTIONS="-A64M -AL256M -I0 -qb0 -qn$REAL_CORES -N$REAL_CORES"
+echo "RTS options = $RTS_OPTIONS"
+
+# Exports
+
+export NODE_ENV=development
+
+# Logger parameters
+export LOGGER_IS_ASYNC=False
+export LOGGER_LEVEL=Debug
+export LOGGER_FILE_PATH=/tmp/euler-backend.log
+export LOGGER_TO_CONSOLE=True
+export LOGGER_TO_FILE=True
+
+
+# ecRedis parameters
+export DEV_REDIS_CONNECT_HOST=localhost
+export DEV_REDIS_CONNECT_PORT=6379
+export DEV_REDIS_CONNECT_DATABASE=0
+export DEV_REDIS_CONNECT_MAX_CONNECTIONS=50
+export DEV_REDIS_CONNECT_MAX_IDLE_TIME=30
+
+# kvRedis parameters
+export DEV_REDIS_CLUSTER_CONNECT_HOST=localhost
+export DEV_REDIS_CLUSTER_CONNECT_PORT=30001
+export DEV_REDIS_CLUSTER_CONNECT_DATABASE=0
+export DEV_REDIS_CLUSTER_CONNECT_MAX_CONNECTIONS=50
+export DEV_REDIS_CLUSTER_CONNECT_MAX_IDLE_TIME=30
+
+#MySQL parameters
+export DEV_MYSQL_CONNECTION_NAME=eulerMysqlDB
+export DEV_MYSQL_CONNECT_HOST=localhost
+export DEV_MYSQL_CONNECT_PORT=3306
+export DEV_MYSQL_CONNECT_USER=cloud
+export DEV_MYSQL_CONNECT_PASSWORD=scape
+export DEV_MYSQL_CONNECT_DATABASE=jdb
+export DEV_MYSQL_CONNECT_PATH=""
+export DEV_MYSQL_POOL_STRIPES=1
+export DEV_MYSQL_POOL_KEEP_ALIVE=10
+export DEV_MYSQL_POOL_RESOURCES_PER_STRIPE=50
+
+stack exec euler-backend --rts-options "$RTS_OPTIONS"

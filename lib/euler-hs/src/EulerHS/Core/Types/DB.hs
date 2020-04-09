@@ -32,11 +32,22 @@ module EulerHS.Core.Types.DB
   , mkMySQLPoolConfig
   -- ** Helpers
   , withTransaction
+
+  , sqliteErrorToDbError
+  , mysqlErrorToDbError
+  , postgresErrorToDbError
+  , PostgresSqlError(..)
+  , PostgresExecStatus(..)
+  , MysqlSqlError(..)
+  , SqliteSqlError(..)
+  , SqliteError(..)
+  , SQLError(..)
   ) where
 
 import           EulerHS.Prelude
 
 import qualified Data.Pool as DP
+import qualified Data.Text as T
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
@@ -151,6 +162,7 @@ data NativeSqlPool
   | NativeMySQLPool (DP.Pool MySQL.Connection)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
   | NativeMockedPool
+  deriving Show
 
 -- | Representation of native DB connections that we use in implementation.
 data NativeSqlConn
@@ -251,6 +263,172 @@ mkMySQLConfig connTag dbName = MySQLPoolConf connTag dbName defaultPoolConfig
 mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM
 mkMySQLPoolConfig = MySQLPoolConf
 
+----------------------------------------------------------------------
+
+data SqliteError
+  = SqliteErrorOK
+  | SqliteErrorError
+  | SqliteErrorInternal
+  | SqliteErrorPermission
+  | SqliteErrorAbort
+  | SqliteErrorBusy
+  | SqliteErrorLocked
+  | SqliteErrorNoMemory
+  | SqliteErrorReadOnly
+  | SqliteErrorInterrupt
+  | SqliteErrorIO
+  | SqliteErrorCorrupt
+  | SqliteErrorNotFound
+  | SqliteErrorFull
+  | SqliteErrorCantOpen
+  | SqliteErrorProtocol
+  | SqliteErrorEmpty
+  | SqliteErrorSchema
+  | SqliteErrorTooBig
+  | SqliteErrorConstraint
+  | SqliteErrorMismatch
+  | SqliteErrorMisuse
+  | SqliteErrorNoLargeFileSupport
+  | SqliteErrorAuthorization
+  | SqliteErrorFormat
+  | SqliteErrorRange
+  | SqliteErrorNotADatabase
+  | SqliteErrorNotice
+  | SqliteErrorWarning
+  | SqliteErrorRow
+  | SqliteErrorDone
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+toSqliteError :: SQLite.Error -> SqliteError
+toSqliteError SQLite.ErrorOK                  = SqliteErrorOK
+toSqliteError SQLite.ErrorError               = SqliteErrorError
+toSqliteError SQLite.ErrorInternal            = SqliteErrorInternal
+toSqliteError SQLite.ErrorPermission          = SqliteErrorPermission
+toSqliteError SQLite.ErrorAbort               = SqliteErrorAbort
+toSqliteError SQLite.ErrorBusy                = SqliteErrorBusy
+toSqliteError SQLite.ErrorLocked              = SqliteErrorLocked
+toSqliteError SQLite.ErrorNoMemory            = SqliteErrorNoMemory
+toSqliteError SQLite.ErrorReadOnly            = SqliteErrorReadOnly
+toSqliteError SQLite.ErrorInterrupt           = SqliteErrorInterrupt
+toSqliteError SQLite.ErrorIO                  = SqliteErrorIO
+toSqliteError SQLite.ErrorCorrupt             = SqliteErrorCorrupt
+toSqliteError SQLite.ErrorNotFound            = SqliteErrorNotFound
+toSqliteError SQLite.ErrorFull                = SqliteErrorFull
+toSqliteError SQLite.ErrorCan'tOpen           = SqliteErrorCantOpen
+toSqliteError SQLite.ErrorProtocol            = SqliteErrorProtocol
+toSqliteError SQLite.ErrorEmpty               = SqliteErrorEmpty
+toSqliteError SQLite.ErrorSchema              = SqliteErrorSchema
+toSqliteError SQLite.ErrorTooBig              = SqliteErrorTooBig
+toSqliteError SQLite.ErrorConstraint          = SqliteErrorConstraint
+toSqliteError SQLite.ErrorMismatch            = SqliteErrorMismatch
+toSqliteError SQLite.ErrorMisuse              = SqliteErrorMisuse
+toSqliteError SQLite.ErrorNoLargeFileSupport  = SqliteErrorNoLargeFileSupport
+toSqliteError SQLite.ErrorAuthorization       = SqliteErrorAuthorization
+toSqliteError SQLite.ErrorFormat              = SqliteErrorFormat
+toSqliteError SQLite.ErrorRange               = SqliteErrorRange
+toSqliteError SQLite.ErrorNotADatabase        = SqliteErrorNotADatabase
+toSqliteError SQLite.ErrorNotice              = SqliteErrorNotice
+toSqliteError SQLite.ErrorWarning             = SqliteErrorWarning
+toSqliteError SQLite.ErrorRow                 = SqliteErrorRow
+toSqliteError SQLite.ErrorDone                = SqliteErrorDone
+
+data SqliteSqlError
+  = SqliteSqlError
+    { sqlError        :: !SqliteError
+    , sqlErrorDetails :: Text
+    , sqlErrorContext :: Text
+    }
+    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+toSqliteSqlError :: SQLite.SQLError -> SqliteSqlError
+toSqliteSqlError sqlErr = SqliteSqlError
+    { sqlError        = toSqliteError $ SQLite.sqlError sqlErr
+    , sqlErrorDetails = SQLite.sqlErrorDetails sqlErr
+    , sqlErrorContext = SQLite.sqlErrorContext sqlErr
+    }
+
+sqliteErrorToDbError :: Text -> SQLite.SQLError -> DBError
+sqliteErrorToDbError descr e = DBError (SQLError $ SqliteError $ toSqliteSqlError e) descr
+
+data SQLError
+  = PostgresError PostgresSqlError
+  | MysqlError    MysqlSqlError
+  | SqliteError   SqliteSqlError
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+----------------------------------------------------------------------
+
+data MysqlSqlError =
+  MysqlSqlError
+    { errFunction :: Text
+    , errNumber   :: Int
+    , errMessage  :: Text
+    }
+    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+toMysqlSqlError :: MySQL.MySQLError -> MysqlSqlError
+toMysqlSqlError e = MysqlSqlError
+    { errFunction = T.pack $ MySQL.errFunction e
+    , errNumber = MySQL.errNumber e
+    , errMessage = T.pack $ MySQL.errMessage e
+    }
+
+mysqlErrorToDbError :: Text -> MySQL.MySQLError -> DBError
+mysqlErrorToDbError descr e = DBError (SQLError $ MysqlError $ toMysqlSqlError e) descr
+
+----------------------------------------------------------------------
+
+data PostgresExecStatus
+  = PostgresEmptyQuery
+  | PostgresCommandOk
+  | PostgresTuplesOk
+  | PostgresCopyOut
+  | PostgresCopyIn
+  | PostgresCopyBoth
+  | PostgresBadResponse
+  | PostgresNonfatalError
+  | PostgresFatalError
+  | PostgresSingleTuple
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+toPostgresExecStatus PGS.EmptyQuery    = PostgresEmptyQuery
+toPostgresExecStatus PGS.CommandOk     = PostgresCommandOk
+toPostgresExecStatus PGS.TuplesOk      = PostgresTuplesOk
+toPostgresExecStatus PGS.CopyOut       = PostgresCopyOut
+toPostgresExecStatus PGS.CopyIn        = PostgresCopyIn
+toPostgresExecStatus PGS.CopyBoth      = PostgresCopyBoth
+toPostgresExecStatus PGS.BadResponse   = PostgresBadResponse
+toPostgresExecStatus PGS.NonfatalError = PostgresNonfatalError
+toPostgresExecStatus PGS.FatalError    = PostgresFatalError
+toPostgresExecStatus PGS.SingleTuple   = PostgresSingleTuple
+
+
+data PostgresSqlError =
+  PostgresSqlError
+    { sqlState       :: Text
+    , sqlExecStatus  :: PostgresExecStatus
+    , sqlErrorMsg    :: Text
+    , sqlErrorDetail :: Text
+    , sqlErrorHint   :: Text
+    }
+    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+toPostgresSqlError :: PGS.SqlError -> PostgresSqlError
+toPostgresSqlError e = PostgresSqlError
+    { sqlState       = decodeUtf8 $ PGS.sqlState e
+    , sqlExecStatus  = toPostgresExecStatus $ PGS.sqlExecStatus e
+    , sqlErrorMsg    = decodeUtf8 $ PGS.sqlErrorMsg e
+    , sqlErrorDetail = decodeUtf8 $ PGS.sqlErrorDetail e
+    , sqlErrorHint   = decodeUtf8 $ PGS.sqlErrorHint e
+    }
+
+
+postgresErrorToDbError :: Text -> PGS.SqlError -> DBError
+postgresErrorToDbError descr e = DBError (SQLError $ PostgresError $ toPostgresSqlError e) descr
+
+----------------------------------------------------------------------
 
 
 -- TODO: more informative typed error.
@@ -260,8 +438,9 @@ data DBErrorType
   | ConnectionAlreadyExists
   | ConnectionDoesNotExist
   | TransactionRollbacked
-  | SomeError
-  deriving (Show, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON)
+  | SQLError SQLError
+  | UnrecognizedError
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- | Represents DB error
 data DBError

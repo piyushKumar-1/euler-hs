@@ -10,7 +10,7 @@ import EulerHS.Prelude hiding (id, state)
 
 import           EulerHS.Language
 
-import           Euler.Constant.Constants (defaultVersion)
+import           Euler.Constants (defaultVersion)
 import           Euler.Storage.DBConfig
 
 import qualified Euler.Common.Types                   as C

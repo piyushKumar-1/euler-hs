@@ -25,7 +25,7 @@ type Loggers = [Log.Logger]
 
 data LoggerHandle
   = AsyncLoggerHandle ThreadId LogChan Loggers
-  | SyncLoggerHandle (MVar Loggers)
+  | SyncLoggerHandle Loggers
   | VoidLoggerHandle
 
 dispatchLogLevel :: D.LogLevel -> Log.Level
@@ -44,13 +44,10 @@ logPendingMsg loggers (D.PendingMsg lvl tag msg) = do
   let lvl' = dispatchLogLevel lvl
   let msg' = strMsg $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
-  mapM_ Log.flush loggers
 
-logPendingMsgSync :: MVar Loggers -> D.PendingMsg -> IO ()
-logPendingMsgSync loggersVar pendingMsg = do
-  loggers <- takeMVar loggersVar
+logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()
+logPendingMsgSync loggers pendingMsg = do
   logPendingMsg loggers pendingMsg
-  putMVar loggersVar loggers
 
 loggerWorker :: LogChan -> Loggers -> IO ()
 loggerWorker chan loggers = do
@@ -59,7 +56,7 @@ loggerWorker chan loggers = do
 
 sendPendingMsg :: LoggerHandle -> D.PendingMsg -> IO ()
 sendPendingMsg VoidLoggerHandle = const (pure ())
-sendPendingMsg (SyncLoggerHandle loggersVar) = logPendingMsgSync loggersVar
+sendPendingMsg (SyncLoggerHandle loggers) = logPendingMsgSync loggers
 sendPendingMsg (AsyncLoggerHandle _ chan _)  = atomically . writeTChan chan
 
 createVoidLogger :: IO LoggerHandle
@@ -68,8 +65,8 @@ createVoidLogger = pure VoidLoggerHandle
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
 createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = do
-    let consoleSettings = Log.setBufSize 1 $ Log.setOutput Log.StdOut Log.defSettings
-    let fileSettings    = Log.setBufSize 1 $ Log.setOutput (Log.Path logFileName) Log.defSettings
+    let consoleSettings = Log.setBufSize 4096 $ Log.setOutput Log.StdOut Log.defSettings
+    let fileSettings    = Log.setBufSize 4096 $ Log.setOutput (Log.Path logFileName) Log.defSettings
     let fileH           = [Log.new fileSettings    | isFileLog]
     let consoleH        = [Log.new consoleSettings | isConsoleLog]
     let loggersH        = fileH ++ consoleH
@@ -83,7 +80,7 @@ createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = d
   where
     startLogger :: Bool -> Loggers -> IO LoggerHandle
     startLogger _ [] = pure VoidLoggerHandle
-    startLogger False loggers = SyncLoggerHandle <$> newMVar loggers
+    startLogger False loggers = pure $ SyncLoggerHandle loggers
     startLogger True  loggers = do
       chan <- newTChanIO
       threadId <- forkIO $ forever $ loggerWorker chan loggers
@@ -92,12 +89,10 @@ createLogger cfg = error $ "Unknown logger config: " <> show cfg
 
 disposeLogger :: LoggerHandle -> IO ()
 disposeLogger VoidLoggerHandle = pure ()
-disposeLogger (SyncLoggerHandle loggersVar) = do
+disposeLogger (SyncLoggerHandle loggers) = do
   putStrLn @String "Disposing sync logger..."
-  loggers <- takeMVar loggersVar
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
-  putMVar loggersVar loggers
 disposeLogger (AsyncLoggerHandle threadId chan loggers) = do
   putStrLn @String "Disposing async logger..."
   killThread threadId

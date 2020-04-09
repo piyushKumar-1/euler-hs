@@ -7,7 +7,9 @@ import           EulerHS.Prelude hiding (get, id)
 
 import           Data.Generics.Product.Subtype
 import qualified Data.Text as Text
+import           Data.Time (localDay)
 import qualified Text.Read as TR
+
 
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
@@ -46,6 +48,9 @@ import           Euler.Product.Domain.MerchantAccount
 import qualified Euler.Product.Domain.Order as D
 import qualified Euler.Product.Domain.Templates as Ts
 import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
+import qualified Euler.Config.Config               as Config
+import qualified Euler.Constants                   as Constants
+import           Euler.Lens
 
 orderCreate
   :: RP.RouteParameters
@@ -93,7 +98,6 @@ doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
   makeOrderResponse Config.getECRConfig order mAccnt mbReseller
-
 
 -- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
 --      Why this cache exist? What it does?
@@ -146,7 +150,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet Config.redis $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet Constants.ecRedis $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 -- EHS: maxAmount <= 0 verified on validation
@@ -284,7 +288,7 @@ saveOrderMetadata routeParams orderPId metadata' = do
         , DB.referer = Nothing
         , DB.userAgent = userAgent'
         , DB.dateCreated = orderMetadataTimestamp
-        , DB.lastUpdated = orderMetadataTimestamp
+        , DB.lastUpdated = localDay orderMetadataTimestamp
         }
 
   orderMetadataDB <- Rep.saveOrderMetadataV2 orderMetadataDBVal

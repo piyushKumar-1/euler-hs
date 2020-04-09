@@ -31,8 +31,11 @@ module Euler.Encryption
   , decryptKMS'
   ) where
 
-import           EulerHS.Language
-import           EulerHS.Prelude hiding (Key, keys)
+import EulerHS.Prelude hiding (Key, keys)
+import EulerHS.Language
+
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Config.Config                  as Config
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Config.Config as Config
@@ -58,10 +61,14 @@ import qualified Crypto.PubKey.RSA.OAEP as OAEP
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
 import qualified Crypto.PubKey.RSA.PSS as PSS
 import qualified Crypto.Store.X509 as CStore (readPubKeyFile, readPubKeyFileFromMemory)
+import qualified Data.ByteString.Base64 as BH
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as Text (decodeUtf8)
 import qualified Data.X509 as CStore (PrivKey (..), PubKey (..))
 import qualified Data.X509.File as CStore (readKeyFile)
+import qualified Network.AWS.Data as AWS
+import qualified Network.AWS.Types as AWS
+import qualified Control.Monad.Trans.AWS as AWS
 import qualified Network.AWS.KMS.Decrypt as AWS
 import qualified Network.AWS.KMS.Encrypt as AWS
 

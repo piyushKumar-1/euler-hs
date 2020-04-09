@@ -1,5 +1,5 @@
 name:                euler-backend
-version:             0.5.1.0
+version:             0.8.0.0
 github:              "https://bitbucket.org/juspay/euler-hs"
 license:             OtherLicense
 author:              "Juspay Technologies Pvt Ltd"
@@ -46,6 +46,7 @@ dependencies:
 - containers
 - errors
 - euler-hs
+- euler-backend-storage
 - extra
 - hashable
 - HUnit
@@ -122,7 +123,6 @@ dependencies:
 - amazonka
 - amazonka-core
 - amazonka-kms
-- raw-strings-qq
 
 library:
   source-dirs:

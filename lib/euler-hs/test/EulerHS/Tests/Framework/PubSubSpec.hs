@@ -10,9 +10,14 @@ import Data.Aeson
 import EulerHS.Language as L
 import EulerHS.Tests.Framework.Common
 import EulerHS.Types as T
+import qualified Database.Redis as R
 
--- runWithRedisConn
--- replayRecording
+connectInfo :: R.ConnectInfo
+connectInfo = R.defaultConnectInfo -- {R.connectHost = "redis"}
+
+
+runWithRedisConn_ :: ResultRecording -> Flow b -> IO b
+runWithRedisConn_ = replayRecording -- runWithRedisConn connectInfo
 
 spec :: Spec
 spec = do
@@ -22,7 +27,7 @@ spec = do
       let testCh  = "test"
       (targetMVar, watch, _) <- emptyMVarWithWatchDog 1
 
-      result <- replayRecording rr1 $ do
+      result <- runWithRedisConn_ rr1 $ do
         subscribe [Channel testCh] $ \msg -> L.runIO $
           putMVar targetMVar msg
 
@@ -37,7 +42,7 @@ spec = do
       (targetMVar, watch, _) <- emptyMVarWithWatchDog 1
 
       waitSubscribe <- newEmptyMVar
-      result <- replayRecording rr2 $ do
+      result <- runWithRedisConn_ rr2 $ do
         L.forkFlow "Fork" $ do
           void $ subscribe [Channel testCh] $ \msg -> L.runIO $
             putMVar targetMVar msg
@@ -57,7 +62,7 @@ spec = do
       let testCh  = "test"
       (targetMVar, watch, _) <- emptyMVarWithWatchDog 1
 
-      result <- replayRecording rr3 $ do
+      result <- runWithRedisConn_ rr3 $ do
         unsubscribe <- subscribe [Channel testCh] $ \msg -> L.runIO $
           putMVar targetMVar msg
 
@@ -76,7 +81,7 @@ spec = do
       let testPatt = "?test"
       (targetMVar, watch, reset) <- emptyMVarWithWatchDog 1
 
-      result <- replayRecording rr4 $ do
+      result <- runWithRedisConn_ rr4 $ do
         void $ psubscribe [ChannelPattern testPatt] $ \ch msg -> L.runIO $
           putMVar targetMVar (ch, msg)
 
@@ -99,7 +104,7 @@ spec = do
       let testPatt = "?test"
       (targetMVar, watch, _) <- emptyMVarWithWatchDog 1
 
-      result <- replayRecording rr5 $ do
+      result <- runWithRedisConn_ rr5 $ do
         unsubscribe <- psubscribe [ChannelPattern testPatt] $ \ch msg -> L.runIO $
           putMVar targetMVar (ch, msg)
 
@@ -118,7 +123,7 @@ spec = do
       let testCh1  = "test_1"
       (targetMVar, watch, reset) <- emptyMVarWithWatchDog 1
 
-      result <- replayRecording rr6 $ do
+      result <- runWithRedisConn_ rr6 $ do
         void $ L.subscribe [Channel testCh0, Channel testCh1] $ \msg -> L.runIO $
           putMVar targetMVar msg
 
@@ -139,7 +144,7 @@ spec = do
       let testCh1  = "test_1"
       (targetMVar, watch, reset) <- emptyMVarWithWatchDog 1
 
-      result <- replayRecording rr7 $ do
+      result <- runWithRedisConn_ rr7 $ do
         unsubscribe <- L.subscribe [Channel testCh0, Channel testCh1] $ \msg -> L.runIO $
           putMVar targetMVar msg
 

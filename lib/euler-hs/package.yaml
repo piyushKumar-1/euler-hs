@@ -1,5 +1,5 @@
 name:                euler-hs
-version:             1.5.0.0
+version:             1.8.0.0
 github:              "https://bitbucket.org/juspay/euler-hs"
 license:             OtherLicense
 author:              "Juspay Technologies Pvt Ltd"
@@ -103,6 +103,7 @@ dependencies:
 - servant-client-core
 - servant-server
 - vector
+- dlist
 
 library:
   source-dirs:
@@ -114,6 +115,7 @@ library:
   - EulerHS.Types
   - EulerHS.Runtime
   - EulerHS.Extra.Validation
+  - EulerHS.Extra.Test
   ghc-options:
   - -Wall
   - -Wcompat

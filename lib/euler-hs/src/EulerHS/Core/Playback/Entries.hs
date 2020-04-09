@@ -17,16 +17,17 @@ import Data.Generics.Product.Positions (getPosition)
 
 data RunDBEntry = RunDBEntry
   { jsonResult :: A.Value
+  , rawSql :: [String]
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkRunDBEntry :: T.JSONEx a => T.DBResult a -> RunDBEntry
-mkRunDBEntry = RunDBEntry . T.jsonEncode
+mkRunDBEntry :: T.JSONEx a => (T.DBResult a, [String]) -> RunDBEntry
+mkRunDBEntry (res,sql)= RunDBEntry  (T.jsonEncode res) sql
 
 instance RRItem RunDBEntry where
   getTag _ = "RunDBEntry"
 
-instance T.JSONEx a => MockedResult RunDBEntry (T.DBResult a) where
-  getMock RunDBEntry {jsonResult} = T.jsonDecode jsonResult
+instance T.JSONEx a => MockedResult RunDBEntry (T.DBResult a, [String]) where
+  getMock RunDBEntry {jsonResult, rawSql} = fmap (\x -> (x,rawSql)) (T.jsonDecode jsonResult)
 
 data ThrowExceptionEntry = ThrowExceptionEntry
   { exMessage :: String

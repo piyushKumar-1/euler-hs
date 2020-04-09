@@ -1,6 +1,6 @@
 {
     "methodRecording": {
-        "mrJsonResponse": "ServerError {errHTTPCode = 500, errReasonPhrase = \"\", errBody = \"{\\n    \\\"userMessage\\\": \\\"Internal Server Error\\\",\\n    \\\"error\\\": true,\\n    \\\"error_message\\\": \\\"Internal Server Error\\\"\\n}\", errHeaders = []}",
+        "mrJsonResponse": "ServerError {errHTTPCode = 401, errReasonPhrase = \"\", errBody = \"{\\n    \\\"status\\\": \\\"error\\\",\\n    \\\"error_code\\\": \\\"access_denied\\\",\\n    \\\"error_message\\\": null,\\n    \\\"status_id\\\": null\\n}\", errHeaders = []}",
         "mrSessionId": "SomeSessionId",
         "mrMethodConfigs": {
             "mcRawBody": "",
@@ -13,7 +13,7 @@
                 "Authorization": "BASIC RjgyRjgxMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUM=",
                 "SourceIP": "127.0.0.1",
                 "Version": "2018-07-01",
-                "UserAgent": "PostmanRuntime/7.23.0"
+                "UserAgent": "PostmanRuntime/7.24.0"
             }
         },
         "mrParameters": {},
@@ -45,194 +45,20 @@
                     "_entryName": "RunDBEntry",
                     "_entryIndex": 1,
                     "_entryPayload": {
+                        "rawSql": [
+                            "SELECT \"t0\".\"id\" AS \"res0\", \"t0\".\"version\" AS \"res1\", \"t0\".\"api_key\" AS \"res2\", \"t0\".\"status\" AS \"res3\", \"t0\".\"date_created\" AS \"res4\", \"t0\".\"last_updated\" AS \"res5\", \"t0\".\"merchant_account_id\" AS \"res6\", \"t0\".\"scope\" AS \"res7\" FROM \"merchant_key\" AS \"t0\" WHERE (CASE WHEN ((\"t0\".\"api_key\") IS NULL) AND ((?) IS NULL) THEN ? WHEN ((\"t0\".\"api_key\") IS NULL) OR ((?) IS NULL) THEN ? ELSE (\"t0\".\"api_key\")=(?) END) AND (CASE WHEN ((\"t0\".\"status\") IS NULL) AND ((?) IS NULL) THEN ? WHEN ((\"t0\".\"status\") IS NULL) OR ((?) IS NULL) THEN ? ELSE (\"t0\".\"status\")=(?) END);\n-- With values: [SQLText \"F82F812AAF254D7A9AC814B78A4B941C\",SQLInteger 1,SQLText \"F82F812AAF254D7A9AC814B78A4B941C\",SQLInteger 0,SQLText \"F82F812AAF254D7A9AC814B78A4B941C\",SQLText \"ACTIVE\",SQLInteger 1,SQLText \"ACTIVE\",SQLInteger 0,SQLText \"ACTIVE\"]"
+                        ],
                         "jsonResult": {
-                            "Right": {
-                                "status": "ACTIVE",
-                                "lastUpdated": "2014-01-10T14:28:17",
-                                "apiKey": "F82F812AAF254D7A9AC814B78A4B941C",
-                                "dateCreated": "2014-01-10T14:28:17",
-                                "version": 1,
-                                "scope": "MERCHANT",
-                                "id": 2,
-                                "merchantAccountId": 2
-                            }
+                            "Right": null
                         }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "GetSqlDBConnectionEntry",
-                    "_entryIndex": 2,
-                    "_entryPayload": {
-                        "dBConfig": {
-                            "tag": "SQLitePoolConf",
-                            "contents": [
-                                "sqlite",
-                                "./app/euler-backend/test/Euler/TestData/test.db",
-                                {
-                                    "resourcesPerStripe": 50,
-                                    "stripes": 1,
-                                    "keepAlive": 10
-                                }
-                            ]
-                        },
-                        "getConnResult": {
-                            "Right": []
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "RunDBEntry",
-                    "_entryIndex": 3,
-                    "_entryPayload": {
-                        "jsonResult": {
-                            "Right": {
-                                "whitelabelEnabled": null,
-                                "paymentResponseHashKey": null,
-                                "enableSendingCardIsin": null,
-                                "gatewayDecidedByHealthEnabled": null,
-                                "officeLine2": null,
-                                "inlineCheckoutHtml": null,
-                                "fingerprintOnTokenize": null,
-                                "inlineCheckoutEnabled": null,
-                                "secondaryMerchantAccountId": null,
-                                "webHookCustomHeaders": null,
-                                "hdfcTestMode": null,
-                                "txnIdCustomPrefix": null,
-                                "webHookPassword": null,
-                                "hdfcVerified": null,
-                                "iciciVerified": null,
-                                "enableRefundsInDashboard": null,
-                                "payuSalt": null,
-                                "apiKey": "7BAD089A1F604F0DA249B667A5B1D33D",
-                                "merchantId": null,
-                                "state": null,
-                                "expressCheckoutEnabled": null,
-                                "landmark": null,
-                                "axisSecureSecret": null,
-                                "mobileVersion": null,
-                                "gatewayPriority": null,
-                                "ebsVerified": null,
-                                "axisAccessCode": null,
-                                "citiTestMode": null,
-                                "enableRecapture": null,
-                                "officeLine3": null,
-                                "mustUseGivenOrderIdForTxn": null,
-                                "enableReauthorization": null,
-                                "axisVerified": null,
-                                "enableSaveCardBeforeAuth": null,
-                                "contactPerson": null,
-                                "webHookUsername": null,
-                                "merchantName": "merchant2",
-                                "ccavenueSecretKey": null,
-                                "ebsBackendGateway": null,
-                                "ebsAccountId": null,
-                                "payuTestMode": null,
-                                "webHookurl": null,
-                                "payuMerchantKey": null,
-                                "domain": null,
-                                "enabledInstantRefund": null,
-                                "adminContactEmail": null,
-                                "contactPersonSecondaryEmail": null,
-                                "zip": null,
-                                "website": null,
-                                "payuVerified": null,
-                                "showSurchargeBreakupScreen": null,
-                                "paypalSecret": null,
-                                "hdfcIvrMerchantId": null,
-                                "otpEnabled": null,
-                                "hdfcMerchantId": null,
-                                "iciciKey": null,
-                                "amexPassword": null,
-                                "enableUnauthenticatedCardAdd": null,
-                                "merchantLegalName": null,
-                                "iciciMerchantId": null,
-                                "shouldAddSurcharge": null,
-                                "ebsHash": null,
-                                "hdfcMerchantCode": null,
-                                "settlementAccountId": null,
-                                "iciciSecondFactorId": null,
-                                "enable3DsecureHelpMail": null,
-                                "contactPersonPrimary": null,
-                                "citiVerified": null,
-                                "enableExternalRiskCheck": null,
-                                "returnUrl": null,
-                                "bankAccountNumber": null,
-                                "enableAutomaticRetry": null,
-                                "dateCreated": null,
-                                "userId": 2,
-                                "axisMerchantId": null,
-                                "telephone": null,
-                                "gatewayPriorityLogic": null,
-                                "contactPersonSecondary": null,
-                                "amexVerified": null,
-                                "useCodeForGatewayPriority": true,
-                                "officeLine1": null,
-                                "prefixMerchantIdForCardKey": null,
-                                "orderNotificationEmail": null,
-                                "city": null,
-                                "amexUsername": null,
-                                "version": 1,
-                                "enableOrderNotification": null,
-                                "mandatory2FA": null,
-                                "hdfcIvrVerified": null,
-                                "ccavenueVerified": null,
-                                "enablePaymentResponseHash": null,
-                                "realModeOnly": null,
-                                "id": 2,
-                                "enableSendingLastFourDigits": null,
-                                "citiMerchantCode": null,
-                                "amexAccessCode": null,
-                                "autoRefundConflictTransactions": null,
-                                "mobile": null,
-                                "ccavenueAccountId": null,
-                                "fetchCardsFromPayu": null,
-                                "amexSecureSecret": null,
-                                "citiKey": null,
-                                "ccavenueBackendGateway": null,
-                                "cardEncodingKey": null,
-                                "orderFieldsInSettlementReport": null,
-                                "hdfcIvrPassword": null,
-                                "includeSurchargeAmountForRefund": null,
-                                "creditBalance": null,
-                                "lastModified": null,
-                                "alternativeEmail": null,
-                                "resellerId": null,
-                                "enableTxnFilter": null,
-                                "timezone": null,
-                                "aboutBusiness": null,
-                                "conflictStatusEmail": null,
-                                "enableReauthentication": null,
-                                "enableConflictStatusNotification": null,
-                                "hdfcPassword": null,
-                                "amexMerchantId": null,
-                                "reverseTokenEnabled": null,
-                                "paypalClientId": null,
-                                "enableUnauthenticatedOrderStatusApi": null,
-                                "contactPersonEmail": null,
-                                "webHookapiversion": null,
-                                "lockerId": null
-                            }
-                        }
-                    },
-                    "_entryReplayMode": "Normal"
-                },
-                {
-                    "_entryName": "LogMessageEntry",
-                    "_entryIndex": 4,
-                    "_entryPayload": {
-                        "tag": "\"DB MerchantAccount Validation\"",
-                        "msg": "[\"merchantId not present\"]",
-                        "level": "Error"
                     },
                     "_entryReplayMode": "Normal"
                 },
                 {
                     "_entryName": "ThrowExceptionEntry",
-                    "_entryIndex": 5,
+                    "_entryIndex": 2,
                     "_entryPayload": {
-                        "exMessage": "ErrorResponse {code = 500, response = ErrorPayload {error = True, error_message = \"Internal Server Error\", userMessage = \"Internal Server Error\"}}"
+                        "exMessage": "ECErrorResponse {code = 401, response = \"{\\n    \\\"status\\\": \\\"error\\\",\\n    \\\"error_code\\\": \\\"access_denied\\\",\\n    \\\"error_message\\\": null,\\n    \\\"status_id\\\": null\\n}\"}"
                     },
                     "_entryReplayMode": "Normal"
                 }
@@ -241,7 +67,7 @@
         },
         "mrJsonRequest": {
             "shipping_address_country": null,
-            "order_id": "1584019348374",
+            "order_id": "1586431682191",
             "udf3": null,
             "shipping_address_country_code_iso": null,
             "amount": 1.1,

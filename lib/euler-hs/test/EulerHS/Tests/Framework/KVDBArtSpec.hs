@@ -11,6 +11,13 @@ import           EulerHS.Language as L
 import           EulerHS.Runtime
 import           EulerHS.Tests.Framework.Common
 import           EulerHS.Types as T
+import qualified Database.Redis as R
+
+connectInfo :: R.ConnectInfo
+connectInfo = R.defaultConnectInfo {R.connectHost = "redis"}
+
+runWithRedisConn_ :: a -> Flow b -> IO b
+runWithRedisConn_ = runWithRedisConn connectInfo
 
 spec :: Spec
 spec = do

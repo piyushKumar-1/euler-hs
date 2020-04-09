@@ -18,15 +18,20 @@ import qualified EulerHS.Core.Logger.Entries as E
 
 
 interpretLogger :: D.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
-interpretLogger runMode (R.MemoryLoggerRuntime mvar) (L.LogMessage level tag msg next) =
-  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry level tag msg) $ do
-    !lgs <- takeMVar mvar
-    let m = "" +|| level ||+ " " +| tag |+ " " +| msg |+ ""
-    putMVar mvar (m : lgs)
+interpretLogger runMode (R.MemoryLoggerRuntime cfgLogLvl mvar) (L.LogMessage msgLogLvl tag msg next) =
+  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
+    case compare cfgLogLvl msgLogLvl of
+      GT -> pure ()
+      _  -> do
+        !lgs <- takeMVar mvar
+        let m = "" +|| msgLogLvl ||+ " " +| tag |+ " " +| msg |+ ""
+        putMVar mvar (m : lgs)
 
-interpretLogger runMode (R.LoggerRuntime handle) (L.LogMessage level tag msg next) =
-  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry level tag msg) $
-    Impl.sendPendingMsg handle $ D.PendingMsg level tag msg
+interpretLogger runMode (R.LoggerRuntime cfgLogLvl handle) (L.LogMessage msgLogLvl tag msg next) =
+  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
+    case compare cfgLogLvl msgLogLvl of
+      GT -> pure ()
+      _  -> Impl.sendPendingMsg handle $ D.PendingMsg msgLogLvl tag msg
 
 runLogger :: D.RunMode -> R.LoggerRuntime -> L.Logger a -> IO a
 runLogger runMode loggerRt = foldF (interpretLogger runMode loggerRt)

@@ -1,5 +1,30 @@
 # Changelog for euler-hs
 
+## [1.8.0.0] - 2020-04-03
+* Euler-HS 1.8.0.0: new features and fixes.
+  - Redis cluster support (switched to other hedis fork).
+  - Framework and Logger performance tuned.
+* Euler-backend 0.8.0.0:
+  - DB model and storage types separated into own repo.
+
+## [1.7.0.0] - 2020-03-30
+* Euler-HS 1.7.0.0: new features.
+  - Granular DB errors added (breaking change)
+  - Test framework added
+
+## [1.6.0.0] - 2020-03-27
+* Euler-HS 1.6.0.0: a significant update with new features and fixes.
+  - beam-mysql updated: temporary tables fix, autocommit fix, bytestrings encoding fix
+  - MySQL transactions bug fixed
+  - New feature: awaiting for results from forked flows added
+  - runIO' with description added
+  - KV DB hardcorded DB name fixed (breaking change)
+  - More documentation on SQL subsystem usage added (see README.md)
+
+* Euler-Backend: small updates
+  - AWS-KMS encryption functionality added
+  - Environment variables support added
+
 ## [1.5.0.0] - 2020-03-13
 * Euler-Backend 0.5.1.0:
   - Added MerchantGatewayAccount Storage type. MerchantGatewayAccount added to DB scheme

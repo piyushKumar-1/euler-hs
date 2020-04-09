@@ -1,13 +1,14 @@
 {-# LANGUAGE DeriveAnyClass #-}
 module Euler.Config.Config where
 
-import           EulerHS.Prelude
-import           EulerHS.Types
+import EulerHS.Prelude
+import EulerHS.Types
 
-import           Euler.Config.EnvVars
+import Euler.Config.EnvVars
+
+import qualified Euler.Constants as Constants
 
 import qualified Data.List.Extra as LE
-
 import qualified Data.Text as Text (pack)
 import qualified Network.AWS.Prelude as AWS
 
@@ -29,12 +30,6 @@ data Config = Config
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
-defaultConfig :: Config
-defaultConfig = Config
-    { protocol = "https"
-    , host = "defaulthost"
-    , internalECHost = "defaultInternalECHost"
-    }
 
 data Env = DEV | UAT | PROD | INTEG
   deriving (Generic, Eq, Show)
@@ -48,7 +43,7 @@ data JWT = JWT
 getMandatePathPrefix :: String
 getMandatePathPrefix = case getEnv of
   PROD -> "/mandate"
-  _    -> "/ecr/mandate"
+  _ -> "/ecr/mandate"
 
 getEnv :: Env
 getEnv = case _getEnv of
@@ -57,6 +52,10 @@ getEnv = case _getEnv of
     "production"  -> PROD
     "integ"       -> INTEG
     _             -> DEV
+
+getECRConfig :: Config
+getECRConfig = case getEnv of
+    DEV  -> Config
 
 getECRConfig :: Config
 getECRConfig = case getEnv of
@@ -181,139 +180,168 @@ getExpectationsUrl = Text.pack expectationsBaseUrl <> "/"
 getJWTConfig :: JWT
 getJWTConfig = do
   case getEnv of
-    DEV   -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
-    UAT   -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
-    PROD  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
-    INTEG -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
+    DEV  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
+    UAT  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
+    PROD -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "30m"}
+    INTEG  -> JWT {key = "rSMPIDS9t0AtTpk1FSher5h1nMHCRXNJ", expiry = "180m"}
 
 redisLoginTokenExpiry :: String
 redisLoginTokenExpiry = let
-  jwtExpiry = fromMaybe (180 :: Integer)
+  jwtExpiry = fromMaybe 180
     $ readMaybe
     $ filter (/='m')
     $ expiry getJWTConfig
   in show $ jwtExpiry * 60
 
 
-mySqlpoolConfig :: PoolConfig
-mySqlpoolConfig = case getEnv of
+-- decodeKMS not currently implemented
+decodeKMS :: String -> IO String
+decodeKMS = pure . id
+
+decrypt :: String -> IO String
+decrypt = decodeKMS
+
+ecTempCardCred:: IO String
+ecTempCardCred = case getEnv of
+  PROD -> decrypt getECTempCardEncryptedKey
+  UAT -> decrypt getECTempCardEncryptedKey
+  INTEG -> decrypt getECTempCardEncryptedKey
+  _ -> pure $ "bd3222130d110b9684dac9cc0903ce111b25e97ae93ddc2925f89c4ed6e41bab"
+
+ecMandateParamsCred:: IO String
+ecMandateParamsCred = case getEnv of
+  PROD -> decrypt getECMandateParamsEncryptedKey
+  UAT -> decrypt getECMandateParamsEncryptedKey
+  INTEG -> decrypt getECMandateParamsEncryptedKey
+  _ -> pure $ "a231ccb856c125486f1891bc5646f30949efcd6d1c14b6acc439ef928b133c32"
+
+getMySQLCfg :: IO MySQLConfig
+getMySQLCfg = case getEnv of
+  DEV -> pure MySQLConfig
+          { connectHost     = devMysqlConnectHost
+          , connectPort     = devMysqlConnectPort
+          , connectUser     = devMysqlConnectUser
+          , connectPassword = devMysqlConnectPassword
+          , connectDatabase = devMysqlConnectDatabase
+          , connectOptions  = [CharsetName "utf8"]
+          , connectPath     = devMysqlConnectPath
+          , connectSSL      = Nothing
+          }
+  _ -> do
+    decodedPassword <- decodeKMS getEcDbPass
+    pure MySQLConfig
+          { connectHost     = getEcDbHost
+          , connectPort     = getEcDbPort
+          , connectUser     = getEcDbUserName
+          , connectPassword = decodedPassword
+          , connectDatabase = getEcDbName
+          , connectOptions  = [CharsetName "utf8"]
+          , connectPath     = ""
+          , connectSSL      = Nothing
+          }
+
+mySqlPoolConfig :: PoolConfig
+mySqlPoolConfig = case getEnv of
   DEV -> PoolConfig
     { stripes = devMysqlPoolStripes
     , keepAlive = fromInteger devMysqlPoolKeepAlive
     , resourcesPerStripe = devMysqlPoolResourcesPerStripe
     }
   _ -> PoolConfig
-    { stripes = devMysqlPoolStripes
+    { stripes = getMysqlPoolStripes
     , keepAlive = fromInteger getMysqlPoolIdleTime
     , resourcesPerStripe = getMysqlPoolMax
     }
 
+mysqlDBC = do
+  mySqlConfig <- getMySQLCfg
+  case getEnv of
+    DEV -> pure $ mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlPoolConfig
+    _   -> pure $ mkMySQLPoolConfig (Text.pack Constants.ecDB) mySqlConfig mySqlPoolConfig
 
-----DB
-----read
---host
---port
---username
---password
---database
-----write
---host
---port
---username
---password
---database
-----pool
---min: getMysqlPoolMin
---max: getMysqlPoolMax
---idle: getMysqlPoolIdleTime
---acquire: getMysqlPoolAcquireTime
---ecDBCred :: Env -> IO (Options ConnOpts)
---ecDBCred env =
---  case env of
---    DEV -> pure (Conn.dialect := MySQL
---             <> Conn.host := "127.0.0.1"
---             <> Conn.port := 3306
---             <> Conn.username := "cloud"
---             <> Conn.password := "scape"
---             <> Conn.database := "jdb"
---             <> Conn.pool := { min: getMysqlPoolMin
---                             , max: getMysqlPoolMax
---                             , idle: getMysqlPoolIdleTime
---                             , acquire: getMysqlPoolAcquireTime
---                             }
---            <> Conn.benchmark := shouldLogQueryTime)
---    UAT -> do
---      password <- decrypt getEcDbPass
---      replicaPassword <- decrypt getEcDbPassR1
---      pure (Conn.dialect := MySQL
---        <> Conn.replication :=
---            { read: [{ host: getEcDbHostR1
---                    , username: getEcDbUserNameR1
---                    , password: replicaPassword
---                    , database: getEcDbNameR1
---                    , port: getEcDbPortR1
---                    }]
---            , write: { host: getEcDbHost
---                     , username: getEcDbUserName
---                     , password: password
---                     , database: getEcDbName
---                     , port: getEcDbPort
---                     }
---            }
---        <> Conn.pool := { min: getMysqlPoolMin
---                        , max: getMysqlPoolMax
---                        , idle: getMysqlPoolIdleTime
---                        , acquire: getMysqlPoolAcquireTime
---                        }
---        <> Conn.benchmark := shouldLogQueryTime)
---    INTEG -> do
---      password <- decrypt getEcDbPass
---      replicaPassword <- decrypt getEcDbPassR1
---      pure (Conn.dialect := MySQL
---        <> Conn.replication :=
---            { read: [{ host: getEcDbHostR1
---                    , username: getEcDbUserNameR1
---                    , password: replicaPassword
---                    , database: getEcDbNameR1
---                    , port: getEcDbPortR1
---                    }]
---            , write: { host: getEcDbHost
---                      , username: getEcDbUserName
---                      , password: password
---                      , database: getEcDbName
---                      , port: getEcDbPort
---                      }
---            }
---        <> Conn.pool := { min: getMysqlPoolMin
---                        , max: getMysqlPoolMax
---                        , idle: getMysqlPoolIdleTime
---                        , acquire: getMysqlPoolAcquireTime
---                        }
---        <> Conn.benchmark := shouldLogQueryTime)
---    PROD -> do
---      password <- decrypt getEcDbPass
---      replicaPassword <- decrypt getEcDbPassR1
---      pure (Conn.dialect := MySQL
---        <> Conn.replication :=
---            { read: [{ host: getEcDbHostR1
---                    , username: getEcDbUserNameR1
---                    , password: replicaPassword
---                    , database: getEcDbNameR1
---                    , port: getEcDbPortR1
---                    }]
---            , write: { host: getEcDbHost
---                     , username: getEcDbUserName
---                     , password: password
---                     , database: getEcDbName
---                     , port: getEcDbPort
---                     }
---            }
---        <> Conn.pool := { min: getMysqlPoolMin
---                        , max: getMysqlPoolMax
---                        , idle: getMysqlPoolIdleTime
---                        , acquire: getMysqlPoolAcquireTime
---                        }
---        <> Conn.benchmark := shouldLogQueryTime)
+redisConfig :: RedisConfig
+redisConfig = case getEnv of
+  DEV -> RedisConfig
+    { connectHost           = devRedisHost
+    , connectPort           = devRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisDatabase
+    , connectMaxConnections = devRedisMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+  UAT -> RedisConfig
+    { connectHost           = uatRedisHost
+    , connectPort           = uatRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = uatRedisDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  INTEG -> RedisConfig
+    { connectHost           = integRedisHost
+    , connectPort           = integRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = integRedisDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  PROD -> RedisConfig
+    { connectHost           = productionRedisHost
+    , connectPort           = productionRedisPort
+    , connectAuth           = Nothing
+    , connectDatabase       = productionRedisDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+
+redisClusterConfig :: RedisConfig
+redisClusterConfig = case getEnv of
+  DEV -> RedisConfig
+    { connectHost           = devRedisClusterHost
+    , connectPort           = devRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisClusterDatabase
+    , connectMaxConnections = devRedisClusterMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisClusterMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+  UAT -> RedisConfig
+    { connectHost           = uatRedisClusterHost
+    , connectPort           = uatRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = uatRedisClusterDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  INTEG -> RedisConfig
+    { connectHost           = integRedisClusterHost
+    , connectPort           = integRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = integRedisClusterDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+  PROD -> RedisConfig
+    { connectHost           = productionRedisClusterHost
+    , connectPort           = productionRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = productionRedisClusterDB
+    , connectMaxConnections = 50
+    , connectMaxIdleTime    = 30
+    , connectTimeout        = Nothing
+    }
+
+kvdbConfig :: KVDBConfig
+kvdbConfig = mkKVDBConfig Constants.ecRedis redisConfig
+
+kvdbClusterConfig :: KVDBConfig
+kvdbClusterConfig = mkKVDBClusterConfig Constants.kvRedis redisClusterConfig
 
 gatewaySchemeUrl :: String
 gatewaySchemeUrl = case getEnv of
@@ -378,6 +406,9 @@ razorpayOAuthUrl = "https://auth.razorpay.com"
 razorpayClientId :: Bool -> String
 razorpayClientId testMode = if testMode then "A0m8HbNtJUSHjZ" else "A0m8HqOuOvde27"
 
+razorpayClientSecret :: String -> IO String
+razorpayClientSecret clientSecret = decrypt clientSecret
+
 razorpayRedirectUrl :: Bool -> Text
 razorpayRedirectUrl testMode = if testMode
   then getDashboardUrl <> "express-checkout/api/razorpay/callback"
@@ -395,6 +426,9 @@ shouldLogQueryTime = case getEnv of
 
 orderTokenExpiry :: Int
 orderTokenExpiry = 900 -- 15 Min
+
+orderTokenMaxUsage :: Int
+orderTokenMaxUsage = 20
 
 paypalTokenTtl :: Int
 paypalTokenTtl = (9 * 60 * 60) - 5
@@ -481,8 +515,8 @@ newtype GatewayUrls = GatewayUrls { payu :: PayUGatewayUrls }
 
 data PayUGatewayUrls = PayUGatewayUrls
   { exerciseMandate :: String
-  , paymentRequest  :: String
-  , checkStatus     :: String
+  , paymentRequest :: String
+  , checkStatus :: String
   }
   deriving (Generic, Eq, Show)
 
@@ -511,9 +545,9 @@ getPayUGatewayUrls = do
         }
 
 data InternalUrls = InternalUrls
-  { addCardToLocker    :: String
+  { addCardToLocker :: String
   , listCardFromLocker :: String
-  , getCardFromLocker  :: String
+  , getCardFromLocker :: String
   }
   deriving (Generic, Eq, Show)
 
@@ -574,11 +608,6 @@ retryExecuteRefundInterval = getRetryExecuteRefundInterval
 getSchedulerRunners' :: [String]
 getSchedulerRunners' = LE.upper . LE.trim <$> LE.split (==',') getSchedulerRunners
 
-redis :: Text
-redis = Text.pack standaloneRedisName
-
-redisCluster :: Text
-redisCluster = Text.pack clusterRedisName
 
 awsRegion :: AWS.Region
 awsRegion = fromRight AWS.Mumbai $ AWS.fromText $ Text.pack getAwsRegion
@@ -586,14 +615,12 @@ awsRegion = fromRight AWS.Mumbai $ AWS.fromText $ Text.pack getAwsRegion
 kmsKeyId :: Text
 kmsKeyId = Text.pack getKmsKeyId
 
--- Not used?
--- Two versions needed to use in 'getCurrentDateStringWithOffset' while time library is below 1.9.1
--- orderTokenExpiryND :: NominalDiffTime
--- orderTokenExpiryND = 900 -- 15 Min
-
--- orderTokenExpiryI :: Int
--- orderTokenExpiryI = 900 -- 15 Min
-
--- orderTokenMaxUsage :: Int
--- orderTokenMaxUsage = 20
-
+loggerConfig :: LoggerConfig
+loggerConfig = LoggerConfig
+  { _format = "" -- Not used for tiny logger
+  , _logToFile = loggerLogToFile
+  , _logFilePath = loggerLogFilePath
+  , _isAsync = loggerIsAsync
+  , _level = loggerLevel
+  , _logToConsole = loggerLogToConsole
+  }

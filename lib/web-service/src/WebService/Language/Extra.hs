@@ -5,6 +5,11 @@ module WebService.Language.Extra
   , getCurrentDateInMillis
   , getCurrentDateStringWithSecOffset
   , unsafeInsertRow
+    -- * @Text tag typed loggers
+  , logErrorT
+  , logWarningT
+  , logInfoT
+  , logDebugT
   ) where
 
 import EulerHS.Prelude
@@ -68,3 +73,20 @@ unsafeInsertRow exception db insertStmt = do
       L.logError ("unsafeInsertRow" :: Text) err
       L.throwException exception
     Right x -> pure x
+
+-- ----------------------------------------------------------------------------
+
+logErrorT :: Text -> T.Message -> L.Flow ()
+logErrorT = L.logError @Text
+
+
+logWarningT :: Text -> T.Message -> L.Flow ()
+logWarningT = L.logWarning @Text--logError' :: Show tag => tag -> Message -> Flow ()
+
+
+logInfoT :: Text -> T.Message -> L.Flow ()
+logInfoT = L.logInfo @Text
+
+
+logDebugT :: Text -> T.Message -> L.Flow ()
+logDebugT = L.logDebug @Text

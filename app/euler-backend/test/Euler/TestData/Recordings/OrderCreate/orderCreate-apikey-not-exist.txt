@@ -13,7 +13,7 @@
                 "Authorization": "BASIC RgggRjggMkFBRjI1NEQ3QTlBQzgxNEI3OEE0Qjk0MUI=",
                 "SourceIP": "127.0.0.1",
                 "Version": "2018-07-01",
-                "UserAgent": "PostmanRuntime/7.23.0"
+                "UserAgent": "PostmanRuntime/7.24.0"
             }
         },
         "mrParameters": {},
@@ -45,6 +45,9 @@
                     "_entryName": "RunDBEntry",
                     "_entryIndex": 1,
                     "_entryPayload": {
+                        "rawSql": [
+                            "SELECT \"t0\".\"id\" AS \"res0\", \"t0\".\"version\" AS \"res1\", \"t0\".\"api_key\" AS \"res2\", \"t0\".\"status\" AS \"res3\", \"t0\".\"date_created\" AS \"res4\", \"t0\".\"last_updated\" AS \"res5\", \"t0\".\"merchant_account_id\" AS \"res6\", \"t0\".\"scope\" AS \"res7\" FROM \"merchant_key\" AS \"t0\" WHERE (CASE WHEN ((\"t0\".\"api_key\") IS NULL) AND ((?) IS NULL) THEN ? WHEN ((\"t0\".\"api_key\") IS NULL) OR ((?) IS NULL) THEN ? ELSE (\"t0\".\"api_key\")=(?) END) AND (CASE WHEN ((\"t0\".\"status\") IS NULL) AND ((?) IS NULL) THEN ? WHEN ((\"t0\".\"status\") IS NULL) OR ((?) IS NULL) THEN ? ELSE (\"t0\".\"status\")=(?) END);\n-- With values: [SQLText \"F\\b F8 2AAF254D7A9AC814B78A4B941B\",SQLInteger 1,SQLText \"F\\b F8 2AAF254D7A9AC814B78A4B941B\",SQLInteger 0,SQLText \"F\\b F8 2AAF254D7A9AC814B78A4B941B\",SQLText \"ACTIVE\",SQLInteger 1,SQLText \"ACTIVE\",SQLInteger 0,SQLText \"ACTIVE\"]"
+                        ],
                         "jsonResult": {
                             "Right": null
                         }
@@ -64,7 +67,7 @@
         },
         "mrJsonRequest": {
             "shipping_address_country": null,
-            "order_id": "1584019299088",
+            "order_id": "1586431632844",
             "udf3": null,
             "shipping_address_country_code_iso": null,
             "amount": 1.1,

@@ -17,7 +17,7 @@ data OrderMetadataV2 = OrderMetadataV2
   , browserVersion   :: Maybe Text
   , dateCreated      :: LocalTime
   , device           :: Maybe Text
-  , lastUpdated      :: LocalTime
+  , lastUpdated      :: Day
   , metadata         :: Maybe Text
   , mobile           :: Maybe Bool
   , operatingSystem  :: Maybe Text

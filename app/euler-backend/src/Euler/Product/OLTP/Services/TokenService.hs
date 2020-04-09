@@ -10,25 +10,21 @@ module Euler.Product.OLTP.Services.TokenService
 import           EulerHS.Language
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Lens
-
 
 import           Servant.Server
 import           WebService.Language
 
-
-import qualified Data.Aeson as A
+import qualified Data.Aeson           as A
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.Map as Map
-import qualified Data.Text.Encoding as TE
-
-import qualified Euler.Config.Config               as Config
-import qualified Euler.Config.ServiceConfiguration as SC
-import qualified Euler.Constants  as Constants (redis_token_expiry_default, token_max_usage_default, ecRedis)
+import qualified Data.Map             as Map
+import qualified Data.Text.Encoding   as TE
 
 import qualified Euler.API.Order as API
 import qualified Euler.Common.Types as D
 import qualified Euler.Common.Metric as Metric
+import qualified Euler.Config.ServiceConfiguration as SC
+import qualified Euler.Constants  as Constants (redis_token_expiry_default, token_max_usage_default, ecRedis)
+import           Euler.Lens
 
 
 
@@ -62,10 +58,10 @@ data TokenizedResource = TokenizedResource
   deriving (Generic, Eq, Show, ToJSON, FromJSON)
 
 -- EHS: rework
-tokenizeResource :: ResourceType -> Text -> Text -> Flow TokenizedResource
+tokenizeResource :: SC.ResourceType -> Text -> Text -> Flow TokenizedResource
 tokenizeResource resourceId resourceType merchantId = do
   token'      <- ("tkn_" <>) <$> getUUID32
-  TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
+  SC.TokenExpiryData {..} <- getTokenExpiryData resourceType merchantId
   currentDate <- getCurrentDateInMillis
   redisData   <- pure $ getRedisData resourceType resourceId tokenMaxUsage expiryInSeconds currentDate
   _ <- rSetex Constants.ecRedis token' redisData expiryInSeconds
@@ -84,7 +80,7 @@ tokenizeResource resourceId resourceType merchantId = do
           }
 
 
-getTokenExpiryData :: Text -> Text -> Flow TokenExpiryData -- {expiryInSeconds :: Int ,tokenMaxUsage :: Int}
+getTokenExpiryData :: Text -> Text -> Flow SC.TokenExpiryData -- {expiryInSeconds :: Int ,tokenMaxUsage :: Int}
 getTokenExpiryData resourceType merchantId = do
   serviceConfig <- pure $ resourceType <> "_TOKEN_EXPIRY_DATA_MERCHANT_WISE"
   configMaybe   <- SC.findByName serviceConfig
@@ -96,7 +92,7 @@ getTokenExpiryData resourceType merchantId = do
         Nothing -> case Map.lookup "default" val of
           Just tokenExpiryData -> pure tokenExpiryData -- $  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
           Nothing -> (logError @String "getTokenExpiryData" "Could not find default service config") *>  throwException err500 {errBody = "getTokenExpiryData"} -- defaultThrowECException "INTERNAL_SERVER_ERROR" "Could not find default service config"
-    Nothing -> pure $ TokenExpiryData {expiryInSeconds = Constants.redis_token_expiry_default ,tokenMaxUsage = Constants.token_max_usage_default}
+    Nothing -> pure $ SC.TokenExpiryData {expiryInSeconds = Constants.redis_token_expiry_default ,tokenMaxUsage = Constants.token_max_usage_default}
 
 
 -- src/Utils/Utils.purs

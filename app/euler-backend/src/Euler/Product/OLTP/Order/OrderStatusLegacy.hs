@@ -1335,6 +1335,8 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
 
 
 createPaymentLinks :: Text -> Maybe Text -> Paymentlinks
+createPaymentLinks orderUuid maybeResellerEndpoint = undefined
+{-
 createPaymentLinks orderUuid maybeResellerEndpoint =
   Paymentlinks
     { web =   Just (host <> "/merchant/pay/") <> Just orderUuid
@@ -1352,7 +1354,7 @@ createPaymentLinks orderUuid maybeResellerEndpoint =
     -}
     protocol = getField @"protocol" config-- (unwrap config).protocol
     host = maybe (protocol <> "://" <> (getField @"host" config)) P.id maybeResellerEndpoint
-
+-}
 
 -- ----------------------------------------------------------------------------
 -- function: addPromotionDetails
@@ -1539,6 +1541,8 @@ mapTxnDetail (TxnDetail txn) =
 -}
 
 mapTxnDetail :: TxnDetail -> TxnDetail'
+mapTxnDetail txn = undefined
+{-
 mapTxnDetail txn = TxnDetail'
   { txn_id = getField @"txnId" txn
   , order_id = getField @"orderId" txn
@@ -1576,6 +1580,7 @@ mapTxnDetail txn = TxnDetail'
       then getField @"sourceObjectId" txn
       else Nothing
         }
+-}
 
 -- ----------------------------------------------------------------------------
 -- function: getGatewayReferenceId

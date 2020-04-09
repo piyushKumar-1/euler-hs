@@ -16,7 +16,6 @@ import Servant.Server
 import Euler.API.RouteParameters
 import Euler.Common.Errors.PredefinedErrors
 import Euler.Common.Types.Merchant
-import qualified Euler.Config.Config                  as Config
 import qualified Euler.Constants                      as Constants
 import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Storage.Types.IngressRule as DBIR

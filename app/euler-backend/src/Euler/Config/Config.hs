@@ -56,10 +56,6 @@ getEnv = case _getEnv of
 getECRConfig :: Config
 getECRConfig = case getEnv of
     DEV  -> Config
-
-getECRConfig :: Config
-getECRConfig = case getEnv of
-    DEV  -> Config
         { protocol = "http"
         , host = "localhost:8081"
         , internalECHost = Text.pack getInternalECHost

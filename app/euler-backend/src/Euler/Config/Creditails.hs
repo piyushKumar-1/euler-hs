@@ -87,5 +87,5 @@ getMySQLCfg = case C.getEnv of
 mysqlDBC = do
   mySqlConfig <- getMySQLCfg
   case C.getEnv of
-    C.DEV -> pure $ mkMySQLPoolConfig (T.pack devMysqlConnectionName) mySqlConfig C.mySqlpoolConfig
-    _     -> pure $ mkMySQLPoolConfig (T.pack devMysqlConnectionName) mySqlConfig C.mySqlpoolConfig
+    C.DEV -> pure $ mkMySQLPoolConfig (T.pack devMysqlConnectionName) mySqlConfig C.mySqlPoolConfig
+    _     -> pure $ mkMySQLPoolConfig (T.pack devMysqlConnectionName) mySqlConfig C.mySqlPoolConfig

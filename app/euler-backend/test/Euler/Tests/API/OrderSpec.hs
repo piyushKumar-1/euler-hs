@@ -433,6 +433,8 @@ orderStatusResp = OrderAPI.OrderStatusResponse
   , payer_vpa = Nothing
   , payer_app_name = Nothing
   , juspay = Nothing
+  , second_factor_response = Nothing
+  , txn_flow_info = Nothing
   }
 
 

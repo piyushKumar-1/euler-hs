@@ -4,45 +4,34 @@ module Euler.Product.OLTP.Services.Auth.AuthKeyService
   ( newHandle
   )where
 
-
 import           EulerHS.Prelude hiding (id)
 import qualified Prelude as P (id, show)
 
 import qualified EulerHS.Extra.Validation as V
 import           EulerHS.Language as L
-import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime as R
-import           EulerHS.Types hiding (error)
-import qualified EulerHS.Types as T
 
 import qualified Data.ByteString.Base64 as BH
-import           Data.Generics.Product
-import           Data.Generics.Product.Fields
 import           Data.List (intersect)
 import qualified Data.Text as T
 import           Servant.Server
 
-
 import           Euler.API.RouteParameters
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.Merchant
-import qualified Euler.Config.Config as Config
+import qualified Euler.Constants          as Constants (ecRedis)
 import           Euler.Lens
 import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
 import           Euler.Storage.DBConfig (eulerDB)
 import           Euler.Storage.Types.EulerDB
 import           Euler.Storage.Types.IngressRule
-import qualified Euler.Storage.Types.IngressRule as DBIR
 import qualified Euler.Storage.Types.MerchantAccount as DBM
 import           Euler.Storage.Types.MerchantKey
-import qualified Euler.Storage.Types.SqliteTest as SQLITE
 import qualified Euler.Storage.Validators.MerchantAccount as MV
 
-import           Database.Beam ((&&.), (/=.), (<-.), (==.))
+
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
+import           Database.Beam ((==.), (&&.))
 import           WebService.Language
 
 newHandle :: X.SHandle
@@ -122,77 +111,77 @@ getAuthScope routeParams = pure $ case (lookupRP @XAuthScope routeParams) of
 -- ##############
 
 
-poolConfig = T.PoolConfig
-  { stripes = 1
-  , keepAlive = 10
-  , resourcesPerStripe = 50
-  }
+--poolConfig = T.PoolConfig
+--  { stripes = 1
+--  , keepAlive = 10
+--  , resourcesPerStripe = 50
+--  }
 
-mySQLCfg :: MySQLConfig
-mySQLCfg = MySQLConfig
-  { connectHost     = "localhost"
-  , connectPort     = 3306
-  , connectUser     = "cloud"
-  , connectPassword = "scape"
-  , connectDatabase = "jdb"
-  , connectOptions  = [CharsetName "utf8"]
-  , connectPath     = ""
-  , connectSSL      = Nothing
-  }
+--mySQLCfg :: MySQLConfig
+--mySQLCfg = MySQLConfig
+--  { connectHost     = "localhost"
+--  , connectPort     = 3306
+--  , connectUser     = "cloud"
+--  , connectPassword = "scape"
+--  , connectDatabase = "jdb"
+--  , connectOptions  = [CharsetName "utf8"]
+--  , connectPath     = ""
+--  , connectSSL      = Nothing
+--  }
 
-mysqlDBC = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
+--mysqlDBC = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
+--
+--sqLiteConfig = mkSQLitePoolConfig "testDB" "/home/vg/work/haskell/euler-hs/app/euler-backend/test/Euler/TestData/test.db" poolConfig
+--
+--connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+--connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
+--  Left e     -> error $ T.pack $  P.show e
+--  Right conn -> pure conn
+--
+--connSQLITEorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
+--connSQLITEorFail cfg = L.initSqlDBConnection cfg >>= \case
+--  Left e     -> error $ T.pack $  P.show e
+--  Right conn -> pure conn
+--
+--inSQLITEconn :: Flow ()
+--inSQLITEconn= do
+--  connection <- connSQLITEorFail $ sqLiteConfig
+--  pure ()
+--
+--inConn :: Flow ()
+--inConn = do
+--  connection <- connMySQLorFail $ mysqlDBC
+--  pure ()
+--
+--getConn :: DBConfig beM -> Flow (SqlConn beM)
+--getConn cfg = do
+--  conn <- getSqlDBConnection cfg
+--  case conn of
+--    Right c -> pure c
+--    Left err -> do
+--      logErrorT "SqlDB" $ toText $ P.show err
+--      throwException err500 {errBody = "getConn"}
 
-sqLiteConfig = mkSQLitePoolConfig "testDB" "/home/vg/work/haskell/euler-hs/app/euler-backend/test/Euler/TestData/test.db" poolConfig
-
-connMySQLorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connMySQLorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ T.pack $  P.show e
-  Right conn -> pure conn
-
-connSQLITEorFail :: T.DBConfig beM -> Flow (T.SqlConn beM)
-connSQLITEorFail cfg = L.initSqlDBConnection cfg >>= \case
-  Left e     -> error $ T.pack $  P.show e
-  Right conn -> pure conn
-
-inSQLITEconn :: Flow ()
-inSQLITEconn= do
-  connection <- connSQLITEorFail $ sqLiteConfig
-  pure ()
-
-inConn :: Flow ()
-inConn = do
-  connection <- connMySQLorFail $ mysqlDBC
-  pure ()
-
-getConn :: DBConfig beM -> Flow (SqlConn beM)
-getConn cfg = do
-  conn <- getSqlDBConnection cfg
-  case conn of
-    Right c -> pure c
-    Left err -> do
-      logErrorT "SqlDB" $ toText $ P.show err
-      throwException err500 {errBody = "getConn"}
-
-getMACC :: Int -> Flow DBM.MerchantAccount
-getMACC mid = do
-  inConn
-  conn <- getConn mysqlDBC
-  let (k :: Text) = "lllllllllllllllllllllllllll"
-  res <- L.runDB conn $ do
-    let predicate DBM.MerchantAccount {id} = id ==. B.just_ (B.val_ mid)
-    L.findRow
-      $ B.select
-      $ B.limit_ 1
-      $ B.filter_ predicate
-      $ B.all_ (merchant_account eulerDBSchema)
-  case res of
-    Right (Just ma) -> pure ma
-    Right (Nothing) -> do
-      runIO $ putTextLn "Nothing"
-      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just  k)
-    Left err -> do
-      runIO $ putStrLn  $ P.show err
-      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just k)
+--getMACC :: Int -> Flow DBM.MerchantAccount
+--getMACC mid = do
+--  inConn
+--  conn <- getConn mysqlDBC
+--  let (k :: Text) = "lllllllllllllllllllllllllll"
+--  res <- L.runDB conn $ do
+--    let predicate DBM.MerchantAccount {id} = id ==. B.just_ (B.val_ mid)
+--    L.findRow
+--      $ B.select
+--      $ B.limit_ 1
+--      $ B.filter_ predicate
+--      $ B.all_ (merchant_account eulerDBSchema)
+--  case res of
+--    Right (Just ma) -> pure ma
+--    Right (Nothing) -> do
+--      runIO $ putTextLn "Nothing"
+--      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just  k)
+--    Left err -> do
+--      runIO $ putStrLn  $ P.show err
+--      pure $ DBM.defaultMerchantAccount & _apiKey .~ (Just k)
 
 -- #############
 --getAuthScope :: RouteParameters -> Flow KeyScope
@@ -209,16 +198,16 @@ ipAddressFilters mAcc mForward =  do
   whitelistedIps <- getWhitelistedIps mAcc
   case whitelistedIps of
     Just ips -> do
-      _ <- logInfo "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
+      _ <- logInfoT "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
       case (mForward) of
         Just forward -> do
           reqIPs <- pure $ T.strip <$> (filter (not . T.null) $ T.split (==',') forward)
           if (length $ intersect reqIPs ips) > 0
             then do
-              _ <- logInfo @Text "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
+              _ <- logInfoT "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
               pure True
             else do
-            _ <- logInfo @Text "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
+            _ <- logInfoT "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
             throwException err403 {errBody = "Bad origin."}
         Nothing -> pure True
     Nothing -> pure True
@@ -226,7 +215,7 @@ ipAddressFilters mAcc mForward =  do
 getWhitelistedIps :: DM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
   let mId = mAcc ^. _merchantId
-  ipAddresses <- L.rGet Config.redis ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  ipAddresses <- L.rGet Constants.ecRedis ("euler_ip_whitelist_for_" <> mId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
@@ -240,5 +229,5 @@ getWhitelistedIps mAcc = do
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
-        _   <- rSetex Config.redis ("euler_ip_whitelist_for_" <> mId) ips (5 * 60 * 60 :: Int)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        _   <- rSetex Constants.ecRedis ("euler_ip_whitelist_for_" <> mId) ips (5 * 60 * 60 :: Int)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

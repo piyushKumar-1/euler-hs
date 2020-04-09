@@ -24,10 +24,12 @@ import           EulerHS.Language
 import           WebService.Language
 
 
+
+
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
 import qualified Euler.Storage.KVRepository as Rep
-import           Euler.Storage.KVRepository.Mandate as M
+--import           Euler.Storage.KVRepository.Mandate as M
 import qualified Euler.Storage.Repository as Rep
 import qualified Euler.Storage.Types as DB
 
@@ -36,20 +38,22 @@ import qualified Euler.API.Order as API
 import qualified Euler.API.RouteParameters as RP
 import qualified Euler.API.Validators.Order as VO
 
+import qualified Euler.Constants          as Constants (ecRedis)
+
 -- EHS: rework imports. Use top level modules.
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types as D
-import qualified Euler.Common.Types.External.Mandate as MEx
+--import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Common.Types.External.Order as OEx
-import qualified Euler.Config.Config as Config
+--import qualified Euler.Config.Config as Config
 import           Euler.Lens
 import qualified Euler.Product.Domain as D
 import           Euler.Product.Domain.MerchantAccount
-import qualified Euler.Product.Domain.Order as D
+--import qualified Euler.Product.Domain.Order as D
 import qualified Euler.Product.Domain.Templates as Ts
 import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
 import qualified Euler.Config.Config               as Config
-import qualified Euler.Constants                   as Constants
+--import qualified Euler.Constants                   as Constants
 import           Euler.Lens
 
 orderCreate
@@ -93,20 +97,12 @@ doOrderCreate
 doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order' mAccnt@MerchantAccount{..} = do
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
   (dbOrder, order) <- createOrder' routeParams order' mAccnt merchantPrefs
+  -- EHS I find `Rep` misleading here
   _                <- Rep.updateOrderCache (order ^. _orderId) (order ^. _merchantId) dbOrder
   _                <- Rep.updateMandateCache order $ order' ^. _mandate
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
   makeOrderResponse Config.getECRConfig order mAccnt mbReseller
-
--- EHS: There is no code reading for order from cache (lookup by "_orderid_" gives nothing).
---      Why this cache exist? What it does?
-updateOrderCache :: D.Order -> Flow ()
-updateOrderCache order = do
-  let orderId    = order ^. _orderId
-  let merchantId = order ^. _merchantId
-  -- EHS: magic constant.
-  void $ rSetex Config.redis (merchantId <> "_orderid_" <> orderId) order Config.orderTtl
 
 -- EHS: previously setMandateInCache
 -- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.

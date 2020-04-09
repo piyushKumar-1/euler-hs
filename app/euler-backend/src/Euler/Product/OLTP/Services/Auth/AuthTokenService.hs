@@ -12,7 +12,8 @@ import qualified Data.Text as T
 
 import qualified Euler.API.RouteParameters as RP
 import           Euler.Common.Types.Order (ClientAuthTokenData (..), OrderTokenExpiryData (..))
-import qualified Euler.Config.Config as Config (orderTokenExpiry, redis)
+import qualified Euler.Constants          as Constants (ecRedis)
+import qualified Euler.Config.Config as Config (orderTokenExpiry)
 import qualified Euler.Config.ServiceConfiguration as SC (decodeValue, findByName)
 import           Euler.Lens
 import qualified Euler.Product.Domain.MerchantAccount as DM
@@ -32,7 +33,7 @@ authenticate :: RP.RouteParameters -> Flow (Either Text DM.MerchantAccount)
 authenticate rps = do
   case (RP.lookupRP @RP.ClientAuthToken rps) of
     Just token -> do
-      mbTokenData :: Maybe ClientAuthTokenData <- rGet Config.redis token
+      mbTokenData :: Maybe ClientAuthTokenData <- rGet Constants.ecRedis token
       case mbTokenData of
         Just tokenData -> do
           checkTokenValidityAndIncUsageCounter token tokenData
@@ -61,11 +62,11 @@ checkTokenValidityAndIncUsageCounter token tokenData@ClientAuthTokenData {..} = 
   case (newUsageCount >= tokenMaxUsage) of
     True -> do
       -- EHS: shall we handle rDel result somehow?
-      _ <- rDel Config.redis [token]
+      _ <- rDel Constants.ecRedis [token]
       pure ()
     False -> do
       expiry <- tokenExpiry
-      _ <- rSetex Config.redis token (tokenData {usageCount = Just newUsageCount}) expiry
+      _ <- rSetex Constants.ecRedis token (tokenData {usageCount = Just newUsageCount}) expiry
       pure ()
 
 -- EHS: former getTokenExpiryData :: Flow OrderTokenExpiryData

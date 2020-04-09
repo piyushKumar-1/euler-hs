@@ -7,6 +7,10 @@ module Euler.Product.OLTP.Order.OrderStatus
     orderStatus
     -- * OrderStatusResponse-based handler
   , orderStatusRequest
+    -- * EHS: are these used only in tests?
+  , findPayerVpaByGateway
+  , makeRisk
+  , makeOrderStatusResponse
   ) where
 
 
@@ -37,7 +41,7 @@ import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import           Euler.Common.Types.External.Mandate  as M
 import           Euler.Common.Types.PaymentGatewayResponseXml
-import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
+import           Euler.Common.Types.TxnDetail (TxnStatus (..))
 import           Euler.Common.Utils
 import           Euler.Config.Config                  as Config
 import qualified Euler.Encryption                     as E
@@ -897,7 +901,7 @@ getBankErrorCode (Just txn) = txn ^. _bankErrorCode
 
 getGatewayId :: Maybe D.TxnDetail -> Maybe Int
 getGatewayId Nothing    = Nothing
-getGatewayId (Just txn) = C.gatewayIdFromGateway <$> txn ^. _gateway
+getGatewayId (Just txn) = maybe Nothing C.gatewayIdFromGateway $ txn ^. _gateway
 
 getTxnStatus :: Maybe D.TxnDetail -> Maybe D.OrderTxnStatus
 getTxnStatus Nothing    = Nothing
@@ -929,3 +933,24 @@ getEmiTenureEmiBank (Just txn) = if isTrueMaybe  (txn ^. _isEmi)
     then (txn ^. _emiTenure, txn ^. _emiBank)
     else (Nothing, Nothing)
 getEmiTenureEmiBank Nothing = (Nothing, Nothing)
+
+-- EHS: find a good module for it
+txnStatusToInt :: TxnStatus -> Int
+txnStatusToInt AUTHENTICATION_FAILED = 26
+txnStatusToInt AUTHORIZATION_FAILED = 27
+txnStatusToInt AUTHORIZING = 28
+txnStatusToInt CHARGED = 21
+txnStatusToInt JUSPAY_DECLINED = 22
+txnStatusToInt PENDING_VBV = 23
+txnStatusToInt STARTED = 20
+txnStatusToInt VBV_SUCCESSFUL = 24
+txnStatusToInt AUTHORIZED = 25
+txnStatusToInt COD_INITIATED = 29
+txnStatusToInt VOIDED = 31
+txnStatusToInt VOID_INITIATED = 32
+txnStatusToInt NOP = -1
+txnStatusToInt CAPTURE_INITIATED = 33
+txnStatusToInt CAPTURE_FAILED = 34
+txnStatusToInt VOID_FAILED = 35
+-- txnStatusToInt NEW = 10
+-- txnStatusToInt _ = -1

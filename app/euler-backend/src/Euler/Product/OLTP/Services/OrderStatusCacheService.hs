@@ -10,10 +10,11 @@ import EulerHS.Language
 import           Euler.Lens
 import           Euler.API.Order
 import qualified Euler.Common.Metric      as Metric
-import           Euler.Constant.Constants (orderStatusCacheTTL)
+import qualified Euler.Constants          as Constants (orderStatusCacheTTL, ecRedis)
 import qualified Euler.Constant.Feature   as FeatureC
 import           Euler.Storage.Repository.Feature
-import qualified Euler.Config.Config as C
+--import qualified Euler.Config.Config as C
+import           WebService.Language
 
 -- | Cache an order status response
 addToCache
@@ -28,16 +29,16 @@ addToCache orderId merchId isAuth res = do
   let caching = maybe False (^. _enabled) mbFeat
   case caching of
     True  -> do
-      _ <- logInfo "Order Status add to cache"
+      _ <- logInfoT "Order Status add to cache"
             $ "adding order status response to cache for merchant_id "
               <> merchId <> " orderId " <> orderId
-      _ <- rSetex C.redis cacheKey res ttl
+      _ <- rSetex Constants.ecRedis cacheKey res ttl
       runIO $ Metric.incrementOrderStatusCacheAddCount merchId
       pure ()
     False -> pure ()
   where
     cacheKey = mkCacheKey orderId merchId isAuth
-    ttl = orderStatusCacheTTL
+    ttl = Constants.orderStatusCacheTTL
 
 
 -- | Try to retrieve a cached response
@@ -51,9 +52,9 @@ getCachedResponse orderId merchId isAuth = do
   let caching = maybe False (^. _enabled) mbFeat
   case caching of
     True  -> do
-      _ <- logInfo' "Fetch cache from order status"
+      _ <- logInfoT "Fetch cache from order status"
              $ "Order status cache feature is enabled for merchand id: " <> merchId
-      val <- rGet C.redis cacheKey
+      val <- rGet Constants.ecRedis cacheKey
       -- EHS: investigate
       -- let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
       -- _ <- Presto.log ("Cache value for this order status cache key " <> key) v
@@ -62,17 +63,17 @@ getCachedResponse orderId merchId isAuth = do
       --  Left err -> log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
       case val of
         Just val' -> do
-          _ <- logInfo' "Fetch cache from order status"
+          _ <- logInfoT "Fetch cache from order status"
                  $ "Order status response found in cache for merchantId: " <> merchId <> ", orderId: " <> orderId
           runIO $ Metric.incrementOrderStatusCacheHitCount merchId
           pure val'
         Nothing -> do
-          _ <- logInfo' "Fetch cache from order status"
+          _ <- logInfoT "Fetch cache from order status"
                  $ "Could not find order status response in cache for merchantId: " <> merchId <> ", orderId: " <> orderId
           runIO $ Metric.incrementOrderStatusCacheMissCount merchId
           pure Nothing
     False -> do
-      _ <- logInfo' "Fetch cache from order status"
+      _ <- logInfoT "Fetch cache from order status"
              $ "Order status cache feature is not enabled for merchand id: " <> merchId
       pure Nothing
   where
@@ -83,9 +84,9 @@ getCachedResponse orderId merchId isAuth = do
 invalidateCache :: Text -> Text -> Flow ()
 invalidateCache orderId merchantId = do
   -- EHS: logs conformity?
-  logInfo' "invalidateOrderStatusCacheStart"
+  logInfoT "invalidateOrderStatusCacheStart"
     $ "Invalidating order status cache for " <> merchantId <> " and order_id " <> orderId
-  void $ rDel C.redis $ mkCacheKey' orderId merchantId <$> allPrefs
+  void $ rDel Constants.ecRedis $ mkCacheKey' orderId merchantId <$> allPrefs
 
 -- ----------------------------------------------------------------------------
 -- Redis keys related stuff
@@ -111,5 +112,3 @@ mkCacheKey orderId merchId False = mkCacheKey' orderId merchId eulerOStatusUnAut
 
 mkCacheKey' :: Text -> Text -> Text -> Text
 mkCacheKey' orderId merchId pref = pref <> merchId <> "_" <> orderId
-
-logInfo' = logInfo @Text

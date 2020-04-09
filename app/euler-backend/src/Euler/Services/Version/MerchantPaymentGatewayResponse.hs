@@ -63,8 +63,7 @@ setDiscountAmount' version
 
 setAuthIdCodeAndRRN' :: Version -> GatewayId -> MerchantPaymentGatewayResponse -> MerchantPaymentGatewayResponse
 setAuthIdCodeAndRRN' version gwId mpgr
-  | (version < "2017-10-26"  || version == "")
-    && Just gwId == gatewayIdFromGatewayMaybe PAYU =
+  | (version < "2017-10-26"  || version == "") && Just gwId == gatewayIdFromGateway PAYU =
       setField @"auth_id_code" newAuthIdCode
       $ setField @"rrn" newRRN mpgr
   | otherwise = mpgr

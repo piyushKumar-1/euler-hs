@@ -831,7 +831,7 @@ mapTxnDetail txn = TxnDetail'
   { txn_id = getField @"txnId" txn
   , order_id = getField @"orderId" txn
   , txn_uuid = getField @"txnUuid" txn
-  , gateway_id = Just $ maybe 0 C.gatewayIdFromGateway $ getField @"gateway" txn
+  , gateway_id = Just $ fromMaybe 0 $ getField @"gateway" txn >>= C.gatewayIdFromGateway
   , status = show $ getField @"status" txn
   , gateway = show <$> getField @"gateway" txn
   , express_checkout = getField @"expressCheckout" txn

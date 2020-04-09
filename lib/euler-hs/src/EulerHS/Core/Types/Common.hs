@@ -2,6 +2,8 @@ module EulerHS.Core.Types.Common
   (
     -- * Guid for a forked flow
     ForkGUID
+    -- * Guid for a safe flow
+  , SafeFlowGUID
     -- * Network manager selector
   , ManagerSelector
     -- * Description type
@@ -15,6 +17,7 @@ import           EulerHS.Prelude
 import qualified Data.Word as W
 
 type ForkGUID = Text
+type SafeFlowGUID = Text
 type ManagerSelector = String
 type Description = Text
 data Awaitable s = Awaitable (MVar s)

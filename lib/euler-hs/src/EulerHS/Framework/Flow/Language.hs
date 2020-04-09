@@ -131,7 +131,8 @@ data FlowMethod next where
 
   RunSafeFlow
     :: (FromJSON a, ToJSON a)
-    => Flow a
+    => T.SafeFlowGUID
+    -> Flow a
     -> ((Either Text a) -> next)
     -> FlowMethod next
 
@@ -200,7 +201,7 @@ instance Functor FlowMethod where
 
   fmap f (ThrowException message next)        = ThrowException message (f . next)
 
-  fmap f (RunSafeFlow flow next)              = RunSafeFlow flow (f . next)
+  fmap f (RunSafeFlow guid flow next)         = RunSafeFlow guid flow (f . next)
 
   fmap f (RunIO descr ioAct next)             = RunIO descr ioAct (f . next)
 
@@ -482,7 +483,7 @@ forkFlow' description flow = do
   flowGUID <- generateGUID
   unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
   when   (null description) $ logInfo tag $ "Flow forked. GUID: " <> flowGUID
-  liftFC $ Fork description flowGUID flow id
+  liftFC $ Fork description (flowGUID <> "fork") flow id
   where
     tag :: Text
     tag = "ForkFlow"
@@ -530,7 +531,9 @@ throwException ex = liftFC $ ThrowException ex id
 -- >     Left err -> ...
 -- >     Right content -> ...
 runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> Flow (Either Text a)
-runSafeFlow flow = liftFC $ RunSafeFlow flow id
+runSafeFlow flow = do
+  safeFlowGUID <- generateGUID
+  liftFC $ RunSafeFlow (safeFlowGUID <> "safeFlow") flow id
 
 -- | Execute given kvdb actions.
 --

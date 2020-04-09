@@ -231,10 +231,96 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())
   throwIO ex
 
-interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow flow next) = do
-  fmap next $ do
-    fl <- try @_ @SomeException $ runFlow rt flow
-    pure $ mapLeft show fl
+interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow next) = fmap next $ do
+  fl <- case R._runMode rt of
+    T.RegularMode -> do
+      fl <- try @_ @SomeException $ runFlow rt flow
+      pure $ mapLeft show fl
+
+    T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
+      finalRecordingMVar       <- newEmptyMVar
+      finalForkedRecordingsVar <- newEmptyMVar
+
+      forkRecordingMVar        <- newMVar V.empty
+      forkForkedRecordingsVar  <- newMVar Map.empty
+
+      let freshRecording = T.Recording forkRecordingMVar  forkForkedRecordingsVar
+      let finalRecording = T.Recording finalRecordingMVar finalForkedRecordingsVar
+
+      let forkRuntime = T.RecorderRuntime
+            { flowGUID  = newFlowGUID
+            , recording = freshRecording
+            , ..
+            }
+
+      forkedRecs <- takeMVar forkedRecordingsVar
+      putMVar forkedRecordingsVar $
+        Map.insert newFlowGUID finalRecording forkedRecs
+
+      let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
+
+      fl <- try @_ @SomeException $ runFlow newRt flow
+      putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
+      putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
+      pure $ mapLeft show fl
+
+----------------------------------------------------------------------
+
+    T.ReplayingMode playerRt -> do
+      let
+        T.PlayerRuntime
+          { rerror       = T.ReplayErrors   {..}
+          , resRecording = T.ResultRecording{ forkedRecordings }
+          , ..
+          } = playerRt
+
+      case Map.lookup newFlowGUID forkedRecordings of
+        Nothing -> do
+          let
+            err =
+              T.PlaybackError
+                { errorType    = T.ForkedFlowRecordingsMissed
+                , errorMessage = "No recordings found for safe flow " <> Text.unpack newFlowGUID
+                , errorFlowGUID = flowGUID }
+
+          takeMVar errorMVar *> putMVar errorMVar (Just err)
+          throwIO $ T.ReplayingException err
+
+        Just recording -> do
+          stepVar           <- newMVar 0
+
+          finalErrorMVar          <- newEmptyMVar
+          finalForkedFlowErrorVar <- newEmptyMVar
+
+          forkErrorMVar           <- newMVar Nothing
+          forkForkedFlowErrorVar  <- newMVar Map.empty
+
+          let freshReplayErrors = T.ReplayErrors forkErrorMVar  forkForkedFlowErrorVar
+          let finalReplayErrors = T.ReplayErrors finalErrorMVar finalForkedFlowErrorVar
+
+          let forkRuntime = T.PlayerRuntime
+                { flowGUID     = newFlowGUID
+                , stepMVar     = stepVar
+                , resRecording = recording
+                , rerror       = freshReplayErrors
+                , ..
+                }
+
+          forkedFlowErrs <- takeMVar forkedFlowErrorsVar
+
+          putMVar forkedFlowErrorsVar $
+            Map.insert newFlowGUID finalReplayErrors forkedFlowErrs
+
+          let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
+          fl <- try @_ @SomeException $ runFlow newRt flow
+          putMVar finalErrorMVar          =<< readMVar forkErrorMVar
+          putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
+          pure $ mapLeft show fl
+
+----------------------------------------------------------------------
+
+  P.withRunMode (R._runMode rt) (P.mkRunSafeFlowEntry newFlowGUID) (pure fl)
+
 
 interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do

@@ -1,6 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Euler.Server where
@@ -11,7 +8,6 @@ import qualified Control.Exception.Safe as CES (catches)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy                   as BSL
 import           Data.Coerce (coerce)
-import qualified Data.Map as Map
 import qualified Data.Text  as Text
 import           Network.Socket (SockAddr(..))
 import qualified Prometheus as P
@@ -32,7 +28,6 @@ import           Euler.API.RouteParameters
 import qualified Euler.Common.Errors.ErrorsMapping      as EMap
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
-import qualified Euler.Product.Domain.Order as D
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
@@ -109,8 +104,7 @@ data Env = Env
   }
 
 type FlowHandler = ReaderT Env (ExceptT ServerError IO)
-
-type FlowServer' api = ServerT api (ReaderT Env (ExceptT ServerError IO))
+type FlowServer' api = ServerT api FlowHandler
 type FlowServer      = FlowServer' EulerAPI
 
 eulerServer' :: FlowServer
@@ -252,12 +246,16 @@ txns _ = do
   --       }
 
 type OrderStatusGetEndpoint =
+     -- URL parameters
      Capture "orderId" OrderId
+     -- Headers
   -- EHS: use common constants for headers?
   :> Header "Authorization" Authorization
-  :> Header "X-Auth-Scope" XAuthScope -- most likely this header is not used in order status
+  -- EHS: most likely this header is not used in order status
+  :> Header "X-Auth-Scope" XAuthScope
   :> Header "X-Forwarded-For" XForwardedFor
   :> Header "client_auth_token" ClientAuthToken
+  :> Header "options.add_full_gateway_response" AddFullGatewayResponseOption
   :> Get '[JSON] ApiOrder.OrderStatusResponse
 
 orderStatus ::
@@ -266,21 +264,20 @@ orderStatus ::
   -> Maybe XAuthScope
   -> Maybe XForwardedFor
   -> Maybe ClientAuthToken
+  -> Maybe AddFullGatewayResponseOption
   -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken = do
+orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken mbSendFullPgr = do
   let rps = collectRPs
-              --orderId -- is it really needed?
               mbAuth
               mbXAuthScope
               mbXForwarderFor
               mbClientAuthToken
+              mbSendFullPgr
 
-  status <- runFlow "orderStatusById" rps noReqBodyJSON  -- FIXME is noReqBodyJSON appropriate here?
-        $ Auth.withAuth Auth.mkKeyTokenAuthService OrderStatus.handleByOrderId rps orderId
+  runFlow "orderStatusHandle" rps noReqBodyJSON
+        $ Auth.withAuth Auth.mkKeyTokenAuthService
+          OrderStatus.orderStatus rps orderId
 
-  case status of
-        Left _ -> error "err" -- TODO
-        Right response -> pure response
 
 -- EHS: Extract from here.
 type OrderCreateEndpoint

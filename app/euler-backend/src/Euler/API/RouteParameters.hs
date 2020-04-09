@@ -28,6 +28,9 @@ module Euler.API.RouteParameters
   , SourceIP(..)
   -- Client authentication token
   , ClientAuthToken(..)
+  -- Order Status API's option
+  , AddFullGatewayResponseOption(..)
+  , sendFullPgr
   -- Methods
   , collectRPs
   , emptyRPs
@@ -37,8 +40,10 @@ module Euler.API.RouteParameters
 
 import EulerHS.Prelude
 
+import           Data.Char (toLower)
 import           Data.Coerce
 import           Data.Data hiding (typeRep)
+import qualified Data.Text as T
 import           Network.Socket (SockAddr(..), hostAddressToTuple, hostAddress6ToTuple)
 import           Numeric (showHex)
 import           Text.Show (showString)
@@ -237,4 +242,16 @@ newtype ClientAuthToken = ClientAuthToken Text
   deriving (Eq, Show, Data, Typeable, RouteParameter)
 
 instance ToHttpApiData ClientAuthToken where toUrlPiece = coerce
-instance FromHttpApiData ClientAuthToken where parseUrlPiece = Right. coerce
+instance FromHttpApiData ClientAuthToken where parseUrlPiece = Right . coerce
+
+-- Order Status API's option
+newtype AddFullGatewayResponseOption = AddFullGatewayResponseOption Text
+  deriving (Eq, Show, Data, Typeable, RouteParameter)
+
+instance ToHttpApiData AddFullGatewayResponseOption where toUrlPiece = coerce
+instance FromHttpApiData AddFullGatewayResponseOption where parseUrlPiece = Right . coerce
+
+sendFullPgr :: RouteParameters -> Bool
+sendFullPgr rps = case (lookupRP @AddFullGatewayResponseOption rps) of
+    Nothing  -> False
+    Just val -> val == "1" || T.map toLower val == "true"

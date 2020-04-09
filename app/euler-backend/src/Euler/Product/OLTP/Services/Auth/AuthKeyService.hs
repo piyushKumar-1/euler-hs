@@ -43,7 +43,7 @@ import qualified Euler.Storage.Validators.MerchantAccount as MV
 import           Database.Beam ((&&.), (/=.), (<-.), (==.))
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
-
+import           WebService.Language
 
 newHandle :: X.SHandle
 newHandle = X.SHandle
@@ -65,7 +65,7 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
   Just apiKeyStr -> do
     case extractApiKey apiKeyStr of
       Left err -> do
-        logError "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
+        logErrorT "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
         throwException err403 {errBody = "Access denied, invalid API key."}
       Right apiKey' -> do
         mk <- do
@@ -96,14 +96,14 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
         let eValidMerchant = MV.transSMaccToDomMacc merchantAccount
         case eValidMerchant of
           V.Failure e -> do
-            logError "DB MerchantAccount Validation" $ show e
+            logErrorT "DB MerchantAccount Validation" $ show e
             throwException internalError
           V.Success validMAcc -> do
             authScope <- getAuthScope routeParams
             _ <- if authScope == MERCHANT then ipAddressFilters validMAcc (lookupRP @XForwardedFor routeParams) else pure True
             pure $ Right validMAcc
   Nothing -> do
-    logError "authenticateRequestWithouthErr" "No authorization found in header"
+    logErrorT "authenticateRequestWithouthErr" "No authorization found in header"
     throwException err403 {errBody = "API key not present in Authorization header"}
  -- where getApiKeyFromHeader routeParams = do
  --         ((split (Pattern ":") <<< decodeBase64) <$> ((split (Pattern " ") <$> (lookup "Authorization" routeParams)) >>= last))
@@ -170,7 +170,7 @@ getConn cfg = do
   case conn of
     Right c -> pure c
     Left err -> do
-      logError "SqlDB" $ toText $ P.show err
+      logErrorT "SqlDB" $ toText $ P.show err
       throwException err500 {errBody = "getConn"}
 
 getMACC :: Int -> Flow DBM.MerchantAccount
@@ -215,10 +215,10 @@ ipAddressFilters mAcc mForward =  do
           reqIPs <- pure $ T.strip <$> (filter (not . T.null) $ T.split (==',') forward)
           if (length $ intersect reqIPs ips) > 0
             then do
-              _ <- logInfo "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
+              _ <- logInfo @Text "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
               pure True
             else do
-            _ <- logInfo "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
+            _ <- logInfo @Text "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
             throwException err403 {errBody = "Bad origin."}
         Nothing -> pure True
     Nothing -> pure True

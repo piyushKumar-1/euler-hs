@@ -8,7 +8,6 @@ import EulerHS.Prelude
 import Control.Exception (throw)
 import           Data.Aeson (decodeStrict')
 import           Data.Aeson.Text (encodeToLazyText)
-import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 

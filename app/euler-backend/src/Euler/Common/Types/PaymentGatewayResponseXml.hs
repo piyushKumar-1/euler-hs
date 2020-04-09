@@ -27,11 +27,10 @@ import qualified Data.Binary.Builder as BB
 import           Data.Coerce
 import qualified Data.Map.Lazy as LMap
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
-import           Text.RawString.QQ
+--import           Text.RawString.QQ
 import qualified Text.Read
 import           Xmlbf
 import           Xmlbf.Xeno

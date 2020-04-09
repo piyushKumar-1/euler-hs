@@ -1,151 +1,105 @@
 {-# LANGUAGE AllowAmbiguousTypes       #-}
-{-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE DeriveAnyClass            #-}
-{-# LANGUAGE DeriveGeneric             #-}
-{-# LANGUAGE DuplicateRecordFields     #-}
-{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE TypeApplications          #-}
 
-module Euler.Product.OLTP.Order.OrderStatus where
-
+module Euler.Product.OLTP.Order.OrderStatus
+  ( -- * main handler by orderId and route parameters
+    orderStatus
+    -- * OrderStatusResponse-based handler
+  , orderStatusRequest
+  ) where
 
 
 import           EulerHS.Prelude hiding (First, Last, getFirst, getLast, id)
 import qualified EulerHS.Prelude as P (id)
 
-import qualified Euler.Config.Creditails as Cred
-import qualified Euler.Encryption as E
-import           Euler.Lens
 import           EulerHS.Language
-import           EulerHS.Types
 
 import           Control.Comonad (extract)
 import           Control.Monad.Except
 import           Data.Aeson
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Lazy.Char8 as LC
-import           Data.Char (toLower)
-import           Data.Either.Extra
-import qualified Data.Map.Strict as Map
-import           Data.Semigroup as S
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import qualified Data.Aeson              as A
+import qualified Data.ByteString.Base64  as B64
+import qualified Data.ByteString.Lazy    as BSL
+import qualified Data.Map.Strict         as Map
+import           Data.Semigroup          as S
+import qualified Data.Text               as T
+import qualified Data.Text.Encoding      as T
 import qualified Data.Text.Lazy.Encoding as TL
 import           Data.Time (LocalTime)
-import           Servant.Server
 
 import           Euler.API.Order as AO
 import           Euler.API.RouteParameters (RouteParameters (..))
-import qualified Euler.API.RouteParameters as RP
-
-
-import qualified Euler.Constant.Feature as FeatureC
-
-import qualified Euler.Common.Types as C
-import           Euler.Common.Types.External.Mandate as M
+import qualified Euler.API.RouteParameters            as RP
+import qualified Euler.Config.Creditails              as Cred
+import qualified Euler.Constant.Feature               as FeatureC
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Common.Types                   as C
+import           Euler.Common.Types.External.Mandate  as M
 import           Euler.Common.Types.PaymentGatewayResponseXml
 import           Euler.Common.Types.TxnDetail (TxnStatus (..), txnStatusToInt)
-
 import           Euler.Common.Utils
-import           Euler.Config.Config as Config
-
-import qualified Euler.Product.Domain as D
-
+import           Euler.Config.Config                  as Config
+import qualified Euler.Encryption                     as E
+import           Euler.Lens
+import qualified Euler.Product.Domain                 as D
 import           Euler.Product.OLTP.Card.Card
 import qualified Euler.Product.OLTP.Order.OrderStatusVersioningService as VS
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
 import           Euler.Product.OLTP.Services.OrderStatusCacheService
-
 import           Euler.Storage.Repository
 import qualified Euler.Storage.Types as DB
-
 import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
+import           WebService.Language
 
 
 
-data FlowError = FlowError
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
---type APIKey = Text
-
---data FlowState = FlowState
---  { merchantId :: Maybe Text
---  , orderId    :: Text
---  }
---  deriving (Generic, Show, Eq, ToJSON, FromJSON )
---
---
---data FlowStateOption = FlowStateOption
---  deriving (Generic, Show, Eq, ToJSON, FromJSON )
---
---instance OptionEntity FlowStateOption FlowState
---
---
---type AuthToken = Text
-
-
--- | API handler
-handleByOrderId
+-- | API handler wrapper, constructs OrderStatusRequest and runs it
+orderStatus
   :: RouteParameters
-  -- EHS: why RP?
+  -- EHS: is it worth moving this from RP to API types?
   -> RP.OrderId
   -> D.MerchantAccount
-  -> Flow (Either FlowError OrderStatusResponse)
-handleByOrderId rps (RP.OrderId orderId) merchantAccount  = do
-
-    let request = D.OrderStatusRequest
+  -> Flow AO.OrderStatusResponse
+orderStatus rps (RP.OrderId orderId) merchantAccount  = do
+    orderStatusRequest request
+  where
+    request = D.OrderStatusRequest
           { orderId                 = orderId
           , merchantId              = merchantAccount ^. _merchantId
           , merchantReturnUrl       = merchantAccount ^. _returnUrl
           , resellerId              = merchantAccount ^. _resellerId
           , isAuthenticated         = True
           , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-          , sendFullGatewayResponse = sendFullGatewayResponse'
+          , sendFullGatewayResponse = sendFullPrgResponse'
           , sendAuthToken           = False
           , version                 = version'
           }
-    response <- execOrderStatusQuery request
-    pure $ mapLeft (const FlowError) response
-  where
-    sendFullGatewayResponse' =
-      -- EHS: magic constants
-      case (Map.lookup "options.add_full_gateway_response" (unRP rps)) of
-        Nothing  -> False
-        Just str -> str == "1" || T.map toLower str == "true"
-    version' = RP.lookupRP @RP.Version rps
+    sendFullPrgResponse' = RP.sendFullPgr rps
+    version'             = RP.lookupRP @RP.Version rps
 
 
-
--- | Top-level domain-type handler
-execOrderStatusQuery :: D.OrderStatusRequest-> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery req@D.OrderStatusRequest{..} = do
+-- | Top-level flow to run OrderStatusRequest
+orderStatusRequest :: D.OrderStatusRequest-> Flow AO.OrderStatusResponse
+orderStatusRequest req@D.OrderStatusRequest{..} = do
     mbCached <- fastPath
     result <- case mbCached of
       Just cached -> pure cached
       Nothing     -> slowPath
     let vHandle = VS.mkHandle version sendAuthToken
     transformed <- VS.doVersionTransformation vHandle result
-    pure $ Right transformed
+    pure transformed
   where
     fastPath = getCachedResponse orderId merchantId isAuthenticated
     slowPath = do
-      r <- execOrderStatusQuery' req
-      case r of
-        Left _ -> do
-          -- EHS: fixme
-          logError @Text "" ""
-          throwException err500
-        Right r' -> do
-          _ <- addToCache orderId merchantId isAuthenticated r'
-          pure r'
+      res <- execOrderStatus req
+      _ <- addToCache orderId merchantId isAuthenticated res
+      pure res
 
 
--- | Slow-path execution of order status query
-execOrderStatusQuery' :: D.OrderStatusRequest -> Flow (Either Text OrderStatusResponse)
-execOrderStatusQuery' request = do
+-- | Slow-path flow to execute order status request
+execOrderStatus :: D.OrderStatusRequest -> Flow OrderStatusResponse
+execOrderStatus request = do
 
   let reqOrderId = request ^. _orderId
   let reqMerchantId = request ^. _merchantId
@@ -153,14 +107,18 @@ execOrderStatusQuery' request = do
   let resellerId = request ^. _resellerId
   let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
 
+  -- EHS: I would suggest to have `loadSthStrict` functions in repositories to not repeat ourselves each time
+  -- we are loading a mandatory value
   mOrder <- loadOrder reqOrderId reqMerchantId
 
   order <- case mOrder of
     Just o -> pure o
-    Nothing -> throwException err404
-      { errBody = "Order not found "
-      <> "orderId: " <> show reqOrderId
-      <> ", merchantId: " <> show reqMerchantId }
+    Nothing -> do
+      logErrorT "OrderStatus.execOrderStatusQuery'"
+        $ "Order not found "
+        <> "orderId: " <> show reqOrderId
+        <> ", merchantId: " <> show reqMerchantId
+      throwException $ Errs.orderNotFound reqOrderId
 
   let orderId = order ^. _orderId
   let merchantId = order ^. _merchantId
@@ -213,25 +171,30 @@ execOrderStatusQuery' request = do
       getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
     _ -> pure (Nothing, Nothing)
 
-  pure $ mapRight mkOrderStatusResponse
-       $ runExcept
-       $ makeOrderStatusResponse
-         order
-         links
-         mPromotionActive
-         mMandate
-         request
-         mTxn
-         gatewayRefId
-         mRisk
-         mTxnCard
-         mCardBrand
-         mRefunds
-         mChargeback
-         mReturnUrl
-         paymentMethodsAndTypes
-         txnFlowInfoAndMerchantSFR
-         mMerchantPgr
+  let res = runExcept $ makeOrderStatusResponse
+        order
+        links
+        mPromotionActive
+        mMandate
+        request
+        mTxn
+        gatewayRefId
+        mRisk
+        mTxnCard
+        mCardBrand
+        mRefunds
+        mChargeback
+        mReturnUrl
+        paymentMethodsAndTypes
+        txnFlowInfoAndMerchantSFR
+        mMerchantPgr
+  case res of
+    Right res' -> pure $ mkOrderStatusResponse res'
+    Left  e    -> do
+      logErrorT "execOrderStatus"
+        $  "errors while executing request: " <> show request
+        <> ", errors: " <> show e
+      throwException Errs.internalError
 
 
 makeOrderStatusResponse
@@ -496,7 +459,7 @@ getLastTxn orderId merchantId = do
 
   case txnDetails of
     [] -> do
-      logError @Text "get_last_txn"
+      logWarningT "get_last_txn"
         $ "No last txn found for orderId: " <> show orderId
         <> " :merchant:" <> show merchantId
       pure Nothing
@@ -789,13 +752,11 @@ getTxnFlowInfoAndMerchantSFR txnDetId card = do
           let vies = decode $ BSL.fromStrict $ T.encodeUtf8 authReqParams
           case vies of
             Just v -> pure v
-            Nothing -> throwException err500
-              {errBody = "AuthReqParams decoding failed"}
-
+            Nothing -> do
+              logErrorT "getTxnFlowInfoAndMerchantSFR" "AuthReqParams decoding failed"
+              throwException Errs.internalError
         let txnFlowInfo = mkTxnFlowInfo authReqParams
-
         mSecondFactorResponse <- findSecondFactorResponse $ D.sfPId $ sf ^. _id
-
         pure (Just txnFlowInfo, mSecondFactorResponse)
     else pure (Nothing, Nothing) --NON VIES Txn
 
@@ -897,7 +858,9 @@ decryptPromotionRules rulesTxt = do
   let rulesDecoded = B64.decode $ T.encodeUtf8 rulesTxt
   rulesjson <- case rulesDecoded of
     Right result -> pure $ E.decryptEcb (E.Key ecCred :: E.Key E.AES256 ByteString) result
-    Left err     -> throwException err500 {errBody = LC.pack err}
+    Left err     -> do
+      logErrorT "decryptPromotionRules" $ T.pack err
+      throwException Errs.internalError
 
   let rules = getRulesFromString rulesjson
   let rValue = getMaskedAccNo (rules ^. _value)

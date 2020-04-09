@@ -30,7 +30,7 @@ import qualified Euler.Product.OLTP.Services.OrderStatusCacheService as OSCS
 -- EHS: shall we abstract this as a service?
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 
-import qualified Euler.Services.Version.OrderStatusResponse as VSrv
+--import qualified Euler.Services.Version.OrderStatusResponse as VSrv
 import qualified Euler.Storage.Repository as Rep
 
 import Euler.Lens
@@ -50,20 +50,24 @@ runOrderUpdate :: RP.RouteParameters
   -> Flow API.OrderStatusResponse
 runOrderUpdate routeParams req mAcc = do
   -- EHS: use maybe as it is
-  let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
-  let service = VSrv.mkOrderStatusService version
+  --let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
+  --let service = VSrv.mkOrderStatusService version
   case VO.apiOrderUpdToOrderUpdT req of
     V.Failure err -> do
       logError @String "OrderUpdateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
-    V.Success validatedOrder -> orderUpdate routeParams service validatedOrder mAcc
+    V.Success validatedOrder -> orderUpdate routeParams validatedOrder mAcc
 
 orderUpdate :: RP.RouteParameters
-            -> VSrv.OrderStatusService
+            -- -> VSrv.OrderStatusService
             -> Ts.OrderUpdateTemplate
             -> D.MerchantAccount
             -> Flow API.OrderStatusResponse
-orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdateT mAccnt = do
+orderUpdate
+ routeParams
+ -- VSrv.OrderStatusService{transformOrderStatus}
+ orderUpdateT
+ mAccnt = do
     let merchantId' = getField @"merchantId" mAccnt
     orderId' <- maybe
       (throwException Errs.orderIdNotFoundInPath)
@@ -73,11 +77,7 @@ orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdat
     resp <- case mOrder of
       Just order' -> do
         doOrderUpdate orderUpdateT order' mAccnt
-        statusRes <- callOrderStatus orderId' merchantId'
-        case statusRes of -- <- OSSrv.getOrderStatusResponse
-          Right r' -> pure r'
-          -- EHS: use proper exception
-          Left _   -> throwException $ Errs.orderDoesNotExist orderId'
+        callOrderStatus orderId' merchantId'
       Nothing -> throwException $ Errs.orderDoesNotExist orderId'
     logInfo @String "order update response: " $ show resp
     pure API.defaultOrderStatusResponse --resp
@@ -94,7 +94,7 @@ orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdat
             , sendAuthToken = True
             , version = RP.lookupRP @RP.Version routeParams
             }
-      OrderStatus.execOrderStatusQuery query
+      OrderStatus.orderStatusRequest query
 
 
 doOrderUpdate :: Ts.OrderUpdateTemplate -> D.Order -> D.MerchantAccount -> Flow ()

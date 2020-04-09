@@ -19,6 +19,8 @@ import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
 import           Euler.Product.OLTP.Services.TokenService as TS
 import qualified Euler.Storage.Repository as Rep
+import           WebService.Language
+
 
 
 newHandle :: X.SHandle
@@ -122,4 +124,4 @@ readMay :: Read a => Text -> Maybe a
 readMay = readMaybe . T.unpack
 
 logError' :: Message -> Flow ()
-logError' = logError @Text "AuthTokenService"
+logError' = logErrorT "AuthTokenService"

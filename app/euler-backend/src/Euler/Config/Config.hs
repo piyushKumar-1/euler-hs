@@ -188,7 +188,7 @@ getJWTConfig = do
 
 redisLoginTokenExpiry :: String
 redisLoginTokenExpiry = let
-  jwtExpiry = fromMaybe 180
+  jwtExpiry = fromMaybe (180 :: Integer)
     $ readMaybe
     $ filter (/='m')
     $ expiry getJWTConfig

@@ -25,7 +25,7 @@ import qualified Database.Beam as B
 import           Euler.Lens
 
 
--- EHS findOrder would be more accurate
+-- EHS name `findOrder` would be more accurate
 loadOrder :: C.OrderId -> C.MerchantId -> Flow (Maybe D.Order)
 loadOrder orderId' merchantId' = do
     mbOrderRef <- withDB eulerDB $ do
@@ -39,15 +39,7 @@ loadOrder orderId' merchantId' = do
         $ B.all_ (DB.order_reference DB.eulerDBSchema)
     case mbOrderRef of
       Nothing -> pure Nothing
-      Just ordRef -> do
-        case SV.transSOrderToDOrder ordRef of
-          V.Success order -> pure $ Just order
-          V.Failure e -> do
-            logError @String "Incorrect order in DB"
-              $  " orderId: "    <> orderId'
-              <> " merchantId: " <> merchantId'
-              <> " error: "      <> show e
-            throwException Errs.internalError
+      Just ordRef -> transOrder mbOrderRef
 
 -- | Load an order by a surrogate ID value
 loadOrderById :: Int -> Flow (Maybe D.Order)
@@ -70,11 +62,11 @@ transOrder mbOrderRef = do
       case SV.transSOrderToDOrder ordRef of
         V.Success order -> pure $ Just order
         V.Failure e     -> do
-          logError "Incorrect order in DB"
+          logErrorT "Incorrect order in DB"
             $  " id: "         <> (maybe "no value" show $ ordRef ^. _id)
             <> " orderId: "    <> (fromMaybe "no value" $ ordRef ^. _orderId)
             <> " merchantId: " <> (fromMaybe "no value" $ ordRef ^. _merchantId)
-            <> " error: "      <> show e
+            <> " , validation errors: " <> show e
           throwException Errs.internalError
 
 -- For compatibility with other backends, we should return types that we use together through Redis
@@ -90,7 +82,7 @@ saveOrder orderRefVal = do
   case SV.transSOrderToDOrder orderRef of
     V.Success order -> pure (orderRef, order)
     V.Failure _ -> do
-      logError @String "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
+      logErrorT "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException Errs.internalError
 
 updateOrder :: Int -> C.UDF -> Maybe C.Money -> Maybe C.AddressId -> Maybe C.AddressId -> Flow ()

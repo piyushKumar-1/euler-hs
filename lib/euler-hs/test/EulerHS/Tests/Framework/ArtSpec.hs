@@ -148,9 +148,55 @@ spec = do
       L.forkFlow "Fork" $
         L.logInfo @String "Fork" "Hello"
 
+    it "SafeFlow and Fork" $ runFlowWithArt $ do
+      runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+      L.forkFlow "Fork" $
+        L.logInfo @String "Fork" "Hello"
+
+    it "SafeFlow exception and Fork" $ runFlowWithArt $ do
+      runSafeFlow $ (throwException err403 {errBody = "403"} :: Flow Text)
+      L.forkFlow "Fork" $
+        L.logInfo @String "Fork" "Hello"
+
+    it "Fork by fork" $ runFlowWithArt $ do
+      L.forkFlow "Fork" $
+        L.logInfo @String "Fork" "Hello"
+      L.forkFlow "Fork 2" $
+        L.logInfo @String "Fork 2" "Bye"
+
+    it "SafeFlow and Fork" $ runFlowWithArt $ do
+      runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+      L.forkFlow "Fork" $
+        L.logInfo @String "Fork" "Hello"
+
+    it "Fork and flow from SafeFlow" $ do
+      res <- runFlowWithArt $ do
+        runSafeFlow $ do
+          L.runSysCmd $ "echo " <> "safe hello"
+          L.forkFlow "Fork" $
+            L.logInfo @String "Fork" "Hello"
+      res `shouldBe` (Right ())
+
+    it "Flow and fork from SafeFlow" $ do
+      res <- runFlowWithArt $ do
+        runSafeFlow $ do
+          L.forkFlow "Fork" $
+            L.logInfo @String "Fork" "Hello"
+          L.runSysCmd $ "echo " <> "safe hello"
+      res `shouldBe` (Right "safe hello\n")
+
     it "Fork from Fork" $ runFlowWithArt $ do
       L.forkFlow "ForkOne" $ do
         L.logInfo @String "ForkOne" "Hello"
+        L.forkFlow "ForkTwo" $
+          L.forkFlow "ForkThree" $ do
+            L.forkFlow "ForkFour" $
+              L.logInfo @String "ForkFour" "Hello"
+
+    it "Fork and safeFlow from Fork" $ runFlowWithArt $ do
+      L.forkFlow "ForkOne" $ do
+        L.logInfo @String "ForkOne" "Hello"
+        runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
         L.forkFlow "ForkTwo" $
           L.forkFlow "ForkThree" $ do
             L.forkFlow "ForkFour" $

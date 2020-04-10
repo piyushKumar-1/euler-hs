@@ -24,31 +24,6 @@ import           Servant.Server
 import           Test.Hspec hiding (runIO)
 import           Unsafe.Coerce
 
-data ErrorResponse = ErrorResponse
-   { code     :: Int
-   , response :: ErrorPayload
-   }
-  deriving (Eq, Show, Generic)
-
-instance Exception ErrorResponse
-
-data ErrorPayload = ErrorPayload
-  { error         :: Bool
-  , error_message :: Text
-  , userMessage   :: Text
-  }
-  deriving (Eq, Show, Generic, ToJSON, FromJSON)
-
-internalError :: ErrorResponse
-internalError = ErrorResponse
-  { code = 500
-  , response = ErrorPayload
-      { error_message = "Internal Server Error"
-      , userMessage = "Internal Server Error"
-      , error = True
-      }
-  }
-
 
 user :: Any
 user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
@@ -309,14 +284,14 @@ spec = do
 
         it "SafeFlow with exception, fork and successful await infinitely" $ \rt -> do
           let flow = do
-                awaitable <- forkFlow' "101" (throwException internalError :: Flow Int)
+                awaitable <- forkFlow' "101" (throwException err403 {errBody = "403"} :: Flow Text)
                 await Nothing awaitable
           result <- runFlow rt flow
-          result `shouldBe` (Left $ T.ForkedFlowError $ show internalError)
+          result `shouldBe` (Left $ T.ForkedFlowError $ show err403 {errBody = "403"})
 
         it "Safe flow with exception and return power" $ \rt -> do
           let flow = do
-                void $ runSafeFlow (throwException internalError :: Flow Int)
+                void $ runSafeFlow (throwException err403 {errBody = "403"} :: Flow Text)
                 runIO (pure ("hi" :: String))
           result <- runFlow rt flow
           result `shouldBe` "hi"

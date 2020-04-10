@@ -483,7 +483,7 @@ forkFlow' description flow = do
   flowGUID <- generateGUID
   unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
   when   (null description) $ logInfo tag $ "Flow forked. GUID: " <> flowGUID
-  liftFC $ Fork description (flowGUID <> "fork") flow id
+  liftFC $ Fork description flowGUID flow id
   where
     tag :: Text
     tag = "ForkFlow"
@@ -533,7 +533,7 @@ throwException ex = liftFC $ ThrowException ex id
 runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> Flow (Either Text a)
 runSafeFlow flow = do
   safeFlowGUID <- generateGUID
-  liftFC $ RunSafeFlow (safeFlowGUID <> "safeFlow") flow id
+  liftFC $ RunSafeFlow safeFlowGUID flow id
 
 -- | Execute given kvdb actions.
 --

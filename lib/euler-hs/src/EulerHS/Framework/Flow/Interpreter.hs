@@ -131,13 +131,15 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
+      finalSafeRecordingVar    <- newEmptyMVar
       finalForkedRecordingsVar <- newEmptyMVar
 
       forkRecordingMVar        <- newMVar V.empty
+      forkSafeRecordingVar     <- newMVar Map.empty
       forkForkedRecordingsVar  <- newMVar Map.empty
 
-      let freshRecording = T.Recording forkRecordingMVar  forkForkedRecordingsVar
-      let emptyRecording = T.Recording finalRecordingMVar finalForkedRecordingsVar
+      let freshRecording = T.Recording forkRecordingMVar forkSafeRecordingVar forkForkedRecordingsVar
+      let emptyRecording = T.Recording finalRecordingMVar finalSafeRecordingVar finalForkedRecordingsVar
 
       let forkRuntime = T.RecorderRuntime
             { flowGUID  = newFlowGUID
@@ -154,6 +156,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       void $ forkIO $ do
         suppressErrors $ runFlow newRt (L.runSafeFlow flow)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
+        putMVar finalSafeRecordingVar    =<< readMVar forkSafeRecordingVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
 
 ----------------------------------------------------------------------
@@ -182,13 +185,15 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
           stepVar           <- newMVar 0
 
           finalErrorMVar          <- newEmptyMVar
+          finalSafeFlowErrorVar   <- newEmptyMVar
           finalForkedFlowErrorVar <- newEmptyMVar
 
           forkErrorMVar           <- newMVar Nothing
+          forkSafeFlowErrorVar    <- newMVar Map.empty
           forkForkedFlowErrorVar  <- newMVar Map.empty
 
-          let freshReplayErrors = T.ReplayErrors forkErrorMVar  forkForkedFlowErrorVar
-          let finalReplayErrors = T.ReplayErrors finalErrorMVar finalForkedFlowErrorVar
+          let freshReplayErrors = T.ReplayErrors forkErrorMVar forkSafeFlowErrorVar forkForkedFlowErrorVar
+          let finalReplayErrors = T.ReplayErrors finalErrorMVar finalSafeFlowErrorVar finalForkedFlowErrorVar
 
           let forkRuntime = T.PlayerRuntime
                 { flowGUID     = newFlowGUID
@@ -207,6 +212,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
           void $ forkIO $ do
             suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
+            putMVar finalSafeFlowErrorVar   =<< readMVar forkSafeFlowErrorVar
             putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
 
 ----------------------------------------------------------------------
@@ -237,15 +243,17 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
       fl <- try @_ @SomeException $ runFlow rt flow
       pure $ mapLeft show fl
 
-    T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
+    T.RecordingMode T.RecorderRuntime{recording = T.Recording{safeRecordingsVar}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
+      finalSafeRecordingsVar   <- newEmptyMVar
       finalForkedRecordingsVar <- newEmptyMVar
 
-      safeRecordingMVar        <- newMVar V.empty
-      safeForkedRecordingsVar  <- newMVar Map.empty
+      freshRecordingMVar       <- newMVar V.empty
+      freshSafeRecordingsVar   <- newMVar Map.empty
+      freshForkedRecordingsVar <- newMVar Map.empty
 
-      let freshRecording = T.Recording safeRecordingMVar  safeForkedRecordingsVar
-      let finalRecording = T.Recording finalRecordingMVar finalForkedRecordingsVar
+      let freshRecording = T.Recording freshRecordingMVar freshSafeRecordingsVar freshForkedRecordingsVar
+      let finalRecording = T.Recording finalRecordingMVar finalSafeRecordingsVar finalForkedRecordingsVar
 
       let safeRuntime = T.RecorderRuntime
             { flowGUID  = newFlowGUID
@@ -253,15 +261,16 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
             , ..
             }
 
-      forkedRecs <- takeMVar forkedRecordingsVar
-      putMVar forkedRecordingsVar $
-        Map.insert newFlowGUID finalRecording forkedRecs
+      safeRecs <- takeMVar safeRecordingsVar
+      putMVar safeRecordingsVar $
+        Map.insert newFlowGUID finalRecording safeRecs
 
       let newRt = rt {R._runMode = T.RecordingMode safeRuntime}
 
       fl <- try @_ @SomeException $ runFlow newRt flow
-      putMVar finalRecordingMVar       =<< readMVar safeRecordingMVar
-      putMVar finalForkedRecordingsVar =<< readMVar safeForkedRecordingsVar
+      putMVar finalRecordingMVar       =<< readMVar freshRecordingMVar
+      putMVar finalSafeRecordingsVar   =<< readMVar freshSafeRecordingsVar
+      putMVar finalForkedRecordingsVar =<< readMVar freshForkedRecordingsVar
       pure $ mapLeft show fl
 
 ----------------------------------------------------------------------
@@ -270,16 +279,16 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
       let
         T.PlayerRuntime
           { rerror       = T.ReplayErrors   {..}
-          , resRecording = T.ResultRecording{ forkedRecordings }
+          , resRecording = T.ResultRecording{ safeRecordings }
           , ..
           } = playerRt
 
-      case Map.lookup newFlowGUID forkedRecordings of
+      case Map.lookup newFlowGUID safeRecordings of
         Nothing -> do
           let
             err =
               T.PlaybackError
-                { errorType    = T.ForkedFlowRecordingsMissed
+                { errorType    = T.SafeFlowRecordingsMissed
                 , errorMessage = "No recordings found for safe flow " <> Text.unpack newFlowGUID
                 , errorFlowGUID = flowGUID }
 
@@ -290,13 +299,15 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
           stepVar           <- newMVar 0
 
           finalErrorMVar          <- newEmptyMVar
+          finalSafeFlowErrorVar   <- newEmptyMVar
           finalForkedFlowErrorVar <- newEmptyMVar
 
-          safeErrorMVar           <- newMVar Nothing
-          safeForkedFlowErrorVar  <- newMVar Map.empty
+          freshErrorMVar           <- newMVar Nothing
+          freshSafeFlowErrorVar    <- newMVar Map.empty
+          freshForkedFlowErrorVar  <- newMVar Map.empty
 
-          let freshReplayErrors = T.ReplayErrors safeErrorMVar  safeForkedFlowErrorVar
-          let finalReplayErrors = T.ReplayErrors finalErrorMVar finalForkedFlowErrorVar
+          let freshReplayErrors = T.ReplayErrors freshErrorMVar freshSafeFlowErrorVar freshForkedFlowErrorVar
+          let finalReplayErrors = T.ReplayErrors finalErrorMVar finalSafeFlowErrorVar finalForkedFlowErrorVar
 
           let forkRuntime = T.PlayerRuntime
                 { flowGUID     = newFlowGUID
@@ -306,15 +317,16 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
                 , ..
                 }
 
-          forkedFlowErrs <- takeMVar forkedFlowErrorsVar
+          safeFlowErrs <- takeMVar safeFlowErrorsVar
 
-          putMVar forkedFlowErrorsVar $
-            Map.insert newFlowGUID finalReplayErrors forkedFlowErrs
+          putMVar safeFlowErrorsVar $
+            Map.insert newFlowGUID finalReplayErrors safeFlowErrs
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
           fl <- try @_ @SomeException $ runFlow newRt flow
-          putMVar finalErrorMVar          =<< readMVar safeErrorMVar
-          putMVar finalForkedFlowErrorVar =<< readMVar safeForkedFlowErrorVar
+          putMVar finalErrorMVar          =<< readMVar freshErrorMVar
+          putMVar finalSafeFlowErrorVar   =<< readMVar freshSafeFlowErrorVar
+          putMVar finalForkedFlowErrorVar =<< readMVar freshForkedFlowErrorVar
           pure $ mapLeft show fl
 
 ----------------------------------------------------------------------

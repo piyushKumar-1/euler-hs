@@ -162,7 +162,7 @@ mkMerchantPGRTemp (Just gv) txn pgr xmls = case gv of
   _              -> otherGateways' gv txn pgr
 
 data MerchantPGRServiceByGateway = MerchantPGRServiceByGateway
-  { transformMpgrByGateway' :: TxnDetail
+  { transformMpgrByGateway  :: TxnDetail
                             -> PaymentGatewayResponse
                             -> EValueMap
                             -> D.MerchantPaymentGatewayResponse

@@ -7,7 +7,7 @@ module Euler.Product.OLTP.Order.OrderStatus
     orderStatus
     -- * OrderStatusResponse-based handler
   , orderStatusRequest
-    -- * EHS: are these used only in tests?
+    -- * EHS: these are used only in tests
   , findPayerVpaByGateway
   , makeRisk
   , makeOrderStatusResponse

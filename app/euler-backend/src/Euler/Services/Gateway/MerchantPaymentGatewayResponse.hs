@@ -1,12 +1,12 @@
 module Euler.Services.Gateway.MerchantPaymentGatewayResponse
-  ( MerchantPGRServiceByGateway
-  , mkMerchantPGRServiceTemp
-  , transformMpgrByGateway
-
+  ( MerchantPGRServiceByGateway(..)
+  , mkMerchantPGRService
   )
   where
 
 import           EulerHS.Prelude hiding (id)
+
+import           Euler.Lens
 
 import           Data.Generics.Product.Fields
 
@@ -24,70 +24,8 @@ import qualified Data.Char as C
 import           Data.Text (Text)
 import qualified Data.Text as T
 
--- Gateway
-type PGateway = Text
-
-eulerGatewaysToExclude :: [Text]
-eulerGatewaysToExclude =
-  [ "AIRPAY"
-  , "AIRTELMONEY"
-  , "AMAZONPAY"
-  , "AMEX"
-  , "ATOM"
-  , "AXIS"
-  , "AXIS_UPI"
-  , "AXISNB"
-  , "BILLDESK"
-  , "BLAZEPAY"
-  , "CASH"
-  , "CCAVENUE_V2"
-  , "CITI"
-  , "CITRUS"
-  , "CYBERSOURCE"
-  , "DUMMY"
-  , "EBS"
-  , "EBS_V3"
-  , "EPAYLATER"
-  , "FREECHARGE"
-  , "FREECHARGE_V2"
-  , "FSS_ATM_PIN"
-  , "FSS_ATM_PIN_V2"
-  , "FSSPAY"
-  , "GOCASHFREE"
-  , "HDFC"
-  , "HDFC_EBS_VAS"
-  , "HDFCNB"
-  , "ICICI"
-  , "ICICINB"
-  , "IPG"
-  , "JIOMONEY"
-  , "KOTAK"
-  , "LAZYPAY"
-  , "LINEPAY"
-  , "MIGS"
-  , "MOBIKWIK"
-  , "MPESA"
-  , "OLAMONEY"
-  , "OLAPOSTPAID"
-  , "PAYLATER"
-  , "PAYPAL"
-  , "PAYTM"
-  , "PAYTM_V2"
-  , "PAYU"
-  , "PHONEPE"
-  , "PINELABS"
-  , "RAZORPAY"
-  , "SBIBUDDY"
-  , "SIMPL"
-  , "SODEXO"
-  , "STRIPE"
-  , "TPSL"
-  , "ZAAKPAY"
-  , "ZESTMONEY"
-  ]
-
-eulerUpiGatewaysOtherwise :: [Gateway]
-eulerUpiGatewaysOtherwise =
+eulerUpiGatewaysList :: [Gateway]
+eulerUpiGatewaysList =
   [ HDFC_UPI
   , INDUS_UPI
   , KOTAK_UPI
@@ -151,197 +89,84 @@ data PGRField
   deriving (Show, Eq, Ord, Generic)
 
 
-transformMpgrByGateway
-  :: D.MerchantPaymentGatewayResponse
-  -> EValueMap
-  -> MerchantPGRServiceByGateway
-  -> D.MerchantPaymentGatewayResponse
-transformMpgrByGateway merchPGR xmls MerchantPGRServiceByGateway{..}
-  = executePGR merchPGR xmls
-  . otherGateways
-  . ccavenue_v2
-  . blazepay
-  . stripe
-  . citi
-  . ipg
-  . fssatmpin
-  . hdfc_ebs_vas
-  . freechargev2
-  . airtelmoney
-  . cybersource
-  . olapostpaid
-  . gocashfree
-  . epaylater
-  . zestmoney
-  . billdesk
-  . jiomoney
-  . sbibuddy
-  . razorpay
-  . axisupi
-  . pinelabs
-  . mobikwik
-  . linepay
-  . phonepe
-  . icicinb
-  . zaakpay
-  . airpay
-  . axisnb
-  . sodexo
-  . citrus
-  . paypal
-  . hdfcnb
-  . kotak
-  . mpesa
-  . simpl
-  . cash
-  . tpsl
-  . lazypay
-  . fsspay
-  . amex
-  . atom
-  . paytm_v2
-  . ebs_v3
-  . axis
-  . hdfc
-  . ebs
-  . migs
-  . icici
-  . paylater
-  . dummy
-  . freecharge
-  . payu
-  . paytm
-  . olamoney
-  . amazonpay
 
-  $ defaultMerchantPGRTemp
+mkMerchantPGRService :: Maybe Gateway -> MerchantPGRServiceByGateway
+mkMerchantPGRService mGW = MerchantPGRServiceByGateway $ mkMPGRTransform mGW
 
+mkMPGRTransform :: Maybe Gateway -> TxnDetail -> PaymentGatewayResponse -> EValueMap -> D.MerchantPaymentGatewayResponse
+mkMPGRTransform mGW txn pgr xmls = executePGR defMPGR xmls (mkMerchantPGRTemp mGW txn pgr xmls)
+  where
+    date = show <$> pgr ^. _dateCreated
+    defMPGR = D.defaultMerchantPaymentGatewayResponse & _created .~ date
 
+mkMerchantPGRTemp :: Maybe Gateway -> TxnDetail -> PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp
+mkMerchantPGRTemp Nothing _ pgr _ = otherGW' pgr
+mkMerchantPGRTemp (Just gv) txn pgr xmls = case gv of
+  CCAVENUE_V2    -> ccavenue_v2' txn pgr
+  BLAZEPAY       -> blazepay' txn pgr
+  STRIPE         -> stripe' txn pgr xmls
+  CITI           -> citi' txn xmls
+  IPG            -> ipg' txn xmls
+  FSS_ATM_PIN_V2 -> fssatmpin' txn pgr
+  FSS_ATM_PIN    -> fssatmpin' txn pgr
+  HDFC_EBS_VAS   -> hdfc_ebs_vas' txn pgr
+  FREECHARGE_V2  -> freechargev2' txn pgr
+  AIRTELMONEY    -> airtelmoney' txn pgr
+  CYBERSOURCE    -> cybersource' txn pgr
+  OLAPOSTPAID    -> olapostpaid' txn pgr
+  GOCASHFREE     -> gocashfree' txn pgr
+  EPAYLATER      -> epaylater' txn pgr
+  ZESTMONEY      -> zestmoney' txn pgr
+  BILLDESK       -> billdesk' txn pgr
+  JIOMONEY       -> jiomoney' txn pgr
+  SBIBUDDY       -> sbibuddy' txn pgr
+  RAZORPAY       -> razorpay' txn pgr
+  AXIS_UPI       -> axisupi' txn pgr
+--  PINELABS       -> pinelabs'  txn pgr -- PINELABS constructor is missing in Gateway data type
+  MOBIKWIK       -> mobikwik' txn pgr
+  LINEPAY        -> linepay' txn pgr
+  PHONEPE        -> phonepe' txn pgr
+  ICICINB        -> icicinb' txn pgr
+  ZAAKPAY        -> zaakpay' txn pgr
+--  AIRPAY         -> airpay' txn pgr -- AIRPAY constructor is missing in Gateway data type
+  AXISNB         -> axisnb' txn pgr
+  SODEXO         -> sodexo' txn pgr
+  CITRUS         -> citrus' txn pgr
+  PAYPAL         -> paypal' txn pgr
+--  HDFCNB         -> hdfcnb' txn pgr -- HDFCNB constructor is missing in Gateway data type
+  KOTAK          -> kotak' txn pgr
+  MPESA          -> mpesa' txn pgr
+  SIMPL          -> simpl' txn pgr
+  CASH           -> cash' txn pgr
+  TPSL           -> tpsl' txn pgr
+  LAZYPAY        -> lazypay' txn pgr
+  FSSPAY         -> fsspay' txn pgr
+  AMEX           -> amex' txn pgr
+  PAYFORT        -> payfort' txn pgr
+  ITZCASH        -> itzcash' txn pgr
+  ATOM           -> atom' txn pgr
+  PAYTM_V2       -> paytm_v2' pgr
+  EBS_V3         -> ebs_v3' pgr
+  AXIS           -> axis' pgr
+  HDFC           -> hdfc' pgr
+  EBS            -> ebs' pgr
+  MIGS           -> migs' pgr
+  ICICI          -> icici' pgr
+  PAYLATER       -> paylater' txn
+  DUMMY          -> dummy'
+  FREECHARGE     -> freecharge' txn pgr xmls
+  PAYU           -> payu' pgr xmls
+  PAYTM          -> paytm' pgr xmls
+  OLAMONEY       -> olamoney' txn pgr xmls
+  AMAZONPAY      -> amazonpay' txn pgr xmls
+  _              -> otherGateways' gv txn pgr
 
 data MerchantPGRServiceByGateway = MerchantPGRServiceByGateway
-  { otherGateways :: MerchantPGRTemp -> MerchantPGRTemp
-  , ccavenue_v2   :: MerchantPGRTemp -> MerchantPGRTemp
-  , blazepay      :: MerchantPGRTemp -> MerchantPGRTemp
-  , stripe        :: MerchantPGRTemp -> MerchantPGRTemp
-  , citi          :: MerchantPGRTemp -> MerchantPGRTemp
-  , ipg           :: MerchantPGRTemp -> MerchantPGRTemp
-  , fssatmpin     :: MerchantPGRTemp -> MerchantPGRTemp
-  , hdfc_ebs_vas  :: MerchantPGRTemp -> MerchantPGRTemp
-  , freechargev2  :: MerchantPGRTemp -> MerchantPGRTemp
-  , airtelmoney   :: MerchantPGRTemp -> MerchantPGRTemp
-  , cybersource   :: MerchantPGRTemp -> MerchantPGRTemp
-  , olapostpaid   :: MerchantPGRTemp -> MerchantPGRTemp
-  , gocashfree    :: MerchantPGRTemp -> MerchantPGRTemp
-  , epaylater     :: MerchantPGRTemp -> MerchantPGRTemp
-  , zestmoney     :: MerchantPGRTemp -> MerchantPGRTemp
-  , billdesk      :: MerchantPGRTemp -> MerchantPGRTemp
-  , jiomoney      :: MerchantPGRTemp -> MerchantPGRTemp
-  , sbibuddy      :: MerchantPGRTemp -> MerchantPGRTemp
-  , razorpay      :: MerchantPGRTemp -> MerchantPGRTemp
-  , axisupi       :: MerchantPGRTemp -> MerchantPGRTemp
-  , pinelabs      :: MerchantPGRTemp -> MerchantPGRTemp
-  , mobikwik      :: MerchantPGRTemp -> MerchantPGRTemp
-  , linepay       :: MerchantPGRTemp -> MerchantPGRTemp
-  , phonepe       :: MerchantPGRTemp -> MerchantPGRTemp
-  , icicinb       :: MerchantPGRTemp -> MerchantPGRTemp
-  , zaakpay       :: MerchantPGRTemp -> MerchantPGRTemp
-  , airpay        :: MerchantPGRTemp -> MerchantPGRTemp
-  , axisnb        :: MerchantPGRTemp -> MerchantPGRTemp
-  , sodexo        :: MerchantPGRTemp -> MerchantPGRTemp
-  , citrus        :: MerchantPGRTemp -> MerchantPGRTemp
-  , paypal        :: MerchantPGRTemp -> MerchantPGRTemp
-  , hdfcnb        :: MerchantPGRTemp -> MerchantPGRTemp
-  , kotak         :: MerchantPGRTemp -> MerchantPGRTemp
-  , mpesa         :: MerchantPGRTemp -> MerchantPGRTemp
-  , simpl         :: MerchantPGRTemp -> MerchantPGRTemp
-  , cash          :: MerchantPGRTemp -> MerchantPGRTemp
-  , tpsl          :: MerchantPGRTemp -> MerchantPGRTemp
-  , lazypay       :: MerchantPGRTemp -> MerchantPGRTemp
-  , fsspay        :: MerchantPGRTemp -> MerchantPGRTemp
-  , amex          :: MerchantPGRTemp -> MerchantPGRTemp
-  , atom          :: MerchantPGRTemp -> MerchantPGRTemp
-  , paytm_v2      :: MerchantPGRTemp -> MerchantPGRTemp
-  , ebs_v3        :: MerchantPGRTemp -> MerchantPGRTemp
-  , axis          :: MerchantPGRTemp -> MerchantPGRTemp
-  , hdfc          :: MerchantPGRTemp -> MerchantPGRTemp
-  , ebs           :: MerchantPGRTemp -> MerchantPGRTemp
-  , migs          :: MerchantPGRTemp -> MerchantPGRTemp
-  , icici         :: MerchantPGRTemp -> MerchantPGRTemp
-  , paylater      :: MerchantPGRTemp -> MerchantPGRTemp
-  , dummy         :: MerchantPGRTemp -> MerchantPGRTemp
-  , freecharge    :: MerchantPGRTemp -> MerchantPGRTemp
-  , payu          :: MerchantPGRTemp -> MerchantPGRTemp
-  , paytm         :: MerchantPGRTemp -> MerchantPGRTemp
-  , olamoney      :: MerchantPGRTemp -> MerchantPGRTemp
-  , amazonpay     :: MerchantPGRTemp -> MerchantPGRTemp
+  { transformMpgrByGateway' :: TxnDetail
+                            -> PaymentGatewayResponse
+                            -> EValueMap
+                            -> D.MerchantPaymentGatewayResponse
   }
-
-mkMerchantPGRServiceTemp
-  :: Maybe Gateway
-  -> TxnDetail
-  -> PaymentGatewayResponse
-  -> EValueMap
-  -> MerchantPGRServiceByGateway
-mkMerchantPGRServiceTemp gate txn pgr xmls = MerchantPGRServiceByGateway
-  { otherGateways = otherGateways' gateway txn pgr
-  , ccavenue_v2   = ccavenue_v2' gateway txn pgr
-  , blazepay      = blazepay' gateway txn pgr
-  , stripe        = stripe' gateway txn pgr xmls
-  , citi          = citi' gateway txn xmls
-  , ipg           = ipg' gateway txn xmls
-  , fssatmpin     = fssatmpin' gateway txn pgr
-  , hdfc_ebs_vas  = hdfc_ebs_vas' gateway txn pgr
-  , freechargev2  = freechargev2' gateway txn pgr
-  , airtelmoney   = airtelmoney' gateway txn pgr
-  , cybersource   = cybersource' gateway txn pgr
-  , olapostpaid   = olapostpaid' gateway txn pgr
-  , gocashfree    = gocashfree' gateway txn pgr
-  , epaylater     = epaylater' gateway txn pgr
-  , zestmoney     = zestmoney' gateway txn pgr
-  , billdesk      = billdesk' gateway txn pgr
-  , jiomoney      = jiomoney' gateway txn pgr
-  , sbibuddy      = sbibuddy' gateway txn pgr
-  , razorpay      = razorpay' gateway txn pgr
-  , axisupi       = axisupi' gateway txn pgr
-  , pinelabs      = pinelabs' gateway txn pgr
-  , mobikwik      = mobikwik' gateway txn pgr
-  , linepay       = linepay' gateway txn pgr
-  , phonepe       = phonepe' gateway txn pgr
-  , icicinb       = icicinb' gateway txn pgr
-  , zaakpay       = zaakpay' gateway txn pgr
-  , airpay        = airpay' gateway txn pgr
-  , axisnb        = axisnb' gateway txn pgr
-  , sodexo        = sodexo' gateway txn pgr
-  , citrus        = citrus' gateway txn pgr
-  , paypal        = paypal' gateway txn pgr
-  , hdfcnb        = hdfcnb' gateway txn pgr
-  , kotak         = kotak' gateway txn pgr
-  , mpesa         = mpesa' gateway txn pgr
-  , simpl         = simpl' gateway txn pgr
-  , cash          = cash' gateway txn pgr
-  , tpsl          = tpsl' gateway txn pgr
-  , lazypay       = lazypay' gateway txn pgr
-  , fsspay        = fsspay' gateway txn pgr
-  , amex          = amex' gateway txn pgr
-  , atom          = atom' gateway txn pgr
-  , paytm_v2      = paytm_v2' gateway pgr
-  , ebs_v3        = ebs_v3' gateway pgr
-  , axis          = axis' gateway pgr
-  , hdfc          = hdfc' gateway pgr
-  , ebs           = ebs' gateway pgr
-  , migs          = migs' gateway pgr
-  , icici         = icici' gateway pgr
-  , paylater      = paylater' gateway txn
-  , dummy         = dummy' gateway
-  , freecharge    = freecharge' gateway txn pgr xmls
-  , payu          = payu' gateway pgr xmls
-  , paytm         = paytm' gateway pgr xmls
-  , olamoney      = olamoney' gateway txn pgr xmls
-  , amazonpay     = amazonpay' gateway txn pgr xmls
-  }
-  where
-    gateway = maybe "" show gate
-
 
 executePGR
   :: D.MerchantPaymentGatewayResponse
@@ -377,8 +202,6 @@ runPGR _ (Value b) = b
 runPGR _ Default = Nothing
 
 
-
-
 justEmpty, justNa :: Maybe Text
 justEmpty = Just T.empty
 justNa = Just "NA"
@@ -410,9 +233,8 @@ decisionCodeToMessageMap  _   = ""
 
 -- EPS: ** PGR Key Mapping Configs **
 
-zaakpay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-zaakpay' gateway txn pgr merchantPGRTemp
-  | gateway == "ZAAKPAY" = merchantPGRTemp
+zaakpay' ::TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+zaakpay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKeys "pgTransId" "txnId" "null"
@@ -420,11 +242,9 @@ zaakpay' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj  "responseCode" (getField @"respCode" pgr) "null"
     , respMessage = FromKeysOrObj "responseMessage" "responseDescription" (getField @"respMessage" pgr)  "null"
     }
-  | otherwise = merchantPGRTemp
 
-atom' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-atom' gateway txn pgr merchantPGRTemp
-  | gateway == "ATOM" = merchantPGRTemp
+atom' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+atom' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKeys "bank_txn" "BID" "null"
     , epgTxnId    = XmlKeys "mmp_txn" "atomtxnId" "null"
@@ -432,12 +252,9 @@ atom' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ getField @"respCode" pgr
     , respMessage = Value $ getField @"respMessage" pgr
     }
-  | otherwise = merchantPGRTemp
 
-
-paylater' :: PGateway -> TxnDetail -> MerchantPGRTemp -> MerchantPGRTemp
-paylater' gateway txn merchantPGRTemp
-  | gateway == "PAYLATER" = merchantPGRTemp
+paylater' :: TxnDetail -> MerchantPGRTemp
+paylater' txn = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = Value justNa
@@ -445,11 +262,9 @@ paylater' gateway txn merchantPGRTemp
     , respCode    = Value justNa
     , respMessage = Value justNa
     }
-  | otherwise = merchantPGRTemp
 
-mobikwik' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-mobikwik' gateway txn pgr merchantPGRTemp
-  | gateway == "MOBIKWIK" = merchantPGRTemp
+mobikwik' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+mobikwik' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKeys "refid" "refId" "null"
@@ -457,11 +272,9 @@ mobikwik' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "statuscode" (getField @"respCode" pgr) "null" -- EPS extra check
     , respMessage = FromKeyOrObj "statusmessage" (getField @"respMessage" pgr) "null" -- EPS extra check
     }
-  | otherwise = merchantPGRTemp
 
-ebs_v3' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-ebs_v3' gateway pgr merchantPGRTemp
-  | gateway == "EBS_V3" = merchantPGRTemp
+ebs_v3' :: PaymentGatewayResponse -> MerchantPGRTemp
+ebs_v3' pgr = defaultMerchantPGRTemp
     { txnId       = Value $ getField @"txnId" pgr
     , rrn         = XmlKeys "PaymentID" "paymentId" "null"
     , epgTxnId    = XmlKeys "TransactionID" "transactionId" "null"
@@ -469,11 +282,9 @@ ebs_v3' gateway pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-ebs' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-ebs' gateway pgr merchantPGRTemp
-  | gateway == "EBS" = merchantPGRTemp
+ebs' :: PaymentGatewayResponse -> MerchantPGRTemp
+ebs'  pgr = defaultMerchantPGRTemp
     { txnId       = Value (getField @"txnId" pgr)
     , rrn         = XmlKey "vpc_TransactionId" "null"
     , epgTxnId    = XmlKey "vpc_PaymentId" "null"
@@ -481,11 +292,9 @@ ebs' gateway pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-paytm_v2' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-paytm_v2' gateway pgr merchantPGRTemp
-  | gateway == "PAYTM_V2" = merchantPGRTemp
+paytm_v2' :: PaymentGatewayResponse -> MerchantPGRTemp
+paytm_v2' pgr = defaultMerchantPGRTemp
     { txnId       = Value (getField @"txnId" pgr)
     , rrn         = XmlKey  "BANKTXNID" ""
     , epgTxnId    = XmlKeys "TXNID" "TxnId" ""
@@ -493,11 +302,9 @@ paytm_v2' gateway pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-tpsl' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-tpsl' gateway txn pgr merchantPGRTemp
-  | gateway == "TPSL" = merchantPGRTemp
+tpsl' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+tpsl'  txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "clnt_txn_ref" ""
     , epgTxnId    = XmlKey "tpsl_txn_id" ""
@@ -505,11 +312,9 @@ tpsl' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "txn_status" (getField @"respCode" pgr) ""
     , respMessage = FromKeyOrObj "txn_msg" (getField @"respMessage" pgr) ""
     }
-  | otherwise = merchantPGRTemp
 
-amex' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-amex' gateway txn pgr merchantPGRTemp
-  | gateway == "AMEX" = merchantPGRTemp
+amex' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+amex'  txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "vpc_ReceiptNo" "null"
     , epgTxnId    = XmlKey "vpc_TransactionNo" "null"
@@ -517,11 +322,9 @@ amex' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "vpc_TxnResponseCode" (getField @"respCode" pgr)    "null" -- EPS: extra check
     , respMessage = FromKeyOrObj "vpc_Message"         (getField @"respMessage" pgr) "null" -- EPS: extra check
     }
-  | otherwise = merchantPGRTemp
 
-dummy' :: PGateway -> MerchantPGRTemp -> MerchantPGRTemp
-dummy' gateway merchantPGRTemp
-  | gateway == "DUMMY" = merchantPGRTemp
+dummy' :: MerchantPGRTemp
+dummy' = defaultMerchantPGRTemp
     { txnId       = XmlKey "txnId"       "null"
     , rrn         = XmlKeys "RRN"  "rrn" "null"
     , epgTxnId    = XmlKey "epgTxnId"    "null"
@@ -529,11 +332,9 @@ dummy' gateway merchantPGRTemp
     , respCode    = XmlKey "respCode"    "null"
     , respMessage = XmlKey "respMessage" "null"
     }
-  | otherwise = merchantPGRTemp
 
-hdfc_ebs_vas' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-hdfc_ebs_vas' gateway txn pgr merchantPGRTemp
-  | gateway == "HDFC_EBS_VAS" = merchantPGRTemp
+hdfc_ebs_vas' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+hdfc_ebs_vas'  txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = Value justNa
@@ -541,17 +342,13 @@ hdfc_ebs_vas' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj  "ResponseCode" (getField @"respCode" pgr) "null" -- EPS:  extra check
     , respMessage = FromKeysOrObj "ResponseMessage" "Error" (getField @"respMessage" pgr) ""     -- EPS:  extra check
     }
-  | otherwise = merchantPGRTemp
 
 stripe'
-  :: PGateway
-  -> TxnDetail
+  :: TxnDetail
   -> PaymentGatewayResponse
   -> EValueMap
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-stripe' gateway txn pgr xmls merchantPGRTemp
-  | gateway == "" = merchantPGRTemp
+stripe' txn pgr xmls = defaultMerchantPGRTemp
       { txnId                = Value $ Just $ getField @"txnId" txn
       , rrn                  = XmlKey "id" "null"
       , epgTxnId             = XmlKey "id" "null"
@@ -564,16 +361,14 @@ stripe' gateway txn pgr xmls merchantPGRTemp
       , discount_amount      = Default
       , offer_failure_reason = Default
       }
-  | otherwise = merchantPGRTemp
   where
         status      = lookupXML xmls "status" "null"
         failureCode = lookupXML xmls "failureCode" "null"
         respCode    = Just $ if status == "failed" then failureCode else status
 
 
-ipg' :: PGateway -> TxnDetail -> EValueMap -> MerchantPGRTemp -> MerchantPGRTemp
-ipg' gateway txn xmls merchantPGRTemp
-  | gateway == "IPG" = merchantPGRTemp
+ipg' :: TxnDetail -> EValueMap -> MerchantPGRTemp
+ipg' txn xmls = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "ipgTransactionId" "null"
@@ -585,13 +380,11 @@ ipg' gateway txn xmls merchantPGRTemp
         $ ipgRespCodeAndMessage xmls "fail_reason" "status"
         $ lookupXML xmls "TransactionState" "null"
     }
-  | otherwise = merchantPGRTemp
   where
     ipgRespCodeAndMessage xmls' keys_1 key_2 df = Just $ lookupXMLKeys xmls' keys_1 key_2 df
 
-axisnb' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-axisnb' gateway txn pgr merchantPGRTemp
-  | gateway == "AXISNB" = merchantPGRTemp
+axisnb' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+axisnb' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "BID" ""
@@ -599,11 +392,9 @@ axisnb' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ getField @"axisRespCode" pgr
     , respMessage = Value $ getField @"axisRespMessage" pgr
     }
-  | otherwise = merchantPGRTemp
 
-zestmoney' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-zestmoney' gateway txn pgr merchantPGRTemp
-  | gateway == "ZESTMONEY" = merchantPGRTemp
+zestmoney' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+zestmoney' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = Value justNa
@@ -611,16 +402,12 @@ zestmoney' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
 ccavenue_v2'
-  :: PGateway
-  -> TxnDetail
+  :: TxnDetail
   -> PaymentGatewayResponse
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-ccavenue_v2' gateway txn pgr merchantPGRTemp
-  | gateway == "CCAVENUE_V2" = merchantPGRTemp
+ccavenue_v2' txn pgr = defaultMerchantPGRTemp
     { txnId                = Value $ Just $ getField @"txnId" txn
     , rrn                  = XmlKeys "bank_ref_no" "order_bank_ref_no" "null"
     , epgTxnId             = XmlKeys "tracking_id" "reference_no"      "null"
@@ -628,11 +415,9 @@ ccavenue_v2' gateway txn pgr merchantPGRTemp
     , respCode             = Value (getField @"respCode" pgr)
     , respMessage          = FromObjOrkey (getField @"respMessage" pgr) "order_status" "null"
     }
-  | otherwise = merchantPGRTemp
 
-cybersource' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-cybersource' gateway txn pgr merchantPGRTemp
-  | gateway == "CYBERSOURCE" = merchantPGRTemp
+cybersource' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+cybersource' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKeys "requestID" "RequestID" "null"
@@ -640,11 +425,9 @@ cybersource' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-paypal' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-paypal' gateway txn pgr merchantPGRTemp
-  | gateway == "PAYPAL" = merchantPGRTemp
+paypal' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+paypal' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKey "paymentId" ""
@@ -652,11 +435,9 @@ paypal' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-olapostpaid' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-olapostpaid' gateway txn pgr merchantPGRTemp
-  | gateway == "OLAPOSTPAID" = merchantPGRTemp
+olapostpaid' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+olapostpaid' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKeys "transactionId" "globalMerchantId" ""
@@ -664,16 +445,12 @@ olapostpaid' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
 blazepay'
-  :: PGateway
-  -> TxnDetail
+  :: TxnDetail
   -> PaymentGatewayResponse
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-blazepay' gateway txn pgr merchantPGRTemp
-  | gateway == "BLAZEPAY" = merchantPGRTemp
+blazepay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKeys "issuerRefNo" "RRN" "null"
     , epgTxnId    = XmlKeys "pgTxnNo" "pgTxnId" "null"
@@ -681,11 +458,9 @@ blazepay' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = FromObjOrkey (getField @"respMessage" pgr) "respMsg" "null"
     }
-  | otherwise = merchantPGRTemp
 
-simpl' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-simpl' gateway txn pgr merchantPGRTemp
-  | gateway == "SIMPL" = merchantPGRTemp
+simpl' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+simpl' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKey "id" ""
@@ -693,11 +468,9 @@ simpl' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-gocashfree' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-gocashfree' gateway txn pgr merchantPGRTemp
-  | gateway == "GOCASHFREE" = merchantPGRTemp
+gocashfree' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+gocashfree' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKey "referenceId"  ""
@@ -705,11 +478,9 @@ gocashfree' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-razorpay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-razorpay' gateway txn pgr merchantPGRTemp
-  | gateway == "RAZORPAY" = merchantPGRTemp
+razorpay' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+razorpay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKeys "razorpay_payment_id" "id" "null"
@@ -717,11 +488,9 @@ razorpay' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ Just $ fromMaybe "null" (getField @"respCode" pgr)
     , respMessage = Value $ Just $ fromMaybe "null" (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
--- olmoney' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
--- olmoney' gateway txn pgr merchantPGRTemp
---   | gateway == "" = merchantPGRTemp
+-- olmoney' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+-- olmoney' txn pgr = defaultMerchantPGRTemp
 --     { txnId       = Value $ Just $ getField @"txnId" txn -- EHS: eps has not Just
 --     , rrn         = Value justEmpty
 --     , epgTxnId    = XmlKey "transactionId" "NA"
@@ -729,11 +498,9 @@ razorpay' gateway txn pgr merchantPGRTemp
 --     , respCode    = Value (getField @"respCode" pgr)
 --     , respMessage = Value (getField @"respMessage" pgr)
 --     }
---   | otherwise = merchantPGRTemp
 
-mpesa' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-mpesa' gateway txn pgr merchantPGRTemp
-  | gateway == "MPESA" = merchantPGRTemp
+mpesa' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+mpesa' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKeys "mcompgtransid" "mcomPgTransID" "null"
@@ -741,11 +508,9 @@ mpesa' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-sbibuddy' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-sbibuddy' gateway txn pgr merchantPGRTemp
-  | gateway == "SBIBUDDY" = merchantPGRTemp
+sbibuddy' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+sbibuddy' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "transactionId"  "NA"
@@ -753,11 +518,9 @@ sbibuddy' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-citrus' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-citrus' gateway txn pgr merchantPGRTemp
-  | gateway == "CITRUS" = merchantPGRTemp
+citrus' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+citrus' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "issuerRefNo" "null"
     , epgTxnId    = XmlKey "pgTxnNo" "null"
@@ -765,11 +528,9 @@ citrus' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-axis' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-axis' gateway pgr merchantPGRTemp
-  | gateway == "AXIS" = merchantPGRTemp
+axis' :: PaymentGatewayResponse -> MerchantPGRTemp
+axis' pgr = defaultMerchantPGRTemp
     { txnId       = XmlKey "vpc_MerchTxnRef" "null"
     , rrn         = XmlKey "vpc_ReceiptNo" "null"
     , epgTxnId    = XmlKey "vpc_TransactionNo" "null"
@@ -777,11 +538,9 @@ axis' gateway pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "vpc_TxnResponseCode" (getField @"respCode" pgr) "null" -- EPS: extra check
     , respMessage = FromKeyOrObj "vpc_Message" (getField @"respMessage" pgr) "null" -- EPS: extra check
     }
-  | otherwise = merchantPGRTemp
 
-migs' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-migs' gateway pgr merchantPGRTemp
-  | gateway == "MIGS" = merchantPGRTemp
+migs' :: PaymentGatewayResponse -> MerchantPGRTemp
+migs' pgr = defaultMerchantPGRTemp
     { txnId       = XmlKey "vpc_MerchTxnRef" "null"
     , rrn         = XmlKey "vpc_ReceiptNo" "null"
     , epgTxnId    = XmlKey "vpc_TransactionNo" "null"
@@ -789,11 +548,9 @@ migs' gateway pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "vpc_TxnResponseCode" (getField @"respCode" pgr) "null" -- EPS: extra check
     , respMessage = FromKeyOrObj "vpc_Message" (getField @"respMessage" pgr) "null" -- EPS: extra check
     }
-  | otherwise = merchantPGRTemp
 
-hdfc' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-hdfc' gateway pgr merchantPGRTemp
-  | gateway == "HDFC" = merchantPGRTemp
+hdfc' :: PaymentGatewayResponse -> MerchantPGRTemp
+hdfc' pgr = defaultMerchantPGRTemp
     { txnId       = XmlKey "trackid" "null"
     , rrn         = XmlKey "ref" "null"
     , epgTxnId    = XmlKey "paymentid" "null"
@@ -801,11 +558,9 @@ hdfc' gateway pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "result" (getField @"respCode" pgr) "null" -- EPS: extra check
     , respMessage = FromKeyOrObj "result" (getField @"respMessage" pgr) "null" -- EPS: extra check
     }
-  | otherwise = merchantPGRTemp
 
-icici' :: PGateway -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-icici' gateway pgr merchantPGRTemp
-  | gateway == "ICICI" = merchantPGRTemp
+icici' :: PaymentGatewayResponse -> MerchantPGRTemp
+icici' pgr = defaultMerchantPGRTemp
     { txnId       = XmlKey "txnId"        "null"
     , rrn         = XmlKey "RRN"          "null"
     , epgTxnId    = XmlKey "epgTxnId"     "null"
@@ -813,11 +568,9 @@ icici' gateway pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "respCode"    (getField @"respCode" pgr)    "null" -- EPS: extra check
     , respMessage = FromKeyOrObj "respMessage" (getField @"respMessage" pgr) "null" -- EPS: extra check
     }
-  | otherwise = merchantPGRTemp
 
-icicinb' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-icicinb' gateway txn pgr merchantPGRTemp
-  | gateway == "ICICINB" = merchantPGRTemp
+icicinb' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+icicinb' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "BID" "null"
@@ -825,17 +578,13 @@ icicinb' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "PAID" (getField @"respCode" pgr) "null"
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
-  | otherwise = merchantPGRTemp
 
 olamoney'
-  :: PGateway
-  -> TxnDetail
+  :: TxnDetail
   -> PaymentGatewayResponse
   -> EValueMap
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-olamoney' gateway txn pgr xmls merchantPGRTemp
-  | gateway == "OLAMONEY" = merchantPGRTemp
+olamoney' txn pgr xmls = defaultMerchantPGRTemp
     { txnId           = Value $ Just $ getField @"txnId" txn
     , rrn             = Value justEmpty
     , epgTxnId        = XmlKey "transactionId" "NA"
@@ -847,7 +596,6 @@ olamoney' gateway txn pgr xmls merchantPGRTemp
     , offer_availed   = if couponCode /= "null" then Value (Just $ show $ strToBool isCashbackSuc) else Default
     , discount_amount = if couponCode /= "null" then Value (Just T.empty) else Default
     }
-  | otherwise = merchantPGRTemp
   where
     couponCode    = lookupXML xmls "couponCode"           "null"
     isCashbackSuc = lookupXML xmls "isCashbackSuccessful" "null"
@@ -855,9 +603,8 @@ olamoney' gateway txn pgr xmls merchantPGRTemp
     strToBool "true" = True
     strToBool _      = False
 
-paytm' :: PGateway -> PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp -> MerchantPGRTemp
-paytm' gateway pgr xmls merchantPGRTemp
-  | gateway == "PAYTM" = merchantPGRTemp
+paytm' :: PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp
+paytm' pgr xmls = defaultMerchantPGRTemp
     { txnId           = Value (getField @"txnId" pgr)
     , rrn             = XmlKeys "TXNID" "TxnId" "null"
     , epgTxnId        = XmlKeys "TXNID" "TxnId" "null"
@@ -870,14 +617,12 @@ paytm' gateway pgr xmls merchantPGRTemp
       if promoCampId /= "null" then Value (Just $ show $ promoStatus == "PROMO_SUCCESS") else Default
     , discount_amount = if promoCampId /= "null" then Value (Just T.empty) else Default
     }
-  | otherwise = merchantPGRTemp
   where
     promoCampId = lookupXML xmls "PROMO_CAMP_ID" "null"
     promoStatus = lookupXML xmls "PROMO_STATUS"  "null"
 
-payu' :: PGateway -> PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp -> MerchantPGRTemp
-payu' gateway pgr xmls merchantPGRTemp
-  | gateway == "PAYU" = merchantPGRTemp
+payu' :: PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp
+payu' pgr xmls = defaultMerchantPGRTemp
     { txnId                = Value (getField @"txnId" pgr)
     , rrn                  = XmlKey "bank_ref_num" "null"
     , epgTxnId             = XmlKey "mihpayid"     "null"
@@ -891,7 +636,6 @@ payu' gateway pgr xmls merchantPGRTemp
     , offer_failure_reason =
         if (offer /= "NA") && (offerFailure /= "null") then Value (Just offerFailure) else Default
     }
-  | otherwise = merchantPGRTemp
   where
     offer        = lookupXML xmls "offer" "NA"
     offerVal     = lookupXMLKeys xmls "offer_availed" "offer" "null"
@@ -902,14 +646,11 @@ payu' gateway pgr xmls merchantPGRTemp
     disAmount    = maybe T.empty show (readMaybe $ T.unpack discount :: Maybe Int)
 
 freecharge'
-  :: PGateway
-  -> TxnDetail
+  :: TxnDetail
   -> PaymentGatewayResponse
   -> EValueMap
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-freecharge' gateway txn pgr xmls merchantPGRTemp
-  | gateway == "FREECHARGE" = merchantPGRTemp
+freecharge' txn pgr xmls = defaultMerchantPGRTemp
     { txnId           = Value $ Just $ getField @"txnId" txn
     , rrn             = Value justEmpty
     , epgTxnId        = XmlKey "txnId" "null"
@@ -921,13 +662,11 @@ freecharge' gateway txn pgr xmls merchantPGRTemp
     , offer_availed   = if campaignCode /= "NA" then Value (Just "NA") else Default
     , discount_amount = if campaignCode /= "NA" then Value (Just T.empty) else Default
     }
-  | otherwise = merchantPGRTemp
   where
     campaignCode = lookupXML xmls "campaignCode" "NA"
 
-billdesk' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-billdesk' gateway txn pgr merchantPGRTemp
-  | gateway == "BILLDESK" = merchantPGRTemp
+billdesk' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+billdesk' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "TxnReferenceNo"  "null"
     , epgTxnId    = XmlKey "TxnReferenceNo"  "null"
@@ -935,11 +674,9 @@ billdesk' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-kotak' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-kotak' gateway txn pgr merchantPGRTemp
-  | gateway == "KOTAK" = merchantPGRTemp
+kotak' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+kotak' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "RetRefNo" "NA"
     , epgTxnId    = XmlKey "RetRefNo" "NA"
@@ -947,11 +684,9 @@ kotak' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-jiomoney' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-jiomoney' gateway txn pgr merchantPGRTemp
-  | gateway == "JIOMONEY" = merchantPGRTemp
+jiomoney' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+jiomoney' txn pgr  = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "jm_tran_ref_no" "NA"
@@ -959,11 +694,9 @@ jiomoney' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-amazonpay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp -> MerchantPGRTemp
-amazonpay' gateway txn pgr xmls merchantPGRTemp
-  | gateway == "AMAZONPAY" = merchantPGRTemp
+amazonpay' :: TxnDetail -> PaymentGatewayResponse -> EValueMap -> MerchantPGRTemp
+amazonpay' txn pgr xmls = defaultMerchantPGRTemp
     { txnId           = Value $ Just $ getField @"txnId" txn
     , rrn             = Value justNa
     , epgTxnId        = XmlKeys "amazonOrderId" "transactionId" "NA"
@@ -975,13 +708,11 @@ amazonpay' gateway txn pgr xmls merchantPGRTemp
     , offer_availed   = if sellerNote /= "null" then Value (Just T.empty) else Default
     , discount_amount = if sellerNote /= "null" then Value (Just T.empty) else Default
     }
-  | otherwise = merchantPGRTemp
   where
     sellerNote = lookupXML xmls "sellerNote" "null"
 
-airtelmoney' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-airtelmoney' gateway txn pgr merchantPGRTemp
-  | gateway == "AIRTELMONEY" = merchantPGRTemp
+airtelmoney' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+airtelmoney' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ onlyAlphaNumeric $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKeys "TRAN_ID" "FDC_TXN_ID" "null"
@@ -989,11 +720,9 @@ airtelmoney' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-phonepe' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-phonepe' gateway txn pgr merchantPGRTemp
-  | gateway == "PHONEPE" = merchantPGRTemp
+phonepe' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+phonepe' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "providerReferenceId" "null"
@@ -1001,11 +730,9 @@ phonepe' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-epaylater' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-epaylater' gateway txn pgr merchantPGRTemp
-  | gateway == "EPAYLATER" = merchantPGRTemp
+epaylater' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+epaylater' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKeys "eplOrderId" "id" "null"
@@ -1013,11 +740,9 @@ epaylater' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-sodexo' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-sodexo' gateway txn pgr merchantPGRTemp
-  | gateway == "SODEXO" = merchantPGRTemp
+sodexo' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+sodexo' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "retrievalReferenceNumber" "null"
     , epgTxnId    = XmlKey "transactionId" "null"
@@ -1025,11 +750,9 @@ sodexo' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
--- fssatmpinv2' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
--- fssatmpinv2' gateway txn pgr merchantPGRTemp
---   | gateway == "" = merchantPGRTemp
+-- fssatmpinv2' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+-- fssatmpinv2' txn pgr = defaultMerchantPGRTemp
 --     { txnId       = Value $ Just $ getField @"txnId" txn
 --     , rrn         = XmlKey "ref"    "null"
 --     , epgTxnId    = XmlKey "tranid" "null"
@@ -1037,11 +760,9 @@ sodexo' gateway txn pgr merchantPGRTemp
 --     , respCode    = Value (getField @"respCode" pgr)
 --     , respMessage = Value (getField @"respMessage" pgr)
 --     }
---   | otherwise = merchantPGRTemp
 
-fssatmpin' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-fssatmpin' gateway txn pgr merchantPGRTemp
-  | gateway == "FSS_ATM_PIN_V2" || gateway == "FSS_ATM_PIN" = merchantPGRTemp
+fssatmpin' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+fssatmpin' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "ref"    "null"
     , epgTxnId    = XmlKey "tranid" "null"
@@ -1049,11 +770,9 @@ fssatmpin' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-linepay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-linepay' gateway txn pgr merchantPGRTemp
-  | gateway == "LINEPAY" = merchantPGRTemp
+linepay' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+linepay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = XmlKey "transactionId" ""
     , epgTxnId    = XmlKey "transactionId" ""
@@ -1061,16 +780,12 @@ linepay' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
 citi'
-  :: PGateway
-  -> TxnDetail
+  :: TxnDetail
   -> EValueMap
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-citi' gateway txn xmls merchantPGRTemp
-  | gateway == "CITI" = merchantPGRTemp
+citi' txn xmls = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = Value justEmpty
@@ -1078,14 +793,12 @@ citi' gateway txn xmls merchantPGRTemp
     , respCode    = Value $ Just decisionCode
     , respMessage = Value $ Just $ decisionCodeToMessageMap decisionCode
     }
-  | otherwise = merchantPGRTemp
   where
     result       = T.splitOn "|" (lookupXML xmls "CitiToMall" "null")
     decisionCode = fromMaybe "" (listToMaybe $ drop 5 result)
 
-cash' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-cash' gateway txn pgr merchantPGRTemp
-  | gateway == "CASH" = merchantPGRTemp
+cash' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+cash' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = Value justNa
@@ -1093,11 +806,9 @@ cash' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-axisupi' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-axisupi' gateway txn pgr merchantPGRTemp
-  | gateway == "AXIS_UPI" = merchantPGRTemp
+axisupi' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+axisupi' txn pgr = defaultMerchantPGRTemp
     { txnId       = XmlKeys "merchantRequestId" "transactionRef" (getField @"txnId" txn)
     , rrn         = XmlKey  "custRef" "null"
     , epgTxnId    = XmlKeys "gatewayTransactionId" "upiRequestId" "null"
@@ -1105,11 +816,9 @@ axisupi' gateway txn pgr merchantPGRTemp
     , respCode    = Value (getField @"respCode" pgr)
     , respMessage = Value (getField @"respMessage" pgr)
     }
-  | otherwise = merchantPGRTemp
 
-fsspay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-fsspay' gateway txn pgr merchantPGRTemp
-  | gateway == "FSSPAY" = merchantPGRTemp
+fsspay' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+fsspay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "tranid" ""
@@ -1117,11 +826,9 @@ fsspay' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
-  | otherwise = merchantPGRTemp
 
-lazypay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-lazypay' gateway txn pgr merchantPGRTemp
-  | gateway == "LAZYPAY" = merchantPGRTemp
+lazypay' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+lazypay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKeys "pgTxnNo" "transactionId" ""
@@ -1129,11 +836,9 @@ lazypay' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
-  | otherwise = merchantPGRTemp
 
-pinelabs' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-pinelabs' gateway txn pgr merchantPGRTemp
-  | gateway == "PINELABS" = merchantPGRTemp
+pinelabs' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+pinelabs' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justEmpty
     , epgTxnId    = XmlKey "ppc_UniqueMerchantTxnID" ""
@@ -1141,11 +846,9 @@ pinelabs' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "ppc_TxnResponseCode" (getField @"respCode" pgr)       "null"
     , respMessage = FromObjOrkey (getField @"respMessage" pgr) "ppc_TxnResponseMessage" "null"
     }
-  | otherwise = merchantPGRTemp
 
-airpay' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-airpay' gateway txn pgr merchantPGRTemp
-  | gateway == "AIRPAY" = merchantPGRTemp
+airpay' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+airpay' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "APTRANSACTIONID" ""
@@ -1153,11 +856,9 @@ airpay' gateway txn pgr merchantPGRTemp
     , respCode    = FromKeyOrObj "TRANSACTIONSTATUS" (getField @"respCode" pgr)    ""
     , respMessage = FromKeyOrObj "MESSAGE"           (getField @"respMessage" pgr) ""
     }
-  | otherwise = merchantPGRTemp
 
-freechargev2' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-freechargev2' gateway txn pgr merchantPGRTemp
-  | gateway == "FREECHARGE_V2" = merchantPGRTemp
+freechargev2' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+freechargev2' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "txnId" ""
@@ -1165,11 +866,9 @@ freechargev2' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
-  | otherwise = merchantPGRTemp
 
-hdfcnb' :: PGateway -> TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp -> MerchantPGRTemp
-hdfcnb' gateway txn pgr merchantPGRTemp
-  | gateway == "HDFCNB" = merchantPGRTemp
+hdfcnb' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+hdfcnb' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
     , rrn         = Value justNa
     , epgTxnId    = XmlKey "BankRefNo" ""
@@ -1177,33 +876,52 @@ hdfcnb' gateway txn pgr merchantPGRTemp
     , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
-  | otherwise = merchantPGRTemp
+
+payfort' :: TxnDetail -> PaymentGatewayResponse  -> MerchantPGRTemp
+payfort' txn pgr = defaultMerchantPGRTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "fort_id" "null"
+  , authId      = XmlKey "authorization_code" "null"
+  , respCode    = FromKeyOrObj  "response_code"     (getField @"respCode" pgr)    "null"
+  , respMessage = FromKeyOrObj  "response_message"  (getField @"respMessage" pgr) "null"
+  }
+
+itzcash' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+itzcash' txn pgr = defaultMerchantPGRTemp
+  { txnId       = Value $ Just $ getField @"txnId" txn
+  , rrn         = Value justEmpty
+  , epgTxnId    = XmlKey "transactionId"  "NA"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
+
+eulerUpiGWs' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
+eulerUpiGWs' txn pgr = defaultMerchantPGRTemp
+  { txnId       = XmlKey "transactionRef" (getField @"txnId" txn)
+  , rrn         = XmlKey "custRef"        "null"
+  , epgTxnId    = XmlKey "upiRequestId"   "null"
+  , authId      = Value justNa
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
+
+otherGW' :: PaymentGatewayResponse -> MerchantPGRTemp
+otherGW' pgr = defaultMerchantPGRTemp
+  { txnId       = Value (getField @"txnId" pgr)
+  , rrn         = XmlKeys "rrn" "RRN" "null"
+  , epgTxnId    = XmlKeys "epgTxnId" "EpgTxnId" "null"
+  , authId      = XmlKeys "authIdCode" "AuthIdCode" "null"
+  , respCode    = Value (getField @"respCode" pgr)
+  , respMessage = Value (getField @"respMessage" pgr)
+  }
 
 otherGateways'
-  :: PGateway
+  :: Gateway
   -> TxnDetail
   -> PaymentGatewayResponse
   -> MerchantPGRTemp
-  -> MerchantPGRTemp
-otherGateways' gateway txn pgr merchantPGRTemp
-  | gateway `notElem` eulerGatewaysToExclude && gateway `elem` includeGateways =
-      merchantPGRTemp
-        { txnId       = Value (getField @"txnId" pgr)
-        , rrn         = XmlKeys "rrn" "RRN" "null"
-        , epgTxnId    = XmlKeys "epgTxnId" "EpgTxnId" "null"
-        , authId      = XmlKeys "authIdCode" "AuthIdCode" "null"
-        , respCode    = Value (getField @"respCode" pgr)
-        , respMessage = Value (getField @"respMessage" pgr)
-        }
-  | gateway `notElem` eulerGatewaysToExclude =
-    merchantPGRTemp
-      { txnId       = XmlKey "transactionRef" (getField @"txnId" txn)
-      , rrn         = XmlKey "custRef"        "null"
-      , epgTxnId    = XmlKey "upiRequestId"   "null"
-      , authId      = Value justNa
-      , respCode    = Value (getField @"respCode" pgr)
-      , respMessage = Value (getField @"respMessage" pgr)
-      }
-  | otherwise = merchantPGRTemp
-  where
-    includeGateways = map show eulerUpiGatewaysOtherwise
+otherGateways' gateway txn pgr
+  | gateway `elem` eulerUpiGatewaysList = eulerUpiGWs' txn pgr
+  | otherwise                           = otherGW' pgr

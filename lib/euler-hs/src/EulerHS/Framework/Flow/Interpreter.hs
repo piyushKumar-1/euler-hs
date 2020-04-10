@@ -10,8 +10,6 @@ module EulerHS.Framework.Flow.Interpreter
   ) where
 
 import           Control.Exception (throwIO)
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.DList as DL
 import qualified Data.Map as Map
 import qualified Data.UUID as UUID (toText)
@@ -36,6 +34,7 @@ import qualified EulerHS.Core.Playback.Entries as P
 import qualified EulerHS.Core.Playback.Machine as P
 
 import           Data.Generics.Product.Positions (getPosition)
+import           Unsafe.Coerce (unsafeCoerce)
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect cfg = do
@@ -99,13 +98,13 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do
     m <- readMVar _options
     pure $ do
-      valText <- Map.lookup k m
-      A.decode $ BSL.fromStrict $ encodeUtf8 valText
+      valAny <- Map.lookup k m
+      pure $ unsafeCoerce valAny
 
 interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
   fmap next $ P.withRunMode _runMode (P.mkSetOptionEntry k v) $ do
     m <- takeMVar _options
-    let newMap = Map.insert k (decodeUtf8 $ BSL.toStrict $ A.encode v) m
+    let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
     putMVar _options newMap
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.GenerateGUID next) = do

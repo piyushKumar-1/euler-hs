@@ -34,7 +34,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Http default manager, used for external api calls
   , _httpClientManagers :: Map String Manager
   -- ^ Http managers, used for external api calls
-  , _options           :: MVar (Map Text Text)
+  , _options           :: MVar (Map Text Any)
   -- ^ Typed key-value storage
   , _kvdbConnections   :: MVar (Map Text T.NativeKVDBConn)
   -- ^ Connections for key-value databases

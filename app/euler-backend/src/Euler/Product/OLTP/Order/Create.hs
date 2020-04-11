@@ -31,7 +31,6 @@ import qualified Euler.API.Validators.Order as VO
 
 -- EHS: rework imports. Use top level modules.
 import qualified Euler.Common.Types                as D
-import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Product.Domain              as D
@@ -108,7 +107,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet Config.redis $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet Config.redisConnName $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 -- EHS: maxAmount <= 0 verified on validation

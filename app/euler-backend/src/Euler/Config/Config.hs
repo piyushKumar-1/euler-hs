@@ -333,40 +333,30 @@ redisClusterConfig = case getEnv of
     , connectTimeout        = Nothing
     }
 
-kvdbConfig :: KVDBConfig
-kvdbConfig = mkKVDBConfig Constants.ecRedis redisConfig
 
-kvdbClusterConfig :: KVDBConfig
-kvdbClusterConfig = mkKVDBClusterConfig Constants.kvRedis redisClusterConfig
-
-redisConfig :: RedisConfig
-redisConfig = case getEnv of
-  DEV -> RedisConfig
-    { connectHost           = devRedisConnectHost
-    , connectPort           = devRedisConnectPort
-    , connectAuth           = Nothing
-    , connectDatabase       = devRedisConnectDatabase
-    , connectMaxConnections = devRedisConnectMaxConnections
-    , connectMaxIdleTime    = fromInteger devRedisConnectMaxIdleTime
-    , connectTimeout        = Nothing
-    }
-  _ -> RedisConfig -- TODO define for another envs
-    { connectHost           = devRedisConnectHost
-    , connectPort           = devRedisConnectPort
-    , connectAuth           = Nothing
-    , connectDatabase       = devRedisConnectDatabase
-    , connectMaxConnections = devRedisConnectMaxConnections
-    , connectMaxIdleTime    = fromInteger devRedisConnectMaxIdleTime
-    , connectTimeout        = Nothing
-    }
-
+-- EHS: TODO ask V.Gorve to review these changes and EnvVars
 redisConnName :: Text
 redisConnName = case getEnv of
-  DEV -> Text.pack devRedisConnName
-  _ -> "redis" -- TODO define for another envs
+  DEV   -> Text.pack devRedisConnName
+  UAT   -> Text.pack uatRedisConnName
+  INTEG -> Text.pack integRedisConnName
+  PROD  -> Text.pack prodRedisConnName
+
+
+redisClusterConnName :: Text
+redisClusterConnName = case getEnv of
+  DEV   -> Text.pack devRedisClusterConnName
+  UAT   -> Text.pack uatRedisClusterConnName
+  INTEG -> Text.pack integRedisClusterConnName
+  PROD  -> Text.pack productionRedisClusterConnName
+
 
 kvdbConfig :: KVDBConfig
 kvdbConfig = mkKVDBConfig redisConnName redisConfig
+
+
+kvdbClusterConfig :: KVDBConfig
+kvdbClusterConfig = mkKVDBClusterConfig redisClusterConnName redisClusterConfig
 
 gatewaySchemeUrl :: String
 gatewaySchemeUrl = case getEnv of

@@ -60,6 +60,8 @@ import           Euler.Product.OLTP.Card.Card
 import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
 
 
+import           Euler.Storage.Repository.EulerDB
+
 import           Euler.Storage.Types.Chargeback
 import           Euler.Storage.Types.Customer
 import           Euler.Storage.Types.Feature
@@ -106,6 +108,15 @@ import           Euler.Storage.DBConfig
 myerr    n = err403 { errBody = "Err # " <> n }
 myerr400 n = err400 { errBody = "Err # " <> n }
 
+--
+getConn :: DBConfig beM -> Flow (SqlConn beM)
+getConn cfg = do
+  conn <- getSqlDBConnection cfg
+  case conn of
+    Right c -> pure c
+    Left err -> do
+      logError "SqlDB" $ toText $ P.show err
+      throwException err500 {errBody = "getConn"}
 
 -- PS Will be removing gateways one by one from here as part of direct upi integrations.
 -- used in `casematch` function

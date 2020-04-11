@@ -16,7 +16,7 @@ import Servant.Server
 import Euler.API.RouteParameters
 import Euler.Common.Errors.PredefinedErrors
 import Euler.Common.Types.Merchant
-import qualified Euler.Constants                      as Constants
+import qualified Euler.Config.Config                  as Config
 import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Storage.Types.IngressRule as DBIR
 import qualified Euler.Storage.Types.MerchantAccount as DBM
@@ -24,7 +24,7 @@ import qualified Euler.Storage.Validators.MerchantAccount as MV
 import Euler.Storage.Types.IngressRule
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.EulerDB
-import Euler.Storage.DBConfig (eulerDB)
+--import Euler.Storage.DBConfig (eulerDB)
 import Euler.Storage.Repository.EulerDB
 
 import qualified Prelude as P (show, id)
@@ -227,7 +227,7 @@ ipAddressFilters mAcc mForward =  do
 
 getWhitelistedIps :: DM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
-  ipAddresses <- L.rGet Config.redis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  ipAddresses <- L.rGet Config.redisConnName ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
@@ -241,5 +241,5 @@ getWhitelistedIps mAcc = do
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
         let fiveHours :: Integer = 5 * 60 * 60
-        _   <- rSetex Config.redis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips fiveHours-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        _   <- rSetex Config.redisConnName ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips fiveHours-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

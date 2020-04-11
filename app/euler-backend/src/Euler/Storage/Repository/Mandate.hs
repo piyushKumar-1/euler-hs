@@ -11,40 +11,35 @@ import           EulerHS.Language
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
 import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
-
 import qualified Euler.Product.Domain.Mandate as D
 import           Euler.Storage.Types.EulerDB
 import qualified Euler.Storage.Types.Mandate as S
+import           Euler.Storage.Repository.EulerDB
 
 import           Database.Beam ((&&.), (==.))
 import qualified Database.Beam as B
-import           Servant.Server (err500)
+import           WebService.Language
+
 
 
 loadMandate :: C.OrderPId -> Text -> Flow (Maybe D.Mandate)
 loadMandate orderPId merchId = do
-  conn <- getConn eulerDB
-  let predicate S.Mandate {authOrderId, merchantId} =
-        authOrderId ==. B.just_ (B.val_ orderPId) &&. merchantId ==. B.val_ merchId
-  res <- runDB conn $
+  res <- withEulerDB $ do
+    let predicate S.Mandate {authOrderId, merchantId} =
+          authOrderId ==. B.just_ (B.val_ orderPId) &&. merchantId ==. B.val_ merchId
     findRow
       $ B.select
       $ B.limit_ 1
       $ B.filter_ predicate
       $ B.all_ (mandate eulerDBSchema)
-  case res of
-    Right mMandate -> do
-        case (traverse transformMandate mMandate) of
-          Success m -> pure m
-          Failure e -> do
-            logError "Incorrect mandate in DB"
-              $ "OrderReference id: " <> show orderPId
-              <> " merchantId " <> merchId
-              <> " error: " <> show e
-            throwException internalError
-    Left err -> do
-      logError "Find Mandate" $ toText $ P.show err
-      throwException err500
+  case (traverse transformMandate res) of
+    Success m -> pure m
+    Failure e -> do
+      logErrorT "Incorrect mandate in DB"
+        $ "OrderReference id: " <> show orderPId
+        <> " merchantId " <> merchId
+        <> " error: " <> show e
+      throwException internalError
 
 
 transformMandate :: S.Mandate -> V D.Mandate

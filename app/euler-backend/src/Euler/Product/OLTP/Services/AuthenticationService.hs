@@ -25,6 +25,7 @@ import Euler.Storage.Types.IngressRule
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.EulerDB
 import Euler.Storage.DBConfig (eulerDB)
+import Euler.Storage.Repository.EulerDB
 
 import qualified Prelude as P (show, id)
 import qualified Data.ByteString.Base64 as BH
@@ -68,7 +69,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         throwException $ eulerAccessDenied "Invalid API key."
       Right apiKey' -> do
         mk <- do
-          mMKey <- withDB eulerDB $ do
+          mMKey <- withEulerDB $ do
             let predicate MerchantKey{apiKey, status} = apiKey ==. B.just_ (B.val_ apiKey')
                  &&. status ==. B.just_ "ACTIVE"
             L.findRow
@@ -80,7 +81,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
             Nothing -> throwException ecAccessDenied
            -- findOneWithErr ecDB (where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"]) ecAccessDenied
         merchantAccount' <- do
-          mMAcc <- withDB eulerDB $ do
+          mMAcc <- withEulerDB $ do
             let predicate DBM.MerchantAccount {id} = id ==. (B.val_ $  mk ^. _merchantAccountId)
             L.findRow
               $ B.select
@@ -226,19 +227,19 @@ ipAddressFilters mAcc mForward =  do
 
 getWhitelistedIps :: DM.MerchantAccount -> Flow (Maybe [Text])
 getWhitelistedIps mAcc = do
-  ipAddresses <- L.rGet Constants.ecRedis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
+  ipAddresses <- L.rGet Config.redis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) -- getCachedValEC ("euler_ip_whitelist_for_" <> mId)
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
-      ir <- withDB eulerDB $ do
-        let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
-        findRows
-          $ B.select
-          $ B.filter_ predicate
-          $ B.all_ (ingress_rule eulerDBSchema)
+      ir <- withEulerDB $ do
+          let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
+          findRows
+            $ B.select
+            $ B.filter_ predicate
+            $ B.all_ (ingress_rule eulerDBSchema)
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
         let fiveHours :: Integer = 5 * 60 * 60
-        _   <- rSetex Constants.ecRedis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips fiveHours-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        _   <- rSetex Config.redis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips fiveHours-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

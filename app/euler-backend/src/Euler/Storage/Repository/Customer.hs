@@ -11,17 +11,17 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 import           Euler.Lens
 
-import           Euler.Common.Errors.PredefinedErrors
-import qualified Euler.Common.Types as C
-import           Euler.Common.Validators
-
-import qualified Euler.Product.Domain as D
-import qualified Euler.Product.Domain.Templates as Ts
-
-import qualified Euler.Storage.Types as DB
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 
-import           Database.Beam ((&&.), (==.), (||.))
+import           Euler.Common.Errors.PredefinedErrors
+import qualified Euler.Common.Types                   as C
+import           Euler.Common.Validators
+import qualified Euler.Product.Domain                 as D
+import qualified Euler.Product.Domain.Templates       as Ts
+import qualified Euler.Storage.Types                  as DB
+
+import           Database.Beam ((==.), (||.), (&&.))
 import qualified Database.Beam as B
 
 
@@ -31,7 +31,7 @@ loadCustomer (Just customerId) mAccntId = do
 
     -- EHS: after refactoring, we query DB every time when customerId is available.
     -- EHS: DB type Customer should be explicit or qualified
-    mbCustomer :: Maybe DB.Customer <- withDB eulerDB $ do
+    mbCustomer :: Maybe DB.Customer <- withEulerDB $ do
       let predicate DB.Customer {merchantAccountId, id, objectReferenceId}
             = (   id ==.  (B.val_ (Just customerId))
               ||. objectReferenceId ==. (B.val_ (Just customerId))  -- EHS: objectReferenceId is customerId ?
@@ -58,7 +58,7 @@ loadCustomer (Just customerId) mAccntId = do
 
 findCustomerById :: C.CustomerId -> Flow (Maybe D.Customer)
 findCustomerById cId = do
-  mbCustomer :: Maybe DB.Customer <- withDB eulerDB $ do
+  mbCustomer :: Maybe DB.Customer <- withEulerDB $ do
         let predicate DB.Customer {id}
               = id ==.  B.just_ (B.val_ cId)
         findRow

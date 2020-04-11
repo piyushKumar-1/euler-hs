@@ -16,6 +16,7 @@ import qualified Data.ByteString.Lazy as BSL
 
 import Euler.Storage.DBConfig (ecDB)
 import Euler.Storage.Types.EulerDB
+import Euler.Storage.Repository.EulerDB
 import Euler.Storage.Types.ServiceConfiguration
 
 
@@ -112,7 +113,7 @@ import Database.Beam ((==.))
 -- 	modelName _ = "service_configuration"
 
 getServiceConfigurationFromKey :: Text -> Flow (Maybe ServiceConfiguration)
-getServiceConfigurationFromKey key = withDB ecDB $ do
+getServiceConfigurationFromKey key = withEulerDB $ do
   findRow
     $ B.select
     $ B.limit_ 1

@@ -1,59 +1,44 @@
 {-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Euler.Product.OLTP.Order.Create where
 
 import           EulerHS.Prelude hiding (get, id)
 
-import           Data.Generics.Product.Subtype
-import qualified Data.Text as Text
+import qualified Data.Text            as Text
 import           Data.Time (localDay)
-import qualified Text.Read as TR
-
+import qualified Text.Read            as TR
+import           Data.Generics.Product.Subtype
 
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
 -- Map to Servant in handlers.
+import           Servant.Server (errBody, err400)
 import qualified EulerHS.Extra.Validation as V
-import           Servant.Server (err400, errBody)
-
--- EHS: this dep should be moved somewhere. Additional busines logic for KV DB
---import qualified Euler.KVDB.Redis as KVDBExtra (rGet, setCacheWithExpiry)
 
 import           EulerHS.Language
 import           WebService.Language
 
-
-
-
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
+import qualified Euler.Storage.Types        as DB
 import qualified Euler.Storage.KVRepository as Rep
---import           Euler.Storage.KVRepository.Mandate as M
-import qualified Euler.Storage.Repository as Rep
-import qualified Euler.Storage.Types as DB
+import qualified Euler.Storage.Repository   as Rep
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.Order as API
 import qualified Euler.API.RouteParameters as RP
 import qualified Euler.API.Validators.Order as VO
 
-import qualified Euler.Constants          as Constants (ecRedis)
-
 -- EHS: rework imports. Use top level modules.
-import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Euler.Common.Types as D
---import qualified Euler.Common.Types.External.Mandate as MEx
+import qualified Euler.Common.Types                as D
+import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Common.Types.External.Order as OEx
---import qualified Euler.Config.Config as Config
-import           Euler.Lens
-import qualified Euler.Product.Domain as D
+import qualified Euler.Common.Errors.PredefinedErrors as Errs
+import qualified Euler.Product.Domain              as D
 import           Euler.Product.Domain.MerchantAccount
---import qualified Euler.Product.Domain.Order as D
 import qualified Euler.Product.Domain.Templates as Ts
 import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
 import qualified Euler.Config.Config               as Config
---import qualified Euler.Constants                   as Constants
 import           Euler.Lens
 
 orderCreate
@@ -97,35 +82,12 @@ doOrderCreate
 doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order' mAccnt@MerchantAccount{..} = do
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
   (dbOrder, order) <- createOrder' routeParams order' mAccnt merchantPrefs
-  -- EHS I find `Rep` misleading here
+  -- EHS: I find alias `Rep` sort of misleading here
   _                <- Rep.updateOrderCache (order ^. _orderId) (order ^. _merchantId) dbOrder
   _                <- Rep.updateMandateCache order $ order' ^. _mandate
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
   makeOrderResponse Config.getECRConfig order mAccnt mbReseller
-
--- EHS: previously setMandateInCache
--- EHS: Seems mandate_max_amount should always be set irrespective the option mandate.
---      In the previous code, we're expecting max amount to be set even if mandate is DISABLED.
---      It's not clear whether this a valid behaviour (seems not).
--- EHS: There is no code reading for mandate from cache (lookup by "_mandate_data_" gives nothing).
---      Why this cache exist? What it does?
--- updateMandateCache :: D.Order -> Flow ()
--- updateMandateCache order = case order ^. _mandate of
---     D.MandateDisabled           -> pure ()
---     D.MandateRequired maxAmount -> updateMandateCache' maxAmount
---     D.MandateOptional maxAmount -> updateMandateCache' яmaxAmount
---     -- EHS: Need to do something with this. Pass mandate from OrderCreateTemplate
---     -- and use in domain Order simple madate type (without maxAmount value)?
---     -- D.MandateReqUndefined       -> pure () --error "MandateReqUndefined not handled."
---     -- D.MandateOptUndefined       -> pure () --error "MandateReqUndefined not handled."
---   where
---     updateMandateCache' ma = do
---         let merchantId = order ^. _merchantId
---         let orderId    = order ^. _orderId
---         mandate <- M.createMandate order ma
---         -- EHS: magic constant
---         void $ rSetex (merchantId <> "_mandate_data_" <> orderId) mandate Config.mandateTtl
 
 
 -- EHS: previously isMandateOrder
@@ -146,7 +108,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet Constants.ecRedis $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet Config.redis $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 -- EHS: maxAmount <= 0 verified on validation

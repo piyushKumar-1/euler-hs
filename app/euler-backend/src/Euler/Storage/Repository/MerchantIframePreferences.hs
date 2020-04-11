@@ -9,6 +9,7 @@ import EulerHS.Prelude
 import           EulerHS.Language
 
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
@@ -23,7 +24,7 @@ import qualified Database.Beam as B
 -- EHS: rework this function.
 loadMerchantPrefs :: C.MerchantId -> Flow DB.MerchantIframePreferences
 loadMerchantPrefs merchantId' = do
-  res <- withDB eulerDB $ do
+  res <- withEulerDB $ do
     let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
     findRow
       $ B.select

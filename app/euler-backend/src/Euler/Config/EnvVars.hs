@@ -4,7 +4,6 @@ module Euler.Config.EnvVars where
 
 import EulerHS.Prelude
 
-import qualified EulerHS.Types as T
 import qualified Data.Map as Map
 import           Data.Char (toUpper)
 import           System.Environment (getEnvironment)
@@ -63,7 +62,6 @@ getEulerDbNameR1 :: String
 getEulerDbNameR1 = fromMaybe getEulerDbName $ lookupEnv "EULER_NAME_R1"
 
 --
-
 
 getEcDbPass :: String
 getEcDbPass = fromMaybe "nodefaultvalue" $ lookupEnv "EC_DB_PASSWORD";
@@ -281,8 +279,6 @@ getAwsRegion = fromMaybe "ap-south-1" $ lookupEnv "AWS_REGION"
 -- https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#key-id
 getKmsKeyId :: String
 getKmsKeyId = fromMaybe "arn:aws:kms:ap-south-1:980691203742:key/2ee54fc6-9bd4-4f9c-8cca-e1c179859a8e" $ lookupEnv "KMS_KEY_ID"
-
-
 
 -- DEV MySQL parameters
 devMysqlConnectionName :: String

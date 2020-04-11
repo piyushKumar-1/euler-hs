@@ -13,6 +13,8 @@ import           EulerHS.Language
 import           WebService.Language
 import qualified EulerHS.Extra.Validation as V
 
+import           Euler.Storage.Repository.EulerDB
+
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain.Order           as D
@@ -28,7 +30,7 @@ import           Euler.Lens
 -- EHS name `findOrder` would be more accurate
 loadOrder :: C.OrderId -> C.MerchantId -> Flow (Maybe D.Order)
 loadOrder orderId' merchantId' = do
-    mbOrderRef <- withDB eulerDB $ do
+    mbOrderRef <- withEulerDB $ do
       let predicate DB.OrderReference {orderId, merchantId} =
             (orderId    ==. B.just_ (B.val_ orderId')) &&.
             (merchantId ==. B.just_ (B.val_ merchantId'))
@@ -73,7 +75,7 @@ transOrder mbOrderRef = do
 -- If the returned data is not expected to be saved to the Redis, then only domain type should be returned.
 saveOrder :: DB.OrderReference -> Flow (DB.OrderReference, D.Order)
 saveOrder orderRefVal = do
-  orderRef <- unsafeInsertRow (Errs.mkDBError "Inserting order reference failed.") eulerDB
+  orderRef <- unsafeInsertRowEulerDB (Errs.mkDBError "Inserting order reference failed.")
     $ B.insert (DB.order_reference DB.eulerDBSchema)
     $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
 
@@ -88,7 +90,7 @@ saveOrder orderRefVal = do
 updateOrder :: Int -> C.UDF -> Maybe C.Money -> Maybe C.AddressId -> Maybe C.AddressId -> Flow ()
 updateOrder orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do
   currentDate' <- getCurrentTimeUTC
-  withDB eulerDB
+  withEulerDB
     $ updateRows
     $ B.update (DB.order_reference DB.eulerDBSchema)
       (    (\oRef -> DBO.amount oRef  <-. case (C.fromMoney <$> mAmount) of

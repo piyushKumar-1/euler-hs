@@ -6,7 +6,8 @@ import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defau
 import           Data.Time.Clock (NominalDiffTime)
 
 import qualified Euler.Config.Config as Config
-import qualified Euler.Constants as Constants
+import qualified Euler.Storage.DBConfig as DBC
+import qualified Euler.Options.Options as Opt
 import qualified Euler.Server as Euler
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
@@ -17,53 +18,30 @@ import qualified WebService.Language as L
 import qualified WebService.Types as T
 
 
-keepConnsAliveForSecs :: NominalDiffTime
-keepConnsAliveForSecs = 60 * 10 -- 10 mins
-
-maxTotalConns :: Int
-maxTotalConns = 8
-
-sqliteConn :: IsString a => a
-sqliteConn = "sqlite"
-
-mySQLCfg :: T.MySQLConfig
-mySQLCfg = T.MySQLConfig
-  { connectHost     = "localhost"
-  , connectPort     = 3306
-  , connectUser     = "cloud"
-  , connectPassword = "scape"
-  , connectDatabase = "jdb"
-  , connectOptions  = [T.CharsetName "utf8"]
-  , connectPath     = ""
-  , connectSSL      = Nothing
-  }
-
 eulerApiPort :: Int
 eulerApiPort = 8080
-
 
 -- Test DB to show how the initialization can look like.
 -- TODO: add real DB services.
 prepareDBConnections :: L.Flow ()
 prepareDBConnections = do
-  ePool <- L.initSqlDBConnection
-    $ T.mkSQLitePoolConfig sqliteConn "/tmp/test.db" -- T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg --
-    $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
-  ecRedis <- L.initKVDBConnection
-    $ T.mkKVDBConfig Constants.ecRedis
-    $ Config.redisConfig
-  kvRedis <- L.initKVDBConnection
-    $ T.mkKVDBClusterConfig Constants.kvRedis
-    $ Config.redisClusterConfig
+  mysqlCfg <- L.runIO Config.mysqlDBC
+  ePool <- L.initSqlDBConnection mysqlCfg
+  L.setOption Opt.EulerDbCfg mysqlCfg
+  redis <- L.initKVDBConnection Config.kvdbConfig
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
-  L.throwOnFailedWithLog ecRedis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
-  L.throwOnFailedWithLog kvRedis T.KVDBConnectionFailedException "Failed to connect to Redis cluster DB."
-
+  L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
 
 runEulerBackendApp' :: Settings -> IO ()
 runEulerBackendApp' settings = do
-  R.withFlowRuntime (Just Config.loggerConfig) $ \flowRt -> do
+  let loggerCfg = T.defaultLoggerConfig
+        { T._logToFile = True
+        , T._logFilePath = "/tmp/euler-backend.log"
+        , T._isAsync = False
+        }
+  -- MERGE: bl2: Config.loggerConfig
+  R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do
     putStrLn @String "Runtime created."
     putStrLn @String "Initializing DB connections..."
     try (R.runFlow flowRt prepareDBConnections) >>= \case

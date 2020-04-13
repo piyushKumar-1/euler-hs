@@ -284,7 +284,7 @@ mkAwaitEntry mbMcs val = AwaitEntry (unwrapMcs <$> mbMcs) (toJSON val)
 instance RRItem AwaitEntry  where
   getTag _ = "AwaitEntry"
 
-instance (FromJSON v) => MockedResult AwaitEntry v where
+instance FromJSON v => MockedResult AwaitEntry v where
   getMock (AwaitEntry _ jsonValue) = T.fromJSONMaybe jsonValue
 
 -------------------------------------------------------------------------------------

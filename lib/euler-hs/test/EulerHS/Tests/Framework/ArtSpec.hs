@@ -142,7 +142,8 @@ spec = do
     it "SafeFlow, RunSysCmd" $ do
       res <- runFlowWithArt $ do
         runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
-      res `shouldBe` (Right "safe hello\n")
+        runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello2"
+      res `shouldBe` (Right "safe hello2\n")
 
     it "Fork" $ runFlowWithArt $ do
       L.forkFlow "Fork" $

@@ -136,7 +136,7 @@ data ReplayingException = ReplayingException PlaybackError
 instance Exception ReplayingException
 
 
------------------------------------------c-----------------------------
+----------------------------------------------------------------------
 -- | Final recordings from main flow, forked and safe flows.
 data ResultRecording = ResultRecording
   { recording        :: RecordingEntries

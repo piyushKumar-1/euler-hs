@@ -30,7 +30,7 @@ loadPromotions orderPId = do
     findRows
       $ B.select
       $ B.filter_ predicate
-      $ B.all_ (DB.promotion DB.eulerDBSchema)
+      $ B.all_ (DB.promotions DB.eulerDBSchema)
   case traverse transformPromotions proms of
     Success pr -> pure pr
     Failure e -> do

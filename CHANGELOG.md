@@ -1,5 +1,15 @@
 # Changelog for euler-hs
 
+## [1.9.0.0] - 2020-04-13
+* Euler-HS 1.9.0.0: a significant update with new features and fixes.
+  - RunSafeFlow method: ability to catch exceptions thrown by throwException
+    (breaking change for recordings)
+  - Exceptions in forked flows are now handled (breaking change)
+  - Options made a bit more effective
+  - Raw SQL now is printed into recordings (breaking change for recordings)
+* Euler-backend 0.9.0.0:
+  - Configs updated
+
 ## [1.8.0.0] - 2020-04-03
 * Euler-HS 1.8.0.0: new features and fixes.
   - Redis cluster support (switched to other hedis fork).

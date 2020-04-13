@@ -910,7 +910,8 @@
                     "_entryReplayMode": "Normal"
                 }
             ],
-            "forkedRecordings": {}
+            "forkedRecordings": {},
+            "safeRecordings": {}
         },
         "mrJsonRequest": {
             "shipping_address_country": null,

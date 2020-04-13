@@ -222,7 +222,7 @@ decryptKMS' value = fmap (bimap show id) $ try @_ @SomeException $ do
 
 decryptKMS :: ByteString -> Flow ByteString
 decryptKMS value = do
-  eitherDecValue <- runIO' "encryptKMS" $! decryptKMS' value
+  eitherDecValue <- runIO' "decryptKMS" $! decryptKMS' value
   case eitherDecValue of
     Right (Just v) -> pure v
     Right Nothing -> do

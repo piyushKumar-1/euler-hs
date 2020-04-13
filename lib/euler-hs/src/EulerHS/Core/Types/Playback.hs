@@ -149,7 +149,6 @@ data Recording = Recording
   { recordingMVar       :: MVar RecordingEntries
   , safeRecordingsVar   :: MVar (Map Text RecordingEntries)
   , forkedRecordingsVar :: MVar (Map Text Recording)
-      -- finalForkedRecordingsVar <- newEmptyMVar
   }
 
 -- | Transform 'Recording' to 'ResultRecording' in safe way

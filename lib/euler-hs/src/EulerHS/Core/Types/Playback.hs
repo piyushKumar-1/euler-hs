@@ -136,26 +136,27 @@ data ReplayingException = ReplayingException PlaybackError
 instance Exception ReplayingException
 
 
-----------------------------------------------------------------------
+-----------------------------------------c-----------------------------
 -- | Final recordings from main flow, forked and safe flows.
 data ResultRecording = ResultRecording
   { recording        :: RecordingEntries
-  , safeRecordings   :: Map Text ResultRecording
+  , safeRecordings   :: Map Text RecordingEntries
   , forkedRecordings :: Map Text ResultRecording
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 -- | Thread safe Recording representation that used in record process
 data Recording = Recording
   { recordingMVar       :: MVar RecordingEntries
-  , safeRecordingsVar   :: MVar (Map Text Recording)
+  , safeRecordingsVar   :: MVar (Map Text RecordingEntries)
   , forkedRecordingsVar :: MVar (Map Text Recording)
+      -- finalForkedRecordingsVar <- newEmptyMVar
   }
 
 -- | Transform 'Recording' to 'ResultRecording' in safe way
 awaitRecording :: Recording -> IO ResultRecording
 awaitRecording Recording{..}= do
   recording        <- readMVar recordingMVar
-  safeRecordings   <- traverse awaitRecording =<< readMVar safeRecordingsVar
+  safeRecordings   <- readMVar safeRecordingsVar
   forkedRecordings <- traverse awaitRecording =<< readMVar forkedRecordingsVar
   pure ResultRecording{..}
 
@@ -163,14 +164,14 @@ awaitRecording Recording{..}= do
 -- | Thread safe ReplayErrors representation used in replay process
 data ReplayErrors = ReplayErrors
   { errorMVar           :: MVar (Maybe PlaybackError)
-  , safeFlowErrorsVar   :: MVar (Map Text ReplayErrors)
+  , safeFlowErrorsVar   :: MVar (Map Text PlaybackError)
   , forkedFlowErrorsVar :: MVar (Map Text ReplayErrors)
   }
 
 -- | Final player errors representation
 data ResultReplayError = ResultReplayError
   { rerror      :: Maybe PlaybackError
-  , safeError   :: Map Text ResultReplayError
+  , safeError   :: Map Text PlaybackError
   , forkedError :: Map Text ResultReplayError
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
@@ -178,7 +179,7 @@ data ResultReplayError = ResultReplayError
 awaitErrors :: ReplayErrors -> IO ResultReplayError
 awaitErrors ReplayErrors{..}= do
   rerror      <- readMVar errorMVar
-  safeError   <- traverse awaitErrors =<< readMVar safeFlowErrorsVar
+  safeError   <- readMVar safeFlowErrorsVar
   forkedError <- traverse awaitErrors =<< readMVar forkedFlowErrorsVar
   pure ResultReplayError{..}
 
@@ -187,7 +188,7 @@ flattenErrors :: ResultReplayError -> [PlaybackError]
 flattenErrors = catMaybes . flattenErrors_
   where
     flattenErrors_ ResultReplayError{..} =
-      rerror : ((Map.elems safeError >>= flattenErrors_) <> (Map.elems forkedError >>= flattenErrors_))
+      rerror : (pure <$> Map.elems safeError) <> (Map.elems forkedError >>= flattenErrors_)
 
 ----------------------------------------------------------------------
 

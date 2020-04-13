@@ -18,6 +18,8 @@ import qualified EulerHS.Extra.Validation as V
 import           EulerHS.Language
 import           WebService.Language
 
+import qualified Euler.Constants                   as Constants
+
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
 import qualified Euler.Storage.Types        as DB
@@ -107,7 +109,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
       -- EHS: magic constant
       -- EHS: getting values unsafely. What if we don't have these values??
       --      What flow should be then?
-      mbMaxAmLimitStr <- rGet Config.redisConnName $ merchantId <> "_mandate_max_amount_limit"
+      mbMaxAmLimitStr <- rGet Constants.ecRedis $ merchantId <> "_mandate_max_amount_limit"
       -- EHS: awful conversion. Rework.
       maxAmLimit      <- fromStringToNumber $ fromMaybe Config.mandateMaxAmountAllowed mbMaxAmLimitStr
 -- EHS: maxAmount <= 0 verified on validation

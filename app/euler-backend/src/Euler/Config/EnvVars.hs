@@ -4,12 +4,12 @@ module Euler.Config.EnvVars where
 
 import           EulerHS.Prelude
 
+import qualified EulerHS.Types as T
+
 import qualified Data.Map as Map
 import           Data.Char (toUpper)
 import           System.Environment (getEnvironment)
 import           System.IO.Unsafe (unsafePerformIO)
-
-import qualified EulerHS.Types as T
 
 
 
@@ -317,9 +317,6 @@ devMysqlPoolResourcesPerStripe = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_MYS
 
 -- Redis parameters
 
-devRedisConnName :: String
-devRedisConnName = fromMaybe "devRedis" $ lookupEnv "DEV_REDIS_CONN_NAME"
-
 devRedisHost :: String
 devRedisHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CONNECT_HOST"
 
@@ -335,46 +332,34 @@ devRedisMaxConnections = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNE
 devRedisMaxIdleTime :: Integer
 devRedisMaxIdleTime = fromMaybe 30 $ readMaybe =<< lookupEnv "DEV_REDIS_CONNECT_MAX_IDLE_TIME"
 
-uatRedisConnName :: String
-uatRedisConnName = fromMaybe "uatRedis" $ lookupEnv "UAT_REDIS_CONN_NAME"
-
 uatRedisHost :: String
-uatRedisHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "UAT_REDIS_HOST"
+uatRedisHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "REDIS_HOST"
 
 uatRedisPort :: Word16
-uatRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "UAT_REDIS_PORT"
+uatRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "REDIS_PORT"
 
 uatRedisDB :: Integer
-uatRedisDB = fromMaybe 10 $ readMaybe =<< lookupEnv "UAT_REDIS_DB"
-
-integRedisConnName :: String
-integRedisConnName = fromMaybe "integRedis" $ lookupEnv "INTEG_REDIS_CONN_NAME"
+uatRedisDB = fromMaybe 10 $ readMaybe =<< lookupEnv "REDIS_DB"
 
 integRedisHost :: String
-integRedisHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "INTEG_REDIS_HOST"
+integRedisHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "REDIS_HOST"
 
 integRedisPort :: Word16
-integRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "INTEG_REDIS_PORT"
+integRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "REDIS_PORT"
 
 integRedisDB :: Integer
-integRedisDB = fromMaybe 10 $ readMaybe =<< lookupEnv "INTEG_REDIS_DB"
-
-prodRedisConnName :: String
-prodRedisConnName = fromMaybe "prodRedis" $ lookupEnv "PROD_REDIS_CONN_NAME"
+integRedisDB = fromMaybe 10 $ readMaybe =<< lookupEnv "REDIS_DB"
 
 productionRedisHost :: String
-productionRedisHost = fromMaybe "localhost" $ lookupEnv "PROD_REDIS_HOST"
+productionRedisHost = fromMaybe "localhost" $ lookupEnv "REDIS_HOST"
 
 productionRedisPort :: Word16
-productionRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "PROD_REDIS_PORT"
+productionRedisPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "REDIS_PORT"
 
 productionRedisDB :: Integer
-productionRedisDB = fromMaybe 0 $ readMaybe =<< lookupEnv "PROD_REDIS_DB"
+productionRedisDB = fromMaybe 0 $ readMaybe =<< lookupEnv "REDIS_DB"
 
 -- Redis cluster parameters
-
-devRedisClusterConnName :: String
-devRedisClusterConnName = fromMaybe "devRedisCluster" $ lookupEnv "DEV_REDIS_CLUSTER_CONN_NAME"
 
 devRedisClusterHost :: String
 devRedisClusterHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CLUSTER_CONNECT_HOST"
@@ -385,54 +370,38 @@ devRedisClusterPort = fromMaybe 30001 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUST
 devRedisClusterDatabase :: Integer
 devRedisClusterDatabase = fromMaybe 0 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_DATABASE"
 
-
--- EHS: do we  need these ones for another envs?
-
 devRedisClusterMaxConnections :: Int
 devRedisClusterMaxConnections = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_MAX_CONNECTIONS"
 
 devRedisClusterMaxIdleTime :: Integer
 devRedisClusterMaxIdleTime = fromMaybe 30 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_MAX_IDLE_TIME"
 
-
-
-uatRedisClusterConnName :: String
-uatRedisClusterConnName = fromMaybe "uatRedisCluster" $ lookupEnv "UAT_REDIS_CLUSTER_CONN_NAME"
-
 uatRedisClusterHost :: String
-uatRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "UAT_REDIS_CLUSTER_HOST"
+uatRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "KV_REDIS_HOST"
 
 uatRedisClusterPort :: Word16
-uatRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "UAT_REDIS_CLUSTER_PORT"
+uatRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "KV_REDIS_PORT"
 
 uatRedisClusterDB :: Integer
-uatRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "UAT_REDIS_CLUSTER_DB"
-
-integRedisClusterConnName :: String
-integRedisClusterConnName = fromMaybe "integRedisCluster" $ lookupEnv "INTEG_REDIS_CLUSTER_CONN_NAME"
+uatRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
 
 integRedisClusterHost :: String
-integRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "INTEG_REDIS_CLUSTER_HOST"
+integRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "KV_REDIS_HOST"
 
 integRedisClusterPort :: Word16
-integRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "INTEG_REDIS_CLUSTER_PORT"
+integRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "KV_REDIS_PORT"
 
 integRedisClusterDB :: Integer
-integRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "INTEG_REDIS_CLUSTER_DB"
-
--- EHS: change to `prod`, not `production`?
-
-productionRedisClusterConnName :: String
-productionRedisClusterConnName = fromMaybe "productionRedisCluster" $ lookupEnv "PROD_REDIS_CLUSTER_CONN_NAME"
+integRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
 
 productionRedisClusterHost :: String
-productionRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "PROD_REDIS_CLUSTER_HOST"
+productionRedisClusterHost = fromMaybe "beta.ec-redis.juspay.in" $ lookupEnv "KV_REDIS_HOST"
 
 productionRedisClusterPort :: Word16
-productionRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "PROD_REDIS_CLUSTER_PORT"
+productionRedisClusterPort = fromMaybe 6379 $ readMaybe =<< lookupEnv "KV_REDIS_PORT"
 
 productionRedisClusterDB :: Integer
-productionRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "PROD_REDIS_CLUSTER_DB"
+productionRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
 
 -- Logger parameters
 

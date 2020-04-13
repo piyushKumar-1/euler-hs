@@ -334,29 +334,13 @@ redisClusterConfig = case getEnv of
     }
 
 
--- EHS: TODO ask V.Gorve to review these changes and EnvVars
-redisConnName :: Text
-redisConnName = case getEnv of
-  DEV   -> Text.pack devRedisConnName
-  UAT   -> Text.pack uatRedisConnName
-  INTEG -> Text.pack integRedisConnName
-  PROD  -> Text.pack prodRedisConnName
-
-
-redisClusterConnName :: Text
-redisClusterConnName = case getEnv of
-  DEV   -> Text.pack devRedisClusterConnName
-  UAT   -> Text.pack uatRedisClusterConnName
-  INTEG -> Text.pack integRedisClusterConnName
-  PROD  -> Text.pack productionRedisClusterConnName
-
-
 kvdbConfig :: KVDBConfig
-kvdbConfig = mkKVDBConfig redisConnName redisConfig
+kvdbConfig = mkKVDBConfig Constants.ecRedis redisConfig
 
 
 kvdbClusterConfig :: KVDBConfig
-kvdbClusterConfig = mkKVDBClusterConfig redisClusterConnName redisClusterConfig
+kvdbClusterConfig = mkKVDBClusterConfig Constants.kvRedis redisClusterConfig
+
 
 gatewaySchemeUrl :: String
 gatewaySchemeUrl = case getEnv of

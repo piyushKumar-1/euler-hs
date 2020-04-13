@@ -84,7 +84,7 @@ orderStatus rps (RP.OrderId orderId) merchantAccount  = do
 
 
 -- | Top-level flow to run OrderStatusRequest
-orderStatusRequest :: D.OrderStatusRequest-> Flow AO.OrderStatusResponse
+orderStatusRequest :: D.OrderStatusRequest -> Flow AO.OrderStatusResponse
 orderStatusRequest req@D.OrderStatusRequest{..} = do
     mbCached <- fastPath
     result <- case mbCached of

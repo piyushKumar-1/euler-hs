@@ -66,8 +66,9 @@ withMethodPlayer methodF MethodRecording{..} PlayerParams{..} = do
       options    <- newMVar mempty -- initStartupOptions
       stepVar    <- newMVar 0
       errorMVar <- newMVar Nothing
+      safeFlowMVar <- newMVar mempty
       forkedFlowErrorsVar <- newMVar mempty
-      let rerrorVar = ReplayErrors errorMVar forkedFlowErrorsVar
+      let rerrorVar = ReplayErrors errorMVar safeFlowMVar forkedFlowErrorsVar
       let MethodConfigs{..} = mrMethodConfigs
       let playerRt = PlayerRuntime
             { resRecording         = mrEntries -- :: ResultRecording

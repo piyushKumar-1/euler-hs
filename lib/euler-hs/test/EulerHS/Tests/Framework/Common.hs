@@ -25,6 +25,8 @@ runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b
 runFlowWithArt flow = do
   (recording, recResult) <- runFlowRecording ($) flow
   (errors   , repResult) <- runFlowReplaying recording flow
+  -- print $ encode $ recording
+  -- putStrLn $ encodePretty $ recording
   flattenErrors errors `shouldBe` []
   recResult `shouldBe` repResult
   pure recResult
@@ -83,11 +85,12 @@ initRegularRT = do
 initRecorderRT :: IO FlowRuntime
 initRecorderRT = do
   recMVar       <- newMVar V.empty
+  safeRecMVar   <- newMVar Map.empty
   forkedRecMVar <- newMVar Map.empty
   let
     recorderRuntime = T.RecorderRuntime
       { flowGUID = "testFlow"
-      , recording = T.Recording recMVar forkedRecMVar
+      , recording = T.Recording recMVar safeRecMVar forkedRecMVar
       , disableEntries = []
       }
   flowRuntime <- withFlowRuntime Nothing pure
@@ -97,7 +100,7 @@ initRecorderRT = do
 initPlayerRT :: ResultRecording -> IO FlowRuntime
 initPlayerRT recEntries = do
   step              <- newMVar 0
-  freshReplayErrors <- T.ReplayErrors <$> newMVar Nothing <*> newMVar Map.empty
+  freshReplayErrors <- T.ReplayErrors <$> newMVar Nothing <*> newMVar Map.empty <*> newMVar Map.empty
 
   let
     playerRuntime = T.PlayerRuntime
@@ -124,7 +127,7 @@ replayRecording rec flow = do
 runWithRedisConn :: ConnectInfo -> a -> Flow b -> IO b
 runWithRedisConn connectInfo _ flow = do
     (recording, recResult) <- runFlowRecording withInitRedis flow
-    -- print $ encode $ recording
+    print $ encode $ recording
     -- putStrLn $ encodePretty $ recording
     pure recResult
   where

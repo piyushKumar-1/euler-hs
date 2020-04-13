@@ -276,8 +276,8 @@ data AwaitEntry = AwaitEntry
   , jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
-mkAwaitEntry :: (FromJSON v, ToJSON v) => Maybe T.Microseconds -> Maybe v -> AwaitEntry
-mkAwaitEntry mbMcs mv = AwaitEntry (unwrapMcs <$> mbMcs) (toJSON mv)
+mkAwaitEntry :: (FromJSON v, ToJSON v) => Maybe T.Microseconds -> Either T.AwaitingError v -> AwaitEntry
+mkAwaitEntry mbMcs val = AwaitEntry (unwrapMcs <$> mbMcs) (toJSON val)
   where
     unwrapMcs (T.Microseconds mcs) = fromIntegral mcs
 
@@ -286,3 +286,19 @@ instance RRItem AwaitEntry  where
 
 instance FromJSON v => MockedResult AwaitEntry v where
   getMock (AwaitEntry _ jsonValue) = T.fromJSONMaybe jsonValue
+
+-------------------------------------------------------------------------------------
+
+data RunSafeFlowEntry = RunSafeFlowEntry
+  { guid :: Text
+  , jsonResult :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkRunSafeFlowEntry :: (FromJSON v, ToJSON v) => Text -> Either Text v -> RunSafeFlowEntry
+mkRunSafeFlowEntry guid val = RunSafeFlowEntry guid (toJSON val)
+
+instance RRItem RunSafeFlowEntry  where
+  getTag _ = "RunSafeFlowEntry"
+
+instance (FromJSON v) => MockedResult RunSafeFlowEntry v where
+  getMock (RunSafeFlowEntry _ jsonValue) = T.fromJSONMaybe jsonValue

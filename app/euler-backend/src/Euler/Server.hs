@@ -153,8 +153,9 @@ runFlow flowTag rps req flow = do
     Nothing -> pure T.RegularMode
     Just PB.RecorderParams{..} -> do
       recordingMVar <- newMVar mempty
+      safeRecordingsVar <- newMVar mempty
       forkedRecordingsVar <- newMVar mempty
-      let recording = T.Recording recordingMVar forkedRecordingsVar
+      let recording = T.Recording recordingMVar safeRecordingsVar forkedRecordingsVar
       pure $ T.RecordingMode $ T.RecorderRuntime flowTag recording disableEntries
   let newRt = envFlowRt{ R._runMode = runningMode}
   let mc = PB.MethodConfigs

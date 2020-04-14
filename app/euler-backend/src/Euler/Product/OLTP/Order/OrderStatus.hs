@@ -16,11 +16,12 @@ module Euler.Product.OLTP.Order.OrderStatus
 
 import           EulerHS.Prelude hiding (First, Last, getFirst, getLast, id)
 import qualified EulerHS.Prelude as P (id)
+import           EulerHS.Types
 
 import           EulerHS.Language
 
 import           Control.Comonad (extract)
-import           Control.Monad.Except
+-- import           Control.Monad.Except
 import           Data.Aeson
 import qualified Data.Aeson              as A
 import qualified Data.ByteString.Base64  as B64
@@ -132,50 +133,72 @@ execOrderStatus request = do
   let udf2 = (order ^. _udf) ^. _udf2
   let orderReturnUrl = order ^. _returnUrl
 
-  links <- getPaymentLinks resellerId orderUuid
-
-  mPromotionActive <- getPromotion orderPId orderId
-  mMandate <- getMandate orderPId merchantId orderType
+  awaitLinks <- forkFlow' "getPaymentLinks" $ getPaymentLinks resellerId orderUuid
+  awaitPromotionActive <- forkFlow' "getPromotion" $ getPromotion orderPId orderId
+  awaitMandate <- forkFlow' "getMandate" $ getMandate orderPId merchantId orderType
+  awaitReturnUrl <- forkFlow' "getReturnUrl" $ getReturnUrl reqMerchantId merchantReturnUrl orderReturnUrl
 
   mTxnDetail1 <- loadTxnDetail orderId merchantId orderUuid
   mTxnDetail2 <- getLastTxn orderId merchantId
   let mTxn = (mTxnDetail1 <|> mTxnDetail2)
 
-  gatewayRefId <- case mTxn of
+  mTxnCard <- case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> loadTxnCardInfo (D.txnDetailPId $ txn ^. _id)
+
+  awaitGatewayRefId <- forkFlow' "getGatewayReferenceId" $ case mTxn of
     Nothing  -> getGatewayReferenceId Nothing orderPId udf2 merchantId
     Just txn -> getGatewayReferenceId (txn ^. _gateway) orderPId udf2 merchantId
 
-  (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr) <- case mTxn of
-    Nothing -> pure (Nothing, Nothing, Nothing, Nothing, Nothing)
-    Just txn -> do
-      let txnDetailPId = D.txnDetailPId $ txn ^. _id
-      mRisk <- getRisk txnDetailPId
-      mTxnCard <- loadTxnCardInfo txnDetailPId
-      mRefunds <- maybeList <$> loadRefunds txnDetailPId
-      mChargeback <- maybeList <$> findChargebacks txnDetailPId
-      mMerchantPgr <- getMerchantPGR txn sendFullGatewayResponse
-      pure (mRisk, mTxnCard, mRefunds, mChargeback, mMerchantPgr)
+  awaitRisk <- forkFlow' "getRisk" $ case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> getRisk $ D.txnDetailPId $ txn ^. _id
 
-  mCardBrand <- case mTxnCard of
+  awaitRefunds <- forkFlow' "loadRefunds" $ case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> maybeList <$> (loadRefunds $ D.txnDetailPId $ txn ^. _id)
+
+  awaitChargeback <- forkFlow' "findChargebacks" $ case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> maybeList <$> findChargebacks (D.txnDetailPId $ txn ^. _id)
+
+  awaitMerchantPgr <- forkFlow' "getMerchantPGR" $ case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> getMerchantPGR txn sendFullGatewayResponse
+
+  awaitCardBrand <- forkFlow' "getEmiPaymentMethod" $ case mTxnCard of
     Nothing                      -> pure Nothing
     Just (card :: D.TxnCardInfo) -> do
       let cardIsin = card ^. _cardIsin
       cardBrand <- getCardBrandFromIsin cardIsin
       pure $ getEmiPaymentMethod cardIsin cardBrand
 
-  mReturnUrl <- getReturnUrl reqMerchantId merchantReturnUrl orderReturnUrl
+  awaitPaymentMethodsAndTypes <- forkFlow' "getPaymentMethodAndType" $
+    case (mTxn, mTxnCard) of
+      (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
+      _                        -> pure (Nothing, Nothing, Nothing, Nothing)
 
-  paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
-    (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
-    _                        -> pure (Nothing, Nothing, Nothing, Nothing)
+  awaitTxnFlowInfoAndMerchantSFR <- forkFlow' "getTxnFlowInfoAndMerchantSFR" $
+    case (mTxn, mTxnCard) of
+      (Just txn, Just txnCard) -> do
+        let txnDetail_id = D.txnDetailPId $ txn ^. _id
+        getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
+      _ -> pure (Nothing, Nothing)
 
-  txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
-    (Just txn, Just txnCard) -> do
-      let txnDetail_id = D.txnDetailPId $ txn ^. _id
-      getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
-    _ -> pure (Nothing, Nothing)
+  links <- fromAwait request $ await Nothing awaitLinks
+  mPromotionActive <- fromAwait request $ await Nothing awaitPromotionActive
+  mMandate <- fromAwait request $ await Nothing awaitMandate
+  mReturnUrl <- fromAwait request $ await Nothing awaitReturnUrl
+  gatewayRefId <- fromAwait request $ await Nothing awaitGatewayRefId
+  mRisk <- fromAwait request $ await Nothing awaitRisk
+  mRefunds <- fromAwait request $ await Nothing awaitRefunds
+  mChargeback <- fromAwait request $ await Nothing awaitChargeback
+  mMerchantPgr <- fromAwait request $ await Nothing awaitMerchantPgr
+  mCardBrand <- fromAwait request $ await Nothing awaitCardBrand
+  paymentMethodsAndTypes <- fromAwait request $ await Nothing awaitPaymentMethodsAndTypes
+  txnFlowInfoAndMerchantSFR <- fromAwait request $ await Nothing awaitTxnFlowInfoAndMerchantSFR
 
-  let res = runExcept $ makeOrderStatusResponse
+  pure $ mkOrderStatusResponse $ makeOrderStatusResponse
         order
         links
         mPromotionActive
@@ -192,14 +215,6 @@ execOrderStatus request = do
         paymentMethodsAndTypes
         txnFlowInfoAndMerchantSFR
         mMerchantPgr
-  case res of
-    Right res' -> pure $ mkOrderStatusResponse res'
-    Left  e    -> do
-      logErrorT "execOrderStatus"
-        $  "errors while executing request: " <> show request
-        <> ", errors: " <> show e
-      throwException Errs.internalError
-
 
 makeOrderStatusResponse
   :: D.Order
@@ -218,7 +233,7 @@ makeOrderStatusResponse
   -> (Maybe Text, Maybe M.PaymentMethodType, Maybe Text, Maybe Text)
   -> (Maybe D.TxnFlowInfo, Maybe D.SecondFactorResponse)
   -> Maybe D.MerchantPaymentGatewayResponse
-  -> Except Text D.OrderStatusResponse
+  -> D.OrderStatusResponse
 makeOrderStatusResponse
   order
   paymentLinks
@@ -239,7 +254,7 @@ makeOrderStatusResponse
   =
 
 -- <== is equal to =>> and used for quick visual understanding
-  pure $ extract $ buildOrderStatusResponse
+  extract $ buildOrderStatusResponse
 
     -- finish
     <== changeMerchantPGR mMerchantPgr
@@ -953,3 +968,14 @@ txnStatusToInt CAPTURE_FAILED = 34
 txnStatusToInt VOID_FAILED = 35
 -- txnStatusToInt NEW = 10
 -- txnStatusToInt _ = -1
+
+fromAwait :: D.OrderStatusRequest -> Flow (Either AwaitingError a) -> Flow a
+fromAwait request resultAwait = do
+  result <- resultAwait
+  case result of
+    Right res -> pure res
+    Left err -> do
+        logErrorT "execOrderStatus"
+          $  "errors while executing request: " <> show request
+          <> ", errors: " <> show err
+        throwException Errs.internalError

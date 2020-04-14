@@ -1,3 +1,4 @@
+-- EHS: remove
 module Euler.Services.Version.OrderStatusResponse
   ( OrderStatusService(..)
   , mkOrderStatusService

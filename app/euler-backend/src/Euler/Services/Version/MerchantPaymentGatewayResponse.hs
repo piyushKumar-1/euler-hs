@@ -1,3 +1,4 @@
+-- EHS: remove
 module Euler.Services.Version.MerchantPaymentGatewayResponse
   ( MerchantPGRService(..)
   , mkMerchantPGRService

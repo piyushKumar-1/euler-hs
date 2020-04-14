@@ -16,7 +16,6 @@ import           Euler.Storage.DBConfig
 import qualified Euler.Storage.Types.TxnDetail as TDB
 import qualified Euler.Storage.Types as DB
 
-import qualified Data.Text as T
 import           Database.Beam ((&&.), (==.))
 import qualified Database.Beam as B
 

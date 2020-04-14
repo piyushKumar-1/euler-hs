@@ -13,7 +13,6 @@ import qualified Euler.Product.Domain as D
 
 import qualified Euler.Storage.Types as DB
 
-import qualified Data.Text as T
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
 

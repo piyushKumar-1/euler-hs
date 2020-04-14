@@ -7,13 +7,12 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Validators (amountValidators, textNotEmpty, notNegative)
+import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain.TxnRiskCheck as D
 
 import qualified Euler.Storage.Types as DB
 
-import qualified Data.Text as T
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
 

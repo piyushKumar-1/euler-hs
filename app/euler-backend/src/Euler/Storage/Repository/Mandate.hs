@@ -4,7 +4,6 @@ import           EulerHS.Prelude hiding (id)
 
 import qualified Prelude as P (show)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 

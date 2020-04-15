@@ -23,7 +23,7 @@ extra-deps:
 - amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698,5135
 - amazonka-kms-1.6.1@sha256:5462f18f64f2a4cc9d0f4e21d01ce1767b822b066158093b15e7063ff94b19ce,4307
 - git:  git@bitbucket.org:juspay/euler-db.git
-  commit: 9df750f2ff0c00371e33281c1b985b1174649d77
+  commit: 2689ca79a3b433ced0ce75e42764da19b8d46f9c
   subdirs:
     - lib/euler-backend-storage
 

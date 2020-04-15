@@ -87,35 +87,34 @@ tokenExpiry = do
 -- former getMerchantAccountForAuthToken from OrderStatus
 tokenMerchant :: ClientAuthTokenData -> Flow (Maybe DM.MerchantAccount)
 tokenMerchant ClientAuthTokenData {..} = do
-  case (readMay resourceType) of
-    Just t -> do
-      case t of
-        ORDER -> do
-          --case (readId resourceId) of
-          case (readMay @Int resourceId) of
-            Just id -> do
-              mbOrder <- Rep.loadOrderById id
-              case mbOrder of
-                Just order -> do
-                  Rep.loadMerchantById $ read $ T.unpack $ order ^. _merchantId
-                Nothing -> do
-                  logError' $ "order with id: " <> resourceId <> " cannot be loaded"
-                  pure Nothing
-            Nothing -> do
-              logError' $ "malformed resource id: " <> resourceId
-              pure Nothing
-        CUSTOMER -> do
-          mbCustomer <- Rep.findCustomerById resourceId
-          case mbCustomer of
-            Just customer -> do
-              let cId = customer ^. _customerMerchantAccountId
-              Rep.loadMerchantById cId
-            Nothing -> do
-              logError' $ "customer with id: " <> resourceId <> " cannot be loaded"
-              pure Nothing
-    Nothing -> do
-        logError' $ "unknown resource type: " <> resourceType
-        pure Nothing
+  case (readMay resourceType, readMay @Int resourceId) of
+
+    (Nothing, _) -> do
+      logError' $ "unknown resource type: " <> resourceType
+      pure Nothing
+
+    (Just ORDER, Just id) -> do
+      mbOrder <- Rep.loadOrderById id
+      case mbOrder of
+        Just order -> do
+          Rep.loadMerchantById $ read $ T.unpack $ order ^. _merchantId
+        Nothing -> do
+          logError' $ "order with id: " <> resourceId <> " cannot be loaded"
+          pure Nothing
+
+    (Just ORDER, Nothing) -> do
+      logError' $ "malformed resource id: " <> resourceId
+      pure Nothing
+
+    (Just CUSTOMER, _) -> do
+      mbCustomer <- Rep.findCustomerById resourceId
+      case mbCustomer of
+        Just customer -> do
+          let cId = customer ^. _customerMerchantAccountId
+          Rep.loadMerchantById cId
+        Nothing -> do
+          logError' $ "customer with id: " <> resourceId <> " cannot be loaded"
+          pure Nothing
 
 -- | Alias for token representation in a request's header
 type AuthToken = Text

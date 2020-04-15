@@ -30,6 +30,7 @@ import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
+import qualified Euler.Product.OLTP.Order.Update        as OrderUpdate
 import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
 
 import           WebService.ContentType
@@ -68,10 +69,10 @@ type EulerAPI
 --      :> Post '[JSON] ApiOrder.OrderCreateResponse
 
 -- Order update
-  :<|> "orders"
-      :> Capture "orderId" Text
-      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
-      :> Post '[JSON] ApiOrder.OrderStatusResponse
+  :<|> "orders" :> OrderUpdateEndpoint
+     -- :> Capture "orderId" Text
+     -- :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
+     -- :> Post '[JSON] ApiOrder.OrderStatusResponse
 
 -- Other APIS
 -- payment status endpoint (flexible casing showcase)
@@ -329,15 +330,50 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
   runFlow "orderCreate" rps (toJSON ordReq)
           $ Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate rps ordReq -- validatedOrder
 
-orderUpdate :: Text -> ApiOrder.OrderUpdateRequest -> FlowHandler ApiOrder.OrderStatusResponse
-orderUpdate orderId ordReq = do
-  res <- do
-    error "OrderUpdate not implemented"
-    -- r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdateLegacy.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
-    -- end <- liftIO getCurrentTime
-    -- liftIO $ print $ diffUTCTime end start
-    -- pure r
-  pure res
+
+type OrderUpdateEndpoint =
+  -- URL parameters
+      Capture "orderId" OrderId
+  --  Headers
+  :>  Header "Authorization" Authorization
+  :>  Header "Version" Version
+  :>  Header "User-Agent" UserAgent
+  :>  Header "X-Auth-Scope" XAuthScope
+  :>  Header "X-Forwarded-For" XForwardedFor
+  --  Remote host
+  :>  RemoteHost
+  --  POST Body
+  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
+  --  Response
+  :>  Post '[JSON] ApiOrder.OrderStatusResponse
+
+orderUpdate
+-- URL parameters
+   ::  OrderId
+  -- Headers
+  -> Maybe Authorization
+  -> Maybe Version
+  -> Maybe UserAgent
+  -> Maybe XAuthScope
+  -> Maybe XForwardedFor
+  -- Remote IP
+  -> SockAddr
+  -- Request
+  -> ApiOrder.OrderUpdateRequest
+  -- Response
+  ->  FlowHandler ApiOrder.OrderStatusResponse
+orderUpdate orderId auth version uagent xauthscope xforwarderfor sockAddr req = do
+  let rps = collectRPs
+             auth
+             version
+             uagent
+             xauthscope
+             xforwarderfor
+             (sockAddrToSourceIP sockAddr)
+             orderId
+  runFlow "orderUpdate" rps (toJSON req) $ Auth.withAuth Auth.mkKeyAuthService OrderUpdate.runOrderUpdate rps req
+
+
 
 paymentStatus
   :: Maybe String -- ^ orderId

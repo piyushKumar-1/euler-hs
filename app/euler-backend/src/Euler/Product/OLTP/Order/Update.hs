@@ -79,7 +79,7 @@ orderUpdate
         callOrderStatus orderId' merchantId'
       Nothing -> throwException $ Errs.orderDoesNotExist orderId'
     logInfo @String "order update response: " $ show resp
-    pure API.defaultOrderStatusResponse --resp
+    pure resp
   where
     callOrderStatus orderId merchantId = do
       -- EHS: provide a "default" template for query?

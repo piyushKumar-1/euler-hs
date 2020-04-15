@@ -29,7 +29,7 @@ spec :: Spec
 spec =
     describe "makeOrderStatusResponse" $ do
       it "Success with txnDetailJust, txnCardInfoJust, promotionJust" $ \rt -> do
-        let statusResp = runExcept $ makeOrderStatusResponse
+        let statusResp = makeOrderStatusResponse
               order
               paymentlinks
               promotion
@@ -46,10 +46,10 @@ spec =
               (payMethod, payMethodType, payerVpa, payerAppName)
               (txnFlowInfo, secondFactorResponse)
               mMerchantPgr
-        statusResp `shouldBe` Right orderStatusResponse1
+        statusResp `shouldBe` orderStatusResponse1
 
       it "Success with txnDetailNothing, txnCardInfoNothing, promotionJust" $ \rt -> do
-        let statusResp = runExcept $ makeOrderStatusResponse
+        let statusResp =  makeOrderStatusResponse
               order
               paymentlinks
               promotion
@@ -66,10 +66,10 @@ spec =
               (Nothing, Nothing, Nothing, Nothing) -- (payMethod, payMethodType, payerVpa, payerAppName) depends on txnDetail
               (Nothing, Nothing) -- (txnFlowInfo, secondFactorResponse) depends on txnDetail
               Nothing -- mMerchantPgr depends on txnDetail
-        statusResp `shouldBe` Right orderStatusResponse2
+        statusResp `shouldBe` orderStatusResponse2
 
       it "Success with txnDetailJust, txnCardInfoJust, promotionNothing" $ \rt -> do
-        let statusResp = runExcept $ makeOrderStatusResponse
+        let statusResp = makeOrderStatusResponse
               order
               paymentlinks
               Nothing -- promotion
@@ -86,7 +86,7 @@ spec =
               (payMethod, payMethodType, payerVpa, payerAppName)
               (txnFlowInfo, secondFactorResponse)
               mMerchantPgr
-        statusResp `shouldBe` Right orderStatusResponse3
+        statusResp `shouldBe` orderStatusResponse3
 
 mMerchantPgr :: Maybe D.MerchantPaymentGatewayResponse
 mMerchantPgr = Just $ D.MerchantPaymentGatewayResponse

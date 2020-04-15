@@ -39,7 +39,7 @@ data Order = Order
   , description       :: Maybe Text
   , returnUrl         :: Maybe Text
 
-  , amountRefunded    :: Maybe Money
+  , amountRefunded    :: Money                -- ^ refunded amount, 0 is default value meaning no refund has been done
   , refundedEntirely  :: Bool
   , autoRefund        :: Bool
 

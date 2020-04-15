@@ -345,8 +345,8 @@ changeRefunded refunded builder = builder $ mempty {refundedT = Just $ Last refu
 changePaymentLinks :: D.Paymentlinks -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changePaymentLinks paymentLinks builder = builder $ mempty {payment_linksT = Just $ Last paymentLinks}
 
-changeAmountRefunded :: Maybe C.Money -> OrderStatusResponseBuilder -> D.OrderStatusResponse
-changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = fmap Last amountRefunded}
+changeAmountRefunded :: C.Money -> OrderStatusResponseBuilder -> D.OrderStatusResponse
+changeAmountRefunded amountRefunded builder = builder $ mempty {amount_refundedT = Last <$> Just amountRefunded}
 
 changeDateCreated :: LocalTime -> OrderStatusResponseBuilder -> D.OrderStatusResponse
 changeDateCreated dateCreated builder = builder $ mempty {date_createdT = Just $ Last dateCreated}

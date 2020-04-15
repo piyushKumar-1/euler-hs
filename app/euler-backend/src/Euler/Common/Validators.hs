@@ -22,6 +22,15 @@ import qualified Euler.Product.Domain.Card as DC
 toInt :: Transformer Text Int
 toInt = V.decode
 
+-- | Non-negative amount validator, use it when checking amounts other than order amount.
+notNegativeAmount :: Validator Double
+notNegativeAmount =
+  parValidate
+    [ max2DecimalDigits
+    , notNegativeF
+    ]
+
+-- | Order amount validator
 amountValidators :: Validator Double
 amountValidators =
   parValidate
@@ -34,6 +43,9 @@ notBlank = mkValidator "Can't be blank" (not . T.null . T.strip)
 
 notNegative :: Validator Int
 notNegative = mkValidator "Should not be negative." (>= 0)
+
+notNegativeF :: Validator Double
+notNegativeF = mkValidator "Should not be negative." (>= 0.0)
 
 textNotEmpty :: Validator Text
 textNotEmpty = mkValidator "Can't be empty" (not . T.null)

@@ -6,6 +6,7 @@ module Euler.Storage.Repository.MerchantIframePreferences
 import EulerHS.Prelude
 
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Storage.DBConfig
 

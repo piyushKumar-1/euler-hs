@@ -23,8 +23,7 @@ spec =
           eConn2 <- L.initKVDBConnection redisCfg
           case (eConn1, eConn2) of
             (Left err, _) -> pure $ Left $ "Failed to connect 1st time: " <> show err
-            (_, Left (T.ExceptionMessage msg))
-              | msg == "Connection for eulerKVDB already created." -> pure $ Right ()
+            (_, Left (T.KVDBError T.KVDBConnectionAlreadyExists msg)) -> pure $ Right ()
             (_, Left err) -> pure $ Left $ "Unexpected error type on 2nd connect: " <> show err
         eRes `shouldBe` Right ()
 
@@ -32,8 +31,7 @@ spec =
         eRes <- runFlow rt $ do
           eConn <- L.getKVDBConnection redisCfg
           case eConn of
-            Left (T.ExceptionMessage msg)
-              | msg == "Connection for eulerKVDB does not exists." -> pure $ Right ()
+            Left (T.KVDBError T.KVDBConnectionDoesNotExist msg) -> pure $ Right ()
             Left err -> pure $ Left $ "Unexpected error: " <> show err
             Right _ -> pure $ Left "Unexpected connection success"
         eRes `shouldBe` Right ()

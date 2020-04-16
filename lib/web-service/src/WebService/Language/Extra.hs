@@ -1,10 +1,14 @@
+{-# LANGUAGE TypeApplications #-}
+
 module WebService.Language.Extra
   ( throwOnFailedWithLog
   , getCurrentTimeUTC
   , getCurrentDateInSeconds
   , getCurrentDateInMillis
   , getCurrentDateStringWithSecOffset
+  , insertRow
   , unsafeInsertRow
+  , withDB
   ) where
 
 import EulerHS.Prelude
@@ -18,6 +22,34 @@ import qualified EulerHS.Types         as T
 import qualified EulerHS.Language      as L
 import qualified Database.Beam         as B
 import qualified WebService.Types      as WST
+import           Servant               (err500)
+
+
+-- | Creates a connection and runs a DB query.
+-- Acts like 'getSqlDBConnection' + 'runDB'.
+-- Throws err500 exception on connection or runDB failure.
+-- Writes an error into the log.
+withDB ::
+  ( T.JSONEx a
+  , T.BeamRunner beM
+  , T.BeamRuntime be beM
+  )
+  => T.DBConfig beM
+  -> L.SqlDB beM a
+  -> L.Flow a
+withDB dbConf act = do
+  mConn <- L.getSqlDBConnection dbConf
+  conn <- case mConn of
+    Right c -> pure c
+    Left err -> do
+      L.logError @Text "SqlDB connect" $ show err
+      L.throwException err500
+  res <- L.runDB conn act
+  case res of
+    Left dbError -> do
+     L.logError @Text "SqlDB interraction" $ show dbError
+     L.throwException err500
+    Right r -> pure r
 
 
 throwOnFailedWithLog :: Show e => Either e a -> (Text -> WST.AppException) -> Text -> L.Flow ()
@@ -46,6 +78,23 @@ getCurrentDateStringWithSecOffset :: Int -> L.Flow Text
 getCurrentDateStringWithSecOffset secs = do
   L.runIO' "getCurrentDateStringWithSecOffset" $ (Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" . addUTCTime (realToFrac secs)) <$> getCurrentTime
 
+-- | Inserts some rows but returns the first result dropping others.
+-- Use this function with care.
+insertRow
+  :: ( B.Beamable table
+     , B.FromBackendRow be (table Identity)
+     , T.BeamRuntime be beM
+     , T.BeamRunner beM
+     , T.JSONEx (table Identity)
+     )
+  => T.DBConfig beM
+  -> B.SqlInsert be table
+  -> L.Flow (Either Text (table Identity))
+insertRow db insertStmt = do
+  results <- withDB db $ L.insertRowsReturningList insertStmt
+  pure $ case results of
+    []    -> Left "Unexpected empty result."
+    (x:_) -> Right x
 
 -- | Unsafe function that logs an error and throws a servant error.
 unsafeInsertRow
@@ -61,7 +110,7 @@ unsafeInsertRow
   -> B.SqlInsert be table
   -> L.Flow (table Identity)
 unsafeInsertRow exception db insertStmt = do
-  eRes <- L.insertRow db insertStmt
+  eRes <- insertRow db insertStmt
   case eRes of
     Left err -> do
       L.logError ("unsafeInsertRow" :: Text) err

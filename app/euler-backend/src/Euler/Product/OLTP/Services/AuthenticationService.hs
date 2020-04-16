@@ -6,6 +6,7 @@ module Euler.Product.OLTP.Services.AuthenticationService where
 import EulerHS.Prelude hiding (id)
 import Euler.Lens
 import EulerHS.Language
+import WebService.Language
 
 import qualified EulerHS.Extra.Validation as V
 

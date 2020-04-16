@@ -7,6 +7,7 @@ module Euler.Storage.Repository.Customer
 import EulerHS.Prelude hiding(id)
 
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Storage.DBConfig
 

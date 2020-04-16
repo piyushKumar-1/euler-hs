@@ -3,10 +3,10 @@
 module Euler.Storage.Repository.Promotion where
 
 import           EulerHS.Prelude hiding (Key, id)
-import           EulerHS.Prelude as P
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
@@ -33,7 +33,7 @@ loadPromotions orderPId = do
   case traverse transformPromotions proms of
     Success pr -> pure pr
     Failure e -> do
-      logError "Incorrect Promotion(s) in DB"
+      logErrorT "Incorrect Promotion(s) in DB"
         $  "orderPId: " <> show orderPId
         <> " error: " <> show e
       throwException internalError

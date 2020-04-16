@@ -4,15 +4,12 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import qualified Euler.Common.Types as C
-
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Validators (amountValidators, isGateway, notNegative, textNotEmpty)
-
 import qualified Euler.Product.Domain as D
-
-import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types.TxnDetail as TDB
 import qualified Euler.Storage.Types as DB
@@ -41,7 +38,7 @@ loadTxnDetail orderId' merchantId' txnUuid' = do
   case traverse transformTxnDetail td of
     Success td' -> pure td'
     Failure e -> do
-      logError "Incorrect txnDetail(s) in DB"
+      logErrorT "Incorrect txnDetail(s) in DB"
         $  "orderId: " <> orderId'
         <>  " merchantId: " <> merchantId'
         <>  " txnUuid: " <> txnUuid'
@@ -63,7 +60,7 @@ loadTxnDetails orderId' merchantId' = do
   case traverse transformTxnDetail td of
     Success td' -> pure td'
     Failure e -> do
-      logError "Incorrect txnDetail(s) in DB"
+      logErrorT "Incorrect txnDetail(s) in DB"
         $  "orderId: " <> orderId'
         <>  " merchantId: " <> merchantId'
         <> " error: " <> show e

@@ -15,7 +15,7 @@ import qualified Prelude  as P (show)
 
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
-import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
+import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest)
 import qualified Euler.API.Validators.Order as VO
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
@@ -53,7 +53,7 @@ runOrderUpdate routeParams req mAcc = do
   --let service = VSrv.mkOrderStatusService version
   case VO.apiOrderUpdToOrderUpdT req of
     V.Failure err -> do
-      logError @String "OrderUpdateRequest validation" $ show err
+      logErrorT "OrderUpdateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
     V.Success validatedOrder -> orderUpdate routeParams validatedOrder mAcc
 
@@ -78,7 +78,7 @@ orderUpdate
         doOrderUpdate orderUpdateT order' mAccnt
         callOrderStatus orderId' merchantId'
       Nothing -> throwException $ Errs.orderDoesNotExist orderId'
-    logInfo @String "order update response: " $ show resp
+    logInfoT "order update response: " $ show resp
     pure resp
   where
     callOrderStatus orderId merchantId = do

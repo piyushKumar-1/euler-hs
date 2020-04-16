@@ -7,18 +7,15 @@ module Euler.Config.ServiceConfiguration where
 import EulerHS.Prelude
 
 import EulerHS.Language
-import WebService.Language
-
-import Euler.Lens
 
 import qualified Data.Aeson            as A
 import qualified Data.Text.Encoding   as T
 import qualified Data.ByteString.Lazy as BSL
 
+import Euler.Lens
 import Euler.Storage.Types.EulerDB
 import Euler.Storage.Repository.EulerDB
 import Euler.Storage.Types.ServiceConfiguration
-
 
 --import qualified Data.Map                  as Map
 import qualified Database.Beam             as B

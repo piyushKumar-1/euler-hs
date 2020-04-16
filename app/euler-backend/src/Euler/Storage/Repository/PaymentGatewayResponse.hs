@@ -4,8 +4,6 @@ module Euler.Storage.Repository.PaymentGatewayResponse
 
 import           EulerHS.Prelude hiding (id)
 
-import qualified Prelude as P (show)
-
 import           EulerHS.Language
 
 import           Euler.Storage.Repository.EulerDB

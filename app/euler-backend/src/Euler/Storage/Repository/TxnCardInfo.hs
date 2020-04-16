@@ -4,6 +4,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Validators (textNotEmpty, notNegative)
@@ -27,7 +28,7 @@ loadTxnCardInfo txnId = do
   case (traverse transformTxnCardInfo cardInfo) of
     Success card -> pure card
     Failure e -> do
-      logError "Incorrect TxnCardInfo in DB"
+      logErrorT "Incorrect TxnCardInfo in DB"
         $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
 

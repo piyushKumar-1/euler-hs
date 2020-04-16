@@ -56,7 +56,7 @@ transform mbMerchantAccount = do
       case SV.transSMaccToDomMacc merchantAccount of
         V.Success res -> pure $ Just res
         V.Failure e     -> do
-          logError "Incorrect merchant account in DB"
+          logErrorT "Incorrect merchant account in DB"
             $  " id: " <> (maybe "no data" show $ merchantAccount ^. _id) <> ", errors: " <> show e
           throwException Errs.internalError
 

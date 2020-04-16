@@ -67,7 +67,7 @@ findCustomerById cId = do
   case (traverse validator mbCustomer) of
     Success v -> pure v
     Failure e -> do
-      logError @Text "findById"
+      logErrorT "findById"
         $ "Incorrect Customer in DB, id: " <> show cId <> " error: " <> show e
       throwException internalError
 

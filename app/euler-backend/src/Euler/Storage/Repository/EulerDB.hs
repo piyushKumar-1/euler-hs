@@ -32,7 +32,7 @@ unsafeInsertRowEulerDB ex insertStmt = do
   case dbcfg of
     Just cfg -> unsafeInsertRow ex cfg insertStmt
     Nothing -> do
-      logError @String "MissingDB identifier" "Can't find EulerDB identifier in options"
+      logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
       throwException Errs.internalError
 
 withEulerDB :: JSONEx a => SqlDB BM.MySQLM a -> Flow a
@@ -41,5 +41,5 @@ withEulerDB act = do
   case dbcfg of
     Just cfg -> withDB cfg act
     Nothing -> do
-      logError @String "MissingDB identifier" "Can't find EulerDB identifier in options"
+      logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
       throwException Errs.internalError

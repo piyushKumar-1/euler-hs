@@ -2,20 +2,20 @@ module App where
 
 import EulerHS.Prelude
 
-import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defaultSettings)
-import           Data.Time.Clock (NominalDiffTime)
-
-import qualified Euler.Config.Config as Config
-import qualified Euler.Storage.DBConfig as DBC
-import qualified Euler.Options.Options as Opt
-import qualified Euler.Server as Euler
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Interpreters as R
 import qualified EulerHS.Language as L
 import qualified EulerHS.Types as T
-import qualified Euler.Playback.Service as PB
 import qualified WebService.Language as L
 import qualified WebService.Types as T
+
+import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defaultSettings)
+
+import qualified Euler.Config.Config as Config
+import qualified Euler.Options.Options as Opt
+import qualified Euler.Server as Euler
+import qualified Euler.Playback.Service as PB
+
 
 
 eulerApiPort :: Int

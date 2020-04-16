@@ -10,6 +10,7 @@ import qualified Prelude as P (id, show)
 
 import qualified EulerHS.Extra.Validation as V
 import           EulerHS.Language as L
+import           WebService.Language
 
 import qualified Data.ByteString.Base64 as BH
 import           Data.List (intersect)
@@ -33,7 +34,8 @@ import qualified Euler.Storage.Validators.MerchantAccount as MV
 
 import qualified Database.Beam as B
 import           Database.Beam ((==.), (&&.))
-import           WebService.Language
+
+
 
 newHandle :: X.SHandle
 newHandle = X.SHandle

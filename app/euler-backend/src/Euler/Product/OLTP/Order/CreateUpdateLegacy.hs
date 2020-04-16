@@ -78,7 +78,7 @@ module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 --       Right mordRef -> pure mordRef
 --     --   Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
 --       Left err -> do
---         logError "Find OrderReference" $ toText $ P.show err
+--         logErrorT "Find OrderReference" $ toText $ P.show err
 --         throwException err500 {errBody = "2"}
 --   --pure $ Nothing --findOne "ECRDB" $
 --   --    where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]
@@ -124,7 +124,7 @@ module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 -- updateOrder orderCreateReq order@OrderReference {..} routeParams mAccnt = do
 --   case status of
 --     C.SUCCESS -> do
---       logError "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
+--       logErrorT "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
 --       pure order
 --     _ ->  do
 --       -- update shipping address
@@ -351,10 +351,10 @@ module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 --     case res of
 --       Right (Just mIP) -> pure mIP
 --       Right Nothing -> do
---         logError "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
+--         logErrorT "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
 --         throwException err500 {errBody = "6"}
 --       Left err -> do
---         logError "SQLDB Interraction." $ toText $ P.show err
+--         logErrorT "SQLDB Interraction." $ toText $ P.show err
 --         throwException err500 {errBody = "7"}
 --   --pure defaultMerchantIframePreferences -- findOneWithErr ecDB (where_ := WHERE ["merchantId'" /\ String merchantId]) internalError
 --   billingAddrId <- getBillingAddrId orderCreateReq mAccnt
@@ -625,7 +625,7 @@ module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 --       case res of
 --         Right mCust -> pure mCust
 --         Left err -> do
---           logError "SQLDB Interraction." $ toText $ P.show err
+--           logErrorT "SQLDB Interraction." $ toText $ P.show err
 --           throwException err500 {errBody = "13"}
 --
 --     -- pure Nothing -- findOne ecDB (where_ :=
@@ -745,7 +745,7 @@ module Euler.Product.OLTP.Order.CreateUpdateLegacy where
 --     case res of
 --       Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
 --       Left err -> do
---         logError "Find ResellerAccount" $ toText $ P.show err
+--         logErrorT "Find ResellerAccount" $ toText $ P.show err
 --         throwException err500 {errBody = "14"}
 --   -- pure defaultResellerAccount -- findOneWithErr ecDB (where_ := WHERE ["resellerId" /\ String resellerId]) internalError
 --  -- pure $ resellerApiEndpoint resellerAccount

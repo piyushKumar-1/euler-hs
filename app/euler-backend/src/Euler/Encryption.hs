@@ -33,12 +33,10 @@ module Euler.Encryption
 
 import EulerHS.Prelude hiding (Key, keys)
 import EulerHS.Language
+import WebService.Language
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Config.Config                  as Config
-
-import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Euler.Config.Config as Config
 
 import           Basement.Block (Block (..))
 import           Crypto.Cipher.Types (BlockCipher (..), Cipher (..))
@@ -61,14 +59,10 @@ import qualified Crypto.PubKey.RSA.OAEP as OAEP
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
 import qualified Crypto.PubKey.RSA.PSS as PSS
 import qualified Crypto.Store.X509 as CStore (readPubKeyFile, readPubKeyFileFromMemory)
-import qualified Data.ByteString.Base64 as BH
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as Text (decodeUtf8)
 import qualified Data.X509 as CStore (PrivKey (..), PubKey (..))
 import qualified Data.X509.File as CStore (readKeyFile)
-import qualified Network.AWS.Data as AWS
-import qualified Network.AWS.Types as AWS
-import qualified Control.Monad.Trans.AWS as AWS
 import qualified Network.AWS.KMS.Decrypt as AWS
 import qualified Network.AWS.KMS.Encrypt as AWS
 
@@ -210,10 +204,10 @@ encryptKMS value = do
   case eitherEncValue of
     Right (Just v) -> pure v
     Right Nothing -> do
-      logError @String "encryptKMS" "ersCiphertextBlob returned as Nothing"
+      logErrorT "encryptKMS" "ersCiphertextBlob returned as Nothing"
       throwException Errs.internalError
     Left err -> do
-      logError @String "encryptKMS" err
+      logErrorT "encryptKMS" err
       throwException Errs.internalError
 
 -- | Amazon KMS decryption
@@ -230,8 +224,8 @@ decryptKMS value = do
   case eitherDecValue of
     Right (Just v) -> pure v
     Right Nothing -> do
-      logError @String "decryptKMS" "drsPlaintext returned as Nothing"
+      logErrorT "decryptKMS" "drsPlaintext returned as Nothing"
       throwException Errs.internalError
     Left err -> do
-      logError @String "decryptKMS" err
+      logErrorT "decryptKMS" err
       throwException Errs.internalError

@@ -34,7 +34,7 @@ loadMerchantPrefs merchantId' = do
   case res of
     Just mIPrefs -> pure mIPrefs
     Nothing -> do
-      logError @Text "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
+      logErrorT "merchant_iframe_preferences" $ "Not found for merchant " <> merchantId'
       throwException Errs.internalError    -- EHS: error should be specified.
 
 loadMerchantPrefsMaybe :: C.MerchantId -> Flow (Maybe DB.MerchantIframePreferences)

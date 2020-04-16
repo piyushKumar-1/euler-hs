@@ -53,7 +53,7 @@ orderCreate routeParams req ma = do
   let service       = OVS.mkOrderVersioningService mbVersion mbTokenNeeded
   case VO.transApiOrdCreateToOrdCreateT req of
     V.Failure err -> do
-      logError @String "OrderCreateRequest validation" $ show err
+      logErrorT "OrderCreateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
     V.Success validatedOrder -> orderCreate'' routeParams service validatedOrder ma
 

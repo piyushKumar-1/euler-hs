@@ -66,7 +66,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
   Just apiKeyStr -> do
     case extractApiKey apiKeyStr of
       Left err -> do
-        logError @String "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
+        logErrorT "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
         throwException $ eulerAccessDenied "Invalid API key."
       Right apiKey' -> do
         mk <- do
@@ -97,14 +97,14 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         let eValidMerchant = MV.transSMaccToDomMacc merchantAccount
         case eValidMerchant of
           V.Failure e -> do
-            logError @String "DB MerchantAccount Validation" $ show e
+            logErrorT "DB MerchantAccount Validation" $ show e
             throwException internalError
           V.Success validMAcc -> do
             authScope <- getAuthScope routeParams
             _ <- if authScope == MERCHANT then ipAddressFilters validMAcc (lookupRP @XForwardedFor routeParams) else pure True
             pure validMAcc
   Nothing -> do
-    logError @String "authenticateRequestWithouthErr" "No authorization found in header"
+    logErrorT "authenticateRequestWithouthErr" "No authorization found in header"
     throwException $ eulerAccessDenied "API key not present in Authorization header"
  -- where getApiKeyFromHeader routeParams = do
  --         ((split (Pattern ":") <<< decodeBase64) <$> ((split (Pattern " ") <$> (lookup "Authorization" routeParams)) >>= last))
@@ -171,7 +171,7 @@ getAuthScope routeParams = pure $ case (lookupRP @XAuthScope routeParams) of
 --  case conn of
 --    Right c -> pure c
 --    Left err -> do
---      logError "SqlDB" $ toText $ P.show err
+--      logErrorT "SqlDB" $ toText $ P.show err
 --      throwException err500 {errBody = "getConn"}
 
 
@@ -212,16 +212,16 @@ ipAddressFilters mAcc mForward =  do
   whitelistedIps <- getWhitelistedIps mAcc
   case whitelistedIps of
     Just ips -> do
-      _ <- logInfo @String "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
+      _ <- logInfoT "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
       case (mForward) of
         Just forward -> do
           reqIPs <- pure $ T.strip <$> (filter (not . T.null) $ T.split (==',') forward)
           if (length $ intersect reqIPs ips) > 0
             then do
-              _ <- logInfo @String "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
+              _ <- logInfoT "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
               pure True
             else do
-            _ <- logInfo @String "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
+            _ <- logInfoT "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
             throwException err403 {errBody = "Bad origin."}
         Nothing -> pure True
     Nothing -> pure True

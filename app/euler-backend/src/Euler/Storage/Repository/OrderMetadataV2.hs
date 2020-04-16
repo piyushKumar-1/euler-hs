@@ -6,9 +6,9 @@ module Euler.Storage.Repository.OrderMetadataV2
 
 import EulerHS.Prelude
 
+import           EulerHS.Extra.Validation
 import           EulerHS.Language
 import           WebService.Language
-import           EulerHS.Extra.Validation
 
 import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB
@@ -44,7 +44,7 @@ loadOrderMetadataV2 ordRefId = do
   case traverse transformOrderMetadataV2 meta of
     Success pr -> pure pr
     Failure e -> do
-      logError @Text "Incorrect OrderMetadataV2 in DB"
+      logErrorT "Incorrect OrderMetadataV2 in DB"
         $  "orderReference Id: " <> show ordRefId
         <> " error: " <> show e
       throwException Errs.internalError

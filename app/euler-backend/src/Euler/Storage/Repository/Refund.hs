@@ -2,9 +2,9 @@ module Euler.Storage.Repository.Refund where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Types.Money
@@ -16,7 +16,6 @@ import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types.Refund as RDB
 import qualified Euler.Storage.Types as DB
 
-import qualified Data.Text as T
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
@@ -34,7 +33,7 @@ loadRefunds txnId = do
   case (traverse transformRefund rs) of
     Success rs' -> pure rs'
     Failure e -> do
-      logError "Incorrect refund(s) in DB"
+      logErrorT "Incorrect refund(s) in DB"
         $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
 

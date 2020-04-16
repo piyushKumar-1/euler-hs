@@ -6,6 +6,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Language as L
 import           EulerHS.Types (Message)
+import           WebService.Language
 
 import qualified Data.Generics.Product as DGP
 import qualified Data.Text as T
@@ -20,7 +21,6 @@ import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Product.OLTP.Services.Auth.AuthService as X
 import           Euler.Product.OLTP.Services.TokenService as TS
 import qualified Euler.Storage.Repository as Rep
-import           WebService.Language
 
 
 

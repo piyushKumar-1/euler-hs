@@ -10,7 +10,6 @@ import EulerHS.Prelude hiding (id)
 
 import           EulerHS.Language
 import qualified EulerHS.Extra.Validation as V
-
 import           WebService.Language
 
 

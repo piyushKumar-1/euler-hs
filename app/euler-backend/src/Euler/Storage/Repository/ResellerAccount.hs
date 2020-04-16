@@ -40,7 +40,7 @@ loadReseller (Just resellerId') = do
     Just racc -> case toDomResAcc racc of
       V.Success v -> pure $ Just v
       V.Failure e -> do
-        logError @String "Incorrect reseller account in DB"
+        logErrorT "Incorrect reseller account in DB"
           $  " resellerId: " <> resellerId'
           <> " error: " <> show e
         throwException Errs.internalError

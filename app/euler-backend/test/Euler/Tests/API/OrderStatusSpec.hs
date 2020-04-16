@@ -167,7 +167,7 @@ shouldBeAnn s a b = assertEqual s b a
 -- createMerchantAccount :: Flow DM.MerchantAccount
 -- createMerchantAccount = case Merchant.transSMaccToDomMacc Merchant.defaultMerchantAccount of
 --     V.Failure e -> do
---       logError "DB MerchantAccount Validation" $ show e
+--       logErrorT "DB MerchantAccount Validation" $ show e
 --       error "MerchantAccount faulted"
 --     V.Success validMAcc -> pure validMAcc
 

@@ -2,15 +2,13 @@ module Euler.Storage.Repository.TxnRiskCheck where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Validators (textNotEmpty, notNegative)
-
 import qualified Euler.Product.Domain.TxnRiskCheck as D
-
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
@@ -30,7 +28,7 @@ loadTxnRiskCheck txnId = do
   case (traverse transformTxnRiskCheck risk) of
     Success rsk -> pure rsk
     Failure e -> do
-      logError "Incorrect txnRiskCheck(s) in DB"
+      logErrorT "Incorrect txnRiskCheck(s) in DB"
         $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
 

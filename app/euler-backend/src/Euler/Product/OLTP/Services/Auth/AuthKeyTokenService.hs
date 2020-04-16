@@ -10,6 +10,7 @@ module Euler.Product.OLTP.Services.Auth.AuthKeyTokenService
 import           EulerHS.Prelude                                   hiding (id)
 
 import           EulerHS.Language                                  as L
+import           WebService.Language
 
 import qualified Euler.API.RouteParameters                         as RP
 import qualified Euler.Product.Domain.MerchantAccount              as DM
@@ -26,6 +27,6 @@ authenticate keyH tokenH rps = do
   case keyAuth of
     Right _ -> return keyAuth
     Left e -> do
-      logInfo @Text "AuthKeyTokenService" e
+      logInfoT "AuthKeyTokenService" e
       tokenAuth <- X.authenticate tokenH rps
       return tokenAuth

@@ -4,6 +4,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
@@ -15,7 +16,6 @@ import           Euler.Storage.Repository.EulerDB
 
 import           Database.Beam ((&&.), (==.))
 import qualified Database.Beam as B
-import           WebService.Language
 
 
 

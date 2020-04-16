@@ -12,6 +12,7 @@ module Euler.Product.OLTP.Services.Auth.AuthService
 import           EulerHS.Prelude                      hiding (id)
 
 import           EulerHS.Language                     as L
+import           WebService.Language
 
 import qualified Euler.API.RouteParameters            as ARP
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
@@ -33,9 +34,9 @@ withAuth handle action rps req = do
   res <- authenticate handle rps
   case res of
     Left err -> do
-      logError @Text "AuthService" $ "authentication failed with error: " <> err
+      logErrorT "AuthService" $ "authentication failed with error: " <> err
       -- EHS: refine error
       throwException Errs.internalError
     Right ma -> do
-      logInfo @Text "AuthService" $ "authentication completed for merchant account id: " <> show (ma ^. _id)
+      logInfoT "AuthService" $ "authentication completed for merchant account id: " <> show (ma ^. _id)
       action rps req ma

@@ -5,8 +5,8 @@ module EulerHS.Extra.Test where
 import EulerHS.Prelude
 
 import EulerHS.Interpreters
-import EulerHS.Runtime (withFlowRuntime, FlowRuntime)
-import EulerHS.Types hiding (error)
+import EulerHS.Runtime (FlowRuntime)
+import EulerHS.Types
 import qualified EulerHS.Types as T
 import           EulerHS.Language
 import           System.Process

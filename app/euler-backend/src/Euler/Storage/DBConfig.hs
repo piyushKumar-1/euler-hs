@@ -5,26 +5,22 @@ module Euler.Storage.DBConfig
   ) where
 
 import EulerHS.Prelude hiding (id, show)
-import EulerHS.Language
-import EulerHS.Language as L
-import EulerHS.Types
+
 import qualified EulerHS.Types as T
-import Data.Text as T
-import qualified Prelude as P (show)
-import Servant.Server
 
 import qualified Database.Beam.MySQL  as BM
 import qualified Database.Beam.Sqlite as BS
 
 
-
+ecDB :: T.DBConfig BM.MySQLM
 ecDB = mysqlDBC
 
 
+eulerDB :: T.DBConfig BM.MySQLM
 eulerDB = mysqlDBC
 
 
-poolConfig :: PoolConfig
+poolConfig :: T.PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10
@@ -32,22 +28,22 @@ poolConfig = T.PoolConfig
   }
 
 
-sqL :: DBConfig BS.SqliteM
-sqL = mkSQLitePoolConfig "sqlite" "./app/euler-backend/test/Euler/TestData/test.db" poolConfig
+sqL :: T.DBConfig BS.SqliteM
+sqL = T.mkSQLitePoolConfig "sqlite" "./app/euler-backend/test/Euler/TestData/test.db" poolConfig
 
 
-mySQLCfg :: MySQLConfig
-mySQLCfg = MySQLConfig
+mySQLCfg :: T.MySQLConfig
+mySQLCfg = T.MySQLConfig
   { connectHost     = "localhost"
   , connectPort     = 3306
   , connectUser     = "cloud"
   , connectPassword = "scape"
   , connectDatabase = "jdb"
-  , connectOptions  = [CharsetName "utf8"]
+  , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
   }
 
 
-mysqlDBC :: DBConfig BM.MySQLM
-mysqlDBC = mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig
+mysqlDBC :: T.DBConfig BM.MySQLM
+mysqlDBC = T.mkMySQLPoolConfig "eulerMysqlDB" mySQLCfg poolConfig

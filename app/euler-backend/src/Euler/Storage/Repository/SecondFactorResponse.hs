@@ -4,6 +4,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Validators (textNotEmpty, notNegative)
@@ -31,7 +32,7 @@ findSecondFactorResponse second_factor_id = do
   case (traverse transformSecondFactorResponse sfr) of
     Success sfr' -> pure sfr'
     Failure e -> do
-      logError "Incorrect secondFactorResponse in DB"
+      logErrorT "Incorrect secondFactorResponse in DB"
         $  "txnDetailId: " <> show second_factor_id <> "error: " <> show e
       throwException internalError
 

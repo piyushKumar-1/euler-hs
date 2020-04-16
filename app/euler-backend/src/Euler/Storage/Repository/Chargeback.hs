@@ -4,6 +4,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Types.Money
@@ -30,7 +31,7 @@ findChargebacks txnId = do
   case (traverse transformChargeback chargebacks) of
     Success chargebacks' -> pure chargebacks'
     Failure e -> do
-      logError "Incorrect chargeback(s) in DB"
+      logErrorT "Incorrect chargeback(s) in DB"
         $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
 

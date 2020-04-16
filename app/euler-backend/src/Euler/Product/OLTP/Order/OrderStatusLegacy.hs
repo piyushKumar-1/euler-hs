@@ -115,7 +115,7 @@ getConn cfg = do
   case conn of
     Right c -> pure c
     Left err -> do
-      logError "SqlDB" $ toText $ P.show err
+      logErrorT "SqlDB" $ toText $ P.show err
       throwException err500 {errBody = "getConn"}
 
 -- PS Will be removing gateways one by one from here as part of direct upi integrations.
@@ -401,7 +401,7 @@ authenticateWithAPIKey apiKeyStr = do
   let eApiKey = extractApiKey apiKeyStr
   case eApiKey of
     Right key -> do
-      logDebug "Extracted API key" key
+      logDebugT "Extracted API key" key
       conn <- getConn eulerDB
       merchantKey <- runDB conn $ do
         let predicate MerchantKey {apiKey, status} = (apiKey ==. (B.just_ $ B.val_ key))
@@ -434,7 +434,7 @@ authenticateWithAPIKey apiKeyStr = do
           runIO $ putTextLn $ toText $ P.show err
           throwException $ myerr "2" -- liftErr ecAccessDenied
     Left err -> do
-      logError "Authentication" $ "Invalid API key: " <> err
+      logErrorT "Authentication" $ "Invalid API key: " <> err
       throwException err403 {errBody = "Invalid API key."}
 
 -- ----------------------------------------------------------------------------
@@ -663,29 +663,29 @@ getCachedOrdStatus isAuthenticated orderId merchantId = do -- req mAccnt routePa
       Right (Just f) -> pure $ Just f
       Right Nothing -> pure Nothing
       Left err -> do
-        logError "Find Feature" $ toText $ P.show err
+        logErrorT "Find Feature" $ toText $ P.show err
         pure Nothing
   maybe (pure Nothing) (getCachedVal isAuthenticated merchantId orderId) maybeFeature
     where
       getCachedVal isAuthenticated merchantId orderId feature = do
         case (getField @"enabled" feature) of
           True -> do
-            _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is enabled"
+            _ <- logInfoT "Fetch cache from order status" $ "Order status cache feature is enabled"
            -- orderId <- getOrderId req routeParam
            -- merchantId <- unNullOrErr500 (mAccnt ^. _merchantId)
             val <- getCachedResp ((keyPrefix isAuthenticated) <> merchantId <> "_" <> orderId)
             case val of
               Just value -> do
                 runIO $ Metric.incrementOrderStatusCacheHitCount merchantId
-                _ <- logInfo "order status api response from cache" ("merchant_id " <> merchantId <> " orderId " <> orderId)
-                _ <- logInfo "Fetch cache from order status" $ "Order status response found in cache for merchant_id " <> merchantId <> " orderId " <> orderId
+                _ <- logInfoT "order status api response from cache" ("merchant_id " <> merchantId <> " orderId " <> orderId)
+                _ <- logInfoT "Fetch cache from order status" $ "Order status response found in cache for merchant_id " <> merchantId <> " orderId " <> orderId
                 pure val
               Nothing -> do
                 runIO $ Metric.incrementOrderStatusCacheMissCount merchantId
-                _ <- logInfo "Fetch cache from order status" $ "Could not find order status response in cache for merchant_id " <> merchantId <> " orderId " <> orderId
+                _ <- logInfoT "Fetch cache from order status" $ "Could not find order status response in cache for merchant_id " <> merchantId <> " orderId " <> orderId
                 pure val
           False -> do
-            _ <- logInfo "Fetch cache from order status" $ "Order status cache feature is not enabled"
+            _ <- logInfoT "Fetch cache from order status" $ "Order status cache feature is not enabled"
             pure Nothing
       keyPrefix True  = "euler_ostatus_"
       keyPrefix False = "euler_ostatus_unauth_"
@@ -846,7 +846,7 @@ getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated r
 getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated routeParam = do
     orderId'     <- pure routeParam -- getOrderId req routeParam
     merchantId'  <- getMerchantId mAccnt -- unNullOrErr500 (mAccnt ^. _merchantId)
- --   _           <- logInfo "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
+ --   _           <- logInfoT "Get order status from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
     (order :: OrderReference) <- do
       conn <- getConn eulerDB
       res <- runDB conn $ do
@@ -861,7 +861,7 @@ getOrdStatusResp req {- @(OrderStatusRequest ordReq) -} mAccnt isAuthenticated r
         Right (Just ordRef) -> pure ordRef
         Right Nothing -> throwException err404 {errBody = "Order " <> show orderId' <> " not found."}
         Left err -> do
-          logError "Find OrderReference" $ toText $ P.show err
+          logErrorT "Find OrderReference" $ toText $ P.show err
           throwException err500
       -- pure defaultOrderReference -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
  --   let maybeTxnUuid = (unNullOrUndefined ordReq.txnUuid) <|> (unNullOrUndefined ordReq.txn_uuid)
@@ -990,7 +990,7 @@ getLastTxn orderRef = do
 
   case txnDetails of
     [] -> do
-      logError "get_last_txn" ("No last txn found for orderId: " <> orderId' <> " :merchant:" <> merchantId')
+      logErrorT "get_last_txn" ("No last txn found for orderId: " <> orderId' <> " :merchant:" <> merchantId')
       pure Nothing
     _ -> do
       let chargetxn = find (\txn -> (getField @"status" txn == CHARGED)) txnDetails
@@ -1166,7 +1166,7 @@ addMandateDetails ordRef orderStatus =
           case res of
             Right m -> pure m
             Left err -> do
-              logError "Find Mandate" $ toText $ P.show err
+              logErrorT "Find Mandate" $ toText $ P.show err
               throwException err500
           -- pure Nothing -- DB.findOne ecDB (where_ := WHERE ["auth_order_id" /\ Int orderId, "merchant_id" /\ String (unNull (ordRef ^._merchantId) "")])
         case mandate of
@@ -1222,7 +1222,7 @@ getPaymentLink mAcc orderRef = do
       Right mRAcc -> pure $ (^. _resellerApiEndpoint) =<< mRAcc
      -- Right Nothing -> pure Nothing
       Left err -> do
-        logError "Find ResellerAccount" $ toText $ P.show err
+        logErrorT "Find ResellerAccount" $ toText $ P.show err
         throwException err500
   -- let maybeResellerEndpoint = maybe Nothing ( getField @"resellerApiEndpoint") maybeResellerAccount
   pure $ createPaymentLinks (fromMaybe "" $ getField @"orderUuid" orderRef) maybeResellerEndpoint
@@ -1262,7 +1262,7 @@ getReturnUrl orderRef somebool = do
     case res of
       Right mMAcc -> pure mMAcc
       Left err -> do
-        logError "Find MerchantAccount" $ toText $ P.show err
+        logErrorT "Find MerchantAccount" $ toText $ P.show err
         throwException err500
    -- pure $ Just defaultMerchantAccount -- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String (unNull (orderRef ^._merchantId) "")] :: WHERE MerchantAccount)
   case merchantAccount of
@@ -1278,7 +1278,7 @@ getReturnUrl orderRef somebool = do
             case res of
               Right mMIP -> pure mMIP
               Left err -> do
-                logError "SQLDB Interraction." $ toText $ P.show err
+                logErrorT "SQLDB Interraction." $ toText $ P.show err
                 throwException err500
           -- pure $ Just defaultMerchantIframePreferences -- DB.findOne ecDB (where_ := WHERE ["merchant_id" /\ String merchantId] :: WHERE MerchantIframePreferences)
           let merchantIframeReturnUrl = fromMaybe "" (getField @"returnUrl"  =<< merchantIframePreferences)
@@ -1414,7 +1414,7 @@ addPromotionDetails orderRef orderStatus = do
     case res of
       Right proms -> pure proms
       Left err -> do
-        logError "Find Promotions" $ toText $ P.show err
+        logErrorT "Find Promotions" $ toText $ P.show err
         throwException err500
    -- pure [] -- DB.findAll ecDB (where_ := WHERE ["order_reference_id" /\ Int orderId] :: WHERE Promotions)
   case (length promotions) of
@@ -1501,7 +1501,7 @@ addTxnDetailsToResponse txn ordRef orderStatus = do
 --   let gateway   = fromMaybe "" (getField @"gateway" txn)
 --       gatewayId = maybe 0 gatewayIdFromGateway $ stringToGateway gateway
 --   gatewayRefId <- getGatewayReferenceId txn ordRef
---   logInfo "gatewayRefId " gatewayRefId
+--   logInfoT "gatewayRefId " gatewayRefId
 --   pure $ orderStatus
 --     { status = show $ getField @"status" txn
 --     , status_id = txnStatusToInt $ getField @"status" txn
@@ -3605,7 +3605,7 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
 
 -- getOrderReferenceFromDB :: Text -> Text -> Flow OrderReference -- OrderReference
 -- getOrderReferenceFromDB orderId merchantId = do
---   _    <- logInfo "Get order reference from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
+--   _    <- logInfoT "Get order reference from DB" $ "fetching order status from DB for merchant_id " <> merchantId <> " orderId " <> orderId
 --   -- DB.findOneWithErr ecDB (where_ := WHERE ["order_id" /\ String orderId, "merchant_id" /\ String merchantId]) (orderNotFound orderId)
 --   pure defaultOrderReference
 

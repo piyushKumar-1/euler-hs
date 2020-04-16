@@ -4,6 +4,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
+import           WebService.Language
 
 import qualified Euler.Constant.Feature               as Const
 import           Euler.Common.Errors.PredefinedErrors
@@ -34,7 +35,7 @@ loadFeature feat merchantId' = do
   case (traverse transformFeature feature) of
     Success f -> pure f
     Failure e -> do
-      logError "Incorrect Feature in DB"
+      logErrorT "Incorrect Feature in DB"
         $  "merchantId: " <> merchantId' <> ", error: " <> show e
       throwException internalError
 

@@ -126,11 +126,9 @@ runKVDB cName runMode kvdbConnMapMVar =
     runRedis redisDsl = do
       connections <- readMVar kvdbConnMapMVar
       case Map.lookup cName connections of
-        Nothing   -> pure $ Left $ ExceptionMessage "Can't find redis connection"
+        Nothing   -> pure $ Left $ KVDBError KVDBConnectionDoesNotExist "Can't find redis connection"
         Just conn ->
           case conn of
-            NativeKVDB c        -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
+            NativeKVDB c         -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
             NativeKVDBMockedConn -> pure $ Right $
               error "Result of runRedis with mocked connection should not ever be evaluated"
-
-

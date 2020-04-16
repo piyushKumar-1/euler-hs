@@ -15,7 +15,6 @@ module EulerHS.Framework.Flow.Language
   , deinitSqlDBConnection
   , getSqlDBConnection
   , runDB
-  , withDB
   -- *** KVDB
   , initKVDBConnection
   , deinitKVDBConnection
@@ -57,7 +56,6 @@ module EulerHS.Framework.Flow.Language
 import           EulerHS.Prelude hiding (getOption)
 
 import           Servant.Client (ClientError, BaseUrl)
-import           Servant.Server (err500)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
 import qualified EulerHS.Core.Language as L
@@ -230,7 +228,13 @@ instance Functor FlowMethod where
 type Flow = F FlowMethod
 
 
--- | Takes remote url, servant client for this endpoint
+-- | Method for calling external HTTP APIs using the facilities of servant-client.
+-- Allows to specify what manager should be used. If no manager found,
+-- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url, servant client for this endpoint
 -- and returns either client error or result.
 --
 -- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
@@ -258,12 +262,20 @@ type Flow = F FlowMethod
 
 callServantAPI
   :: T.JSONEx a
-  => Maybe T.ManagerSelector       -- ^ name of the connection manager to be used
+  => Maybe T.ManagerSelector     -- ^ name of the connection manager to be used
   -> BaseUrl                     -- ^ remote url 'BaseUrl'
   -> T.EulerClient a             -- ^ servant client 'EulerClient'
   -> Flow (Either ClientError a) -- ^ result
 callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
 
+-- | Method for calling external HTTP APIs using the facilities of servant-client.
+-- Allows to specify what manager should be used. If no manager found,
+-- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
+--
+-- Thread safe, exception free.
+--
+-- Alias for callServantAPI.
+--
 -- | Takes remote url, servant client for this endpoint
 -- and returns either client error or result.
 --
@@ -293,31 +305,42 @@ callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
 callAPI' :: T.JSONEx a => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
 callAPI' = callServantAPI
 
+-- | The same as `callAPI'` but with default manager to be used.
 callAPI :: T.JSONEx a => BaseUrl -> T.EulerClient a -> Flow (Either ClientError a)
 callAPI = callServantAPI Nothing
 
-
+-- | Evaluates a logging action.
 evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a
 evalLogger' logAct = liftFC $ EvalLogger logAct id
 
 -- | Log message with Info level.
+--
+-- Thread safe.
 logInfo :: Show tag => tag -> T.Message -> Flow ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
 -- | Log message with Error level.
+--
+-- Thread safe.
 logError :: Show tag => tag -> T.Message -> Flow ()
 logError tag msg = evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
+--
+-- Thread safe.
 logDebug :: Show tag => tag -> T.Message -> Flow ()
 logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 
 -- | Log message with Warning level.
+--
+-- Thread safe.
 logWarning :: Show tag => tag -> T.Message -> Flow ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.
+--
+-- Warning. This method is dangerous and should be used wisely.
 --
 -- > myFlow = do
 -- >   content <- runIO $ readFromFile file
@@ -326,13 +349,28 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 runIO :: T.JSONEx a => IO a -> Flow a
 runIO = runIO' ""
 
+-- | The same as runIO, but accepts a description which will be written into the ART recordings
+-- for better clarity.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runIO' "reading from file" $ readFromFile file
+-- >   logDebug "content id" $ extractContentId content
+-- >   pure content
 runIO' :: T.JSONEx a => Text -> IO a -> Flow a
 runIO' descr ioAct = liftFC $ RunIO descr ioAct id
 
--- | Get stored option by typed key.
+-- | Gets stored a typed option by a typed key.
+--
+-- Thread safe, exception free.
 getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
 getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 
+-- Sets a typed option using a typed key.
+--
+-- Thread safe, exception free.
+--
 -- >  data MerchantIdKey = MerchantIdKey
 -- >
 -- >  instance OptionEntity MerchantIdKey Text
@@ -344,16 +382,16 @@ getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
 
--- T.fromJSONMaybe
-
--- | Just generate version 4 UUIDs as specified in RFC 4122
+-- | Generate a version 4 UUIDs as specified in RFC 4122
 -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
--- Universally unique identifier (UUID).
--- The term globally unique identifier (GUID) is also used, typically in software created by Microsoft.
+--
+-- Thread safe, exception free.
 generateGUID :: Flow Text
 generateGUID = liftFC $ GenerateGUID id
 
--- | Run system command end return output.
+-- | Runs system command and returns its output.
+--
+-- Warning. This method is dangerous and should be used wisely.
 --
 -- > myFlow = do
 -- >   currentDir <- runSysCmd "pwd"
@@ -362,33 +400,64 @@ generateGUID = liftFC $ GenerateGUID id
 runSysCmd :: String -> Flow String
 runSysCmd cmd = liftFC $ RunSysCmd cmd id
 
--- | Takes SQL DB config and create connection that can be used in queries.
+-- | Inits an SQL connection using a config.
+--
+-- Returns an error (Left $ T.DBError T.ConnectionAlreadyExists msg)
+-- if the connection already exists for this config.
+--
+-- Thread safe, exception free.
 initSqlDBConnection :: T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
 
--- | Deinit the given connection if you want to deny access over that connection.
+-- | Deinits an SQL connection.
+-- Does nothing if the connection is not found (might have been closed earlier).
+--
+-- Thread safe, exception free.
 deinitSqlDBConnection :: T.SqlConn beM -> Flow ()
 deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
 
--- | Get existing connection.
--- If there is no such connection, returns error.
+-- | Gets the existing connection.
+--
+-- Returns an error (Left $ T.DBError T.ConnectionDoesNotExist)
+-- if the connection does not exist.
+--
+-- Thread safe, exception free.
 getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id
 
--- | Takes Redis DB config and create connection that can be used in queries.
+-- | Inits a KV DB connection using a config.
+--
+-- Returns an error (Left $ KVDBError KVDBConnectionAlreadyExists msg)
+-- if the connection already exists.
+--
+-- Thread safe, exception free.
 initKVDBConnection :: T.KVDBConfig -> Flow (T.KVDBAnswer T.KVDBConn)
 initKVDBConnection cfg = liftFC $ InitKVDBConnection cfg id
 
--- | Deinit the given connection if you want to deny access over that connection.
+-- | Deinits the given KV DB connection.
+-- Does nothing if the connection is not found (might have been closed earlier).
+--
+-- Thread safe, exception free.
 deinitKVDBConnection :: T.KVDBConn  -> Flow ()
 deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
 
--- | Get existing connection.
--- If there is no such connection, returns error.
-getKVDBConnection ::T.KVDBConfig -> Flow (T.KVDBAnswer T.KVDBConn)
+-- | Get the existing connection.
+
+-- Returns an error (Left $ KVDBError KVDBConnectionDoesNotExist)
+-- if the connection does not exits for this config.
+--
+-- Thread safe, exception free.
+getKVDBConnection :: T.KVDBConfig -> Flow (T.KVDBAnswer T.KVDBConn)
 getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
 
--- | Takes connection, sql query (described using BEAM syntax) and make request.
+-- | Evaluates SQL DB operations transactionally.
+-- It's possible to have a chain of SQL DB calls (within the SqlDB language).
+-- These chains will be executed as a single transaction.
+--
+-- Thread safe, exception free.
+--
+-- The underlying library is beam which allows to access 3 different SQL backends.
+-- See TUTORIAL.md, README.md and QueryExamplesSpec.hs for more info.
 --
 -- > myFlow :: L.Flow (T.DBResult (Maybe User))
 -- > myFlow = do
@@ -419,37 +488,21 @@ runDB
     ( T.JSONEx a
     , T.BeamRunner beM
     , T.BeamRuntime be beM
- --   , B.FromBackendRow be a
     )
   => T.SqlConn beM
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct id
 
--- | Extracting existing connection from FlowRuntime
--- by given db config and runs sql query (described using BEAM syntax).
--- Acts like 'getSqlDBConnection' + 'runDB'
-withDB ::
-  ( T.JSONEx a
-  , T.BeamRunner beM
-  , T.BeamRuntime be beM
-  )
-  => T.DBConfig beM -> L.SqlDB beM a -> Flow a
-withDB dbConf act = do
-  mConn <- getSqlDBConnection dbConf
-  conn <- case mConn of
-    Right c -> pure c
-    Left err -> do
-      logError @Text "SqlDB connect" $ show err
-      throwException err500
-  res <- runDB conn act
-  case res of
-    Left dbError -> do
-     logError @Text "SqlDB interraction" $ show dbError
-     throwException err500
-    Right r -> pure r
-
--- | Fork given flow.
+-- | Fork a flow.
+--
+-- Warning. With forked flows, race coniditions and dead / live blocking become possible.
+-- All the rules applied to forked threads in Haskell can be applied to forked flows.
+--
+-- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
+-- There is no possibility to kill a thread on the moment.
+--
+-- Thread safe, exception free.
 --
 -- > myFlow1 = do
 -- >   logInfo "myflow1" "logFromMyFlow1"
@@ -461,15 +514,9 @@ withDB dbConf act = do
 -- >   pure res
 forkFlow :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow ()
 forkFlow description flow = void $ forkFlow' description flow
--- forkFlow description flow = do
---   let x = forkFlow' description flow
---   pure ()
-  -- either (const ()) (const ()) <$> forkFlow' description flow
-  -- case eFlow of
-  --   Left _ -> pure ()
-  --   Right _ -> pure ()
 
--- | Fork given flow with returning a token to await the results.
+-- | Same as fork a flow but returns an Awaitable value which can be used
+-- to await for the results from the flow.
 --
 -- > myFlow1 = do
 -- >   logInfo "myflow1" "logFromMyFlow1"
@@ -488,7 +535,16 @@ forkFlow' description flow = do
     tag :: Text
     tag = "ForkFlow"
 
--- | Await for some awaitable (blocking operation).
+-- | Await for some a result from the flow.
+-- If the timeout is Nothing than the operation is blocking.
+-- If the timeout is set then the internal mechanism tries to do several (10) checks for the result.
+-- Can return earlier if the result became available.
+-- Returns either an Awaiting error or a result.
+--
+-- Warning. There are no guarantees of a proper thread delaying here.
+--
+-- Thread safe, exception free.
+--
 -- | mbMcs == Nothing: infinite awaiting.
 -- | mbMcs == Just (Microseconds n): await for approximately n seconds.
 --     Awaiting may succeed ealier.
@@ -507,9 +563,11 @@ await
   -> Flow (Either T.AwaitingError a)
 await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
 
--- | Throw given exception.
---   In module Servant.Server you can find alot of predefined HTTP exceptions
---   for different status codes.
+-- | Throw a given exception.
+--
+-- It's possible to catch this exception using runSafeFlow method.
+--
+-- Thread safe. Exception throwing.
 --
 -- > myFlow = do
 -- >   res <- authAction
@@ -519,11 +577,15 @@ await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
 throwException :: forall a e. Exception e => e -> Flow a
 throwException ex = liftFC $ ThrowException ex id
 
--- | The method allow to catch the exception from the forked flow
--- in the interpreter and turn it into some type of an error.
+-- | Run a flow safely with catching all the exceptions from it.
+-- Returns either a result or the exception turned into a text message.
 --
--- > myFlow = do
--- >   runSafeFlow $ throwException err403 {errBody = reason}
+-- This includes ususal instances of the Exception type class,
+-- `error` exception and custom user exceptions thrown by the `throwException` method.
+--
+-- Thread safe, exception free.
+--
+-- > myFlow = runSafeFlow $ throwException err403 {errBody = reason}
 --
 -- > myFlow = do
 -- >   eitherContent <- runSafeFlow $ runIO $ readFromFile file
@@ -535,7 +597,9 @@ runSafeFlow flow = do
   safeFlowGUID <- generateGUID
   liftFC $ RunSafeFlow safeFlowGUID flow id
 
--- | Execute given kvdb actions.
+-- | Execute kvdb actions.
+--
+-- Thread safe, exception free.
 --
 -- > myFlow = do
 -- >   kvres <- L.runKVDB $ do
@@ -549,6 +613,7 @@ runKVDB
   -> Flow (T.KVDBAnswer a)
 runKVDB cName act = liftFC $ RunKVDB cName act id
 
+---- Experimental Pub Sub implementation using Redis Pub Sub.
 
 newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
 
@@ -566,8 +631,7 @@ runPubSub
   -> Flow a
 runPubSub act = liftFC $ RunPubSub act id
 
-
--- | Publish payload to channel
+-- | Publish payload to channel.
 publish
   :: PSL.Channel                        -- ^ Channel in which payload will be send
   -> PSL.Payload                        -- ^ Payload

@@ -7,6 +7,7 @@ module Euler.Config.ServiceConfiguration where
 import EulerHS.Prelude
 
 import EulerHS.Language
+import WebService.Language
 
 import Euler.Lens
 

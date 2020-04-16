@@ -19,6 +19,7 @@ module EulerHS.Core.Types.KVDB
   , NativeKVDBConn (..)
   , KVDBConfig (..)
   , RedisConfig (..)
+  , KVDBError (..)
   -- ** Methods
   , defaultKVDBConnConfig
   , exceptionToKVDBReply
@@ -66,6 +67,12 @@ type KVDBMockedValues = MVar (KVDBMockedValues')
 
 ----------------------------------------------------------------------
 
+data KVDBError
+  = KVDBConnectionAlreadyExists
+  | KVDBConnectionDoesNotExist
+  | KVDBConnectionFailed
+  deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
 data KVDBReplyF bs
   = SingleLine bs
   | Err bs
@@ -73,6 +80,7 @@ data KVDBReplyF bs
   | Bulk (Maybe bs)
   | MultiBulk (Maybe [KVDBReplyF bs])
   | ExceptionMessage String
+  | KVDBError KVDBError String
   deriving (Eq, Show, Generic, Functor)
 
 instance ToJSON   (KVDBReplyF ByteStringS)

@@ -7,6 +7,7 @@ import EulerHS.Prelude
 
 import           EulerHS.Extra.Validation as V
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB

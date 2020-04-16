@@ -9,6 +9,7 @@ module Euler.Storage.Repository.OrderAddress
 import EulerHS.Prelude hiding (id, state)
 
 import           EulerHS.Language
+import           WebService.Language
 
 import           Euler.Constants (defaultVersion)
 import           Euler.Storage.DBConfig

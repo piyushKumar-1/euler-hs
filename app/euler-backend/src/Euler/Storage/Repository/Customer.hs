@@ -9,7 +9,7 @@ import           EulerHS.Prelude hiding (id)
 
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
-import           Euler.Lens
+import           WebService.Language
 
 import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB
@@ -17,6 +17,7 @@ import           Euler.Storage.Repository.EulerDB
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types                   as C
 import           Euler.Common.Validators
+import           Euler.Lens
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Storage.Types                  as DB

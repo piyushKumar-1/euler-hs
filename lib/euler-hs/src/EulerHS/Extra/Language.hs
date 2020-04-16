@@ -10,7 +10,6 @@ module EulerHS.Extra.Language
   , rSet
   , rGet
   , rSetex
-  , insertRow
   ) where
 
 import           EulerHS.Prelude hiding (id, get)
@@ -40,10 +39,8 @@ getOrInitKVDBConn
 getOrInitKVDBConn cfg = do
   conn <- L.getKVDBConnection cfg
   case conn of
-    Left (T.ExceptionMessage _) -> L.initKVDBConnection cfg
-    res                         -> pure res
-
-
+    Left (T.KVDBError T.KVDBConnectionDoesNotExist _) -> L.initKVDBConnection cfg
+    res -> pure res
 
 -- KVDB helpers
 
@@ -151,23 +148,3 @@ rSetex cName k v t = do
     Left err -> do
       L.logError @Text "Redis setex" $ show err
       pure res
-
-
-
--- | Inserts some rows but returns the first result dropping others.
--- Use this function with care.
-insertRow
-  :: ( B.Beamable table
-     , B.FromBackendRow be (table Identity)
-     , T.BeamRuntime be beM
-     , T.BeamRunner beM
-     , T.JSONEx (table Identity)
-     )
-  => T.DBConfig beM
-  -> B.SqlInsert be table
-  -> L.Flow (Either Text (table Identity))
-insertRow db insertStmt = do
-  results <- L.withDB db $ L.insertRowsReturningList insertStmt
-  pure $ case results of
-    []    -> Left "Unexpected empty result."
-    (x:_) -> Right x

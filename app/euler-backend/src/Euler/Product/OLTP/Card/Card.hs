@@ -322,5 +322,6 @@ foreign import test :: String -> String -> Boolean
 -}
 
 test :: Text -> Text -> Bool
-test txt1 txt2 = undefined :: Bool
+--test txt1 txt2 = undefined :: Bool
+test _ _ = False
 

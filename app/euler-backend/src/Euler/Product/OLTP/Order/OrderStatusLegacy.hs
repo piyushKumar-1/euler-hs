@@ -2186,7 +2186,7 @@ getPayerVpa txn txnCardInfo = do
 
       mPaymentGatewayResp <- withDB eulerDB $ do
         let predicate PaymentGatewayResponse {id} =
-              id ==. B.just_ (B.val_ $ show respId)
+              id ==. B.just_ (B.val_ $ respId)
         findRow
           $ B.select
           $ B.limit_ 1
@@ -3568,7 +3568,7 @@ addPayerVpaToResponse txnDetail ordStatusResp paymentSource = do
 
   mPaymentGatewayResp <- withDB eulerDB $ do
     let predicate PaymentGatewayResponse {id} =
-          id ==. B.just_ (B.val_ $ show respId)
+          id ==. B.just_ (B.val_ $ respId)
     findRow
       $ B.select
       $ B.limit_ 1

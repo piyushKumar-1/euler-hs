@@ -3,7 +3,7 @@
 module Euler.Config.Creditails where
 
 import           EulerHS.Language
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (getOption)
 import           EulerHS.Types
 
 import qualified Euler.Config.Config as C

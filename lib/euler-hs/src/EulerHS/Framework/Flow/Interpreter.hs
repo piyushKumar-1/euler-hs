@@ -431,3 +431,6 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnec
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)
+
+-- runSafeFlow :: R.FlowRuntime -> L.Flow a -> IO (Either SomeException a)
+-- runSafeFlow flowRt = try @_ @SomeException . foldF (interpretFlowMethod flowRt)

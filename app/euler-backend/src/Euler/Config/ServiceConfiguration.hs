@@ -15,7 +15,6 @@ import qualified Data.Aeson            as A
 import qualified Data.Text.Encoding   as T
 import qualified Data.ByteString.Lazy as BSL
 
-import Euler.Storage.DBConfig (ecDB)
 import Euler.Storage.Types.EulerDB
 import Euler.Storage.Repository.EulerDB
 import Euler.Storage.Types.ServiceConfiguration

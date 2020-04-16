@@ -11,6 +11,7 @@ import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain.TxnRiskCheck as D
 
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
 import           Database.Beam ((==.))
@@ -19,7 +20,7 @@ import qualified Database.Beam as B
 
 loadTxnRiskCheck :: Int -> Flow (Maybe D.TxnRiskCheck)
 loadTxnRiskCheck txnId = do
-  risk <- withDB eulerDB $ do
+  risk <- withEulerDB $ do
     let predicate DB.TxnRiskCheck {txnDetailId} = txnDetailId ==. B.val_ txnId
     findRow
       $ B.select

@@ -2,7 +2,6 @@ module Euler.Storage.Repository.SecondFactorResponse where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
@@ -11,6 +10,7 @@ import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain as D
 
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
 import           Database.Beam ((==.))
@@ -19,7 +19,7 @@ import qualified Database.Beam as B
 
 findSecondFactorResponse :: Int -> Flow (Maybe D.SecondFactorResponse)
 findSecondFactorResponse second_factor_id = do
-  sfr <- withDB eulerDB $ do
+  sfr <- withEulerDB $ do
     let predicate DB.SecondFactorResponse{secondFactorId} =
           secondFactorId ==. B.just_ (B.val_ second_factor_id)
     findRow

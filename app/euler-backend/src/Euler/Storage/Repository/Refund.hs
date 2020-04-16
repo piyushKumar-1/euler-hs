@@ -12,6 +12,7 @@ import           Euler.Common.Validators (amountValidators, textNotEmpty, notNeg
 
 import qualified Euler.Product.Domain.Refund as D
 
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types.Refund as RDB
 import qualified Euler.Storage.Types as DB
 
@@ -23,7 +24,7 @@ import qualified Database.Beam as B
 
 loadRefunds :: Int -> Flow [D.Refund]
 loadRefunds txnId = do
-  rs <- withDB eulerDB $ do
+  rs <- withEulerDB $ do
     let predicate DB.Refund {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
     findRows
       $ B.select

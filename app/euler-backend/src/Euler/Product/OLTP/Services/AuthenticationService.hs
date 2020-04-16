@@ -18,7 +18,6 @@ import Euler.API.RouteParameters
 import qualified Euler.Constants                      as Constants
 import Euler.Common.Errors.PredefinedErrors
 import Euler.Common.Types.Merchant
-import qualified Euler.Config.Config                  as Config
 import qualified Euler.Product.Domain.MerchantAccount as DM
 import qualified Euler.Storage.Types.IngressRule      as DBIR
 import qualified Euler.Storage.Types.MerchantAccount  as DBM

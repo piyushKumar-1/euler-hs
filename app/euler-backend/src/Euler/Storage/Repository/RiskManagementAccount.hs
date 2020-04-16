@@ -11,6 +11,7 @@ import           Euler.Common.Validators (amountValidators, textNotEmpty, notNeg
 
 import qualified Euler.Product.Domain.RiskManagementAccount as D
 
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
 import qualified Data.Text as T
@@ -20,7 +21,7 @@ import qualified Database.Beam as B
 
 loadRiskManagementAccount :: Int -> Flow (Maybe D.RiskManagementAccount)
 loadRiskManagementAccount riskMAId = do
-  riskMA <- withDB eulerDB $ do
+  riskMA <- withEulerDB $ do
     let predicate DB.RiskManagementAccount {id} = id ==. B.val_ riskMAId
     findRow
       $ B.select

@@ -11,11 +11,10 @@ import           EulerHS.Language
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
 import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
-
 import qualified Euler.Product.Domain as D
-
-import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
@@ -24,7 +23,7 @@ import qualified Database.Beam as B
 
 loadPromotions :: C.OrderPId -> Flow [D.Promotion]
 loadPromotions orderPId = do
-  proms  <- withDB eulerDB $ do
+  proms  <- withEulerDB $ do
     let predicate DB.Promotion{orderReferenceId} =
           orderReferenceId ==. B.just_ (B.val_ orderPId)
     findRows

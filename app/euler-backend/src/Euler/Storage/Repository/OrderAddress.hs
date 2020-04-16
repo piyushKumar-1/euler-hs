@@ -11,12 +11,10 @@ import EulerHS.Prelude hiding (id, state)
 import           EulerHS.Language
 import           WebService.Language
 
-import           Euler.Constants (defaultVersion)
-import           Euler.Storage.DBConfig
-import           Euler.Storage.Repository.EulerDB
-
 import qualified Euler.Common.Types                   as C
+import           Euler.Constants (defaultVersion)
 import qualified Euler.Product.Domain.Templates       as Ts
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types                  as DB
 
 import           Database.Beam ((==.))

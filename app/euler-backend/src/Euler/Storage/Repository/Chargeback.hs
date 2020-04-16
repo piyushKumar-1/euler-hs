@@ -2,7 +2,6 @@ module Euler.Storage.Repository.Chargeback where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
@@ -10,18 +9,17 @@ import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Types.Money
 import           Euler.Common.Validators (textNotEmpty, amountValidators, notNegative)
 import qualified Euler.Product.Domain.Chargeback as D
-import           Euler.Common.Types.Money
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types.Chargeback as S
 import           Euler.Storage.Types.EulerDB as EDB
 
-import qualified Data.Text as T
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
 
 
 findChargebacks :: Int -> Flow [D.Chargeback]
 findChargebacks txnId = do
-  chargebacks <- withDB eulerDB $ do
+  chargebacks <- withEulerDB $ do
     let predicate S.Chargeback {txnDetailId}
           = txnDetailId ==. B.just_ (B.val_ txnId)
     findRows

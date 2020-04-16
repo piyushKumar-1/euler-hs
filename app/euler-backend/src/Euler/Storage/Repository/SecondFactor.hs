@@ -11,6 +11,7 @@ import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain as D
 
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
 import           Database.Beam ((==.))
@@ -19,7 +20,7 @@ import qualified Database.Beam as B
 
 findSecondFactor :: Int -> Flow (Maybe D.SecondFactor)
 findSecondFactor txnDetail_id = do
-  sf <- withDB eulerDB $ do
+  sf <- withEulerDB $ do
     let predicate DB.SecondFactor{txnDetailId} =
           txnDetailId ==. B.just_ (B.val_ txnDetail_id)
     findRow

@@ -9,9 +9,7 @@ import EulerHS.Prelude
 import           EulerHS.Language
 import           WebService.Language
 
-import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB
-
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Storage.Types                  as DB
@@ -40,7 +38,7 @@ loadMerchantPrefs merchantId' = do
       throwException Errs.internalError    -- EHS: error should be specified.
 
 loadMerchantPrefsMaybe :: C.MerchantId -> Flow (Maybe DB.MerchantIframePreferences)
-loadMerchantPrefsMaybe merchantId' = withDB eulerDB $ do
+loadMerchantPrefsMaybe merchantId' = withEulerDB $ do
     let predicate DB.MerchantIframePreferences {merchantId} = merchantId ==. (B.val_ merchantId')
     findRow
       $ B.select

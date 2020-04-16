@@ -2,15 +2,13 @@ module Euler.Storage.Repository.TxnCardInfo where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import           Euler.Common.Validators (textNotEmpty, notNegative)
-
 import qualified Euler.Product.Domain.TxnCardInfo as D
-
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
 import           Database.Beam ((==.))
@@ -19,7 +17,7 @@ import qualified Database.Beam as B
 
 loadTxnCardInfo :: Int -> Flow (Maybe D.TxnCardInfo)
 loadTxnCardInfo txnId = do
-  cardInfo <- withDB eulerDB $ do
+  cardInfo <- withEulerDB $ do
     let predicate DB.TxnCardInfo {txnDetailId} = txnDetailId ==. B.just_ (B.val_ txnId)
     findRow
       $ B.select

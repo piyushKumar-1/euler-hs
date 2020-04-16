@@ -8,16 +8,16 @@ module Euler.Storage.Repository.Order
 
 import EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Language
-import           WebService.Language
 import qualified EulerHS.Extra.Validation as V
 
-import           Euler.Storage.Repository.EulerDB
+import           WebService.Language
+
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain.Order           as D
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types                  as DB
 import qualified Euler.Storage.Types.OrderReference   as DBO
 import qualified Euler.Storage.Validators.Order       as SV
@@ -25,6 +25,7 @@ import qualified Euler.Storage.Validators.Order       as SV
 import           Database.Beam ((==.), (&&.), (<-.))
 import qualified Database.Beam as B
 import           Euler.Lens
+
 
 
 -- EHS name `findOrder` would be more accurate
@@ -41,12 +42,13 @@ loadOrder orderId' merchantId' = do
         $ B.all_ (DB.order_reference DB.eulerDBSchema)
     case mbOrderRef of
       Nothing -> pure Nothing
-      Just ordRef -> transOrder mbOrderRef
+      Just orderRef -> transOrder orderRef
+
 
 -- | Load an order by a surrogate ID value
 loadOrderById :: Int -> Flow (Maybe D.Order)
 loadOrderById id' = do
-  mbOrderRef <- withDB eulerDB $ do
+  mbOrderRef <- withEulerDB $ do
     let predicate DB.OrderReference {id} =
           (id ==. B.just_ (B.val_ id'))
     findRow
@@ -54,22 +56,23 @@ loadOrderById id' = do
       $ B.limit_ 1
       $ B.filter_ predicate
       $ B.all_ (DB.order_reference DB.eulerDBSchema)
-  transOrder mbOrderRef
-
-transOrder :: Maybe DB.OrderReference -> Flow (Maybe D.Order)
-transOrder mbOrderRef = do
   case mbOrderRef of
-    Nothing     -> pure Nothing
-    Just ordRef -> do
-      case SV.transSOrderToDOrder ordRef of
-        V.Success order -> pure $ Just order
-        V.Failure e     -> do
-          logErrorT "Incorrect order in DB"
-            $  " id: "         <> (maybe "no value" show $ ordRef ^. _id)
-            <> " orderId: "    <> (fromMaybe "no value" $ ordRef ^. _orderId)
-            <> " merchantId: " <> (fromMaybe "no value" $ ordRef ^. _merchantId)
-            <> " , validation errors: " <> show e
-          throwException Errs.internalError
+      Nothing -> pure Nothing
+      Just orderRef -> transOrder orderRef
+
+
+transOrder :: DB.OrderReference -> Flow (Maybe D.Order)
+transOrder ordRef = do
+  case (SV.transSOrderToDOrder ordRef) of
+    V.Success order -> pure $ Just order
+    V.Failure e     -> do
+      logErrorT "Incorrect order in DB"
+        $  " id: "         <> (maybe "no value" show $ ordRef ^. _id)
+        <> " orderId: "    <> (fromMaybe "no value" $ ordRef ^. _orderId)
+        <> " merchantId: " <> (fromMaybe "no value" $ ordRef ^. _merchantId)
+        <> " , validation errors: " <> show e
+      throwException Errs.internalError
+
 
 -- For compatibility with other backends, we should return types that we use together through Redis
 -- If the returned data is not expected to be saved to the Redis, then only domain type should be returned.
@@ -86,6 +89,7 @@ saveOrder orderRefVal = do
     V.Failure _ -> do
       logErrorT "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException Errs.internalError
+
 
 updateOrder :: Int -> C.UDF -> Maybe C.Money -> Maybe C.AddressId -> Maybe C.AddressId -> Flow ()
 updateOrder orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do

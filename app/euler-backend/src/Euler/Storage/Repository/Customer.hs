@@ -11,13 +11,11 @@ import           EulerHS.Extra.Validation
 import           EulerHS.Language
 import           WebService.Language
 
-import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB
 
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types                   as C
 import           Euler.Common.Validators
-import           Euler.Lens
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Storage.Types                  as DB

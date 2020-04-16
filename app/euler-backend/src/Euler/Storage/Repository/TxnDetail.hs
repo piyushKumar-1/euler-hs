@@ -13,6 +13,7 @@ import           Euler.Common.Validators (amountValidators, isGateway, notNegati
 import qualified Euler.Product.Domain as D
 
 import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types.TxnDetail as TDB
 import qualified Euler.Storage.Types as DB
 
@@ -27,7 +28,7 @@ loadTxnDetail
   -> Text
   -> Flow (Maybe D.TxnDetail)
 loadTxnDetail orderId' merchantId' txnUuid' = do
-  td <- withDB eulerDB $ do
+  td <- withEulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId, txnUuid} =
           orderId ==. B.val_ orderId'
           &&. merchantId ==. B.just_ (B.val_ merchantId')
@@ -50,7 +51,7 @@ loadTxnDetail orderId' merchantId' txnUuid' = do
 
 loadTxnDetails :: C.OrderId -> C.MerchantId -> Flow [D.TxnDetail]
 loadTxnDetails orderId' merchantId' = do
-  td <- withDB eulerDB $ do
+  td <- withEulerDB $ do
     let predicate DB.TxnDetail {orderId, merchantId} =
           orderId ==. B.val_ orderId'
             &&. merchantId ==. B.just_ (B.val_ merchantId')

@@ -2,7 +2,6 @@ module Euler.Storage.Repository.Feature where
 
 import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 
@@ -14,16 +13,16 @@ import qualified Euler.Common.Types as C
 import qualified Euler.Product.Domain.Feature as D
 
 
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 
-import qualified Data.Text as T
 import           Database.Beam ((==.), (&&.))
 import qualified Database.Beam as B
 
 
 loadFeature :: Const.Feature -> C.MerchantId -> Flow (Maybe D.Feature)
 loadFeature feat merchantId' = do
-  feature <- withDB eulerDB $ do
+  feature <- withEulerDB $ do
     let predicate DB.Feature {name, merchantId} =
           name ==. B.val_ (Const.showFeature feat)
           &&. merchantId ==. B.just_ (B.val_ merchantId')

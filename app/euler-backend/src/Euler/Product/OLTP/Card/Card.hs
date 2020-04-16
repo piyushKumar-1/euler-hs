@@ -11,11 +11,9 @@ module Euler.Product.OLTP.Card.Card where
 
 
 import           EulerHS.Prelude hiding (id)
-import qualified EulerHS.Prelude as P (id)
-import qualified Prelude as P (show)
 
 import           Euler.API.CardPS
-import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 import           Euler.Storage.Types.CardInfo
 import           Euler.Storage.Types.EulerDB as EDB
 import           EulerHS.Language
@@ -23,10 +21,8 @@ import           EulerHS.Language
 import           Data.Generics.Product.Fields
 import qualified Data.List as L
 import qualified Data.Text as T
-import           Database.Beam ((&&.), (/=.), (<-.), (==.))
+import           Database.Beam ((==.))
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-
 
 
 
@@ -87,7 +83,7 @@ getCardBrandFromIsin (Just cardIsin') = do
   let mCardBrand = getCardBrand cardIsin'
   case mCardBrand of
     Nothing -> do
-      cardInfo <- withDB eulerDB $ do
+      cardInfo <- withEulerDB $ do
         let predicate CardInfo {cardIsin} = cardIsin ==. B.val_ cardIsin'
         findRow
           $ B.select

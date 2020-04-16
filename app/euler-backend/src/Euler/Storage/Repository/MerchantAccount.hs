@@ -4,21 +4,20 @@ module Euler.Storage.Repository.MerchantAccount
   )
   where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import qualified EulerHS.Extra.Validation as V hiding (transform)
 import           EulerHS.Language
 import           WebService.Language
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Euler.Common.Types as C
 import           Euler.Common.Types.Merchant (MerchantId)
 import qualified Euler.Product.Domain.MerchantAccount as D
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
 import qualified Euler.Storage.Validators.MerchantAccount as SV
 
-import           Database.Beam ((&&.), (<-.), (==.))
+import           Database.Beam ((==.))
 import qualified Database.Beam as B
 import           Euler.Lens
 
@@ -26,7 +25,7 @@ import           Euler.Lens
 -- | Load an order by a surrogate ID value
 loadMerchantById :: Int -> Flow (Maybe D.MerchantAccount)
 loadMerchantById id' = do
-  mbMerchantAccount <- withDB eulerDB $ do
+  mbMerchantAccount <- withEulerDB $ do
     let predicate DB.MerchantAccount {id} =
           (id ==. B.just_ (B.val_ id'))
     findRow
@@ -39,7 +38,7 @@ loadMerchantById id' = do
 
 loadMerchantByMerchantId :: MerchantId -> Flow (Maybe D.MerchantAccount)
 loadMerchantByMerchantId merchId = do
-  mbMerchantAccount <- withDB eulerDB $ do
+  mbMerchantAccount <- withEulerDB $ do
     let predicate DB.MerchantAccount {merchantId} = merchantId ==. B.just_ (B.val_ merchId)
     findRow
       $ B.select
@@ -58,7 +57,7 @@ transform mbMerchantAccount = do
         V.Success res -> pure $ Just res
         V.Failure e     -> do
           logError "Incorrect merchant account in DB"
-            $  " id: " <> (maybe "no data" show $ merchantAccount ^. _id)
+            $  " id: " <> (maybe "no data" show $ merchantAccount ^. _id) <> ", errors: " <> show e
           throwException Errs.internalError
 
 

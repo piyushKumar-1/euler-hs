@@ -2,8 +2,6 @@ module Euler.Storage.Repository.Mandate where
 
 import           EulerHS.Prelude hiding (id)
 
-import qualified Prelude as P (show)
-
 import           EulerHS.Extra.Validation
 import           EulerHS.Language
 

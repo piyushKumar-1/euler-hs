@@ -177,6 +177,7 @@ tests:
     - hspec
     - hspec-wai
     - hspec-wai-json
+    - mysql
     - random-strings
     - utf8-string
     - base16-bytestring

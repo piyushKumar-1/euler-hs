@@ -11,7 +11,7 @@ import qualified Euler.Tests.EncDec.XML.RMSIDResult as RMSIDResultXML
 import qualified Euler.Tests.Encryption.EncryptionSpec as Encryption
 import qualified Euler.Tests.FlexApis.SampleApiSpec as FlexApis.SampleApiSpec
 import qualified Euler.Tests.Money.MoneySpec as MoneySpec
-import qualified Euler.Tests.OrderStatus.OrderStatusSpec as OrderStatus
+import qualified Euler.Tests.OrderStatus.OrderStatus as OrderStatus
 import qualified Euler.Tests.Transformation.TransactionSpec as TxnTransform
 import           Test.Hspec
 

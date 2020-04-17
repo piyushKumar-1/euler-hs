@@ -231,10 +231,29 @@ execOrderStatusAsync request = do
   let udf2 = (order ^. _udf) ^. _udf2
   let orderReturnUrl = order ^. _returnUrl
 
-  awaitLinks <- forkFlow' "getPaymentLinks" $ getPaymentLinks resellerId orderUuid
-  awaitPromotionActive <- forkFlow' "getPromotion" $ getPromotion orderPId orderId
-  awaitMandate <- forkFlow' "getMandate" $ getMandate orderPId merchantId orderType
-  awaitReturnUrl <- forkFlow' "getReturnUrl" $ getReturnUrl reqMerchantId merchantReturnUrl orderReturnUrl
+  awaitLinks <- do
+    logWarningT "Before fork" "getPaymentLinks"
+    awa <- forkFlow' "getPaymentLinks" $ getPaymentLinks resellerId orderUuid
+    logWarningT "After fork" "getPaymentLinks"
+    pure awa
+
+  awaitPromotionActive <- do
+    logWarningT "Before fork" "getPromotion"
+    awa <- forkFlow' "getPromotion" $ getPromotion orderPId orderId
+    logWarningT "After fork" "getPromotion"
+    pure awa
+
+  awaitMandate <- do
+    logWarningT "Before fork" "getMandate"
+    awa <- forkFlow' "getMandate" $ getMandate orderPId merchantId orderType
+    logWarningT "After fork" "getMandate"
+    pure awa
+
+  awaitReturnUrl <- do
+    logWarningT "Before fork" "getReturnUrl"
+    awa <- forkFlow' "getReturnUrl" $ getReturnUrl reqMerchantId merchantReturnUrl orderReturnUrl
+    logWarningT "After fork" "getReturnUrl"
+    pure awa
 
   mTxnDetail1 <- loadTxnDetail orderId merchantId orderUuid
   mTxnDetail2 <- getLastTxn orderId merchantId
@@ -244,57 +263,100 @@ execOrderStatusAsync request = do
     Nothing -> pure Nothing
     Just txn -> loadTxnCardInfo (D.txnDetailPId $ txn ^. _id)
 
-  awaitGatewayRefId <- forkFlow' "getGatewayReferenceId" $ case mTxn of
-    Nothing  -> getGatewayReferenceId Nothing orderPId udf2 merchantId
-    Just txn -> getGatewayReferenceId (txn ^. _gateway) orderPId udf2 merchantId
+  awaitGatewayRefId <- do
+    logWarningT "Before fork" "getGatewayReferenceId"
+    awa <- forkFlow' "getGatewayReferenceId" $ case mTxn of
+      Nothing  -> getGatewayReferenceId Nothing orderPId udf2 merchantId
+      Just txn -> getGatewayReferenceId (txn ^. _gateway) orderPId udf2 merchantId
+    logWarningT "After fork" "getGatewayReferenceId"
+    pure awa
 
-  awaitRisk <- forkFlow' "getRisk" $ case mTxn of
-    Nothing -> pure Nothing
-    Just txn -> getRisk $ D.txnDetailPId $ txn ^. _id
+  awaitRisk <- do
+    logWarningT "Before fork" "getRisk"
+    awa <- forkFlow' "getRisk" $ case mTxn of
+      Nothing -> pure Nothing
+      Just txn -> getRisk $ D.txnDetailPId $ txn ^. _id
+    logWarningT "After fork" "getRisk"
+    pure awa
 
-  awaitRefunds <- forkFlow' "loadRefunds" $ case mTxn of
-    Nothing -> pure Nothing
-    Just txn -> maybeList <$> (loadRefunds $ D.txnDetailPId $ txn ^. _id)
+  awaitRefunds <- do
+    logWarningT "Before fork" "loadRefunds"
+    awa <- forkFlow' "loadRefunds" $ case mTxn of
+      Nothing -> pure Nothing
+      Just txn -> maybeList <$> (loadRefunds $ D.txnDetailPId $ txn ^. _id)
+    logWarningT "After fork" "loadRefunds"
+    pure awa
 
-  awaitChargeback <- forkFlow' "findChargebacks" $ case mTxn of
-    Nothing -> pure Nothing
-    Just txn -> maybeList <$> findChargebacks (D.txnDetailPId $ txn ^. _id)
+  awaitChargeback <- do
+    logWarningT "Before fork" "findChargebacks"
+    awa <- forkFlow' "findChargebacks" $ case mTxn of
+      Nothing -> pure Nothing
+      Just txn -> maybeList <$> findChargebacks (D.txnDetailPId $ txn ^. _id)
+    logWarningT "After fork" "findChargebacks"
+    pure awa
 
-  awaitMerchantPgr <- forkFlow' "getMerchantPGR" $ case mTxn of
-    Nothing -> pure Nothing
-    Just txn -> getMerchantPGR txn sendFullGatewayResponse
+  awaitMerchantPgr <- do
+    logWarningT "Before fork" "getMerchantPGR"
+    awa <- forkFlow' "getMerchantPGR" $ case mTxn of
+      Nothing -> pure Nothing
+      Just txn -> getMerchantPGR txn sendFullGatewayResponse
+    logWarningT "After fork" "getMerchantPGR"
+    pure awa
 
-  awaitCardBrand <- forkFlow' "getEmiPaymentMethod" $ case mTxnCard of
-    Nothing                      -> pure Nothing
-    Just (card :: D.TxnCardInfo) -> do
-      let cardIsin = card ^. _cardIsin
-      cardBrand <- getCardBrandFromIsin cardIsin
-      pure $ getEmiPaymentMethod cardIsin cardBrand
+  awaitCardBrand <- do
+    logWarningT "Before fork" "getEmiPaymentMethod"
+    awa <- forkFlow' "getEmiPaymentMethod" $ case mTxnCard of
+      Nothing                      -> pure Nothing
+      Just (card :: D.TxnCardInfo) -> do
+        let cardIsin = card ^. _cardIsin
+        cardBrand <- getCardBrandFromIsin cardIsin
+        pure $ getEmiPaymentMethod cardIsin cardBrand
+    logWarningT "After fork" "getEmiPaymentMethod"
+    pure awa
 
-  awaitPaymentMethodsAndTypes <- forkFlow' "getPaymentMethodAndType" $
-    case (mTxn, mTxnCard) of
+  awaitPaymentMethodsAndTypes <- do
+    logWarningT "Before fork" "getPaymentMethodAndType"
+    awa <- forkFlow' "getPaymentMethodAndType" $ case (mTxn, mTxnCard) of
       (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
       _                        -> pure (Nothing, Nothing, Nothing, Nothing)
+    logWarningT "After fork" "getPaymentMethodAndType"
+    pure awa
 
-  awaitTxnFlowInfoAndMerchantSFR <- forkFlow' "getTxnFlowInfoAndMerchantSFR" $
-    case (mTxn, mTxnCard) of
+  awaitTxnFlowInfoAndMerchantSFR <- do
+    logWarningT "Before fork" "getTxnFlowInfoAndMerchantSFR"
+    awa <- forkFlow' "getTxnFlowInfoAndMerchantSFR" $ case (mTxn, mTxnCard) of
       (Just txn, Just txnCard) -> do
         let txnDetail_id = D.txnDetailPId $ txn ^. _id
         getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
       _ -> pure (Nothing, Nothing)
+    logWarningT "After fork" "getTxnFlowInfoAndMerchantSFR"
+    pure awa
 
+  logWarningT "Befor all await" "Let we begin"
   links <- fromAwait request $ await Nothing awaitLinks
+  logWarningT "After Await" "links"
   mPromotionActive <- fromAwait request $ await Nothing awaitPromotionActive
+  logWarningT "After Await" "mPromotionActive"
   mMandate <- fromAwait request $ await Nothing awaitMandate
+  logWarningT "After Await" "mMandate"
   mReturnUrl <- fromAwait request $ await Nothing awaitReturnUrl
+  logWarningT "After Await" "mReturnUrl"
   gatewayRefId <- fromAwait request $ await Nothing awaitGatewayRefId
+  logWarningT "After Await" "gatewayRefId"
   mRisk <- fromAwait request $ await Nothing awaitRisk
+  logWarningT "After Await" "mRisk"
   mRefunds <- fromAwait request $ await Nothing awaitRefunds
+  logWarningT "After Await" "mRefunds"
   mChargeback <- fromAwait request $ await Nothing awaitChargeback
+  logWarningT "After Await" "mChargeback"
   mMerchantPgr <- fromAwait request $ await Nothing awaitMerchantPgr
+  logWarningT "After Await" "mMerchantPgr"
   mCardBrand <- fromAwait request $ await Nothing awaitCardBrand
+  logWarningT "After Await" "mCardBrand"
   paymentMethodsAndTypes <- fromAwait request $ await Nothing awaitPaymentMethodsAndTypes
+  logWarningT "After Await" "paymentMethodsAndTypes"
   txnFlowInfoAndMerchantSFR <- fromAwait request $ await Nothing awaitTxnFlowInfoAndMerchantSFR
+  logWarningT "After Await" "txnFlowInfoAndMerchantSFR"
 
   pure $ mkOrderStatusResponse $ makeOrderStatusResponse
         order

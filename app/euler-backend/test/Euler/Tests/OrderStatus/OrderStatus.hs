@@ -256,6 +256,7 @@ query = D.OrderStatusRequest
   , sendFullGatewayResponse = True
   , sendAuthToken           = False
   , version                 = Nothing
+  , isAsync                 = False
   }
 
 txnDetail :: Maybe D.TxnDetail

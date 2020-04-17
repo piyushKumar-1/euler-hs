@@ -76,6 +76,7 @@ orderStatus rps merchantAccount  = do
           , sendFullGatewayResponse = sendFullPrgResponse'
           , sendAuthToken           = False
           , version                 = version'
+          , isAsync                 = True
           }
   where
     sendFullPrgResponse' = RP.sendFullPgr rps
@@ -95,7 +96,7 @@ orderStatusRequest req@D.OrderStatusRequest{..} = do
   where
     fastPath = getCachedResponse orderId merchantId isAuthenticated
     slowPath = do
-      res <- execOrderStatus req
+      res <- if isAsync then execOrderStatusAsync req else execOrderStatus req
       _ <- addToCache orderId merchantId isAuthenticated res
       pure res
 
@@ -103,6 +104,105 @@ orderStatusRequest req@D.OrderStatusRequest{..} = do
 -- | Slow-path flow to execute order status request
 execOrderStatus :: D.OrderStatusRequest -> Flow OrderStatusResponse
 execOrderStatus request = do
+
+  let reqOrderId = request ^. _orderId
+  let reqMerchantId = request ^. _merchantId
+  let merchantReturnUrl = request ^. _merchantReturnUrl
+  let resellerId = request ^. _resellerId
+  let sendFullGatewayResponse = request ^. _sendFullGatewayResponse
+
+  -- EHS: I would suggest to have `loadSthStrict` functions in repositories to not repeat ourselves each time
+  -- we are loading a mandatory value
+  mOrder <- loadOrder reqOrderId reqMerchantId
+
+  order <- case mOrder of
+    Just o -> pure o
+    Nothing -> do
+      logErrorT "OrderStatus.execOrderStatusQuery'"
+        $ "Order not found "
+        <> "orderId: " <> show reqOrderId
+        <> ", merchantId: " <> show reqMerchantId
+      throwException $ Errs.orderNotFound reqOrderId
+
+  let orderId = order ^. _orderId
+  let merchantId = order ^. _merchantId
+  let orderUuid = order ^. _orderUuid
+  let orderType = order ^. _orderType
+  let orderPId = order ^. _id
+  let udf2 = (order ^. _udf) ^. _udf2
+  let orderReturnUrl = order ^. _returnUrl
+
+  links <- getPaymentLinks resellerId orderUuid
+  mPromotionActive <- getPromotion orderPId orderId
+  mMandate <- getMandate orderPId merchantId orderType
+  mReturnUrl <- getReturnUrl reqMerchantId merchantReturnUrl orderReturnUrl
+
+  mTxnDetail1 <- loadTxnDetail orderId merchantId orderUuid
+  mTxnDetail2 <- getLastTxn orderId merchantId
+  let mTxn = (mTxnDetail1 <|> mTxnDetail2)
+
+  mTxnCard <- case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> loadTxnCardInfo (D.txnDetailPId $ txn ^. _id)
+
+  gatewayRefId <- case mTxn of
+    Nothing  -> getGatewayReferenceId Nothing orderPId udf2 merchantId
+    Just txn -> getGatewayReferenceId (txn ^. _gateway) orderPId udf2 merchantId
+
+  mRisk <- case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> getRisk $ D.txnDetailPId $ txn ^. _id
+
+  mRefunds <- case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> maybeList <$> (loadRefunds $ D.txnDetailPId $ txn ^. _id)
+
+  mChargeback <- case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> maybeList <$> findChargebacks (D.txnDetailPId $ txn ^. _id)
+
+  mMerchantPgr <- case mTxn of
+    Nothing -> pure Nothing
+    Just txn -> getMerchantPGR txn sendFullGatewayResponse
+
+  mCardBrand <- case mTxnCard of
+    Nothing                      -> pure Nothing
+    Just (card :: D.TxnCardInfo) -> do
+      let cardIsin = card ^. _cardIsin
+      cardBrand <- getCardBrandFromIsin cardIsin
+      pure $ getEmiPaymentMethod cardIsin cardBrand
+
+  paymentMethodsAndTypes <- case (mTxn, mTxnCard) of
+      (Just txn, Just txnCard) -> getPaymentMethodAndType txn txnCard
+      _                        -> pure (Nothing, Nothing, Nothing, Nothing)
+
+  txnFlowInfoAndMerchantSFR <- case (mTxn, mTxnCard) of
+      (Just txn, Just txnCard) -> do
+        let txnDetail_id = D.txnDetailPId $ txn ^. _id
+        getTxnFlowInfoAndMerchantSFR txnDetail_id txnCard
+      _ -> pure (Nothing, Nothing)
+
+  pure $ mkOrderStatusResponse $ makeOrderStatusResponse
+        order
+        links
+        mPromotionActive
+        mMandate
+        request
+        mTxn
+        gatewayRefId
+        mRisk
+        mTxnCard
+        mCardBrand
+        mRefunds
+        mChargeback
+        mReturnUrl
+        paymentMethodsAndTypes
+        txnFlowInfoAndMerchantSFR
+        mMerchantPgr
+
+-- | Slow-path flow to execute order status request concurrently
+execOrderStatusAsync :: D.OrderStatusRequest -> Flow OrderStatusResponse
+execOrderStatusAsync request = do
 
   let reqOrderId = request ^. _orderId
   let reqMerchantId = request ^. _merchantId

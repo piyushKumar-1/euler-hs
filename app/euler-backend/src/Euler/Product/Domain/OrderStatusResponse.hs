@@ -90,5 +90,6 @@ data OrderStatusRequest = OrderStatusRequest
   , sendFullGatewayResponse :: Bool
   , sendAuthToken           :: Bool
   , version                 :: Maybe Text
+  , isAsync                 :: Bool
   }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)

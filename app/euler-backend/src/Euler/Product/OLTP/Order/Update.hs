@@ -93,6 +93,7 @@ orderUpdate
             , sendFullGatewayResponse = False
             , sendAuthToken = True
             , version = RP.lookupRP @RP.Version routeParams
+            , isAsync = False
             }
       OrderStatus.orderStatusRequest query
 

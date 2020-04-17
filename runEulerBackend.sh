@@ -21,17 +21,6 @@ esac
 done
 echo "MODE            = ${MODE}"
 
-
-
-#echo "SEARCH PATH     = ${SEARCHPATH}"
-#echo "LIBRARY PATH    = ${LIBPATH}"
-#echo "DEFAULT         = ${DEFAULT}"
-#echo "Number files in SEARCH PATH with EXTENSION:" $(ls -1 "${SEARCHPATH}"/*."${EXTENSION}" | wc -l)
-#if [[ -n $1 ]]; then
-#    echo "Last line of file specified as non-opt/last argument:"
-#    tail -1 $1
-#fi
-
 # RTS options
 REAL_CORES=$(lscpu --all --parse=CORE,SOCKET | grep -Ev "^#" | sort -u | wc -l)
 echo "Real cores      = $REAL_CORES"
@@ -39,10 +28,9 @@ echo "Real cores      = $REAL_CORES"
 RTS_OPTIONS="-A64M -AL256M -I0 -qb0 -qn$REAL_CORES -N$REAL_CORES"
 echo "RTS options = $RTS_OPTIONS"
 
-
-# Environment
-
+# Default environment
 export NODE_ENV=development
+export RECORDER_ENABLED=FALSE
 
 # ART mode
 if [[ "$MODE" = "REC" ]]; then

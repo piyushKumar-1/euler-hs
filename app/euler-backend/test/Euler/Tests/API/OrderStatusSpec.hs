@@ -15,6 +15,7 @@ import           Euler.Common.Types.Currency (Currency (..))
 import           Euler.Common.Types.DefaultDate
 import           Euler.Common.Types.External.Mandate (MandateFeature (..))
 import           Euler.Common.Types.External.Order (OrderStatus (..))
+import qualified Euler.Playback.MethodPlayer as PB
 import qualified Euler.Product.Domain as D
 
 import qualified Euler.API.Order as Api
@@ -247,9 +248,9 @@ spec :: Spec
 spec =
   around prepareDB $
     describe "API Order methods" $ do
-      let runOrderStatus rt ordId rp = runFlow rt $ do
+      let runOrderStatus rt rp = runFlow rt $ do
             -- prepareDBConnections
-            Auth.withMacc OrderStatus.orderStatus rp ordId
+            Auth.withMacc (PB.getMethod OrderStatus.orderStatus) rp PB.noReqBody
             --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
       -- let getAddressesAfterCreate rt ordId rp = runFlow rt $ do
@@ -267,23 +268,25 @@ spec =
 
       it "OrderStatus. Authorization - invalid" $ \rt -> do
         let rp = collectRPs
+              ordId
               (Authorization "BASIC definitelynotvalidbase64string=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
         let err = Errs.eulerAccessDenied "Invalid API key."
 
-        res <- try $ runOrderStatus rt ordId rp
+        res <- try $ runOrderStatus rt rp
         res `shouldBe` Left err
 
       it "OrderStatus. Authorization - valid. Get OrderStatusResponse" $ \rt -> do
         let rp = collectRPs
               -- Use https://www.base64encode.org/ to get base64 from api_key
+              ordId
               (Authorization "BASIC RTI5QTgzOEU0Qjc2NDM2RThBMkM2NjBBMDYwOTlGRUU=")
               (Version "2017-07-01")
               (UserAgent "Uagent")
         let err = Errs.eulerAccessDenied "Invalid API key."
 
-        (res :: Either Errs.ErrorResponse Api.OrderStatusResponse) <- try $ runOrderStatus rt ordId rp
+        (res :: Either Errs.ErrorResponse Api.OrderStatusResponse) <- try $ runOrderStatus rt rp
         res `shouldBe` Right orderStatusResponse
 
 --------------------------------------------------------------------

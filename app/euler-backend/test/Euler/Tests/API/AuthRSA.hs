@@ -16,6 +16,7 @@ import qualified EulerHS.Types                          as T
 import qualified Euler.API.Authentication               as Auth
 import           Euler.Server (FlowServer', eulerServer_, FlowHandler)
 import qualified Euler.Server                           as S
+import qualified Euler.Playback.MethodPlayer            as S
 
 import           Network.Wai.Handler.Warp
 import           Network.HTTP.Types

@@ -28,6 +28,8 @@ import           Euler.API.RouteParameters
 import qualified Euler.Common.Errors.ErrorsMapping      as EMap
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
+import qualified Euler.Playback.MethodPlayer            as PB (getMethod, noReqBody, noReqBodyJSON)
+import qualified Euler.Product.Domain                   as D
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Order.Update        as OrderUpdate
@@ -193,39 +195,9 @@ runFlow flowTag rps req flow = do
     Left e -> throwError e
     Right r -> pure r
 
-testFlow2 :: Map String String -> L.Flow Text
-testFlow2  _ = do
-  void $ L.runSysCmd "echo hello"
-  L.forkFlow "f1" $ L.logInfo ("from f1" :: Text) "hellofrom forked flow"
-  res <- L.runIO $ do
-    putTextLn "text from runio"
-    pure ("text from runio" :: Text)
-  pure res
-
--- TODO: EHS: Move to somewhere
-type NoReqBody = ()
-
-noReqBody :: NoReqBody
-noReqBody = ()
-
-noReqBodyJSON :: A.Value
-noReqBodyJSON = toJSON noReqBody
-
-type RequestParameters = Map String String
-
-getMethod ::
-  ( FromJSON resp)
-  => (RequestParameters -> L.Flow resp)
-  -> NoReqBody
-  -> RequestParameters
-  -> L.Flow resp
-getMethod f _ p = f p
--- TODO <
-
 test :: FlowHandler Text
 test = do
   liftIO $ putStrLn ("Test method called." :: String)
-  _ <- runFlow "testFlow2" emptyRPs noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
   pure "Test."
 
 txns :: ApiTxn.Transaction -> FlowHandler ApiTxn.TransactionResponse
@@ -270,15 +242,16 @@ orderStatus ::
   -> FlowHandler ApiOrder.OrderStatusResponse
 orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken mbSendFullPgr = do
   let rps = collectRPs
+              orderId
               mbAuth
               mbXAuthScope
               mbXForwarderFor
               mbClientAuthToken
               mbSendFullPgr
 
-  runFlow "orderStatusHandle" rps noReqBodyJSON
+  runFlow "orderStatusHandle" rps PB.noReqBodyJSON
         $ Auth.withAuth Auth.mkKeyTokenAuthService
-          OrderStatus.orderStatus rps orderId
+          (PB.getMethod OrderStatus.orderStatus) rps PB.noReqBody
 
 
 -- EHS: Extract from here.

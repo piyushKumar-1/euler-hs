@@ -61,15 +61,12 @@ import           WebService.Language
 -- | API handler wrapper, constructs OrderStatusRequest and runs it
 orderStatus
   :: RouteParameters
-  -- EHS: is it worth moving this from RP to API types?
-  -> RP.OrderId
   -> D.MerchantAccount
   -> Flow AO.OrderStatusResponse
-orderStatus rps (RP.OrderId orderId) merchantAccount  = do
-    orderStatusRequest request
-  where
-    request = D.OrderStatusRequest
-          { orderId                 = orderId
+orderStatus rps merchantAccount  = do
+    orderId' <- maybe (throwException Errs.internalError) pure $ RP.lookupRP @RP.OrderId rps
+    orderStatusRequest D.OrderStatusRequest
+          { orderId                 = orderId'
           , merchantId              = merchantAccount ^. _merchantId
           , merchantReturnUrl       = merchantAccount ^. _returnUrl
           , resellerId              = merchantAccount ^. _resellerId
@@ -79,6 +76,7 @@ orderStatus rps (RP.OrderId orderId) merchantAccount  = do
           , sendAuthToken           = False
           , version                 = version'
           }
+  where
     sendFullPrgResponse' = RP.sendFullPgr rps
     version'             = RP.lookupRP @RP.Version rps
 

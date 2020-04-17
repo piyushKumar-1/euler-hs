@@ -1,5 +1,8 @@
 module Euler.Playback.MethodPlayer
   ( runMethodPlayer
+  , getMethod
+  , noReqBody
+  , noReqBodyJSON
   ) where
 
 import EulerHS.Prelude
@@ -14,7 +17,7 @@ import           Data.Coerce (coerce)
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
-import qualified Data.Aeson as A (Result(..), fromJSON)
+import qualified Data.Aeson as A (Result(..), fromJSON, Value)
 import qualified Database.Redis as RD
 import qualified Control.Exception.Safe as CES (catches, Handler(..))
 
@@ -22,8 +25,12 @@ import Euler.API.RouteParameters
 import Euler.Playback.Types
 
 import qualified Euler.Common.Errors.ErrorsMapping as EMap
+import qualified Euler.Product.Domain              as D
 import qualified Euler.Product.OLTP.Services.AuthenticationService as AS (withMacc)
 import qualified Euler.Product.OLTP.Order.Create                   as OrderCreate
+import qualified Euler.Product.OLTP.Order.Update        as OrderUpdate
+import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
 
 -- EHS: Player should know nothing about methods. Should not depend on APIs
 runMethodPlayer
@@ -31,26 +38,29 @@ runMethodPlayer
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
---runMethodPlayer "testFlow2"        = withMethodPlayer (getMethod testFlow2)
 -- EHS: restore
-runMethodPlayer "orderCreate"      = withMethodPlayer (AS.withMacc OrderCreate.orderCreate)
-runMethodPlayer methodName         = \_ _ -> pure $ Left $ MethodNotSupported methodName
+runMethodPlayer "orderCreate"       = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate)
+runMethodPlayer "orderUpdate"       = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthService OrderUpdate.runOrderUpdate)
+runMethodPlayer "orderStatusHandle" = withMethodPlayer (Auth.withAuth Auth.mkKeyTokenAuthService (getMethod OrderStatus.orderStatus))
+runMethodPlayer methodName          = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 
---getMethod :: ( FromJSON resp) => (t1 -> Flow resp) -> () -> t1 -> Flow resp
---getMethod f _ p = f p
+type NoReqBody = ()
 
---testFlow2 ::  RouteParameters -> Flow Text
---testFlow2  _ = do
---  void $ runSysCmd "echo hello"
---  forkFlow "f1" $ logInfo tag "hellofrom forked flow"
---  res <- runIO $ do
---    putTextLn "text from runio"
---    pure ("text from runio" :: Text)
---  pure res
---  where
---    tag :: String
---    tag = "from f1"
+noReqBody :: NoReqBody
+noReqBody = ()
+
+noReqBodyJSON :: A.Value
+noReqBodyJSON = toJSON noReqBody
+
+getMethod ::
+  ( FromJSON resp)
+  => (RouteParameters -> D.MerchantAccount -> Flow resp)
+  -> RouteParameters
+  -> NoReqBody
+  -> D.MerchantAccount
+  -> Flow resp
+getMethod f p _ m = f p m
 
 withMethodPlayer
   :: (FromJSON req, FromJSON resp, ToJSON resp, Eq resp, Show resp)

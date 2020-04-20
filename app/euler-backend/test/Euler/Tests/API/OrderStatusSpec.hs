@@ -253,17 +253,6 @@ spec =
             Auth.withMacc (PB.getMethod OrderStatus.orderStatus) rp PB.noReqBody
             --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
-      -- let getAddressesAfterCreate rt ordId rp = runFlow rt $ do
-      --       -- prepareDBConnections
-      --       resp <- Auth.withMacc OrderCreate.orderCreate rp ordId
-      --       let oid = getField @"order_id" resp -- resp ^.  _order_id
-      --       let mid = fromMaybe "" $ getField @"merchant_id" resp -- resp ^. _merchant_id
-      --       mOrd <- Rep.loadOrder oid mid
-      --       let billAddrId = fromMaybe (-1) $ (^. _billingAddressId) =<< mOrd
-      --       let shipAddrId = fromMaybe (-1) $ (^. _shippingAddressId) =<< mOrd
-      --       billingAddr <- Rep.loadAddress billAddrId
-      --       shippingAdr <- Rep.loadAddress shipAddrId
-      --       pure (resp, billingAddr, shippingAdr)
 --------------------------------------------------------------------
 
       it "OrderStatus. Authorization - invalid" $ \rt -> do
@@ -289,46 +278,4 @@ spec =
         (res :: Either Errs.ErrorResponse Api.OrderStatusResponse) <- try $ runOrderStatus rt rp
         res `shouldBe` Right orderStatusResponse
 
---------------------------------------------------------------------
 
-      -- it "OrderCreate. Old version. customer_id = Nothing" $ \rt -> do
-      --   let rp = collectRPs
-      --         (Authorization "BASIC QTNDQjI4RTI1MTQxNDAwNzk2MzA1MUEzNzI5RUZBQzA=")
-      --         (Version "2017-07-01")
-      --         (UserAgent "Uagent")
-
-      --   resp <- runOrderStatus rt ordId rp
-
-      --   -- Do no threat this as a source of truth. Just fixing current behavior
-      --   do
-      --     let OrderAPI.OrderCreateResponse{..} = resp
-
-      --     -- For old version udf's set to nothing (in defaultOrderCreateResponse)
-      --     -- Also, udfs present in db
-      --     -- https://docs.google.com/document/d/1uILu5D85e4GMyMJRyPzlI1Vtz6vW_pkgzPg6MEcUO00/edit
-      --     -- Answer for Q 17 :
-      --     -- Currently order create response( for non tokenized orders ) has a limited response which doesn’t include UDFs.
-      --     shouldBeAnn "status"          status           $ CREATED
-      --     shouldBeAnn "order_id"        order_id         $ "orderId2"
-      --     shouldBeAnn "udf10"           udf10            $ Nothing
-      --     shouldBeAnn "udf9"            udf9             $ Nothing
-      --     shouldBeAnn "udf8"            udf8             $ Nothing
-      --     shouldBeAnn "udf7"            udf7             $ Nothing
-      --     shouldBeAnn "udf6"            udf6             $ Nothing
-      --     shouldBeAnn "udf5"            udf5             $ Nothing
-      --     shouldBeAnn "udf4"            udf4             $ Nothing
-      --     shouldBeAnn "udf3"            udf3             $ Nothing
-      --     shouldBeAnn "udf2"            udf2             $ Nothing
-      --     shouldBeAnn "udf1"            udf1             $ Nothing
-      --     shouldBeAnn "return_url"      return_url       $ Nothing -- Just "http://example.com"
-      --     shouldBeAnn "refunded"        refunded         $ Nothing -- Just False
-      --     shouldBeAnn "product_id"      product_id       $ Nothing -- Just "prodId"
-      --     shouldBeAnn "merchant_id"     merchant_id      $ Nothing -- Just "1"
-
-      --     shouldBeAnn "customer_phone"  customer_phone   $ Nothing
-      --     shouldBeAnn "customer_id"     customer_id      $ Nothing -- Just "customerId"
-      --     shouldBeAnn "customer_email"  customer_email   $ Nothing
-
-      --     shouldBeAnn "currency"        currency         $ Nothing -- Just "INR"
-      --     shouldBeAnn "amount_refunded" amount_refunded  $ Nothing
-      --     shouldBeAnn "amount"          amount           $ Nothing -- Just 1000.0

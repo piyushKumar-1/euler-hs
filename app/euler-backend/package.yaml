@@ -44,6 +44,7 @@ dependencies:
 - bytestring
 - comonad
 - containers
+- criterion
 - errors
 - euler-hs
 - euler-backend-storage
@@ -182,3 +183,19 @@ tests:
     - utf8-string
     - base16-bytestring
     - base64-bytestring
+
+
+benchmarks:
+  bench:
+    main: Main.hs
+    source-dirs: bench
+    dependencies:
+    - euler-backend
+    - criterion
+    - mysql
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -Wall
+    - -O2

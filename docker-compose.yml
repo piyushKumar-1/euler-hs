@@ -14,10 +14,11 @@ services:
         EULER_UID: ${UID}
         EULER_GID: ${GID}
     volumes:
-        - .:/euler-hs
+        - .:/home/stackuser/euler-hs
         - stackcache:/.stack
     #command: sleep 100000
     command: stack test --fast --ghc-options="-j4 +RTS -A64M -AL256M -qn4 -RTS" -j4
+
 
   mysql:
     image: euler-ps-mysql

@@ -33,6 +33,27 @@ import qualified Euler.Product.OLTP.Order.Update   as UpdateImpl
 
 
 
+
+keepConnsAliveForSecs :: NominalDiffTime
+keepConnsAliveForSecs = 60 * 10 -- 10 mins
+
+maxTotalConns :: Int
+maxTotalConns = 8
+
+sqliteConn :: IsString a => a
+sqliteConn = "sqlite"
+
+mySQLCfg = T.MySQLConfig
+  { connectHost     = "localhost"
+  , connectPort     = 3306
+  , connectUser     = "cloud"
+  , connectPassword = "scape"
+  , connectDatabase = "jdb"
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
+
 eulerApiPort :: Int
 eulerApiPort = 8080
 

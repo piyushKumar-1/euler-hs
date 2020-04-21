@@ -78,7 +78,7 @@ orderStatus rps merchantAccount  = do
           , sendFullGatewayResponse = sendFullPrgResponse'
           , sendAuthToken           = False
           , version                 = version'
-          , isAsync                 = True
+          , isAsync                 = False
           }
   where
     sendFullPrgResponse' = RP.sendFullPgr rps
@@ -603,7 +603,7 @@ getMandate orderPId merchantId = \case
     _ -> pure Nothing
 
 
-getPaymentLinks :: Maybe Text -> Text ->  Flow D.Paymentlinks
+getPaymentLinks :: Maybe Int -> Text ->  Flow D.Paymentlinks
 getPaymentLinks resellerId orderUuid = do
   mResellerAccount <- loadReseller resellerId
   let mResellerEndpoint = maybe Nothing (^. _resellerApiEndpoint) mResellerAccount

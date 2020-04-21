@@ -24,7 +24,7 @@ import qualified Database.Beam as B
 
 -- EHS: previously handleReseller
 -- EHS: return domain type for Reseller instead of DB type
-loadReseller :: Maybe Text -> Flow (Maybe D.ResellerAccount)
+loadReseller :: Maybe Int -> Flow (Maybe D.ResellerAccount)
 loadReseller Nothing = pure Nothing
 loadReseller (Just resellerId') = do
   mbResAcc <- withEulerDB $ do
@@ -41,6 +41,6 @@ loadReseller (Just resellerId') = do
       V.Success v -> pure $ Just v
       V.Failure e -> do
         logErrorT "Incorrect reseller account in DB"
-          $  " resellerId: " <> resellerId'
+          $  " resellerId: " <> show resellerId'
           <> " error: " <> show e
         throwException Errs.internalError

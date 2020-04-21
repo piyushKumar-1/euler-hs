@@ -8,7 +8,7 @@ module Euler.Product.Domain.ResellerAccount
 import EulerHS.Prelude
 
 data ResellerAccount = ResellerAccount
-  { resellerId          :: Text
+  { resellerId          :: Int
   , userId              :: Int
   , resellerName        :: Text
   , resellerApiEndpoint :: Maybe Text

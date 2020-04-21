@@ -12,6 +12,6 @@ import qualified Euler.Storage.Types.ResellerAccount  as SR
 toDomResAcc :: SR.ResellerAccount -> V DR.ResellerAccount
 toDomResAcc ra = DR.ResellerAccount
   <$> withField @"resellerId" ra pure
-  <*> withField @"userId" ra extractJust
-  <*> withField @"resellerName" ra extractJust
+  <*> withField @"userId" ra pure
+  <*> withField @"resellerName" ra pure
   <*> withField @"resellerApiEndpoint" ra pure

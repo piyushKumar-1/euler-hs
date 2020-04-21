@@ -84,7 +84,7 @@ data OrderStatusRequest = OrderStatusRequest
   { orderId                 :: C.OrderId
   , merchantId              :: C.MerchantId
   , merchantReturnUrl       :: Maybe Text
-  , resellerId              :: Maybe Text
+  , resellerId              :: Maybe Int
   , isAuthenticated         :: Bool
   , sendCardIsin            :: Bool
   , sendFullGatewayResponse :: Bool

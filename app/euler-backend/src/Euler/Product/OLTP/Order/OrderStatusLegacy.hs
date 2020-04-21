@@ -1211,8 +1211,12 @@ getPaymentLink mAcc orderRef = do
  -- (maybeResellerAccount :: Maybe ResellerAccount) <- pure $ Just defaultResellerAccount
   maybeResellerEndpoint <- do
     conn <- getConn eulerDB
+    let resId = case mAcc ^. _resellerId of
+          Nothing -> 0
+          Just r -> fromMaybe 0 $ readMaybe $ T.unpack r
     res  <- runDB conn $ do
-      let predicate ResellerAccount {resellerId} = resellerId ==. B.val_ (fromMaybe "" $ mAcc ^. _resellerId)
+      let predicate ResellerAccount {resellerId} =
+            resellerId ==. B.val_ resId
       findRow
         $ B.select
         $ B.limit_ 1

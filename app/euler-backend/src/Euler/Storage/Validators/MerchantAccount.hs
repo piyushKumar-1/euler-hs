@@ -14,7 +14,7 @@ transSMaccToDomMacc :: SM.MerchantAccount -> V DM.MerchantAccount
 transSMaccToDomMacc sm = DM.MerchantAccount
     <$> withField @"id" sm (extractJust >=> notNegative)
     <*> withField @"merchantId" sm (extractJust >=> textNotEmpty)
-    <*> withField @"resellerId" sm (insideJust textNotEmpty)
+    <*> withField @"resellerId" sm (insideJust $ decode >=> notNegative)
     <*> withField @"enableSendingCardIsin" sm pure
     <*> withField @"returnUrl" sm pure
 

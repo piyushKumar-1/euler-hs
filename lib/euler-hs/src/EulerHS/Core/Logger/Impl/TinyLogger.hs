@@ -14,17 +14,19 @@ module EulerHS.Core.Logger.Impl.TinyLogger
 
 import           EulerHS.Prelude
 
+import Control.Concurrent (forkOn, getNumCapabilities)
+import Control.Concurrent.STM.TQueue
 import qualified System.Logger             as Log
 import qualified System.Logger.Message     as LogMsg
 
 import qualified EulerHS.Core.Types        as D
 
-type LogChan = TChan D.PendingMsg
+type LogQueue = TQueue D.PendingMsg
 
 type Loggers = [Log.Logger]
 
 data LoggerHandle
-  = AsyncLoggerHandle ThreadId LogChan Loggers
+  = AsyncLoggerHandle [ThreadId] LogQueue Loggers
   | SyncLoggerHandle Loggers
   | VoidLoggerHandle
 
@@ -49,15 +51,15 @@ logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsgSync loggers pendingMsg = do
   logPendingMsg loggers pendingMsg
 
-loggerWorker :: LogChan -> Loggers -> IO ()
-loggerWorker chan loggers = do
-  pendingMsg <- atomically $ readTChan chan
+loggerWorker :: LogQueue -> Loggers -> IO ()
+loggerWorker queue loggers = do
+  pendingMsg <- atomically $ readTQueue queue
   logPendingMsg loggers pendingMsg
 
 sendPendingMsg :: LoggerHandle -> D.PendingMsg -> IO ()
 sendPendingMsg VoidLoggerHandle = const (pure ())
 sendPendingMsg (SyncLoggerHandle loggers) = logPendingMsgSync loggers
-sendPendingMsg (AsyncLoggerHandle _ chan _)  = atomically . writeTChan chan
+sendPendingMsg (AsyncLoggerHandle _ queue _) = atomically . writeTQueue queue
 
 createVoidLogger :: IO LoggerHandle
 createVoidLogger = pure VoidLoggerHandle
@@ -82,9 +84,10 @@ createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = d
     startLogger _ [] = pure VoidLoggerHandle
     startLogger False loggers = pure $ SyncLoggerHandle loggers
     startLogger True  loggers = do
-      chan <- newTChanIO
-      threadId <- forkIO $ forever $ loggerWorker chan loggers
-      pure $ AsyncLoggerHandle threadId chan loggers
+      caps <- getNumCapabilities
+      queue <- newTQueueIO
+      threadIds <- traverse ((flip forkOn) (forever $ loggerWorker queue loggers)) [1..caps]
+      pure $ AsyncLoggerHandle threadIds queue loggers
 createLogger cfg = error $ "Unknown logger config: " <> show cfg
 
 disposeLogger :: LoggerHandle -> IO ()
@@ -93,20 +96,21 @@ disposeLogger (SyncLoggerHandle loggers) = do
   putStrLn @String "Disposing sync logger..."
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
-disposeLogger (AsyncLoggerHandle threadId chan loggers) = do
+disposeLogger (AsyncLoggerHandle threadIds queue loggers) = do
   putStrLn @String "Disposing async logger..."
-  killThread threadId
+  traverse killThread threadIds
   flushRest
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
   where
     flushRest = do
-      mbPendingMsg <- atomically $ tryReadTChan chan
+      mbPendingMsg <- atomically $ tryReadTQueue queue
       case mbPendingMsg of
         Nothing -> pure ()
         Just pendingMsg -> do
           logPendingMsg loggers pendingMsg
           flushRest
+
 
 withLogger :: D.LoggerConfig -> (LoggerHandle -> IO a) -> IO a
 withLogger config = bracket (createLogger config) disposeLogger

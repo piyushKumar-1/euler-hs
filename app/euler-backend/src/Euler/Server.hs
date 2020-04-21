@@ -22,17 +22,17 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.API.Validators.Transaction       as Txn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
+import qualified Euler.AppEnv as AppEnv
+
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
 import           Euler.API.RouteParameters
+import           Euler.AppEnv
 import qualified Euler.Common.Errors.ErrorsMapping      as EMap
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
-import qualified Euler.Playback.MethodPlayer            as PB (getMethod, noReqBody, noReqBodyJSON)
-import qualified Euler.Product.Domain                   as D
-import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+--import qualified Euler.Playback.MethodPlayer            as PB (noReqBody, noReqBodyJSON)
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
-import qualified Euler.Product.OLTP.Order.Update        as OrderUpdate
 import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
 
 import           WebService.ContentType
@@ -43,6 +43,8 @@ import           WebService.PostRewrite
                  (mkPostToGetMiddleware)
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
+
+import           WebService.Types as WT
 
 
 
@@ -104,6 +106,7 @@ data Acc = Acc {}
 data Env = Env
   { envFlowRt         :: R.FlowRuntime
   , envRecorderParams :: Maybe PB.RecorderParams
+  , envApp            :: AppEnv
   }
 
 type FlowHandler = ReaderT Env (ExceptT ServerError IO)
@@ -249,9 +252,13 @@ orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken mbSend
               mbClientAuthToken
               mbSendFullPgr
 
-  runFlow "orderStatusHandle" rps PB.noReqBodyJSON
-        $ Auth.withAuth Auth.mkKeyTokenAuthService
-          (PB.getMethod OrderStatus.orderStatus) rps PB.noReqBody
+  Env { envApp } <- ask
+  let flow = AppEnv.orderStatusMethod envApp
+  runFlow "orderStatusHandle" rps (toJSON WT.emptyReq) $ flow rps WT.emptyReq
+
+--  runFlow "orderStatusHandle" rps PB.noReqBodyJSON
+--        $ Auth.withAuth Auth.mkKeyTokenAuthService
+--          (PB.getMethod OrderStatus.orderStatus) rps PB.noReqBody
 
 
 -- EHS: Extract from here.
@@ -344,8 +351,10 @@ orderUpdate orderId auth version uagent xauthscope xforwarderfor sockAddr req = 
              xforwarderfor
              (sockAddrToSourceIP sockAddr)
              orderId
-  runFlow "orderUpdate" rps (toJSON req) $ Auth.withAuth Auth.mkKeyAuthService OrderUpdate.runOrderUpdate rps req
 
+  Env { envApp } <- ask
+  let flow = AppEnv.orderUpdateMethod envApp
+  runFlow "orderUpdate" rps (toJSON req) $ flow rps req
 
 
 paymentStatus

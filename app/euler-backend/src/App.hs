@@ -1,4 +1,7 @@
-module App where
+module App
+  ( runEulerBackendApp
+  , runEulerBackendApp'
+  )where
 
 import EulerHS.Prelude
 
@@ -12,9 +15,25 @@ import qualified WebService.Types as T
 import           Network.Wai.Handler.Warp (Settings, runSettings, setPort, defaultSettings)
 
 import qualified Euler.Config.Config as Config
+import qualified Euler.Config.EnvVars as EnvVars
 import qualified Euler.Options.Options as Opt
 import qualified Euler.Server as Euler
 import qualified Euler.Playback.Service as PB
+
+import           Euler.AppEnv
+
+import qualified Euler.Product.OLTP.Services.AuthConf   as AuthConf
+
+import qualified Euler.Product.OLTP.Order.StatusApi as StatusApi
+import qualified Euler.Product.Cache.CacheApi as Cache
+
+import qualified Euler.Product.Cache.CacheImpl as CacheImpl
+import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatusImpl
+import qualified Euler.Product.OLTP.Order.Update   as UpdateImpl
+
+
+
+
 
 
 
@@ -39,8 +58,8 @@ runEulerBackendApp' settings = do
         { T._logToFile = True
         , T._logFilePath = "/tmp/euler-backend.log"
         , T._isAsync = False
+        , T._level = EnvVars.loggerLevel
         }
-  -- MERGE: bl2: Config.loggerConfig
   R.withFlowRuntime (Just loggerCfg) $ \flowRt -> do
     putStrLn @String "Runtime created."
     putStrLn @String "Initializing DB connections..."
@@ -49,9 +68,26 @@ runEulerBackendApp' settings = do
       Right _ -> do
         putStrLn @String "Initializing ART..."
         recorderParams <- PB.initRecorderParams
+        putStrLn @String "Building business logic configuration..."
+        let env = Euler.Env flowRt recorderParams mkAppEnv
         putStrLn @String "Starting web server..."
-        let env = Euler.Env flowRt recorderParams
         runSettings settings $ Euler.eulerBackendApp env
 
 runEulerBackendApp :: IO ()
 runEulerBackendApp = runEulerBackendApp' $ setPort eulerApiPort defaultSettings
+
+mkAppEnv :: AppEnv
+mkAppEnv =
+  let keyAuthService = AuthConf.mkKeyAuthService
+      keyTokenAuthService = AuthConf.mkKeyTokenAuthService
+      orderStatusCacheService = CacheImpl.mkHandle Cache.defaultConfig
+      orderStatusConfig = StatusApi.defaultConfig { StatusApi.asyncSlowPath = EnvVars.orderStatusAsyncSlowPath }
+      orderStatusService = OrderStatusImpl.mkHandle orderStatusConfig keyTokenAuthService orderStatusCacheService
+  in AppEnv
+    { keyAuthH = keyAuthService
+    , tokenAuthH = AuthConf.mkTokenAuthService
+    , keyTokenAuthH = keyTokenAuthService
+    , orderStatusCacheH = orderStatusCacheService
+    , orderStatusH = orderStatusService
+    , orderUpdateH = UpdateImpl.mkHandle $ UpdateImpl.IHandle keyAuthService orderStatusCacheService orderStatusService
+    }

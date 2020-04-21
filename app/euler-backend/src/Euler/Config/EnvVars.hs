@@ -419,3 +419,8 @@ loggerLogToConsole = fromMaybe True $ readMaybe =<< toTitle <$> lookupEnv "LOGGE
 
 loggerLogToFile :: Bool
 loggerLogToFile = fromMaybe True $ readMaybe =<< toTitle <$> lookupEnv "LOGGER_TO_FILE"
+
+-- Order status API parameters
+
+orderStatusAsyncSlowPath :: Bool
+orderStatusAsyncSlowPath = fromMaybe False $ readMaybe =<< toTitle <$> lookupEnv "ORDER_STATUS_ASYNC"

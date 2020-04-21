@@ -1,6 +1,6 @@
 module Euler.Playback.MethodPlayer
   ( runMethodPlayer
-  , getMethod
+  --, getMethod
   , noReqBody
   , noReqBodyJSON
   ) where
@@ -13,24 +13,33 @@ import           EulerHS.Runtime
 import           EulerHS.Types
 
 import           Control.Exception               (throwIO)
+import qualified Control.Exception.Safe as CES (catches, Handler(..))
+import qualified Data.Aeson as A (Result(..), fromJSON, Value)
 import           Data.Coerce (coerce)
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
-
-import qualified Data.Aeson as A (Result(..), fromJSON, Value)
 import qualified Database.Redis as RD
-import qualified Control.Exception.Safe as CES (catches, Handler(..))
 
-import Euler.API.RouteParameters
-import Euler.Playback.Types
-
+import           Euler.API.RouteParameters
+import qualified Euler.AppEnv as AppEnv
 import qualified Euler.Common.Errors.ErrorsMapping as EMap
+import           Euler.Playback.Types
 import qualified Euler.Product.Domain              as D
-import qualified Euler.Product.OLTP.Services.AuthenticationService as AS (withMacc)
-import qualified Euler.Product.OLTP.Order.Create                   as OrderCreate
-import qualified Euler.Product.OLTP.Order.Update        as OrderUpdate
-import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
+import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
+
+
+
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- EHS: FIXME how to pass this environment to player?
+appEnv :: AppEnv.AppEnv
+appEnv = undefined
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
+
 
 -- EHS: Player should know nothing about methods. Should not depend on APIs
 runMethodPlayer
@@ -38,10 +47,15 @@ runMethodPlayer
   -> MethodRecording
   -> PlayerParams
   -> IO MethodPlayerResult
--- EHS: restore
+
+-- old style -- direct dependency
 runMethodPlayer "orderCreate"       = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate)
-runMethodPlayer "orderUpdate"       = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthService OrderUpdate.runOrderUpdate)
-runMethodPlayer "orderStatusHandle" = withMethodPlayer (Auth.withAuth Auth.mkKeyTokenAuthService (getMethod OrderStatus.orderStatus))
+
+-- new style -- get handlers from AppEnv
+runMethodPlayer "oderUpdate"        = withMethodPlayer $ AppEnv.orderUpdateMethod appEnv
+runMethodPlayer "orderStatusHandle" = withMethodPlayer $ AppEnv.orderStatusMethod appEnv
+
+--
 runMethodPlayer methodName          = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 
@@ -53,14 +67,14 @@ noReqBody = ()
 noReqBodyJSON :: A.Value
 noReqBodyJSON = toJSON noReqBody
 
-getMethod ::
-  ( FromJSON resp)
-  => (RouteParameters -> D.MerchantAccount -> Flow resp)
-  -> RouteParameters
-  -> NoReqBody
-  -> D.MerchantAccount
-  -> Flow resp
-getMethod f p _ m = f p m
+--getMethod ::
+--  ( FromJSON resp)
+--  => (RouteParameters -> D.MerchantAccount -> Flow resp)
+--  -> RouteParameters
+--  -> NoReqBody
+--  -> D.MerchantAccount
+--  -> Flow resp
+--getMethod f p _ m = f p m
 
 withMethodPlayer
   :: (FromJSON req, FromJSON resp, ToJSON resp, Eq resp, Show resp)

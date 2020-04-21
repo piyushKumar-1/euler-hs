@@ -245,6 +245,7 @@ src/Types/Communication/OLTP/Order.js
 -}
 
 
+-- EHS: remove along with OrderStatusLagacy
 
 -- we can live without it completely
 -- from Types.Communication.OLTP.OrderStatus

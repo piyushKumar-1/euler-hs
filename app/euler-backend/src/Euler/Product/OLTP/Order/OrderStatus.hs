@@ -3,8 +3,10 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Euler.Product.OLTP.Order.OrderStatus
-  ( -- * main handler by orderId and route parameters
-    orderStatus
+  ( mkHandle
+
+    -- * main handler by orderId and route parameters
+  , orderStatus
     -- * OrderStatusResponse-based handler
   , orderStatusRequest
     -- * EHS: these are used only in tests
@@ -53,20 +55,57 @@ import qualified Euler.Product.Domain                 as D
 import           Euler.Product.OLTP.Card.Card
 import qualified Euler.Product.OLTP.Order.OrderStatusVersioningService as VS
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
-import           Euler.Product.OLTP.Services.OrderStatusCacheService
+
+
+import qualified Euler.Product.OLTP.Order.StatusApi as StatusService
+import qualified Euler.Product.Cache.CacheApi as CacheService
+--import           Euler.Product.OLTP.Services.OrderStatusCacheService                           -- ^ this is a dependency
+import qualified Euler.Product.OLTP.Services.Auth.AuthService as AuthService
+
 import           Euler.Storage.Repository
 import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
 
 
 
+mkHandle
+    :: StatusService.Config   -- ^ Configuration
+    -> AuthService.SHandle    -- ^ Authentication service
+    -> CacheService.SHandle   -- ^ order status caching service
+    -> StatusService.SHandle
+mkHandle
+  config
+  AuthService.SHandle{..}
+  cacheH@CacheService.SHandle{..} =
+    let slowPath = case (StatusService.asyncSlowPath config) of
+          True  -> execOrderStatusAsync
+          False -> execOrderStatus
+    in
+      StatusService.SHandle
+      { statusById = \rps _ -> do   -- could be rewritten using withAuth
+          authResult <- authenticate rps
+          case (authResult) of
+            Left err -> do
+              logErrorT "AuthService" $ "authentication failed with error: " <> err
+              throwException Errs.internalError
+            Right macc ->
+              orderStatus cacheH rps macc slowPath
+
+      -- ----------------------------------------------------------------------
+
+      , statusByRequest = orderStatusRequest cacheH slowPath
+      }
+
+
 -- | API handler wrapper, constructs OrderStatusRequest and runs it
 orderStatus
-  :: RouteParameters
+  :: CacheService.SHandle
+  -> RouteParameters
   -> D.MerchantAccount
+  -> (D.OrderStatusRequest -> Flow OrderStatusResponse)
   -> Flow AO.OrderStatusResponse
-orderStatus rps merchantAccount  = do
+orderStatus sHandle rps merchantAccount slowPath  = do
     orderId' <- maybe (throwException Errs.internalError) pure $ RP.lookupRP @RP.OrderId rps
-    orderStatusRequest D.OrderStatusRequest
+    orderStatusRequest sHandle slowPath D.OrderStatusRequest
           { orderId                 = orderId'
           , merchantId              = merchantAccount ^. _merchantId
           , merchantReturnUrl       = merchantAccount ^. _returnUrl
@@ -76,7 +115,6 @@ orderStatus rps merchantAccount  = do
           , sendFullGatewayResponse = sendFullPrgResponse'
           , sendAuthToken           = False
           , version                 = version'
-          , isAsync                 = False
           }
   where
     sendFullPrgResponse' = RP.sendFullPgr rps
@@ -84,8 +122,16 @@ orderStatus rps merchantAccount  = do
 
 
 -- | Top-level flow to run OrderStatusRequest
-orderStatusRequest :: D.OrderStatusRequest -> Flow AO.OrderStatusResponse
-orderStatusRequest req@D.OrderStatusRequest{..} = do
+orderStatusRequest
+  :: CacheService.SHandle
+  -> (D.OrderStatusRequest -> Flow OrderStatusResponse)
+  -> D.OrderStatusRequest
+  -> Flow AO.OrderStatusResponse
+orderStatusRequest
+  CacheService.SHandle{ getCachedResponse, addToCache }
+  slowPathImpl
+  req@D.OrderStatusRequest{..}
+   = do
     mbCached <- fastPath
     result <- case mbCached of
       Just cached -> pure cached
@@ -96,12 +142,12 @@ orderStatusRequest req@D.OrderStatusRequest{..} = do
   where
     fastPath = getCachedResponse orderId merchantId isAuthenticated
     slowPath = do
-      res <- if isAsync then execOrderStatusAsync req else execOrderStatus req
+      res <- slowPathImpl req
       _ <- addToCache orderId merchantId isAuthenticated res
       pure res
 
 
--- | Slow-path flow to execute order status request
+-- | Sequential slow-path flow
 execOrderStatus :: D.OrderStatusRequest -> Flow OrderStatusResponse
 execOrderStatus request = do
 
@@ -200,7 +246,7 @@ execOrderStatus request = do
         txnFlowInfoAndMerchantSFR
         mMerchantPgr
 
--- | Slow-path flow to execute order status request concurrently
+-- | Concurrent slow-path flow
 execOrderStatusAsync :: D.OrderStatusRequest -> Flow OrderStatusResponse
 execOrderStatusAsync request = do
 

@@ -112,7 +112,168 @@ From root project dir run
 * [Architecture diagram](./docs/Architecture.png)
 * [Beam query examples](./lib/euler-hs/testDB/SQLDB/Tests/QueryExamplesSpec.hs)
 
-***Methods for connection management:***
+### State handling
+
+Sometimes you need to handle some (possibly mutable) state in your flows.
+The framework doesn't support the state right as is,
+but there are several ways to do this with other tools.
+
+***Simple argument passing state***
+
+This is the simplest way. You pass some values as arguments across the flow functions.
+
+```haskell
+orderCreate :: OrderCreateRequest -> MerchantAccount -> Flow OrderCreateResponse
+orderCreate req mAccnt = do
+  order <- validateOrderCreateRequest req
+  orderCreate' order mAccnt
+
+orderCreate' :: Order -> MerchantAccount -> Flow AOrderCreateResponse
+orderCreate' order mAccnt = ...
+```
+
+Here, all the arguments can be treated as immutable state.
+You can't probably do that much with this kind of state.
+
+***StateT state***
+
+You can use StateT for handling immutable state in flows.
+
+```haskell
+
+type FlowT a = StateT Order a
+
+orderCreate :: OrderCreateRequest -> MerchantAccount -> Flow OrderCreateResponse
+orderCreate req mAccnt = do
+  order <- validateOrderCreateRequest req
+  runStateT (orderCreate' mAccnt) order
+
+orderCreate' :: MerchantAccount -> FlowT AOrderCreateResponse
+orderCreate' mAccnt = do
+  order <- get
+  lift someFlowMethod
+  put order
+  ...
+
+someFlowMethod :: Flow ()
+someFlowMethod = ...
+```
+
+You handle your state with the StateT monad transformer wrapped around the Flow monad.
+It allows to do 'mutability' but you'll have to lift the Flow methods.
+
+This state will be thread safe.
+
+***Options like a mutable state***
+
+Typically, options are not intended to be used as user defined state.
+But it's not prohibited somehow. Do it if you know what are you doing.
+The only restriction here is that the state should be serializable (ToJSON / FromJSON)
+because options should be like this.
+
+```haskell
+
+data Order = Order
+  { someFiled :: Int
+  }
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+data OrderKey = OrderKey
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+instance OptionEntity OrderKey Order
+
+orderCreate :: OrderCreateRequest -> MerchantAccount -> Flow OrderCreateResponse
+orderCreate req mAccnt = do
+  order :: Order <- validateOrderCreateRequest req
+  setOption OrderKey order
+  orderCreate' mAccnt
+
+orderCreate' :: MerchantAccount -> FlowT AOrderCreateResponse
+orderCreate' mAccnt = do
+  order <- getOption OrderKey
+  ...
+```
+
+This state will be thread safe itself but with forked flows it's possible
+to have race conditions anyway.
+
+***Mutable impure state***
+
+The idea is to have IORef, MVar or TVar defined outside the flows and use it
+in flows to store data.
+
+You can't create any of these within the Flow monad
+because there is no such interface in the language, and the RunIO method
+can't return a created variable. Let's elaborate.
+
+This code will work, but it's kinda useless because doesn't allow to expose
+the internal IORef state:
+
+```haskell
+someFlow :: Flow ()
+someFlow = do
+  n :: Int <- runIO $ do
+    ref <- newIORef 100
+    readIORef ref
+  doSomethingWithN n
+```
+
+This flow won't work because the runIO method is not able to return IORef.
+IORef is not serializable:
+
+```haskell
+someFlow :: Flow ()
+someFlow = do
+  ref :: IORef Int <- runIO $ newIORef 100   -- won't compile
+  n <- runIO $ readIORef ref
+  doSomethingWithN n
+```
+
+The only way to work with IORef (or MVar which is better) is to pre-create it
+before the Flow scenario. Sample:
+
+```haskell
+-- API method for the Servant server
+orderCreate
+  :: OrderCreateRequest -> Handler ApiOrder.OrderCreateResponse
+orderCreate req = do
+
+  mVar :: MVar Order <- liftIO newEmptyMVar
+  ref :: IORef (Maybe Order) <- liftIO $ newIORef Nothing
+
+  runFlow $ Flows.orderCreate mVar ref req
+
+orderCreate
+  :: MVar Order
+  -> IORef (Maybe Order)
+  -> OrderCreateRequest
+  -> Flow OrderCreateResponse
+orderCreate mVar ref req = do
+  order :: Order <- validateOrderCreateRequest req
+  runIO $ writeIORef ref $ Just order   -- works
+  runIO $ putMVar mVar order            -- works
+  orderCreate' mAccnt
+
+orderCreate'
+  :: MVar Order
+  -> IORef (Maybe Order)
+  -> FlowT AOrderCreateResponse
+orderCreate' mVar ref = do
+  order <- runIO $ readIORef ref    -- works
+  order <- runIO $ readMVar mVar    -- works
+  ...
+```
+
+MVar and STM is thread safe, IORef is not thread safe.
+Still, race coniditions are possible even with MVars and STM.
+
+***KV DB and SQL DB based state***
+
+You can use KV DB and SQL DB as an external state storage which is significantly
+less performant and less convenient.
+
+### Methods for connection management:
 
 *Takes SQL DB config and create connection that can be used in queries.*
 ```haskell
@@ -134,7 +295,7 @@ getSqlDBConnection ::T.DBConfig beM -> Flow (T.DBResult (T.SqlConn beM))
 getOrInitSqlConn :: T.DBConfig beM -> L.Flow (T.DBResult (T.SqlConn beM))
 ```
 
-***Methods for querying***
+### SQL DB subsystem
 
 *Takes connection, sql query (described using BEAM syntax) and make request.*
 ```haskell

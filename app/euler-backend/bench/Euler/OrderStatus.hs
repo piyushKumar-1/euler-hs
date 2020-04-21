@@ -23,6 +23,7 @@ import qualified WebService.Language as L
 import qualified WebService.Types as T
 
 import           Criterion.Main
+import qualified Data.Text as T
 import           Database.MySQL.Base
 import           System.Process hiding (env)
 
@@ -63,37 +64,49 @@ variance introduced by outliers: 13% (moderately inflated)
 execOrderStatusBench :: IO ()
 execOrderStatusBench =
     prepareDB $ \rt -> do
-      request <- getRequest rt
-      defaultMain
-            [ bench "execOrderStatusAsync, concurrent, whnfAppIO" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request
-            , bench "execOrderStatus, sequentially, whnfAppIO" $ whnfAppIO (runFlow rt . execOrderStatus) request
-            , bench "execOrderStatusAsync, concurrent, whnfIO" $ whnfIO (runFlow rt $ execOrderStatusAsync request)
-            , bench "execOrderStatus, sequentially, whnfIO" $ whnfIO (runFlow rt $ execOrderStatus request)
+      print "Before requests getting"
+      request1 <- getRequest1 rt
+      request2 <- getRequest2 rt
+      request3 <- getRequest3 rt
+
+      print "All requests was got"
+      defaultMain [
+        bgroup (T.unpack  $ "orderId: " <> ordId1)
+            [ bench "concurrent" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request1
+            , bench "sequentially" $ whnfAppIO (runFlow rt . execOrderStatus) request1
+            ],
+        bgroup (T.unpack  $ "orderId: " <> ordId2)
+            [ bench "concurrent" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request2
+            , bench "sequentially" $ whnfAppIO (runFlow rt . execOrderStatus) request2
+            ],
+        bgroup (T.unpack  $ "orderId: " <> ordId3)
+            [ bench "concurrent" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request3
+            , bench "sequentially" $ whnfAppIO (runFlow rt . execOrderStatus) request3
             ]
+        ]
 
-
-getRequest :: FlowRuntime -> IO D.OrderStatusRequest
-getRequest rt = do
-  merchantAccount <- runFlow rt $ authenticateRequest rps
+getRequest1 :: FlowRuntime -> IO D.OrderStatusRequest
+getRequest1 rt = do
+  merchantAccount <- runFlow rt $ authenticateRequest rps1
   pure D.OrderStatusRequest
-    { orderId                 = ordId
+    { orderId                 = ordId1
     , merchantId              = merchantAccount ^. _merchantId
     , merchantReturnUrl       = merchantAccount ^. _returnUrl
     , resellerId              = merchantAccount ^. _resellerId
     , isAuthenticated         = True
     , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-    , sendFullGatewayResponse = RP.sendFullPgr rps
+    , sendFullGatewayResponse = RP.sendFullPgr rps1
     , sendAuthToken           = False
-    , version                 = RP.lookupRP @RP.Version rps
+    , version                 = RP.lookupRP @RP.Version rps1
     , isAsync                 = True
     }
 
-ordId :: C.OrderId
-ordId = "1475240639"
+ordId1 :: C.OrderId
+ordId1 = "1475240639"
 
-rps :: RouteParameters
-rps = collectRPs
-  (OrderId "1475240639")
+rps1 :: RouteParameters
+rps1 = collectRPs
+  (OrderId ordId1)
   -- Use https://www.base64encode.org/ to get base64 from api_key
   (Authorization "BASIC RTI5QTgzOEU0Qjc2NDM2RThBMkM2NjBBMDYwOTlGRUU=")
   (Version "2017-07-01")
@@ -101,8 +114,73 @@ rps = collectRPs
 
 
 
+getRequest2 :: FlowRuntime -> IO D.OrderStatusRequest
+getRequest2 rt = do
+  merchantAccount <- runFlow rt $ authenticateRequest rps2
+  pure D.OrderStatusRequest
+    { orderId                 = ordId2
+    , merchantId              = merchantAccount ^. _merchantId
+    , merchantReturnUrl       = merchantAccount ^. _returnUrl
+    , resellerId              = merchantAccount ^. _resellerId
+    , isAuthenticated         = True
+    , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
+    , sendFullGatewayResponse = RP.sendFullPgr rps2
+    , sendAuthToken           = False
+    , version                 = RP.lookupRP @RP.Version rps2
+    , isAsync                 = True
+    }
+
+ordId2 :: C.OrderId
+ordId2 = "1346337820"
+
+rps2 :: RouteParameters
+rps2 = collectRPs
+  (OrderId ordId2)
+  -- Use https://www.base64encode.org/ to get base64 from api_key
+  (Authorization "BASIC QzYyODExOEY4ODYwNEY3M0IxODUzNTM5MEY5NkVEREU=")
+  (Version "2017-07-01")
+  (UserAgent "Uagent")
+
+
+getRequest3 :: FlowRuntime -> IO D.OrderStatusRequest
+getRequest3 rt = do
+  merchantAccount <- runFlow rt $ authenticateRequest rps3
+  pure D.OrderStatusRequest
+    { orderId                 = ordId3
+    , merchantId              = merchantAccount ^. _merchantId
+    , merchantReturnUrl       = merchantAccount ^. _returnUrl
+    , resellerId              = merchantAccount ^. _resellerId
+    , isAuthenticated         = True
+    , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
+    , sendFullGatewayResponse = RP.sendFullPgr rps3
+    , sendAuthToken           = False
+    , version                 = RP.lookupRP @RP.Version rps3
+    , isAsync                 = True
+    }
+
+ordId3 :: C.OrderId
+ordId3 = "1346336130"
+
+rps3 :: RouteParameters
+rps3 = collectRPs
+  (OrderId ordId3)
+  -- Use https://www.base64encode.org/ to get base64 from api_key
+  (Authorization "BASIC QUVDMTlFQzQzODU1NDQ3MEEyMzNFRkFFNjY4RjMwMTc=")
+  (Version "2017-07-01")
+  (UserAgent "Uagent")
+
+
+
+
+
+
+
+
+
+
 prepareDB :: (FlowRuntime -> IO ()) -> IO()
 prepareDB next = withFlowRuntime (Just nullLoger) $ \flowRt ->
+-- prepareDB next = withFlowRuntime (Just defaultLoggerConfig) $ \flowRt ->
   prepareTestDB $
     try (runFlow flowRt prepareDBConnections) >>= \case
       Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e

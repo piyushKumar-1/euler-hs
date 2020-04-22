@@ -100,12 +100,13 @@ spec = do
               _userFirstName u2 `shouldBe` "Doe"
               _userLastName  u2 `shouldBe` "John"
 
-  let prepare msCfgToDbCfg =
-        prepareMysqlDB "testDB/SQLDB/TestData/MySQLDBSpec.sql"
-        mySQLRootCfg
-        mySQLCfg
-        msCfgToDbCfg
-        (withFlowRuntime Nothing)
+  let prepare msCfgToDbCfg next =
+        withMysqlDb "testDB/SQLDB/TestData/MySQLDBSpec.sql" mySQLRootCfg $
+          withFlowRuntime Nothing $ \rt -> do
+            runFlow rt $ do
+              ePool <- initSqlDBConnection $ msCfgToDbCfg mySQLCfg
+              either (error "Failed to connect to MySQL") (const $ pure ()) ePool
+            next rt
 
   around (prepare mkMysqlConfig) $
     describe "EulerHS MySQL DB tests" $ test $ mkMysqlConfig mySQLCfg

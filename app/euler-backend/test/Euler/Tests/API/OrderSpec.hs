@@ -46,35 +46,8 @@ import           Euler.Lens
 import           Database.MySQL.Base
 import           System.Process
 
-
-
-prepareDB :: (FlowRuntime -> IO ()) -> IO()
-prepareDB next = withFlowRuntime (Just defaultLoggerConfig) $ \flowRt ->
-  prepareTestDB $
-    try (runFlow flowRt prepareDBConnections) >>= \case
-      Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
-      Right _ -> next flowRt
-  where
-    prepareTestDB :: IO() -> IO ()
-    prepareTestDB action =
-      bracket (T.createMySQLConn mySQLRootCfg) close $ \rootConn -> do
-        let
-          dropTestDbIfExist :: IO ()
-          dropTestDbIfExist = do
-            query rootConn "drop database if exists euler_test_db"
-
-          createTestDb :: IO ()
-          createTestDb = do
-            query rootConn "create database euler_test_db"
-            query rootConn "grant all privileges on euler_test_db.* to 'cloud'@'%'"
-
-
-        bracket_
-          (dropTestDbIfExist >> createTestDb)
-          (dropTestDbIfExist)
-          (loadMySQLDump "test/Euler/TestData/orderCreateMySQL.sql" mySQLCfg >> action)
-
-
+import           EulerHS.Extra.Test
+import qualified Euler.Constants as Constants
 
 createMerchantAccount :: Flow DM.MerchantAccount
 createMerchantAccount = case Merchant.transSMaccToDomMacc Merchant.defaultMerchantAccount of
@@ -483,26 +456,6 @@ prepareDBConnections = do
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
 
 
-mwhen :: Monoid m => Bool -> m -> m
-mwhen True a  = a
-mwnen False _ = mempty
-
-
--- file path relative to app/euler-backend
-loadMySQLDump :: String -> T.MySQLConfig -> IO ()
-loadMySQLDump path T.MySQLConfig {..} = do
-    let cmd = "mysql " <> options <> " " <> connectDatabase <> " 2> /dev/null < " <> path -- ../../init/mysqldump.sql"
-    -- putStrLn cmd
-    void $ system cmd
-  where
-    options =
-      intercalate " "
-        [                                      "--port="     <> show connectPort
-        , mwhen (not $ null connectHost    ) $ "--host="     <> connectHost
-        , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
-        , mwhen (not $ null connectPassword) $ "--password=" <> connectPassword
-        ]
-
 mySQLCfg :: T.MySQLConfig
 mySQLCfg = T.MySQLConfig
   { connectHost     = "mysql"
@@ -527,9 +480,6 @@ mySQLRootCfg =
     T.MySQLConfig {..} = mySQLCfg
 
 
-
-
-
 loop :: IO ()
 loop = do threadDelay 1000; loop
 
@@ -546,11 +496,16 @@ shouldStartWithAnn s v p
 
 
 spec :: Spec
-spec =
-  around prepareDB $
+spec = do
+  let prepare next =
+        withMysqlDb "test/Euler/TestData/orderCreateMySQL.sql" mySQLRootCfg $
+          withFlowRuntime (Just defaultLoggerConfig) $ \rt -> do
+            runFlow rt $ prepareDBConnections
+            next rt
+
+  around prepare $
     describe "API Order methods" $ do
       let runOrderCreate rt ordReq rp = runFlow rt $ do
-            -- prepareDBConnections
             Auth.withMacc OrderCreate.orderCreate rp ordReq
             --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 

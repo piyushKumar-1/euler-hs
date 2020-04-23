@@ -367,7 +367,13 @@ runIO' descr ioAct = liftFC $ RunIO descr ioAct id
 getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
 getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 
--- Sets a typed option using a typed key.
+-- Sets a typed option using a typed key (a mutable destructive operation)
+--
+-- Be aware that it's possible to overflow the runtime with options
+-- created uncontrollably.
+--
+-- Also please keep in mind the options are runtime-bound and if you have
+-- several API methods working with the same option key, you'll get a race.
 --
 -- Thread safe, exception free.
 --

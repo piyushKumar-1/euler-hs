@@ -1,4 +1,4 @@
-module Euler.Product.Cache.CacheImpl where
+module Euler.Product.Cache.OrderStatusCacheImpl where
 
 import           EulerHS.Prelude
 
@@ -10,7 +10,7 @@ import           Euler.API.Order
 import qualified Euler.Common.Metric      as Metric
 import qualified Euler.Constants          as Constants (ecRedis)
 import qualified Euler.Constant.Feature   as FeatureC
-import           Euler.Product.Cache.CacheApi
+import           Euler.Product.Cache.OrderStatusCacheApi
 import           Euler.Storage.Repository.Feature
 
 

@@ -58,8 +58,7 @@ import           Euler.Product.OLTP.Services.OrderStatusBuilder
 
 
 import qualified Euler.Product.OLTP.Order.StatusApi as StatusService
-import qualified Euler.Product.Cache.CacheApi as CacheService
---import           Euler.Product.OLTP.Services.OrderStatusCacheService                           -- ^ this is a dependency
+import qualified Euler.Product.Cache.OrderStatusCacheApi as CacheService
 import qualified Euler.Product.OLTP.Services.Auth.AuthService as AuthService
 
 import           Euler.Storage.Repository

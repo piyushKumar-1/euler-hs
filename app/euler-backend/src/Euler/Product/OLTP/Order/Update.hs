@@ -30,7 +30,7 @@ import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Product.OLTP.Order.UpdateApi           as UpdateApi
 
 -- deps
-import qualified Euler.Product.Cache.CacheApi                 as CacheApi
+import qualified Euler.Product.Cache.OrderStatusCacheApi                 as CacheApi
 import qualified Euler.Product.OLTP.Order.StatusApi           as StatusApi
 import qualified Euler.Product.OLTP.Services.Auth.AuthService as AuthApi
 

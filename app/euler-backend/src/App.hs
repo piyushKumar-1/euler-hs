@@ -25,15 +25,11 @@ import           Euler.AppEnv
 import qualified Euler.Product.OLTP.Services.AuthConf   as AuthConf
 
 import qualified Euler.Product.OLTP.Order.StatusApi as StatusApi
-import qualified Euler.Product.Cache.CacheApi as Cache
+import qualified Euler.Product.Cache.OrderStatusCacheApi as CacheApi
 
-import qualified Euler.Product.Cache.CacheImpl as CacheImpl
+import qualified Euler.Product.Cache.OrderStatusCacheImpl as CacheImpl
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatusImpl
 import qualified Euler.Product.OLTP.Order.Update   as UpdateImpl
-
-
-
-
 
 
 
@@ -67,6 +63,7 @@ runEulerBackendApp' settings = do
       Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
       Right _ -> do
         putStrLn @String "Initializing ART..."
+        -- EHS: recorder and player functions are in the same module
         recorderParams <- PB.initRecorderParams
         putStrLn @String "Building business logic configuration..."
         let env = Euler.Env flowRt recorderParams mkAppEnv
@@ -76,11 +73,12 @@ runEulerBackendApp' settings = do
 runEulerBackendApp :: IO ()
 runEulerBackendApp = runEulerBackendApp' $ setPort eulerApiPort defaultSettings
 
+-- | Normal mode business-logic configuration
 mkAppEnv :: AppEnv
 mkAppEnv =
   let keyAuthService = AuthConf.mkKeyAuthService
       keyTokenAuthService = AuthConf.mkKeyTokenAuthService
-      orderStatusCacheService = CacheImpl.mkHandle Cache.defaultConfig
+      orderStatusCacheService = CacheImpl.mkHandle CacheApi.defaultConfig
       orderStatusConfig = StatusApi.defaultConfig { StatusApi.asyncSlowPath = EnvVars.orderStatusAsyncSlowPath }
       orderStatusService = OrderStatusImpl.mkHandle orderStatusConfig keyTokenAuthService orderStatusCacheService
   in AppEnv

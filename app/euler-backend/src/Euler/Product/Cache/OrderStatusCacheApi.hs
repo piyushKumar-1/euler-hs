@@ -1,4 +1,4 @@
-module Euler.Product.Cache.CacheApi
+module Euler.Product.Cache.OrderStatusCacheApi
   ( -- * Abstract handle
     SHandle(..)
 

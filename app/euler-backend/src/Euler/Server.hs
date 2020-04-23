@@ -22,7 +22,6 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.API.Validators.Transaction       as Txn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
-import qualified Euler.AppEnv as AppEnv
 
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
@@ -253,12 +252,9 @@ orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken mbSend
               mbSendFullPgr
 
   Env { envApp } <- ask
-  let flow = AppEnv.orderStatusMethod envApp
-  runFlow "orderStatusHandle" rps (toJSON WT.emptyReq) $ flow rps WT.emptyReq
-
---  runFlow "orderStatusHandle" rps PB.noReqBodyJSON
---        $ Auth.withAuth Auth.mkKeyTokenAuthService
---          (PB.getMethod OrderStatus.orderStatus) rps PB.noReqBody
+  let handlerName = showHandlerKey OrderStatus
+  let flow = orderStatusMethod envApp
+  runFlow handlerName rps (toJSON WT.emptyReq) $ flow rps WT.emptyReq
 
 
 -- EHS: Extract from here.
@@ -353,8 +349,9 @@ orderUpdate orderId auth version uagent xauthscope xforwarderfor sockAddr req = 
              orderId
 
   Env { envApp } <- ask
-  let flow = AppEnv.orderUpdateMethod envApp
-  runFlow "orderUpdate" rps (toJSON req) $ flow rps req
+  let handlerName = showHandlerKey OrderUpdate
+  let flow = orderUpdateMethod envApp
+  runFlow handlerName rps (toJSON req) $ flow rps req
 
 
 paymentStatus

@@ -16,32 +16,22 @@ import           Control.Exception               (throwIO)
 import qualified Control.Exception.Safe as CES (catches, Handler(..))
 import qualified Data.Aeson as A (Result(..), fromJSON, Value)
 import           Data.Coerce (coerce)
+import qualified Data.Text as T (pack)
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import qualified Database.Redis as RD
 
+import           Euler.Playback.AppEnv (mkAppEnv)
 import           Euler.API.RouteParameters
 import qualified Euler.AppEnv as AppEnv
 import qualified Euler.Common.Errors.ErrorsMapping as EMap
 import           Euler.Playback.Types
-import qualified Euler.Product.Domain              as D
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
 
 
 
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- EHS: FIXME how to pass this environment to player?
-appEnv :: AppEnv.AppEnv
-appEnv = undefined
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
--- ----------------------------------------------------------------------------
-
-
--- EHS: Player should know nothing about methods. Should not depend on APIs
+-- (+) EHS: Player should know nothing about methods. Should not depend on APIs
 runMethodPlayer
   :: String
   -> MethodRecording
@@ -49,14 +39,14 @@ runMethodPlayer
   -> IO MethodPlayerResult
 
 -- old style -- direct dependency
-runMethodPlayer "orderCreate"       = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate)
+runMethodPlayer "orderCreate" = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate)
 
--- new style -- get handlers from AppEnv
-runMethodPlayer "oderUpdate"        = withMethodPlayer $ AppEnv.orderUpdateMethod appEnv
-runMethodPlayer "orderStatusHandle" = withMethodPlayer $ AppEnv.orderStatusMethod appEnv
+-- new style -- one for all handlers
+runMethodPlayer newStyleKey   =  AppEnv.runHandlerWith (T.pack newStyleKey) mkAppEnv withMethodPlayer
 
---
-runMethodPlayer methodName          = \_ _ -> pure $ Left $ MethodNotSupported methodName
+-- EHS: TODO handle error when method not found properly
+runMethodPlayer methodName    = \_ _ -> pure $ Left $ MethodNotSupported methodName
+
 
 
 type NoReqBody = ()

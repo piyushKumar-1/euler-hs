@@ -125,6 +125,7 @@ dependencies:
 - amazonka-core
 - amazonka-kms
 - raw-strings-qq
+- regex
 
 library:
   source-dirs:

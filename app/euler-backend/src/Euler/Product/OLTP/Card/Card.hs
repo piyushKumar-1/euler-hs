@@ -5,6 +5,7 @@
 {-# LANGUAGE DuplicateRecordFields     #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE QuasiQuotes               #-}
 {-# LANGUAGE TypeApplications          #-}
 
 module Euler.Product.OLTP.Card.Card where
@@ -23,7 +24,7 @@ import qualified Data.List as L
 import qualified Data.Text as T
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
-
+import           Text.RE.TDFA.Text
 
 
 -- ----------------------------------------------------------------------------
@@ -173,7 +174,8 @@ checkRupayCard isin = length (filter (inRange isin) getRupayCardRange) > 0
 -- checkMaestroCard isin = test "^(5018|5081|5044|504681|504993|5020|502260|5038|603845|603123|6304|6759|676[1-3]|6220|504834|504817|504645|504775)" isin
 
 checkMaestroCard :: Text -> Bool
-checkMaestroCard isin = test "^(5018|5081|5044|504681|504993|5020|502260|5038|603845|603123|6304|6759|676[1-3]|6220|504834|504817|504645|504775)" isin
+checkMaestroCard isin = matched $
+  isin ?=~ [re|^(5018|5081|5044|504681|504993|5020|502260|5038|603845|603123|6304|6759|676[1-3]|6220|504834|504817|504645|504775)|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkMasterCard
@@ -184,7 +186,7 @@ checkMaestroCard isin = test "^(5018|5081|5044|504681|504993|5020|502260|5038|60
 -- checkMasterCard isin = test "^(51|52|53|54|55)" isin
 
 checkMasterCard :: Text -> Bool
-checkMasterCard isin = test "^(51|52|53|54|55)" isin
+checkMasterCard isin = matched $ isin ?=~ [re|^(51|52|53|54|55)|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkVisaCard
@@ -195,7 +197,7 @@ checkMasterCard isin = test "^(51|52|53|54|55)" isin
 -- checkVisaCard isin = test "^4" isin
 
 checkVisaCard :: Text -> Bool
-checkVisaCard isin = test "^4" isin
+checkVisaCard isin = matched $ isin ?=~ [re|^4|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkAmexCard
@@ -206,7 +208,7 @@ checkVisaCard isin = test "^4" isin
 -- checkAmexCard isin = test "^(34|37)" isin
 
 checkAmexCard :: Text -> Bool
-checkAmexCard isin = test "^(34|37)" isin
+checkAmexCard isin = matched $ isin ?=~ [re|^(34|37)|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkDinersCard
@@ -217,7 +219,7 @@ checkAmexCard isin = test "^(34|37)" isin
 -- checkDinersCard isin = test "^36|38|(30[0-5])" isin
 
 checkDinersCard :: Text -> Bool
-checkDinersCard isin = test "^36|38|(30[0-5])" isin
+checkDinersCard isin = matched $ isin ?=~ [re|^36|38|(30[0-5])|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkDiscoversCard
@@ -228,7 +230,7 @@ checkDinersCard isin = test "^36|38|(30[0-5])" isin
 -- checkDiscoversCard isin = test "^6011|65|64[4-9]|622" isin
 
 checkDiscoversCard :: Text -> Bool
-checkDiscoversCard isin = test "^6011|65|64[4-9]|622" isin
+checkDiscoversCard isin = matched $ isin ?=~ [re|^6011|65|64[4-9]|622|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkJCBCard
@@ -239,7 +241,7 @@ checkDiscoversCard isin = test "^6011|65|64[4-9]|622" isin
 -- checkJCBCard isin = test "^35" isin
 
 checkJCBCard :: Text -> Bool
-checkJCBCard isin = test "^35" isin
+checkJCBCard isin = matched $ isin ?=~ [re|^35|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkSodexoCard
@@ -250,7 +252,7 @@ checkJCBCard isin = test "^35" isin
 -- checkSodexoCard isin = test "^637513" isin
 
 checkSodexoCard :: Text -> Bool
-checkSodexoCard isin = test "^637513" isin
+checkSodexoCard isin = matched $ isin ?=~ [re|^637513|]
 
 -- ----------------------------------------------------------------------------
 -- function: allCardsFn
@@ -298,26 +300,3 @@ evalCardISIN isin (fn, _) = fn isin
 
 getCardBrand :: Text -> Maybe Text
 getCardBrand cardISIN = snd <$> L.find (evalCardISIN $ T.strip cardISIN) allCardsFn
-
-
--- ------------------------------------------------------------------------------
--- function: test
--- TODO port
--- from Utils.Utils
--- ------------------------------------------------------------------------------
-
-{-
-foreign import test :: String -> String -> Boolean
-
--- exports["test"] = function(regex1){
---   return function(data){
---     a = new RegExp(regex1);
---     return a.test(data);
---   }
--- }
--}
-
-test :: Text -> Text -> Bool
---test txt1 txt2 = undefined :: Bool
-test _ _ = False
-

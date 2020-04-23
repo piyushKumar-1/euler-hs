@@ -21,9 +21,9 @@ import qualified EulerHS.Prelude as P (id)
 import           EulerHS.Types
 
 import           EulerHS.Language
+import           WebService.Language
 
 import           Control.Comonad (extract)
--- import           Control.Monad.Except
 import           Data.Aeson
 import qualified Data.Aeson              as A
 import qualified Data.ByteString.Base64  as B64
@@ -55,9 +55,7 @@ import qualified Euler.Product.OLTP.Order.OrderStatusVersioningService as VS
 import           Euler.Product.OLTP.Services.OrderStatusBuilder
 import           Euler.Product.OLTP.Services.OrderStatusCacheService
 import           Euler.Storage.Repository
-import qualified Euler.Storage.Types as DB
 import           Euler.Services.Gateway.MerchantPaymentGatewayResponse
-import           WebService.Language
 
 
 
@@ -917,7 +915,7 @@ getMerchantPGR txn shouldSendFullGatewayResponse = do
       pure $ Just (merchantPgr & _gatewayResponse .~ gatewayResp)
 
 getGatewayResponseInJson
-  :: DB.PaymentGatewayResponse
+  :: D.PaymentGatewayResponse
   -> Bool
   -> Maybe Text
 getGatewayResponseInJson paymentGatewayResponse shouldSendFullGatewayResponse =

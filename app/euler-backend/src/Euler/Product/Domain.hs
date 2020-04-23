@@ -16,6 +16,7 @@ import Euler.Product.Domain.Order                          as X
 import Euler.Product.Domain.OrderMetadataV2                as X
 import Euler.Product.Domain.OrderStatusResponse            as X
 import Euler.Product.Domain.Paymentlinks                   as X
+import Euler.Product.Domain.PaymentGatewayResponse         as X
 import Euler.Product.Domain.Promotion                      as X
 import Euler.Product.Domain.Refund                         as X
 import Euler.Product.Domain.ResellerAccount                as X

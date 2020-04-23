@@ -15,7 +15,7 @@ import           Data.Generics.Product.Fields
 import           Euler.Common.Types.Gateway
 import           Euler.Common.Types.PaymentGatewayResponseXml
 
-import           Euler.Storage.Types.PaymentGatewayResponse
+import           Euler.Product.Domain.PaymentGatewayResponse
 
 import qualified Euler.Product.Domain as D
 import           Euler.Product.Domain.TxnDetail

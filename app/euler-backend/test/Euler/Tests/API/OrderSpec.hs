@@ -61,7 +61,7 @@ prepareTestDB = do
   void $ runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
 
 withEmptyDB :: (FlowRuntime -> IO ()) -> IO ()
-withEmptyDB act = withFlowRuntime Nothing (\rt -> do
+withEmptyDB act = withFlowRuntime (Just defaultLoggerConfig) (\rt -> do
   try (runFlow rt prepareTestDB) >>= \case
     Left (e :: SomeException) ->
       runFlow rt rmTestDB

@@ -3,6 +3,7 @@
 
 module Euler.Tests.API.AuthRSA where
 
+import Euler.Tests.Common
 
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Data.Text                              as Text
@@ -199,7 +200,7 @@ prepareDB next = withFlowRuntime Nothing $ \flowRt ->
 
 runServer :: IO () -> FlowRuntime -> IO ()
 runServer act flowRt = do
-    let env = S.Env flowRt Nothing
+    let env = S.Env flowRt Nothing mkAppEnv
     serverStartupLock <- newEmptyMVar
     let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $ setPort port defaultSettings
     threadId <- forkIO $ runSettings settings $ serve api (eulerServer_ api server env)

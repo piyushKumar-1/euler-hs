@@ -6,18 +6,23 @@ module Euler.OrderStatus
 import           EulerHS.Prelude
 
 import           Euler.API.RouteParameters
-import qualified Euler.API.RouteParameters as RP
 import qualified Euler.Common.Types as C
-import           Euler.Lens
 import qualified Euler.Options.Options as Opt
-import qualified Euler.Product.Domain as D
-import           Euler.Product.OLTP.Order.OrderStatus
-import           Euler.Product.OLTP.Services.AuthenticationService (authenticateRequest)
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import           EulerHS.Runtime
-import           EulerHS.Types hiding (error)
 import qualified EulerHS.Types as T
+
+import           Euler.AppEnv
+
+import qualified Euler.Product.OLTP.Services.AuthConf   as AuthConf
+
+import qualified Euler.Product.OLTP.Order.StatusApi as StatusApi
+import qualified Euler.Product.Cache.OrderStatusCacheApi as CacheApi
+
+import qualified Euler.Product.Cache.OrderStatusCacheImpl as CacheImpl
+import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatusImpl
+import qualified Euler.Product.OLTP.Order.Update   as UpdateImpl
 
 import qualified WebService.Language as L
 import qualified WebService.Types as T
@@ -32,74 +37,88 @@ import           System.Process hiding (env)
 We head slight overhead on async way.
 Async should win on longer flows.
 
-benchmarking execOrderStatusAsync, concurrent, whnfAppIO
-time                 57.22 ms   (54.94 ms .. 59.34 ms)
-                     0.996 R²   (0.991 R² .. 0.999 R²)
-mean                 56.51 ms   (55.35 ms .. 57.40 ms)
-std dev              2.002 ms   (1.382 ms .. 2.944 ms)
+benchmarking orderId: 1475240639/sequentially
+time                 54.16 ms   (48.12 ms .. 58.44 ms)
+                     0.982 R²   (0.961 R² .. 0.998 R²)
+mean                 54.59 ms   (52.74 ms .. 56.24 ms)
+std dev              3.168 ms   (2.293 ms .. 4.237 ms)
+variance introduced by outliers: 15% (moderately inflated)
 
-benchmarking execOrderStatus, sequentially, whnfAppIO
-time                 52.82 ms   (51.11 ms .. 57.01 ms)
-                     0.993 R²   (0.987 R² .. 0.998 R²)
-mean                 48.55 ms   (46.38 ms .. 49.96 ms)
-std dev              3.463 ms   (2.621 ms .. 4.846 ms)
-variance introduced by outliers: 22% (moderately inflated)
+benchmarking orderId: 1475240639/concurrent
+time                 62.60 ms   (58.30 ms .. 66.88 ms)
+                     0.990 R²   (0.973 R² .. 0.997 R²)
+mean                 62.75 ms   (60.96 ms .. 65.07 ms)
+std dev              3.730 ms   (2.827 ms .. 4.967 ms)
+variance introduced by outliers: 16% (moderately inflated)
 
-benchmarking execOrderStatusAsync, concurrent, whnfIO
-time                 60.41 ms   (58.26 ms .. 63.47 ms)
-                     0.993 R²   (0.983 R² .. 0.998 R²)
-mean                 55.88 ms   (54.05 ms .. 58.06 ms)
-std dev              3.829 ms   (2.783 ms .. 5.061 ms)
+benchmarking orderId: 1346337820/sequentially
+time                 30.35 ms   (28.97 ms .. 31.71 ms)
+                     0.993 R²   (0.987 R² .. 0.997 R²)
+mean                 29.94 ms   (28.73 ms .. 33.01 ms)
+std dev              3.811 ms   (1.622 ms .. 6.697 ms)
+variance introduced by outliers: 51% (severely inflated)
+
+benchmarking orderId: 1346337820/concurrent
+time                 33.47 ms   (31.90 ms .. 34.97 ms)
+                     0.989 R²   (0.979 R² .. 0.997 R²)
+mean                 32.22 ms   (30.57 ms .. 33.26 ms)
+std dev              2.721 ms   (1.533 ms .. 3.983 ms)
+variance introduced by outliers: 34% (moderately inflated)
+
+benchmarking orderId: 1346336130/sequentially
+time                 29.76 ms   (28.14 ms .. 31.79 ms)
+                     0.987 R²   (0.975 R² .. 0.997 R²)
+mean                 28.81 ms   (28.11 ms .. 29.52 ms)
+std dev              1.760 ms   (1.231 ms .. 2.376 ms)
+variance introduced by outliers: 21% (moderately inflated)
+
+benchmarking orderId: 1346336130/concurrent
+time                 34.12 ms   (32.36 ms .. 35.79 ms)
+                     0.990 R²   (0.984 R² .. 0.996 R²)
+mean                 34.17 ms   (33.16 ms .. 35.08 ms)
+std dev              2.133 ms   (1.694 ms .. 3.029 ms)
 variance introduced by outliers: 23% (moderately inflated)
 
-benchmarking execOrderStatus, sequentially, whnfIO
-time                 48.51 ms   (46.50 ms .. 51.06 ms)
-                     0.993 R²   (0.980 R² .. 0.999 R²)
-mean                 45.97 ms   (45.04 ms .. 47.02 ms)
-std dev              2.092 ms   (1.612 ms .. 2.870 ms)
-variance introduced by outliers: 13% (moderately inflated)
 
 -}
 
 execOrderStatusBench :: IO ()
-execOrderStatusBench =
-    prepareDB $ \rt -> do
-      print "Before requests getting"
-      request1 <- getRequest1 rt
-      request2 <- getRequest2 rt
-      request3 <- getRequest3 rt
-
-      print "All requests was got"
-      defaultMain [
-        bgroup (T.unpack  $ "orderId: " <> ordId1)
-            [ bench "concurrent" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request1
-            , bench "sequentially" $ whnfAppIO (runFlow rt . execOrderStatus) request1
-            ],
-        bgroup (T.unpack  $ "orderId: " <> ordId2)
-            [ bench "concurrent" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request2
-            , bench "sequentially" $ whnfAppIO (runFlow rt . execOrderStatus) request2
-            ],
-        bgroup (T.unpack  $ "orderId: " <> ordId3)
-            [ bench "concurrent" $ whnfAppIO (runFlow rt . execOrderStatusAsync) request3
-            , bench "sequentially" $ whnfAppIO (runFlow rt . execOrderStatus) request3
-            ]
+execOrderStatusBench = prepareDB $ \rt -> do
+  defaultMain [
+    bgroup (T.unpack  $ "orderId: " <> ordId1)
+        [ bench "sequentially" $ whnfIO $ runOrderStatus rt rps1 False
+        , bench "concurrent" $ whnfIO $ runOrderStatus rt rps1 True
+        ],
+    bgroup (T.unpack  $ "orderId: " <> ordId2)
+        [ bench "sequentially" $  whnfIO $ runOrderStatus rt rps2 False
+        , bench "concurrent" $ whnfIO $ runOrderStatus rt rps2 True
+        ],
+    bgroup (T.unpack  $ "orderId: " <> ordId3)
+        [ bench "sequentially" $ whnfIO $ runOrderStatus rt rps3 False
+        , bench "concurrent" $ whnfIO $ runOrderStatus rt rps3 True
         ]
+    ]
 
-getRequest1 :: FlowRuntime -> IO D.OrderStatusRequest
-getRequest1 rt = do
-  merchantAccount <- runFlow rt $ authenticateRequest rps1
-  pure D.OrderStatusRequest
-    { orderId                 = ordId1
-    , merchantId              = merchantAccount ^. _merchantId
-    , merchantReturnUrl       = merchantAccount ^. _returnUrl
-    , resellerId              = merchantAccount ^. _resellerId
-    , isAuthenticated         = True
-    , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-    , sendFullGatewayResponse = RP.sendFullPgr rps1
-    , sendAuthToken           = False
-    , version                 = RP.lookupRP @RP.Version rps1
-    , isAsync                 = True
+
+runOrderStatus :: FlowRuntime -> RouteParameters -> Bool -> IO StatusApi.OrderStatusResponse
+runOrderStatus rt rps isAsync = runFlow rt $ orderStatusMethod (mkAppEnv isAsync) rps T.emptyReq
+
+mkAppEnv :: Bool -> AppEnv
+mkAppEnv isAsync  =
+  let keyAuthService = AuthConf.mkKeyAuthService
+      keyTokenAuthService = AuthConf.mkKeyTokenAuthService
+      orderStatusCacheService = CacheImpl.mkHandle CacheApi.defaultConfig
+      orderStatusConfig = StatusApi.defaultConfig { StatusApi.asyncSlowPath = isAsync }
+      orderStatusService = OrderStatusImpl.mkHandle orderStatusConfig keyTokenAuthService orderStatusCacheService
+  in AppEnv
+    { keyAuthH = keyAuthService
+    , tokenAuthH = AuthConf.mkTokenAuthService
+    , keyTokenAuthH = keyTokenAuthService
+    , orderStatusCacheH = orderStatusCacheService
+    , orderStatusH = orderStatusService
+    , orderUpdateH = UpdateImpl.mkHandle $ UpdateImpl.IHandle keyAuthService orderStatusCacheService orderStatusService
     }
+
 
 ordId1 :: C.OrderId
 ordId1 = "1475240639"
@@ -113,23 +132,6 @@ rps1 = collectRPs
   (UserAgent "Uagent")
 
 
-
-getRequest2 :: FlowRuntime -> IO D.OrderStatusRequest
-getRequest2 rt = do
-  merchantAccount <- runFlow rt $ authenticateRequest rps2
-  pure D.OrderStatusRequest
-    { orderId                 = ordId2
-    , merchantId              = merchantAccount ^. _merchantId
-    , merchantReturnUrl       = merchantAccount ^. _returnUrl
-    , resellerId              = merchantAccount ^. _resellerId
-    , isAuthenticated         = True
-    , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-    , sendFullGatewayResponse = RP.sendFullPgr rps2
-    , sendAuthToken           = False
-    , version                 = RP.lookupRP @RP.Version rps2
-    , isAsync                 = True
-    }
-
 ordId2 :: C.OrderId
 ordId2 = "1346337820"
 
@@ -141,22 +143,6 @@ rps2 = collectRPs
   (Version "2017-07-01")
   (UserAgent "Uagent")
 
-
-getRequest3 :: FlowRuntime -> IO D.OrderStatusRequest
-getRequest3 rt = do
-  merchantAccount <- runFlow rt $ authenticateRequest rps3
-  pure D.OrderStatusRequest
-    { orderId                 = ordId3
-    , merchantId              = merchantAccount ^. _merchantId
-    , merchantReturnUrl       = merchantAccount ^. _returnUrl
-    , resellerId              = merchantAccount ^. _resellerId
-    , isAuthenticated         = True
-    , sendCardIsin            = fromMaybe False $ merchantAccount ^. _enableSendingCardIsin
-    , sendFullGatewayResponse = RP.sendFullPgr rps3
-    , sendAuthToken           = False
-    , version                 = RP.lookupRP @RP.Version rps3
-    , isAsync                 = True
-    }
 
 ordId3 :: C.OrderId
 ordId3 = "1346336130"
@@ -176,10 +162,10 @@ rps3 = collectRPs
 
 
 
-
+-- DB cooking
 
 prepareDB :: (FlowRuntime -> IO ()) -> IO()
-prepareDB next = withFlowRuntime (Just nullLoger) $ \flowRt ->
+prepareDB next = withFlowRuntime (Just T.nullLoger) $ \flowRt ->
 -- prepareDB next = withFlowRuntime (Just defaultLoggerConfig) $ \flowRt ->
   prepareTestDB $
     try (runFlow flowRt prepareDBConnections) >>= \case

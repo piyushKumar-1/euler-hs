@@ -82,7 +82,7 @@ mkHandle
       StatusService.SHandle
       { statusById = \rps _ -> do   -- could be rewritten using withAuth
           authResult <- authenticate rps
-          case (authResult) of
+          case authResult of
             Left err -> do
               logErrorT "AuthService" $ "authentication failed with error: " <> err
               throwException Errs.internalError

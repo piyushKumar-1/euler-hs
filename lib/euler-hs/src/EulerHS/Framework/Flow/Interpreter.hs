@@ -114,6 +114,12 @@ interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
     let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
     putMVar _options newMap
 
+interpretFlowMethod R.FlowRuntime {..} (L.DelOption k next) =
+  fmap next $ P.withRunMode _runMode (P.mkDelOptionEntry k) $ do
+    m <- takeMVar _options
+    let newMap = Map.delete k m
+    putMVar _options newMap
+
 interpretFlowMethod R.FlowRuntime {_runMode} (L.GenerateGUID next) = do
   next <$> P.withRunMode _runMode P.mkGenerateGUIDEntry
     (UUID.toText <$> UUID.nextRandom)

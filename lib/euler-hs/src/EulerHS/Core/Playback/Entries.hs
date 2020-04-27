@@ -77,6 +77,19 @@ instance RRItem SetOptionEntry where
 
 instance MockedResult SetOptionEntry () where
   getMock _ = Just ()
+-------------------------------------------------------------------------
+
+data DelOptionEntry = DelOptionEntry { key :: Text } 
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkDelOptionEntry :: Text -> () -> DelOptionEntry
+mkDelOptionEntry k _ = DelOptionEntry k
+
+instance RRItem DelOptionEntry where
+  getTag _ = "DelOptionEntry"
+
+instance MockedResult DelOptionEntry () where
+  getMock _ = Just ()
 
 -- ----------------------------------------------------------------------
 

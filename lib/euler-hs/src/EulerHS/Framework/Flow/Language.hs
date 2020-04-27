@@ -32,6 +32,7 @@ module EulerHS.Framework.Flow.Language
   -- It's safer than using strings as keys, because the compiler will let you know if you made typo.
   , getOption
   , setOption
+  , delOption
   -- *** Other
   , callServantAPI
   , callAPI
@@ -93,6 +94,11 @@ data FlowMethod next where
     :: (ToJSON a, FromJSON a)
     => T.KVDBKey
     -> a
+    -> (() -> next)
+    -> FlowMethod next
+
+  DelOption
+    :: T.KVDBKey
     -> (() -> next)
     -> FlowMethod next
 
@@ -385,8 +391,16 @@ getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 -- >    _ <- setOption MerchantIdKey "abc1234567"
 -- >    mKey <- getOption MerchantIdKey
 -- >    runIO $ putTextLn mKey
+-- >    delOption MerchantIdKey
 setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
+
+-- Deletes a typed option using a typed key.
+--
+
+delOption :: forall k v. T.OptionEntity k v => k -> Flow ()
+delOption k = liftFC $ DelOption (T.mkOptionKey @k @v k) id
+
 
 -- | Generate a version 4 UUIDs as specified in RFC 4122
 -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.

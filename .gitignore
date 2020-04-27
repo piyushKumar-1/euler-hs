@@ -32,6 +32,9 @@ euler-hs.cabal
 web-service.cabal
 euler-backend.cabal
 
+.ghci
+.ghcid
+
 .idea/
 *.iml
 

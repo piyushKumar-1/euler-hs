@@ -4,6 +4,7 @@ module Euler.Config.Config where
 import EulerHS.Prelude
 import EulerHS.Types
 
+import Database.Beam.MySQL.Connection (MySQLM)
 import Euler.Config.EnvVars
 
 import qualified Euler.Constants as Constants
@@ -187,7 +188,7 @@ redisLoginTokenExpiry = let
     $ readMaybe
     $ filter (/='m')
     $ expiry getJWTConfig
-  in show $ jwtExpiry * 60
+  in show $ jwtExpiry * (60 :: Int)
 
 
 -- decodeKMS not currently implemented
@@ -249,6 +250,7 @@ mySqlPoolConfig = case getEnv of
     , resourcesPerStripe = getMysqlPoolMax
     }
 
+mysqlDBC :: IO (DBConfig MySQLM)
 mysqlDBC = do
   mySqlConfig <- getMySQLCfg
   case getEnv of

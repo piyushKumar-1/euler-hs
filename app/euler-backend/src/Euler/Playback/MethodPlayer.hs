@@ -45,7 +45,8 @@ runMethodPlayer "orderCreate" = withMethodPlayer (Auth.withAuth Auth.mkKeyAuthSe
 runMethodPlayer newStyleKey   =  AppEnv.runHandlerWith (T.pack newStyleKey) mkAppEnv withMethodPlayer
 
 -- EHS: TODO handle error when method not found properly
-runMethodPlayer methodName    = \_ _ -> pure $ Left $ MethodNotSupported methodName
+-- TODO: This is redundant.
+-- runMethodPlayer methodName    = \_ _ -> pure $ Left $ MethodNotSupported methodName
 
 
 

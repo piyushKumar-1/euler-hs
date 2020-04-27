@@ -1,6 +1,8 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
 -- FIXME: identify the target types and get rid of this preliminary stuff
+-- FIXME: Remove -Wno-deprecations when you do this!
 
 module Euler.API.Payment where
 

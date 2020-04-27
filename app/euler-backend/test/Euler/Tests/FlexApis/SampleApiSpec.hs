@@ -5,7 +5,9 @@
 {-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
+-- TODO: Fix the placeholders for SampleResponse 
 module Euler.Tests.FlexApis.SampleApiSpec where
 
 import           EulerHS.Prelude           hiding (pack, unpack, get)

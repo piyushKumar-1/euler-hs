@@ -163,7 +163,7 @@ stringToIntDefaultZero str = fromMaybe 0 ((readMaybe $ T.unpack str) :: Maybe In
 -- checkRupayCard isin = (length (filter (inRange isin) getRupayCardRange)) > 0
 
 checkRupayCard :: Text -> Bool
-checkRupayCard isin = length (filter (inRange isin) getRupayCardRange) > 0
+checkRupayCard isin' = length (filter (inRange isin') getRupayCardRange) > 0
 
 -- ----------------------------------------------------------------------------
 -- function: checkMaestroCard
@@ -174,8 +174,8 @@ checkRupayCard isin = length (filter (inRange isin) getRupayCardRange) > 0
 -- checkMaestroCard isin = test "^(5018|5081|5044|504681|504993|5020|502260|5038|603845|603123|6304|6759|676[1-3]|6220|504834|504817|504645|504775)" isin
 
 checkMaestroCard :: Text -> Bool
-checkMaestroCard isin = matched $
-  isin ?=~ [re|^(5018|5081|5044|504681|504993|5020|502260|5038|603845|603123|6304|6759|676[1-3]|6220|504834|504817|504645|504775)|]
+checkMaestroCard isin' = matched $
+  isin' ?=~ [re|^(5018|5081|5044|504681|504993|5020|502260|5038|603845|603123|6304|6759|676[1-3]|6220|504834|504817|504645|504775)|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkMasterCard
@@ -186,7 +186,7 @@ checkMaestroCard isin = matched $
 -- checkMasterCard isin = test "^(51|52|53|54|55)" isin
 
 checkMasterCard :: Text -> Bool
-checkMasterCard isin = matched $ isin ?=~ [re|^(51|52|53|54|55)|]
+checkMasterCard isin' = matched $ isin' ?=~ [re|^(51|52|53|54|55)|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkVisaCard
@@ -197,7 +197,7 @@ checkMasterCard isin = matched $ isin ?=~ [re|^(51|52|53|54|55)|]
 -- checkVisaCard isin = test "^4" isin
 
 checkVisaCard :: Text -> Bool
-checkVisaCard isin = matched $ isin ?=~ [re|^4|]
+checkVisaCard isin' = matched $ isin' ?=~ [re|^4|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkAmexCard
@@ -208,7 +208,7 @@ checkVisaCard isin = matched $ isin ?=~ [re|^4|]
 -- checkAmexCard isin = test "^(34|37)" isin
 
 checkAmexCard :: Text -> Bool
-checkAmexCard isin = matched $ isin ?=~ [re|^(34|37)|]
+checkAmexCard isin' = matched $ isin' ?=~ [re|^(34|37)|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkDinersCard
@@ -219,7 +219,7 @@ checkAmexCard isin = matched $ isin ?=~ [re|^(34|37)|]
 -- checkDinersCard isin = test "^36|38|(30[0-5])" isin
 
 checkDinersCard :: Text -> Bool
-checkDinersCard isin = matched $ isin ?=~ [re|^36|38|(30[0-5])|]
+checkDinersCard isin' = matched $ isin' ?=~ [re|^36|38|(30[0-5])|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkDiscoversCard
@@ -230,7 +230,7 @@ checkDinersCard isin = matched $ isin ?=~ [re|^36|38|(30[0-5])|]
 -- checkDiscoversCard isin = test "^6011|65|64[4-9]|622" isin
 
 checkDiscoversCard :: Text -> Bool
-checkDiscoversCard isin = matched $ isin ?=~ [re|^6011|65|64[4-9]|622|]
+checkDiscoversCard isin' = matched $ isin' ?=~ [re|^6011|65|64[4-9]|622|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkJCBCard
@@ -241,7 +241,7 @@ checkDiscoversCard isin = matched $ isin ?=~ [re|^6011|65|64[4-9]|622|]
 -- checkJCBCard isin = test "^35" isin
 
 checkJCBCard :: Text -> Bool
-checkJCBCard isin = matched $ isin ?=~ [re|^35|]
+checkJCBCard isin' = matched $ isin' ?=~ [re|^35|]
 
 -- ----------------------------------------------------------------------------
 -- function: checkSodexoCard
@@ -252,7 +252,7 @@ checkJCBCard isin = matched $ isin ?=~ [re|^35|]
 -- checkSodexoCard isin = test "^637513" isin
 
 checkSodexoCard :: Text -> Bool
-checkSodexoCard isin = matched $ isin ?=~ [re|^637513|]
+checkSodexoCard isin' = matched $ isin' ?=~ [re|^637513|]
 
 -- ----------------------------------------------------------------------------
 -- function: allCardsFn
@@ -288,7 +288,7 @@ allCardsFn =
 -- evalCardISIN isin (Tuple fn val) = fn isin
 
 evalCardISIN :: Text -> ((Text -> Bool), Text)-> Bool
-evalCardISIN isin (fn, _) = fn isin
+evalCardISIN isin' (fn, _) = fn isin'
 
 -- ----------------------------------------------------------------------------
 -- function: getCardBrand

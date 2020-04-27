@@ -1,4 +1,4 @@
-{-# language TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Euler.GenericLensTH where
 
@@ -78,6 +78,6 @@ makeGenericLenses name = do
 
       extractNamesFromCons :: [Con] -> [String]
       extractNamesFromCons []       = []
-      extractNamesFromCons (fmap extractNamesFromCon -> c : cs) = foldr intersect c cs
+      extractNamesFromCons (c : cs) = foldr (\con -> intersect (extractNamesFromCon con)) (extractNamesFromCon c) cs
 
 

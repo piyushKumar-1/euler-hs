@@ -13,7 +13,6 @@ import qualified Euler.Encryption as E
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as BC
-import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
 
@@ -64,3 +63,4 @@ ecMandateParamsCred = do
 
 razorpayClientSecret :: String -> Flow ByteString
 razorpayClientSecret = E.decryptKMS . B64.decodeLenient . BC.pack
+

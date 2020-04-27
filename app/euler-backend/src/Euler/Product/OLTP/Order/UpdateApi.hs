@@ -8,8 +8,6 @@ module Euler.Product.OLTP.Order.UpdateApi
   , module Euler.API.Order
   ) where
 
-import           EulerHS.Prelude
-
 import           EulerHS.Language
 
 import           Euler.API.RouteParameters (RouteParameters)

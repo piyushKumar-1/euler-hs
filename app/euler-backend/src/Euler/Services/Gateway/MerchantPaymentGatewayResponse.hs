@@ -837,6 +837,8 @@ lazypay' txn pgr = defaultMerchantPGRTemp
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
 
+-- TODO: Why is this unused?
+{-
 pinelabs' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
 pinelabs' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
@@ -856,6 +858,7 @@ airpay' txn pgr = defaultMerchantPGRTemp
     , respCode    = FromKeyOrObj "TRANSACTIONSTATUS" (getField @"respCode" pgr)    ""
     , respMessage = FromKeyOrObj "MESSAGE"           (getField @"respMessage" pgr) ""
     }
+-}
 
 freechargev2' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
 freechargev2' txn pgr = defaultMerchantPGRTemp
@@ -867,6 +870,8 @@ freechargev2' txn pgr = defaultMerchantPGRTemp
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
 
+-- TODO: Why is this unused?
+{-
 hdfcnb' :: TxnDetail -> PaymentGatewayResponse -> MerchantPGRTemp
 hdfcnb' txn pgr = defaultMerchantPGRTemp
     { txnId       = Value $ Just $ getField @"txnId" txn
@@ -876,6 +881,7 @@ hdfcnb' txn pgr = defaultMerchantPGRTemp
     , respCode    = Value $ whenNothing (getField @"respCode" pgr) (Just "")
     , respMessage = Value $ whenNothing (getField @"respMessage" pgr) (Just "")
     }
+-}
 
 payfort' :: TxnDetail -> PaymentGatewayResponse  -> MerchantPGRTemp
 payfort' txn pgr = defaultMerchantPGRTemp

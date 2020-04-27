@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -218,6 +219,7 @@ sockAddrToSourceIP sAddr =
       $ show8tuple $ hostAddress6ToTuple h
     SockAddrUnix s        -> SourceIP
       $ toText s
+    -- TODO: Remove -Wno-deprecations and upgrade network so we can fix this.
     SockAddrCan _         -> SourceIP "" -- SockAddrCan - deprecated: This will be removed in network-3.0
   where
     show4tuple (a,b,c,d) =

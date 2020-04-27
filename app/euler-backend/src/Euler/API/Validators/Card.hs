@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module Euler.API.Validators.Card where
 
@@ -8,7 +9,7 @@ import           Euler.Common.Validators
 import qualified Euler.Product.Domain.Card as DC
 import qualified Euler.API.Card as AC
 
-
+-- TODO: Remove -Wno-orphans and newtype-wrap properly.
 instance Transform AC.AddCardInputRequest DC.StoredCard where
   transform apiCst = DC.StoredCard
     <$> withField @"merchantAccountId"     apiCst pure

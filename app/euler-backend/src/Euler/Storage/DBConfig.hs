@@ -9,8 +9,6 @@ import EulerHS.Prelude hiding (id, show)
 import qualified EulerHS.Types as T
 
 import qualified Database.Beam.MySQL  as BM
-import qualified Database.Beam.Sqlite as BS
-
 
 ecDB :: T.DBConfig BM.MySQLM
 ecDB = mysqlDBC
@@ -26,10 +24,6 @@ poolConfig = T.PoolConfig
   , keepAlive = 10
   , resourcesPerStripe = 150
   }
-
-
-sqL :: T.DBConfig BS.SqliteM
-sqL = T.mkSQLitePoolConfig "sqlite" "./app/euler-backend/test/Euler/TestData/test.db" poolConfig
 
 
 mySQLCfg :: T.MySQLConfig

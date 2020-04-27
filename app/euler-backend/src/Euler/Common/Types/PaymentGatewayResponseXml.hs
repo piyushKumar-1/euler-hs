@@ -1,6 +1,4 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE QuasiQuotes    #-}
-{-# LANGUAGE TupleSections  #-}
 
 module Euler.Common.Types.PaymentGatewayResponseXml
   ( LHM (..)
@@ -37,7 +35,7 @@ import           Xmlbf.Xeno
 
 
 decodePGRXml :: ByteString -> Either String PGRXml
-decodePGRXml bs = runParser fromXml =<< (fromRawXml bs)
+decodePGRXml bs = runParser fromXml =<< fromRawXml bs
 
 -- former getResponseXml
 getMapFromPGRXml :: Either String PGRXml -> Map.Map TL.Text EValue
@@ -66,8 +64,7 @@ findAXIS_UPI key1 key2 defaultEntry pgrXml =
   in
     case value of
       Just (EGroovyHM (GroovyHM m)) -> lookupXML m key2 defaultEntry
-      Just (EText _)                -> defaultEntry
-      Nothing                       -> defaultEntry
+      _                             -> defaultEntry
 
 findGOCASHFREE :: Text -> Text -> Either String PGRXml -> Text
 findGOCASHFREE entry defaultEntry pgrXml =

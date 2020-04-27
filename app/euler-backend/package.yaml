@@ -155,21 +155,6 @@ executables:
     dependencies:
     - euler-backend
 
-  euler-backend-loadtest:
-    main:                LoadTest.hs
-    source-dirs:         app/
-    ghc-options:
-    - -main-is LoadTest
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    - -Wall
-    - -O2
-    - -fspec-constr-recursive=10
-    - -fno-ignore-asserts
-    dependencies:
-    - euler-backend
-
 tests:
   hspec:
     main: Main.hs

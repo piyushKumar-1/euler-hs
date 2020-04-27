@@ -6,7 +6,6 @@ import EulerHS.Prelude
 import EulerHS.Extra.Validation
 
 import           Euler.Common.Validators
-import           Euler.Common.Types.Money
 import qualified Euler.Product.Domain.RiskManagementAccount as D
 import qualified Euler.Storage.Types.RiskManagementAccount as S
 

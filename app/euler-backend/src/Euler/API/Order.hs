@@ -3,24 +3,31 @@
 
 module Euler.API.Order where
 
-import           Data.Aeson
-import           Data.Time
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (First, Last, getFirst, getLast)
 import           Web.FormUrlEncoded
 
-import qualified Data.ByteString.Lazy         as BSL
-import qualified Data.HashMap.Strict          as HM
-import qualified Data.Map.Strict              as Map
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as T
+import           Data.Aeson
+import qualified Data.ByteString.Lazy as BSL
+import           Data.Generics.Product.Fields
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import           Data.Time
 
-import           Euler.Common.Types.Currency  (Currency)
-import           Euler.Common.Types.External.Order     (OrderStatus (..))
-import           Euler.Common.Types.External.Mandate   (MandateFeature (..))
+import           Euler.Common.Types.External.Mandate (MandateFeature)
+import           Euler.Common.Types.External.Order (OrderStatus (..))
+
+import qualified Euler.Common.Types as C
+import           Euler.Common.Types.Currency (Currency)
+import           Euler.Common.Types.Money
 import           Euler.Common.Types.Promotion
-import           Euler.Common.Types.Refund as Refund
 
+import qualified Euler.API.MerchantPaymentGatewayResponse as M
+import           Euler.API.Refund
 
+import qualified Euler.Product.Domain as D
+import qualified Euler.Product.Domain.OrderStatusResponse as DO
 
 
 -- Previously: OrderCreateReq
@@ -86,7 +93,7 @@ instance FromForm OrderCreateRequest where
           $ HM.filterWithKey (\k _ -> T.isPrefixOf "metadata." k) $ unForm f
     metaData <- case metaData' of
       [] -> pure Nothing
-      l -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
+      l  -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
     order_id <- parseUnique "order_id" f
     amount <- parseUnique "amount" f
     currency <- parseMaybe "currency" f
@@ -143,7 +150,7 @@ instance FromJSON OrderCreateRequest where
           $ HM.filterWithKey (\k _ -> T.isPrefixOf "metadata." k) o
     metaData <- case metaData' of
       [] -> pure Nothing
-      l -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
+      l  -> pure $ Just $ T.decodeUtf8 $ BSL.toStrict $ encode $ Map.fromList l
     order_id <- o .: "order_id"
     amount <- o .: "amount"
     currency <- o .: "currency"
@@ -192,14 +199,15 @@ instance FromJSON OrderCreateRequest where
     options_get_client_auth_token <- o .: "options.get_client_auth_token" <|> o .: "options_get_client_auth_token"
     pure OrderCreateRequest{..}
 
-fromStrValue :: Value -> Maybe Text
-fromStrValue s = case s of
-  String x -> Just x
-  _        -> Nothing
 
 appendOnlyJust :: [(a, b)] -> (Maybe a, Maybe b) -> [(a, b)]
 appendOnlyJust xs (Just k, Just v) = (k,v) : xs
 appendOnlyJust xs _                = xs
+
+fromStrValue :: Value -> Maybe Text
+fromStrValue s = case s of
+  String x -> Just x
+  _        -> Nothing
 
 -- instance FromFormUrlEncoded Order where
 --   fromFormUrlEncoded inputs =
@@ -236,12 +244,17 @@ and in instance  Decode OrderCreateReq with modifyRequestBody from
 src/Types/Communication/OLTP/Order.js
 -}
 
+
+-- EHS: remove along with OrderStatusLagacy
+
+-- we can live without it completely
 -- from Types.Communication.OLTP.OrderStatus
 -- should be decoded with custom FromJSON instance
 -- to avoid duplicate fields
 
 -- EHS: why all these fields are here? No such fields in API Reference.
-data OrderStatusRequest = OrderStatusRequest
+-- former OrderStatusRequest
+data OrderStatusRequestLegacy = OrderStatusRequestLegacy
   { txn_uuid    :: Maybe Text
   , merchant_id :: Maybe Text
   , order_id    :: Maybe Text
@@ -251,8 +264,8 @@ data OrderStatusRequest = OrderStatusRequest
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-defaultOrderStatusRequest :: OrderStatusRequest
-defaultOrderStatusRequest  = OrderStatusRequest
+defaultOrderStatusRequest :: OrderStatusRequestLegacy
+defaultOrderStatusRequest  = OrderStatusRequestLegacy
   { txn_uuid     = Nothing -- :: Maybe Text
   , merchant_id  = Nothing -- :: Maybe Text
   , order_id     = Nothing -- :: Maybe Text
@@ -260,6 +273,33 @@ defaultOrderStatusRequest  = OrderStatusRequest
   , merchantId   = Nothing -- :: Maybe Text
   , orderId      = Nothing -- :: Maybe Text
   }
+
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+-- TODO better naming, probably - mkStatusRequest :: Text -> OrderStatusRequestLegacy
+getOrderStatusRequest :: Text -> OrderStatusRequestLegacy
+getOrderStatusRequest ordId = OrderStatusRequestLegacy {  txn_uuid    = Nothing
+                                                  , merchant_id = Nothing
+                                                  , order_id    = Just ordId
+                                                  , txnUuid     = Nothing
+                                                  , merchantId  = Nothing
+                                                  , orderId     = Nothing
+                                                 -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
+                                                  }
+
+mkStatusRequest :: Text -> OrderStatusRequestLegacy
+mkStatusRequest orderId =
+  OrderStatusRequestLegacy
+  { txn_uuid    = Nothing
+  , merchant_id = Nothing
+  , order_id    = Just orderId
+  , txnUuid     = Nothing
+  , merchantId  = Nothing
+  , orderId     = Nothing
+  -- , "options.add_full_gateway_response" : NullOrUndefined Nothing
+  }
+
+
+
 
 --  Previously OrderAPIResponse
 data OrderCreateResponse = OrderCreateResponse
@@ -350,6 +390,13 @@ defaultPaymentlinks = Paymentlinks
   , mobile = Nothing
   }
 
+mkPaymentLinks :: D.Paymentlinks -> Paymentlinks
+mkPaymentLinks links = Paymentlinks
+  { iframe = Just $ getField @"iframe" links
+  , web = Just $ getField @"web" links
+  , mobile = Just $ getField @"mobile" links
+  }
+
 -- EHS: why fields are maybe??
 data OrderTokenResp = OrderTokenResp
   { client_auth_token        :: Maybe Text
@@ -399,14 +446,14 @@ data OrderStatusResponse = OrderStatusResponse
   ,  refunds                   :: Maybe [Refund']
   ,  mandate                   :: Maybe Mandate'
   ,  promotion                 :: Maybe Promotion'
-  ,  risk                      :: Maybe Risk
+  ,  risk                      :: Maybe Risk'
   ,  bank_error_code           :: Maybe Text
   ,  bank_error_message        :: Maybe Text
   ,  txn_uuid                  :: Maybe Text
   ,  gateway_payload           :: Maybe Text
   ,  txn_detail                :: Maybe TxnDetail'
-  ,  payment_gateway_response' :: Maybe MerchantPaymentGatewayResponse'
-  ,  payment_gateway_response  :: Maybe MerchantPaymentGatewayResponse
+  ,  payment_gateway_response' :: Maybe M.MerchantPaymentGatewayResponse
+  ,  payment_gateway_response  :: Maybe M.MerchantPaymentGatewayResponse
   ,  gateway_id                :: Maybe Int
   ,  emi_bank                  :: Maybe Text
   ,  emi_tenure                :: Maybe Int
@@ -414,6 +461,8 @@ data OrderStatusResponse = OrderStatusResponse
   ,  payer_vpa                 :: Maybe Text -- Foreign
   ,  payer_app_name            :: Maybe Text -- Foreign
   ,  juspay                    :: Maybe OrderTokenResp
+  ,  second_factor_response    :: Maybe MerchantSecondFactorResponse'
+  ,  txn_flow_info             :: Maybe TxnFlowInfo'
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -469,7 +518,71 @@ defaultOrderStatusResponse = OrderStatusResponse
   ,  payer_vpa                 = Nothing -- :: Maybe Text -- Foreign
   ,  payer_app_name            = Nothing -- :: Maybe Text -- Foreign
   ,  juspay                    = Nothing -- :: Maybe OrderTokenResp
+  ,  second_factor_response    = Nothing -- :: Maybe MerchantSecondFactorResponse
+  ,  txn_flow_info             = Nothing -- :: Maybe TxnFlowInfo
   }
+
+mkOrderStatusResponse :: DO.OrderStatusResponse -> OrderStatusResponse
+mkOrderStatusResponse orderStatus = OrderStatusResponse
+  {  id                        = fromMaybe T.empty $ getField @"id" orderStatus
+  ,  merchant_id               = getField @"merchant_id" orderStatus
+  ,  amount                    = fromMoney <$> whenNothing (getField @"amount" orderStatus) (Just mempty)
+  ,  currency                  = show <$> getField @"currency" orderStatus
+  ,  order_id                  = getField @"order_id" orderStatus
+  ,  date_created              = maybe T.empty show $ getField @"date_created" orderStatus
+  ,  return_url                = getField @"return_url" orderStatus
+  ,  product_id                = fromMaybe T.empty $ getField @"product_id" orderStatus
+  ,  customer_email            = getField @"customer_email" orderStatus
+  ,  customer_phone            = getField @"customer_phone" orderStatus
+  ,  customer_id               = whenNothing (getField @"customer_id" orderStatus) (Just T.empty)
+  ,  payment_links             = mkPaymentLinks $ fromMaybe D.defaultPaymentlinks $ getField @"payment_links" orderStatus
+  ,  udf1                      = fromMaybe "udf1" $ getField @"udf1" udf
+  ,  udf2                      = fromMaybe "udf2" $ getField @"udf2" udf
+  ,  udf3                      = fromMaybe "udf3" $ getField @"udf3" udf
+  ,  udf4                      = fromMaybe "udf4" $ getField @"udf4" udf
+  ,  udf5                      = fromMaybe "udf5" $ getField @"udf5" udf
+  ,  udf6                      = fromMaybe "udf6" $ getField @"udf6" udf
+  ,  udf7                      = fromMaybe "udf7" $ getField @"udf7" udf
+  ,  udf8                      = fromMaybe "udf8" $ getField @"udf8" udf
+  ,  udf9                      = fromMaybe "udf9" $ getField @"udf9" udf
+  ,  udf10                     = fromMaybe "udf10" $ getField @"udf10" udf
+  ,  txn_id                    = getField @"txn_id" orderStatus
+  ,  status_id                 = fromMaybe 0 $ getField @"status_id" orderStatus
+  ,  status                    = show $ fromMaybe D.DEFAULT $ getField @"status" orderStatus
+  ,  payment_method_type       = show <$> getField @"payment_method_type" orderStatus
+  ,  auth_type                 = whenNothing (getField @"auth_type" orderStatus) (Just T.empty)
+  ,  card                      = mkCard <$> getField @"card" orderStatus
+  ,  payment_method            = getField @"payment_method" orderStatus
+  ,  refunded                  = getField @"refunded" orderStatus
+  ,  amount_refunded           = fromMoney <$> getField @"amount_refunded" orderStatus
+  ,  chargebacks               = charges
+  ,  refunds                   = map mapRefund <$> getField @"refunds" orderStatus
+  ,  mandate                   = mapMandate <$> getField @"mandate" orderStatus
+  ,  promotion                 = mapPromotion' <$> getField @"promotion" orderStatus
+  ,  risk                      = mapRisk' <$> getField @"risk" orderStatus
+  ,  bank_error_code           = whenNothing  (getField @"bank_error_code" orderStatus) (Just T.empty)
+  ,  bank_error_message        = whenNothing (getField @"bank_error_message" orderStatus) (Just T.empty)
+  ,  txn_uuid                  = getField @"txn_uuid" orderStatus
+  ,  gateway_payload           = getField @"gateway_payload" orderStatus
+  ,  txn_detail                = txn
+  ,  payment_gateway_response' = Nothing
+  ,  payment_gateway_response  = M.makeMerchantPaymentGatewayResponse <$> getField @"payment_gateway_response" orderStatus
+  ,  gateway_id                = whenNothing (getField @"gateway_id" orderStatus) (Just 0)
+  ,  emi_bank                  = getField @"emi_bank" orderStatus
+  ,  emi_tenure                = getField @"emi_tenure" orderStatus
+  ,  gateway_reference_id      = getField @"gateway_reference_id" orderStatus
+  ,  payer_vpa                 = getField @"payer_vpa" orderStatus
+  ,  payer_app_name            = getField @"payer_app_name" orderStatus
+  ,  juspay                    = Nothing
+  ,  second_factor_response    = mkMerchantSecondFactorResponse' <$> getField @"second_factor_response" orderStatus
+  ,  txn_flow_info             = mkTxnFlowInfo' <$> getField @"txn_flow_info" orderStatus
+  }
+  where
+    udf = fromMaybe C.emptyUDF $ getField @"udf" orderStatus
+    txn = mapTxnDetail <$> getField @"txn_detail" orderStatus
+    charges = case txn of
+      Nothing -> Nothing
+      Just t  -> map (mapChargeback t) <$> getField @"chargebacks" orderStatus
 
 -- from src/Externals/EC/Common.purs
 data Card = Card
@@ -487,39 +600,83 @@ data Card = Card
   ,  card_brand       :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mkCard :: D.Card -> Card
+mkCard card = Card
+  { expiry_year = whenNothing (getField @"expiryYear" card) (Just "")
+  , card_reference = whenNothing (getField @"cardReference" card) (Just "")
+  , saved_to_locker = Just $ getField @"savedToLocker" card
+  , expiry_month = whenNothing  (getField @"expiryMonth" card) (Just "")
+  , name_on_card = whenNothing  (getField @"nameOnCard" card) (Just "")
+  , card_issuer = whenNothing  (getField @"cardIssuer" card) (Just "")
+  , last_four_digits = whenNothing  (getField @"lastFourDigits" card) (Just "")
+  , using_saved_card = getField @"usingSavedCard" card
+  , card_fingerprint = whenNothing  (getField @"cardFingerprint" card) (Just "")
+  , card_isin = if getField @"shouldSendCardIsin" card then (getField @"cardIsin" card) else Just ""
+  , card_type = whenNothing  (getField @"cardType" card) (Just "")
+  , card_brand = whenNothing  (getField @"cardBrand" card) (Just "")
+  }
+
+
+
+
+-- from src/Externals/EC/Common.purs
+data PaymentInfo = PaymentInfo
+  {  payment_method_type :: Maybe Text
+  ,  payment_method      :: Maybe Text
+  ,  card                :: Maybe Card
+  ,  auth_type           :: Maybe Text
+  ,  authentication      :: Maybe Authentication
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- from src/Externals/EC/Common.purs
+data Authentication = Authentication
+  { second_factore_response :: Maybe SecondFactorResponse' }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- from src/Externals/EC/Common.purs
+-- Prime added to differ from storage type
+data SecondFactorResponse' = SecondFactorResponse'
+  { cavv           :: Maybe Text
+  , eci            :: Maybe Text
+  , xid            :: Maybe Text
+  , status         :: Maybe Text
+  , currency       :: Maybe Text
+  , response_id    :: Maybe Text
+  , mpi_error_code :: Maybe Text
+  , date_created   :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data Chargeback' = Chargeback'
-  {  id                  :: Maybe Text
-  ,  amount              :: Maybe Double
-  ,  object_reference_id :: Maybe Text
-  ,  txn                 :: Maybe TxnDetail'
-  ,  date_resolved       :: Maybe LocalTime
-  ,  date_created        :: Maybe LocalTime
-  ,  last_updated        :: Maybe LocalTime
-  ,  object              :: Maybe Text
-  ,  dispute_status      :: Maybe Text
+  {  id                  :: Text
+  ,  amount              :: Double
+  ,  object_reference_id :: Text
+  ,  txn                 :: TxnDetail'
+  ,  date_resolved       :: Maybe LocalTime -- TODO: remove maybe?
+  ,  date_created        :: LocalTime
+  ,  last_updated        :: LocalTime
+  ,  object              :: Text
+  ,  dispute_status      :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- from src/Types/Communication/OLTP/OrderStatus.purs
-data Refund' = Refund'
-  {  id                    :: Maybe Text -- Foreign
-  ,  amount                :: Double
-  ,  unique_request_id     :: Maybe Text
-  ,  ref                   :: Maybe Text -- Foreign
-  ,  created               :: Text
-  ,  status                :: Refund.RefundStatus
-  ,  error_message         :: Maybe Text
-  ,  sent_to_gateway       :: Maybe Bool
-  ,  arn                   :: Maybe Text
-  ,  initiated_by          :: Maybe Text
-  ,  internal_reference_id :: Maybe Text
-  ,  refund_source         :: Maybe Text -- Foreign
-  ,  refund_type           :: Maybe Text
+
+mapChargeback :: TxnDetail' -> D.Chargeback -> Chargeback'
+mapChargeback txn chargeback =
+  Chargeback'
+  {  id = D.chargebackPId $ getField @"id" chargeback
+  ,  amount = fromMoney $ getField @"amount" chargeback
+  ,  object_reference_id = getField @"objectReferenceId" chargeback
+  ,  txn = txn
+  ,  date_resolved = getField @"dateResolved" chargeback
+  ,  date_created = getField @"dateCreated" chargeback
+  ,  last_updated = getField @"lastUpdated" chargeback
+  ,  object = "chargeback"
+  ,  dispute_status = getField @"disputeStatus" chargeback
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- from src/Types/Storage/EC/Refund.purs
--- data RefundStatus = FAILURE | MANUAL_REVIEW | PENDING | SUCCESS | TXN_FAILURE
---   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
 -- from src/Types/Storage/EC/Mandate/Types.purs
 data Mandate' = Mandate'
   { mandate_token  :: Text
@@ -530,28 +687,120 @@ data Mandate' = Mandate'
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data EmandateDetail = EmandateDetail
-  { id :: Maybe Text
-  , bank_name :: Maybe Text
-  , ifsc :: Text
-  , account_number :: Text
+  { id               :: Maybe Text
+  , bank_name        :: Maybe Text
+  , ifsc             :: Text
+  , account_number   :: Text
   , beneficiary_name :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+mapMandate :: D.Mandate -> Mandate'
+mapMandate mandate = Mandate'
+  { mandate_token = getField @"token" mandate
+  , mandate_status = Just $ show $ getField @"status" mandate
+  , mandate_id = getField @"mandateId" mandate
+  , bank_details = Nothing
+  }
 
--- from src/Types/Communication/OLTP/OrderStatus.purs
-data Risk = Risk
-  { provider            :: Maybe Text -- Foreign
-  , status              :: Maybe Text -- Foreign
-  , message             :: Maybe Text -- Foreign
-  , flagged             :: Maybe Text -- Foreign
-  , recommended_action  :: Maybe Text -- Foreign
-  , ebs_risk_level      :: Maybe Text -- Foreign
-  , ebs_payment_status  :: Maybe Text -- Foreign
-  , ebs_bin_country     :: Maybe Text -- Foreign
-  , ebs_risk_percentage :: Maybe Text -- Foreign
+data Risk' = Risk'
+  { provider            :: Maybe Text
+  , status              :: Maybe Text
+  , message             :: Maybe Text
+  , flagged             :: Maybe Text
+  , recommended_action  :: Maybe Text
+  , ebs_risk_level      :: Maybe Text
+  , ebs_payment_status  :: Maybe Text
+  , ebs_bin_country     :: Maybe Text
+  , ebs_risk_percentage :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+
+mapRisk' :: D.Risk -> Risk'
+mapRisk' risk = case provider of
+  Just "ebs" -> risk'
+    { ebs_risk_percentage = Just $ maybe "0" show percent
+    , ebs_risk_level = Just $ getField @"ebsRiskLevel" risk
+    , ebs_bin_country = Just $ getField @"ebsBinCountry" risk
+    , ebs_payment_status = getField @"ebsPaymentStatus" risk
+    }
+  _ -> risk'
+
+  where
+    provider = getField @"provider" risk
+    percent :: Maybe Int = readMaybe $ T.unpack $ getField @"ebsRiskPercentage" risk
+    risk' = Risk'
+      { provider = provider
+      , status = getField @"status" risk
+      , message = getField @"message" risk
+      , flagged = show <$> whenNothing (getField @"flagged" risk) (Just False)
+      , recommended_action = getField @"recommendedAction" risk
+      , ebs_risk_level = Nothing
+      , ebs_payment_status = Nothing
+      , ebs_risk_percentage = Nothing
+      , ebs_bin_country = Nothing
+      }
+
+
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+-- data Risk' = Risk'
+--   { provider            :: Maybe Text
+--   , status              :: Maybe Text
+--   , message             :: Maybe Text
+--   , flagged             :: Maybe Bool
+--   , recommended_action  :: Maybe Text
+--   , ebs_risk_level      :: Maybe Text
+--   , ebs_payment_status  :: Maybe Text
+--   , ebs_bin_country     :: Maybe Text
+--   , ebs_risk_percentage :: Maybe Int
+--   }
+--   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+-- data Risk = Risk
+--   { provider            :: Maybe Text -- Foreign
+--   , status              :: Maybe Text -- Foreign
+--   , message             :: Maybe Text -- Foreign
+--   , flagged             :: Maybe Text -- Foreign
+--   , recommended_action  :: Maybe Text -- Foreign
+--   , ebs_risk_level      :: Maybe Text -- Foreign
+--   , ebs_payment_status  :: Maybe Text -- Foreign
+--   , ebs_bin_country     :: Maybe Text -- Foreign
+--   , ebs_risk_percentage :: Maybe Text -- Foreign
+--   }
+--   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+
+-- makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
+-- makeRisk' provider trc = Risk'
+--   { provider = provider
+--   , status = getField @"status" trc
+--   , message = getField @"message" trc
+--   , flagged = getField @"flagged" trc
+--   , recommended_action = whenNothing (getField @"recommendedAction" trc) (Just T.empty)
+--   , ebs_risk_level = Nothing
+--   , ebs_payment_status = Nothing
+--   , ebs_risk_percentage = Nothing
+--   , ebs_bin_country = Nothing
+--   }
+
+-- With lens
+
+-- makeRisk' :: Maybe Text -> D.TxnRiskCheck -> Risk'
+-- makeRisk' provider trc = Risk'
+--   { provider = provider
+--   , status = trc ^. _status
+--   , message = trc ^. _message
+--   , flagged = Just $ trc ^. _flagged
+--   , recommended_action = whenNothing (trc ^. _recommendedAction) (Just T.empty)
+--   , ebs_risk_level = Nothing
+--   , ebs_payment_status = Nothing
+--   , ebs_risk_percentage = Nothing
+--   , ebs_bin_country = Nothing
+--   }
 
 -- from src/Types/Communication/OLTP/OrderStatus.purs
 data TxnDetail' = TxnDetail'
@@ -571,48 +820,67 @@ data TxnDetail' = TxnDetail'
   , error_message    :: Maybe Text
   , error_code       :: Maybe Text -- Foreign
   , txn_object_type  :: Maybe Text
-  , source_object    :: Maybe (Text)
+  , source_object    :: Maybe Text
   , source_object_id :: Maybe Text
   , created          :: Maybe LocalTime
 }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 -- from src/Types/Communication/OLTP/OrderStatus.purs
-data MerchantPaymentGatewayResponse' = MerchantPaymentGatewayResponse'
-  {  resp_code            :: Maybe Text
-  ,  rrn                  :: Maybe Text
-  ,  created              :: Maybe Text
-  ,  epg_txn_id           :: Maybe Text
-  ,  resp_message         :: Maybe Text
-  ,  auth_id_code         :: Maybe Text
-  ,  txn_id               :: Maybe Text
-  ,  offer                :: Maybe Text
-  ,  offer_type           :: Maybe Text
-  ,  offer_availed        :: Maybe Text -- Foreign
-  ,  discount_amount      :: Maybe Text -- Foreign
-  ,  offer_failure_reason :: Maybe Text
-  ,  gateway_response     :: Maybe Text -- Foreign
+
+mapTxnDetail :: D.TxnDetail -> TxnDetail'
+mapTxnDetail txn = TxnDetail'
+  { txn_id = getField @"txnId" txn
+  , order_id = getField @"orderId" txn
+  , txn_uuid = getField @"txnUuid" txn
+  , gateway_id = Just $ fromMaybe 0 $ getField @"gateway" txn >>= C.gatewayIdFromGateway
+  , status = show $ getField @"status" txn
+  , gateway = show <$> getField @"gateway" txn
+  , express_checkout = getField @"expressCheckout" txn
+  , redirect = getField @"redirect" txn
+  , net_amount = Just $ if isJust (getField @"netAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"netAmount" txn) -- Forign becomes Text in our TxnDetail'
+      else mempty
+  , surcharge_amount = Just $ if isJust (getField @"surchargeAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"surchargeAmount" txn)
+      else mempty
+  , tax_amount = Just $ if isJust (getField @"taxAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"taxAmount" txn)
+      else mempty
+  , txn_amount = Just $ if isJust (getField @"txnAmount" txn)
+      then show $ maybe 0 fromMoney (getField @"txnAmount" txn)
+      else mempty
+  , currency = getField @"currency" txn
+  , error_message = Just $ fromMaybe mempty $ getField @"bankErrorMessage" txn
+  , error_code = Just $ if isJust (getField @"bankErrorCode" txn)
+      then fromMaybe mempty (getField @"bankErrorCode" txn)
+      else mempty
+  , created = getField @"dateCreated" txn
+  , txn_object_type = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"txnObjectType" txn
+      else Nothing
+  , source_object = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"sourceObject" txn
+      else Nothing
+  , source_object_id = if (fromMaybe mempty $ getField @"txnObjectType" txn) /= "ORDER_PAYMENT"
+      then getField @"sourceObjectId" txn
+      else Nothing
+  }
+
+data MerchantSecondFactorResponse' = MerchantSecondFactorResponse'
+  {  cavv         :: Text -- Foreign with comment (nullable, so keeping it as Foreign to send it as null with key)
+  ,  eci          :: Text
+  ,  xid          :: Text
+  ,  pares_status :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
--- from src/Types/Communication/OLTP/OrderStatus.purs
-data MerchantPaymentGatewayResponse = MerchantPaymentGatewayResponse
-  {   resp_code            :: Maybe Text -- Foreign
-   ,  rrn                  :: Maybe Text -- Foreign
-   ,  created              :: Maybe Text -- Foreign
-   ,  epg_txn_id           :: Maybe Text -- Foreign
-   ,  resp_message         :: Maybe Text -- Foreign
-   ,  auth_id_code         :: Maybe Text -- Foreign
-   ,  txn_id               :: Maybe Text -- Foreign
-   ,  offer                :: Maybe Text
-   ,  offer_type           :: Maybe Text
-   ,  offer_availed        :: Maybe Text -- Foreign
-   ,  discount_amount      :: Maybe Text -- Foreign
-   ,  offer_failure_reason :: Maybe Text
-   ,  gateway_response     :: Maybe Text -- Foreign
-   }
-   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
-
+mkMerchantSecondFactorResponse' :: D.SecondFactorResponse -> MerchantSecondFactorResponse'
+mkMerchantSecondFactorResponse' sfr = MerchantSecondFactorResponse'
+  { cavv = fromMaybe T.empty $ getField @"cavv" sfr
+  , eci = getField @"eci" sfr
+  , xid = getField @"xid" sfr
+  , pares_status = getField @"status" sfr
+  }
 
 -- from src/Types/Storage/EC/Feature.purs
 {-
@@ -628,7 +896,6 @@ type FeatureAll a =
   | a
   }
 -}
-
 
 -- The only amount, address and UDF fields can be updated.
 data OrderUpdateRequest = OrderUpdateRequest
@@ -670,3 +937,50 @@ data OrderUpdateRequest = OrderUpdateRequest
   , udf10                             :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON, ToForm, FromForm)
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+data TxnFlowInfo' = TxnFlowInfo'
+  {  flow_type     :: Text -- Foreign
+  ,  status        :: Text -- Foreign
+  ,  error_code    :: Text -- Foreign
+  ,  error_message :: Text -- Foreign
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+mkTxnFlowInfo' :: D.TxnFlowInfo -> TxnFlowInfo'
+mkTxnFlowInfo' txnFlow = TxnFlowInfo'
+  {  flow_type = maybe T.empty show $ getField @"flowType" txnFlow
+  ,  status = fromMaybe T.empty $ getField @"status" txnFlow
+  ,  error_code = fromMaybe T.empty $ getField @"errorCode" txnFlow
+  ,  error_message = fromMaybe T.empty $ getField @"errorMessage" txnFlow
+  }
+
+-- from src/Types/Communication/OLTP/OrderStatus.purs
+data Promotion' = Promotion'
+  { id              :: Maybe Text
+  , order_id        :: Maybe Text
+  , rules           :: Maybe [Rules]
+  , created         :: Maybe Text
+  , discount_amount :: Maybe Double
+  , status          :: Maybe Text
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+defaultPromotion' :: Promotion'
+defaultPromotion' = Promotion'
+  { id              = Nothing -- :: Maybe Text
+  , order_id        = Nothing -- :: Maybe Text
+  , rules           = Nothing -- :: Maybe [Rules]
+  , created         = Nothing -- :: Maybe Text
+  , discount_amount = Nothing -- :: Maybe Double
+  , status          = Nothing -- :: Maybe Text
+  }
+
+mapPromotion' :: D.PromotionActive -> Promotion'
+mapPromotion' promotion = Promotion'
+  { id = Just $ show $ D.promotionPId $ getField @"id" promotion
+  , order_id = Just $ getField @"orderId" promotion
+  , rules = Just [getField @"rules" promotion]
+  , created = Just $ show $ getField @"dateCreated" promotion
+  , discount_amount = Just $ C.fromMoney $ getField @"discountAmount" promotion
+  , status = Just $ getField @"status" promotion
+  }

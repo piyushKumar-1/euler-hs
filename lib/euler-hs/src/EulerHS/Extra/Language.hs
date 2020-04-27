@@ -18,11 +18,9 @@ import           EulerHS.Prelude hiding (id, get)
 import qualified EulerHS.Core.Types          as T
 import qualified EulerHS.Framework.Language  as L
 import qualified EulerHS.Core.KVDB.Language  as L
-import qualified EulerHS.Core.SqlDB.Language as L
 
 import qualified Data.Aeson           as A
 import qualified Data.ByteString.Lazy as BSL
-import qualified Database.Beam        as B
 
 -- | Get existing SQL connection, or init a new connection.
 getOrInitSqlConn :: T.DBConfig beM -> L.Flow (T.DBResult (T.SqlConn beM))

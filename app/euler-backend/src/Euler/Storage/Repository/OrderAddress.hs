@@ -9,13 +9,11 @@ module Euler.Storage.Repository.OrderAddress
 import EulerHS.Prelude hiding (id, state)
 
 import           EulerHS.Language
-import           WebService.Language
-
-import           Euler.Constants (defaultVersion)
-import           Euler.Storage.DBConfig
 
 import qualified Euler.Common.Types                   as C
+import           Euler.Constants (defaultVersion)
 import qualified Euler.Product.Domain.Templates       as Ts
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types                  as DB
 
 import           Database.Beam ((==.))
@@ -29,7 +27,7 @@ createAddress addr addrHolder =
   case toDBAddress Nothing addr addrHolder of
     Nothing -> pure Nothing
     Just dbAddr -> do
-      mAddr <- withDB eulerDB
+      mAddr <- withEulerDB
           $ insertRowsReturningList
           $ B.insert (DB.order_address DB.eulerDBSchema)
           $ B.insertExpressions [(B.val_ dbAddr) & _id .~ B.default_]
@@ -40,13 +38,13 @@ updateAddress mCT currAddrId addrT addrHolderT =
   case (currAddrId, toDBAddress mCT addrT addrHolderT) of
     (_, Nothing) -> pure Nothing
     (Just addrId, Just dbAddr) -> do
-      withDB eulerDB
+      withEulerDB
         $ updateRows
         $ B.save (DB.order_address DB.eulerDBSchema)
         $ dbAddr & _id .~ (Just addrId)
       pure $ Just addrId
     (Nothing, Just dbAddr) -> do
-      mAddr <- withDB eulerDB
+      mAddr <- withEulerDB
           $ insertRowsReturningList
           $ B.insert (DB.order_address DB.eulerDBSchema)
           -- EHS : if in db OrderAddres id changed from Int to Text (so it is not auto-incremented) we should generate uuid or what?
@@ -98,7 +96,7 @@ fillBillingAddressHolder (Just customer) (Ts.AddressHolderTemplate {..})
       (lastName <|> (customer ^. _lastName))
 
 loadAddress :: C.AddressId -> Flow (Maybe DB.OrderAddress)
-loadAddress addrId = withDB eulerDB $ do
+loadAddress addrId = withEulerDB $ do
   let predicate DB.OrderAddress {id} = id ==. B.just_ (B.val_ addrId)
   findRow
     $ B.select

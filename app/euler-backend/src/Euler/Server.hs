@@ -1,20 +1,17 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Euler.Server where
 
 import           EulerHS.Prelude
 
-import           Network.Socket (SockAddr(..))
-import           Servant
-import           Data.Coerce (coerce)
-
-import Euler.API.RouteParameters
-
+import qualified Control.Exception.Safe as CES (catches)
 import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy                   as BSL
+import           Data.Coerce (coerce)
 import qualified Data.Text  as Text
+import           Network.Socket (SockAddr(..))
+import qualified Prometheus as P
+import           Servant
 
 import qualified EulerHS.Interpreters                   as R
 import qualified EulerHS.Language                       as L
@@ -25,12 +22,18 @@ import qualified Euler.API.Transaction                  as ApiTxn
 -- import qualified Euler.API.Validators.Transaction       as Txn
 -- import qualified Euler.Product.OLTP.Transaction.Decider as Txn
 
+
 import qualified Euler.API.Order                        as ApiOrder
 import qualified Euler.API.Payment                      as ApiPayment
+import           Euler.API.RouteParameters
+import           Euler.AppEnv
+import qualified Euler.Common.Errors.ErrorsMapping      as EMap
 import qualified Euler.Playback.Types                   as PB
 import qualified Euler.Playback.Service                 as PB (writeMethodRecordingDescription)
-import qualified Data.ByteString.Lazy                   as BSL
-import qualified Prometheus as P
+--import qualified Euler.Playback.MethodPlayer            as PB (noReqBody, noReqBodyJSON)
+import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
+import qualified Euler.Product.OLTP.Services.AuthConf   as Auth
+
 import           WebService.ContentType
                  (JavascriptWrappedJSON, mkDynContentTypeMiddleware, throwJsonError)
 import           WebService.FlexCasing
@@ -40,11 +43,9 @@ import           WebService.PostRewrite
 import           Network.Wai.Middleware.Routed
                  (routedMiddleware)
 
-import qualified Euler.Common.Errors.ErrorsMapping as EMap
-import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
-import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
-import qualified Euler.Product.OLTP.Services.AuthenticationService as AS
-import qualified Control.Exception.Safe as CES (catches)
+import           WebService.Types as WT
+
+
 
 
 type EulerAPI
@@ -71,10 +72,10 @@ type EulerAPI
 --      :> Post '[JSON] ApiOrder.OrderCreateResponse
 
 -- Order update
-  :<|> "orders"
-      :> Capture "orderId" Text
-      :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
-      :> Post '[JSON] ApiOrder.OrderStatusResponse
+  :<|> "orders" :> OrderUpdateEndpoint
+     -- :> Capture "orderId" Text
+     -- :> ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
+     -- :> Post '[JSON] ApiOrder.OrderStatusResponse
 
 -- Other APIS
 -- payment status endpoint (flexible casing showcase)
@@ -104,11 +105,11 @@ data Acc = Acc {}
 data Env = Env
   { envFlowRt         :: R.FlowRuntime
   , envRecorderParams :: Maybe PB.RecorderParams
+  , envApp            :: AppEnv
   }
 
 type FlowHandler = ReaderT Env (ExceptT ServerError IO)
-
-type FlowServer' api = ServerT api (ReaderT Env (ExceptT ServerError IO))
+type FlowServer' api = ServerT api FlowHandler
 type FlowServer      = FlowServer' EulerAPI
 
 eulerServer' :: FlowServer
@@ -196,39 +197,9 @@ runFlow flowTag rps req flow = do
     Left e -> throwError e
     Right r -> pure r
 
-testFlow2 :: Map String String -> L.Flow Text
-testFlow2  _ = do
-  void $ L.runSysCmd "echo hello"
-  L.forkFlow "f1" $ L.logInfo ("from f1" :: Text) "hellofrom forked flow"
-  res <- L.runIO $ do
-    putTextLn "text from runio"
-    pure ("text from runio" :: Text)
-  pure res
-
--- TODO: EHS: Move to somewhere
-type NoReqBody = ()
-
-noReqBody :: NoReqBody
-noReqBody = ()
-
-noReqBodyJSON :: A.Value
-noReqBodyJSON = toJSON noReqBody
-
-type RequestParameters = Map String String
-
-getMethod ::
-  ( FromJSON resp)
-  => (RequestParameters -> L.Flow resp)
-  -> NoReqBody
-  -> RequestParameters
-  -> L.Flow resp
-getMethod f _ p = f p
--- TODO <
-
 test :: FlowHandler Text
 test = do
   liftIO $ putStrLn ("Test method called." :: String)
-  _ <- runFlow "testFlow2" emptyRPs noReqBodyJSON $ (getMethod testFlow2) noReqBody mempty
   pure "Test."
 
 txns :: ApiTxn.Transaction -> FlowHandler ApiTxn.TransactionResponse
@@ -250,26 +221,41 @@ txns _ = do
   --       , Txn.params         = ""
   --       }
 
-type OrderStatusGetEndpoint
-  -- Route vals
-  = Capture "orderId" OrderId
-  -- Headers
+type OrderStatusGetEndpoint =
+     -- URL parameters
+     Capture "orderId" OrderId
+     -- Headers
+  -- EHS: use common constants for headers?
   :> Header "Authorization" Authorization
-  :>  Header "X-Forwarded-For" XForwardedFor
+  -- EHS: most likely this header is not used in order status
+  :> Header "X-Auth-Scope" XAuthScope
+  :> Header "X-Forwarded-For" XForwardedFor
+  :> Header "client_auth_token" ClientAuthToken
+  :> Header "options.add_full_gateway_response" AddFullGatewayResponseOption
   :> Get '[JSON] ApiOrder.OrderStatusResponse
 
-orderStatus
-  :: OrderId
+orderStatus ::
+     OrderId
   -> Maybe Authorization
+  -> Maybe XAuthScope
   -> Maybe XForwardedFor
+  -> Maybe ClientAuthToken
+  -> Maybe AddFullGatewayResponseOption
   -> FlowHandler ApiOrder.OrderStatusResponse
-orderStatus orderId auth xforwarderfor = undefined --do
---  let (rps :: RouteParameters) = collectRPs
---              orderId
---              auth
---              xforwarderfor
---  res <- runFlow "orderStatus" emptyRPs noReqBodyJSON $ OrderStatus.processOrderStatusGET "orderId" "apiKey"
---  pure res
+orderStatus orderId mbAuth mbXAuthScope mbXForwarderFor mbClientAuthToken mbSendFullPgr = do
+  let rps = collectRPs
+              orderId
+              mbAuth
+              mbXAuthScope
+              mbXForwarderFor
+              mbClientAuthToken
+              mbSendFullPgr
+
+  Env { envApp } <- ask
+  let handlerName = showHandlerKey OrderStatus
+  let flow = orderStatusMethod envApp
+  runFlow handlerName rps (toJSON WT.emptyReq) $ flow rps WT.emptyReq
+
 
 -- EHS: Extract from here.
 type OrderCreateEndpoint
@@ -318,17 +304,55 @@ orderCreate auth version uagent xauthscope xforwarderfor sockAddr ordReq = do
 --    V.Failure err -> error "Not implemented"   -- TODO: EHS: return error.
 --    V.Success validatedOrder ->
   runFlow "orderCreate" rps (toJSON ordReq)
-          $ AS.withMacc OrderCreate.orderCreate rps ordReq -- validatedOrder
+          $ Auth.withAuth Auth.mkKeyAuthService OrderCreate.orderCreate rps ordReq -- validatedOrder
 
-orderUpdate :: Text -> ApiOrder.OrderUpdateRequest -> FlowHandler ApiOrder.OrderStatusResponse
-orderUpdate orderId ordReq = do
-  res <- do
-    error "OrderUpdate not implemented"
-    -- r <- runFlow "orderUpdate" emptyRPs noReqBodyJSON $ OrderCreateUpdateLegacy.orderUpdate orderId ordReq "reqParams" Merchant.defaultMerchantAccount
-    -- end <- liftIO getCurrentTime
-    -- liftIO $ print $ diffUTCTime end start
-    -- pure r
-  pure res
+
+type OrderUpdateEndpoint =
+  -- URL parameters
+      Capture "orderId" OrderId
+  --  Headers
+  :>  Header "Authorization" Authorization
+  :>  Header "Version" Version
+  :>  Header "User-Agent" UserAgent
+  :>  Header "X-Auth-Scope" XAuthScope
+  :>  Header "X-Forwarded-For" XForwardedFor
+  --  Remote host
+  :>  RemoteHost
+  --  POST Body
+  :>  ReqBody '[FormUrlEncoded, JSON] ApiOrder.OrderUpdateRequest
+  --  Response
+  :>  Post '[JSON] ApiOrder.OrderStatusResponse
+
+orderUpdate
+-- URL parameters
+   ::  OrderId
+  -- Headers
+  -> Maybe Authorization
+  -> Maybe Version
+  -> Maybe UserAgent
+  -> Maybe XAuthScope
+  -> Maybe XForwardedFor
+  -- Remote IP
+  -> SockAddr
+  -- Request
+  -> ApiOrder.OrderUpdateRequest
+  -- Response
+  ->  FlowHandler ApiOrder.OrderStatusResponse
+orderUpdate orderId auth version uagent xauthscope xforwarderfor sockAddr req = do
+  let rps = collectRPs
+             auth
+             version
+             uagent
+             xauthscope
+             xforwarderfor
+             (sockAddrToSourceIP sockAddr)
+             orderId
+
+  Env { envApp } <- ask
+  let handlerName = showHandlerKey OrderUpdate
+  let flow = orderUpdateMethod envApp
+  runFlow handlerName rps (toJSON req) $ flow rps req
+
 
 paymentStatus
   :: Maybe String -- ^ orderId

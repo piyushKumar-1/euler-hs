@@ -350,5 +350,3 @@ spec = do
                 pure (mbRes1, mbRes2)
           result <- runFlow rt flow
           result `shouldBe` (Right 101, Left T.AwaitingTimeout)
-
-

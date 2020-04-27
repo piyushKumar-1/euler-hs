@@ -11,7 +11,7 @@ import           Data.Char (isDigit)
 import           Data.Attoparsec.Text
 
 -- EHS: rework imports, rework dependencies.
-import Euler.Common.Types.Gateway   (GatewayId, gatewayRMap)
+import Euler.Common.Types.Gateway   (Gateway, GatewayId, gatewayRMap, gateways)
 import Euler.Common.Types.Order (UDF(..))
 import Euler.Common.Types.Transaction (AuthType(..))
 import Euler.Product.Domain.UPIPayment (UPITxnType)
@@ -22,6 +22,15 @@ import qualified Euler.Product.Domain.Card as DC
 toInt :: Transformer Text Int
 toInt = V.decode
 
+-- | Non-negative amount validator, use it when checking amounts other than order amount.
+notNegativeAmount :: Validator Double
+notNegativeAmount =
+  parValidate
+    [ max2DecimalDigits
+    , notNegativeF
+    ]
+
+-- | Order amount validator
 amountValidators :: Validator Double
 amountValidators =
   parValidate
@@ -34,6 +43,9 @@ notBlank = mkValidator "Can't be blank" (not . T.null . T.strip)
 
 notNegative :: Validator Int
 notNegative = mkValidator "Should not be negative." (>= 0)
+
+notNegativeF :: Validator Double
+notNegativeF = mkValidator "Should not be negative." (>= 0.0)
 
 textNotEmpty :: Validator Text
 textNotEmpty = mkValidator "Can't be empty" (not . T.null)
@@ -194,6 +206,8 @@ isCardType = mkValidator "Text is CardType" (`elem`
   , DC.REWARD
   ])
 
+isGateway :: Validator Gateway
+isGateway = mkValidator "Text is Gateway" (`elem` gateways)
 
 objectReferenceIdValidators :: Validator Text
 objectReferenceIdValidators =

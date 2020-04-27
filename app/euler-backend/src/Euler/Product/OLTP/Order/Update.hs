@@ -13,24 +13,59 @@ import           Data.Generics.Product.Fields
 import qualified Data.Text as Text
 import qualified Prelude  as P (show)
 
-import Euler.Product.OLTP.Services.RedisService
-
-
 -- EHS: Should not depend on API?
 import qualified Euler.API.RouteParameters  as RP
-import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest, defaultOrderStatusResponse)
+import qualified Euler.API.Order as API (OrderStatusResponse, OrderUpdateRequest)
 import qualified Euler.API.Validators.Order as VO
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
--- import qualified Euler.Common.Metric                  as Metric
+import           Euler.Lens
+import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
-import qualified Euler.Services.OrderStatus           as OSSrv
-import qualified Euler.Services.Version.OrderStatusResponse as VSrv
+
+
+-- API
+import qualified Euler.Product.OLTP.Order.UpdateApi           as UpdateApi
+
+-- deps
+import qualified Euler.Product.Cache.OrderStatusCacheApi                 as CacheApi
+import qualified Euler.Product.OLTP.Order.StatusApi           as StatusApi
+import qualified Euler.Product.OLTP.Services.Auth.AuthService as AuthApi
+
+
+
+--import qualified Euler.Services.Version.OrderStatusResponse as VSrv
 import qualified Euler.Storage.Repository as Rep
 
-import Euler.Lens
+import           WebService.Language
+
+
+
+-- | So called "implementation handle" to hold all dependencies together
+data IHandle = IHandle
+  { authServiceH      :: AuthApi.SHandle
+  , orderStatusCacheH :: CacheApi.SHandle
+  , orderStatusH      :: StatusApi.SHandle
+  }
+
+mkHandle :: IHandle -> UpdateApi.SHandle
+mkHandle iHandle =
+  UpdateApi.SHandle
+  { updateOrder = \rps req -> do
+      let AuthApi.SHandle { authenticate } = authServiceH iHandle
+      authResult <- authenticate rps
+      case (authResult) of
+        Left err -> do
+          logErrorT "AuthService" $ "authentication failed with error: " <> err
+          throwException Errs.internalError
+        Right macc ->
+          runOrderUpdate (orderStatusH iHandle) (orderStatusCacheH iHandle) rps req macc
+  }
+
+
+-- ----------------------------------------------------------------------------
 
 
 -- EHS: since original update function consumed orderCreate type - fields "amount" and "order_id"
@@ -41,58 +76,88 @@ import Euler.Lens
 
 -- EHS: we did not check amount like in orderCreate it's ok?
 
-runOrderUpdate :: RP.RouteParameters
+runOrderUpdate
+  :: StatusApi.SHandle
+  -> CacheApi.SHandle
+  -> RP.RouteParameters
   -> API.OrderUpdateRequest
   -> D.MerchantAccount
   -> Flow API.OrderStatusResponse
-runOrderUpdate routeParams req mAcc = do
-  let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
-  let service = VSrv.mkOrderStatusService version
+runOrderUpdate sHandle cHandle routeParams req mAcc = do
+  -- EHS: use maybe as it is
+  --let version = fromMaybe "" $ RP.lookupRP @RP.Version routeParams
+  --let service = VSrv.mkOrderStatusService version
   case VO.apiOrderUpdToOrderUpdT req of
     V.Failure err -> do
-      logError @String "OrderUpdateRequest validation" $ show err
+      logErrorT "OrderUpdateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
-    V.Success validatedOrder -> orderUpdate routeParams service validatedOrder mAcc
+    V.Success validatedOrder -> orderUpdate sHandle cHandle routeParams validatedOrder mAcc
 
-orderUpdate :: RP.RouteParameters
-            -> VSrv.OrderStatusService
+orderUpdate :: StatusApi.SHandle
+            -> CacheApi.SHandle
+            -> RP.RouteParameters
             -> Ts.OrderUpdateTemplate
             -> D.MerchantAccount
             -> Flow API.OrderStatusResponse
-orderUpdate routeParams VSrv.OrderStatusService{transformOrderStatus} orderUpdateT mAccnt = do
-  let merchantId' = getField @"merchantId" mAccnt
-  orderId' <- maybe
-    (throwException Errs.orderIdNotFoundInPath)
-    pure
-    $ RP.lookupRP @RP.OrderId routeParams
-  (mOrder :: Maybe D.Order) <- Rep.loadOrder orderId' merchantId'
-  resp <- case mOrder of
-    Just order' -> do
-      doOrderUpdate orderUpdateT order' mAccnt
-      resp' <- OSSrv.getOrderStatusResponse
-        OSSrv.defaultOrderStatusService
-        orderId'
-        mAccnt
-        True
-        routeParams
-      let gatewayId = fromMaybe 0 $ resp' ^. _gateway_id
-      pure $ transformOrderStatus gatewayId resp'
-    Nothing -> throwException $ Errs.orderDoesNotExist orderId'
-  logInfo @String "order update response: " $ show resp
-  pure API.defaultOrderStatusResponse --resp
+orderUpdate
+  StatusApi.SHandle { statusByRequest }
+  cacheH
+  routeParams
+  orderUpdateT
+  mAccnt = do
+    let merchantId' = getField @"merchantId" mAccnt
+    orderId' <- maybe
+      (throwException Errs.orderIdNotFoundInPath)
+      pure
+      $ RP.lookupRP @RP.OrderId routeParams
+    (mOrder :: Maybe D.Order) <- Rep.loadOrder orderId' merchantId'
+    resp <- case mOrder of
+      Just order' -> do
+        doOrderUpdate cacheH orderUpdateT order' mAccnt
+        callOrderStatus orderId' merchantId'
+      Nothing -> throwException $ Errs.orderDoesNotExist orderId'
+    logInfoT "order update response: " $ show resp
+    pure resp
+  where
+    callOrderStatus orderId merchantId = do
+      -- EHS: provide a "default" template for query?
+      let query = D.OrderStatusRequest
+            { orderId = orderId
+            , merchantId = merchantId
+            , merchantReturnUrl = mAccnt ^. _returnUrl
+            , resellerId = mAccnt ^. _resellerId
+            , isAuthenticated = True   -- EHS: is it the case?
+            , sendCardIsin = False
+            , sendFullGatewayResponse = False
+            , sendAuthToken = True
+            , version = RP.lookupRP @RP.Version routeParams
+            }
+      statusByRequest query
 
-doOrderUpdate :: Ts.OrderUpdateTemplate -> D.Order -> D.MerchantAccount -> Flow ()
-doOrderUpdate orderUpdateT order@D.Order {..}  mAccnt = do
-  case orderStatus of
-    C.OrderStatusSuccess -> do
-      logError @String "not_updating_successful_order" $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
-    C.OrderStatusAutoRefunded ->
-      logError @String "not_updating_auto_refunded_order" $ Text.pack ("Order: " <> P.show ( orderId) <> " has already been autoRefunded. Not updating any field.")
-    _ ->  do
-      let mNewAmount = getField @"amount" orderUpdateT
-      let newUDF = orderUpdateT ^. _udf
-      mbCustomer <- Rep.loadCustomer customerId (mAccnt ^. _id)
-      billingAddressId' <- Rep.updateAddress mbCustomer billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
-      shippingAddressId' <- Rep.updateAddress Nothing shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)
-      Rep.updateOrder (order ^. _id) newUDF mNewAmount billingAddressId' shippingAddressId'
-      invalidateOrderStatusCache (order ^. _orderId) (order ^. _merchantId)
+
+doOrderUpdate
+  :: CacheApi.SHandle
+  -> Ts.OrderUpdateTemplate
+  -> D.Order
+  -> D.MerchantAccount
+  -> Flow ()
+doOrderUpdate
+  CacheApi.SHandle { invalidateCache }
+  orderUpdateT
+  order@D.Order {..}
+  mAccnt = do
+    case orderStatus of
+      C.OrderStatusSuccess -> do
+        logErrorT "not_updating_successful_order"
+          $ Text.pack("Order: " <> P.show ( orderId) <> " has already succeeded. Not updating any field.")
+      C.OrderStatusAutoRefunded ->
+        logErrorT "not_updating_auto_refunded_order"
+          $ Text.pack ("Order: " <> P.show ( orderId) <> " has already been autoRefunded. Not updating any field.")
+      _ ->  do
+        let mNewAmount = getField @"amount" orderUpdateT
+        let newUDF = orderUpdateT ^. _udf
+        mbCustomer <- Rep.loadCustomer customerId (mAccnt ^. _id)
+        billingAddressId' <- Rep.updateAddress mbCustomer billingAddressId (orderUpdateT ^. _billingAddr) (orderUpdateT ^. _billingAddrHolder)
+        shippingAddressId' <- Rep.updateAddress Nothing shippingAddressId (orderUpdateT ^. _shippingAddr) (orderUpdateT ^. _shippingAddrHolder)
+        Rep.updateOrder (order ^. _id) newUDF mNewAmount billingAddressId' shippingAddressId'
+        invalidateCache (order ^. _orderId) (order ^. _merchantId)

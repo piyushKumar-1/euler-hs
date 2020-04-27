@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
+-- EHS: This is legacy code. Use AuthService Service Handle Pattern-based one instead.
 module Euler.Product.OLTP.Services.AuthenticationService where
 
 
@@ -14,18 +15,18 @@ import Data.List (intersect)
 import Servant.Server
 
 import Euler.API.RouteParameters
+import qualified Euler.Constants                      as Constants
 import Euler.Common.Errors.PredefinedErrors
 import Euler.Common.Types.Merchant
-import qualified Euler.Config.Config                  as Config
-import qualified Euler.Constants                      as Constants
 import qualified Euler.Product.Domain.MerchantAccount as DM
-import qualified Euler.Storage.Types.IngressRule as DBIR
-import qualified Euler.Storage.Types.MerchantAccount as DBM
+import qualified Euler.Storage.Types.IngressRule      as DBIR
+import qualified Euler.Storage.Types.MerchantAccount  as DBM
 import qualified Euler.Storage.Validators.MerchantAccount as MV
 import Euler.Storage.Types.IngressRule
 import Euler.Storage.Types.MerchantKey
 import Euler.Storage.Types.EulerDB
-import Euler.Storage.DBConfig (eulerDB)
+--import Euler.Storage.DBConfig (eulerDB)
+import Euler.Storage.Repository.EulerDB
 
 import qualified Prelude as P (show, id)
 import qualified Data.ByteString.Base64 as BH
@@ -36,7 +37,12 @@ import qualified Database.Beam as B
 import Database.Beam ((==.), (&&.))
 
 
-withMacc :: forall req resp . (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp) -> RouteParameters -> req -> Flow resp
+withMacc
+  :: forall req resp .
+  (RouteParameters -> req -> DM.MerchantAccount -> Flow  resp)
+   -> RouteParameters
+   -> req
+   -> Flow resp
 withMacc f rp req = do
   ma <- authenticateRequest rp
   f rp req ma
@@ -60,11 +66,11 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
   Just apiKeyStr -> do
     case extractApiKey apiKeyStr of
       Left err -> do
-        logError @String "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
+        logErrorT "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
         throwException $ eulerAccessDenied "Invalid API key."
       Right apiKey' -> do
         mk <- do
-          mMKey <- withDB eulerDB $ do
+          mMKey <- withEulerDB $ do
             let predicate MerchantKey{apiKey, status} = apiKey ==. B.just_ (B.val_ apiKey')
                  &&. status ==. B.just_ "ACTIVE"
             L.findRow
@@ -76,7 +82,7 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
             Nothing -> throwException ecAccessDenied
            -- findOneWithErr ecDB (where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"]) ecAccessDenied
         merchantAccount' <- do
-          mMAcc <- withDB eulerDB $ do
+          mMAcc <- withEulerDB $ do
             let predicate DBM.MerchantAccount {id} = id ==. (B.val_ $  mk ^. _merchantAccountId)
             L.findRow
               $ B.select
@@ -91,14 +97,14 @@ authenticateRequest routeParams = case (lookupRP @Authorization routeParams) of
         let eValidMerchant = MV.transSMaccToDomMacc merchantAccount
         case eValidMerchant of
           V.Failure e -> do
-            logError @String "DB MerchantAccount Validation" $ show e
+            logErrorT "DB MerchantAccount Validation" $ show e
             throwException internalError
           V.Success validMAcc -> do
             authScope <- getAuthScope routeParams
             _ <- if authScope == MERCHANT then ipAddressFilters validMAcc (lookupRP @XForwardedFor routeParams) else pure True
             pure validMAcc
   Nothing -> do
-    logError @String "authenticateRequestWithouthErr" "No authorization found in header"
+    logErrorT "authenticateRequestWithouthErr" "No authorization found in header"
     throwException $ eulerAccessDenied "API key not present in Authorization header"
  -- where getApiKeyFromHeader routeParams = do
  --         ((split (Pattern ":") <<< decodeBase64) <$> ((split (Pattern " ") <$> (lookup "Authorization" routeParams)) >>= last))
@@ -165,7 +171,7 @@ getAuthScope routeParams = pure $ case (lookupRP @XAuthScope routeParams) of
 --  case conn of
 --    Right c -> pure c
 --    Left err -> do
---      logError "SqlDB" $ toText $ P.show err
+--      logErrorT "SqlDB" $ toText $ P.show err
 --      throwException err500 {errBody = "getConn"}
 
 
@@ -206,16 +212,16 @@ ipAddressFilters mAcc mForward =  do
   whitelistedIps <- getWhitelistedIps mAcc
   case whitelistedIps of
     Just ips -> do
-      _ <- logInfo @String "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
+      _ <- logInfoT "ipAddressFilters" $  "IP whitelisting is enable for this merchant: " <> mAcc ^. _merchantId
       case (mForward) of
         Just forward -> do
           reqIPs <- pure $ T.strip <$> (filter (not . T.null) $ T.split (==',') forward)
           if (length $ intersect reqIPs ips) > 0
             then do
-              _ <- logInfo @String "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
+              _ <- logInfoT "ipAddressFilters" $ "IP whitelist validated for this origin: " <> forward
               pure True
             else do
-            _ <- logInfo @String "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
+            _ <- logInfoT "ipAddressFilters" $ "Rejecting request due to bad origin: " <> mconcat reqIPs
             throwException err403 {errBody = "Bad origin."}
         Nothing -> pure True
     Nothing -> pure True
@@ -226,8 +232,7 @@ getWhitelistedIps mAcc = do
   case ipAddresses of
     Just ips -> pure (Just ips)
     Nothing -> do
-      ir <- do
-        withDB eulerDB $ do
+      ir <- withEulerDB $ do
           let predicate IngressRule {merchantAccountId} = merchantAccountId ==. B.val_ ( mAcc ^. _id)
           findRows
             $ B.select

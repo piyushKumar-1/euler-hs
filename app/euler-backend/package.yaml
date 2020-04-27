@@ -6,40 +6,45 @@ author:              "Juspay Technologies Pvt Ltd"
 copyright:           "Juspay Technologies Pvt Ltd 2019"
 
 default-extensions:
-- NoImplicitPrelude
-- GADTs
-- RankNTypes
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
 - DeriveFunctor
 - DeriveGeneric
-- OverloadedStrings
-- LambdaCase
-- MultiParamTypeClasses
-- FunctionalDependencies
+- DuplicateRecordFields
 - ExplicitNamespaces
-- TypeApplications
-- ScopedTypeVariables
-- TypeOperators
-- TypeFamilies
-- DataKinds
 - FlexibleContexts
 - FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
 - PatternSynonyms
 - PolyKinds
-- DefaultSignatures
-- ConstraintKinds
-- NamedFieldPuns
-- TupleSections
-- ViewPatterns
-- MultiWayIf
-- DuplicateRecordFields
+- RankNTypes
 - RecordWildCards
+- ScopedTypeVariables
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeOperators
+- ViewPatterns
 
 dependencies:
 - base >= 4.7 && < 5
 - aeson
 - aeson-casing
+- base16-bytestring
+- binary
+- base16-bytestring
 - bytestring
+- comonad
 - containers
+- criterion
 - errors
 - euler-hs
 - euler-backend-storage
@@ -53,6 +58,7 @@ dependencies:
 - transformers
 - unordered-containers
 - lens
+- generic-deriving
 - http-client
 - http-client-tls
 - messagepack
@@ -118,6 +124,8 @@ dependencies:
 - amazonka
 - amazonka-core
 - amazonka-kms
+- raw-strings-qq
+- regex
 
 library:
   source-dirs:
@@ -167,11 +175,29 @@ tests:
     main: Main.hs
     source-dirs: test
     dependencies:
+    - mysql
     - euler-backend
     - hspec
     - hspec-wai
     - hspec-wai-json
+    - mysql
     - random-strings
     - utf8-string
     - base16-bytestring
     - base64-bytestring
+
+
+benchmarks:
+  bench:
+    main: Main.hs
+    source-dirs: bench
+    dependencies:
+    - euler-backend
+    - criterion
+    - mysql
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    - -Wall
+    - -O2

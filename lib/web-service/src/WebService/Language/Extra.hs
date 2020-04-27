@@ -9,6 +9,11 @@ module WebService.Language.Extra
   , insertRow
   , unsafeInsertRow
   , withDB
+    -- * @Text tag typed loggers
+  , logErrorT
+  , logWarningT
+  , logInfoT
+  , logDebugT
   ) where
 
 import EulerHS.Prelude
@@ -23,6 +28,7 @@ import qualified EulerHS.Language      as L
 import qualified Database.Beam         as B
 import qualified WebService.Types      as WST
 import           Servant               (err500)
+
 
 
 -- | Creates a connection and runs a DB query.
@@ -58,11 +64,14 @@ throwOnFailedWithLog (Left err) mkException msg = do
   L.throwException $ mkException $ msg <> " " <> show err <> ""
 throwOnFailedWithLog _ _ _ = pure ()
 
+
 getCurrentTimeUTC :: L.Flow LocalTime
 getCurrentTimeUTC = L.runIO' "getCurrentTimeUTC" getCurrentTimeUTC'
 
+
 getCurrentTimeUTC' :: IO LocalTime
 getCurrentTimeUTC' = (zonedTimeToLocalTime . utcToZonedTime utc ) <$> getCurrentTime
+
 
 getCurrentDateInSeconds :: L.Flow Int
 getCurrentDateInSeconds = L.runIO' "getCurrentDateInSeconds" $ do
@@ -74,9 +83,11 @@ getCurrentDateInMillis = L.runIO' "getCurrentDateInMillis" $ do
    t <- (*1000) <$> TP.getPOSIXTime
    pure $ floor t
 
+
 getCurrentDateStringWithSecOffset :: Int -> L.Flow Text
 getCurrentDateStringWithSecOffset secs = do
   L.runIO' "getCurrentDateStringWithSecOffset" $ (Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" . addUTCTime (realToFrac secs)) <$> getCurrentTime
+
 
 -- | Inserts some rows but returns the first result dropping others.
 -- Use this function with care.
@@ -95,6 +106,7 @@ insertRow db insertStmt = do
   pure $ case results of
     []    -> Left "Unexpected empty result."
     (x:_) -> Right x
+
 
 -- | Unsafe function that logs an error and throws a servant error.
 unsafeInsertRow
@@ -116,3 +128,20 @@ unsafeInsertRow exception db insertStmt = do
       L.logError ("unsafeInsertRow" :: Text) err
       L.throwException exception
     Right x -> pure x
+
+-- ----------------------------------------------------------------------------
+
+logErrorT :: Text -> T.Message -> L.Flow ()
+logErrorT = L.logError @Text
+
+
+logWarningT :: Text -> T.Message -> L.Flow ()
+logWarningT = L.logWarning @Text--logError' :: Show tag => tag -> Message -> Flow ()
+
+
+logInfoT :: Text -> T.Message -> L.Flow ()
+logInfoT = L.logInfo @Text
+
+
+logDebugT :: Text -> T.Message -> L.Flow ()
+logDebugT = L.logDebug @Text

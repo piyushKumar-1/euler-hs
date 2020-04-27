@@ -9,15 +9,12 @@ import EulerHS.Language
 
 -- EHS: rework imports. Use top level modules.
 import qualified Euler.API.Order                   as API
-import qualified Euler.Common.Types                as D
+import qualified Euler.Common.Types                as C
 import qualified Euler.Common.Types.External.Order as OEx
-import qualified Euler.Common.Metric               as Metric
-import qualified Euler.Product.Domain.Order        as D
 import qualified Euler.Product.Domain              as D
 import           Euler.Product.Domain.MerchantAccount
-import           Euler.Product.OLTP.Services.RedisService
+import           Euler.Product.OLTP.Services.TokenService
 import qualified Euler.Config.Config               as Config
-import qualified Euler.Config.ServiceConfiguration as SC
 import           Euler.Lens
 
 
@@ -31,7 +28,10 @@ data OrderVersioningService = OrderVersioningService
 
 type Version = Text
 
-mkOrderVersioningService :: Maybe Version -> Maybe Bool -> OrderVersioningService
+mkOrderVersioningService
+  :: Maybe Version
+  -> Maybe Bool             -- ^ is auth token needed
+  -> OrderVersioningService
 mkOrderVersioningService (Just version) (Just True)
   | version >= "2018-07-01"  = OrderVersioningService mkTokenizedOrderResponse
 mkOrderVersioningService _ _ = OrderVersioningService mkOrderResponse
@@ -76,16 +76,16 @@ mkTokenizedOrderResponse cfg order@(D.Order {..}) mAcc mbResellerAcc = do
         { API.status          = OEx.NEW
         , API.status_id       = OEx.orderStatusToInt OEx.NEW      -- EHS: this logic should be tested.
         , API.juspay          = Just orderToken
-        , API.udf1            = D.udf1  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf2            = D.udf2  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf3            = D.udf3  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf4            = D.udf4  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf5            = D.udf5  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf6            = D.udf6  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf7            = D.udf7  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf8            = D.udf8  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf9            = D.udf9  udf <|> Just ""   -- If UDF field not set, it will be Just ""
-        , API.udf10           = D.udf10 udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf1            = C.udf1  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf2            = C.udf2  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf3            = C.udf3  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf4            = C.udf4  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf5            = C.udf5  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf6            = C.udf6  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf7            = C.udf7  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf8            = C.udf8  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf9            = C.udf9  udf <|> Just ""   -- If UDF field not set, it will be Just ""
+        , API.udf10           = C.udf10 udf <|> Just ""   -- If UDF field not set, it will be Just ""
         , API.return_url      = returnUrl <|> Just ""       -- If return_url not set, it will be Just ""
         , API.refunded        = Just refundedEntirely
         , API.product_id      = productId <|> Just ""       -- If productId not set, it will be Just ""
@@ -97,20 +97,6 @@ mkTokenizedOrderResponse cfg order@(D.Order {..}) mAcc mbResellerAcc = do
         , API.currency        = (Just $ show currency)
        -- , API.amount_refunded = amountRefunded <|> Just 0.0 -- EHS: where this shoud be taken from on order create??
         , API.amount_refunded = Just 0.0
-        , API.amount          = Just (D.fromMoney amount)
+        , API.amount          = Just (C.fromMoney amount)
         }
   pure r
-
-
-acquireOrderToken :: D.OrderPId -> D.MerchantId -> Flow API.OrderTokenResp
-acquireOrderToken orderPId merchantId = do
-  -- EHS: magic constant
-  TokenizedResource {token, expiry} <- tokenizeResource (SC.ResourceInt orderPId) "ORDER" merchantId
-
-  -- EHS: check this
-  runIO $ Metric.incrementClientAuthTokenGeneratedCount merchantId
-
-  pure $ API.OrderTokenResp
-    { API.client_auth_token        = Just token
-    , API.client_auth_token_expiry = Just expiry
-    }

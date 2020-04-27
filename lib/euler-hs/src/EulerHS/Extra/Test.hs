@@ -5,8 +5,8 @@ module EulerHS.Extra.Test where
 import EulerHS.Prelude
 
 import EulerHS.Interpreters
-import EulerHS.Runtime (withFlowRuntime, FlowRuntime)
-import EulerHS.Types hiding (error)
+import EulerHS.Runtime (FlowRuntime)
+import EulerHS.Types
 import qualified EulerHS.Types as T
 import           EulerHS.Language
 import           System.Process
@@ -20,42 +20,25 @@ mwhen :: Monoid m => Bool -> m -> m
 mwhen True  = id
 mwnen False = const mempty
 
-prepareMysqlDB
-    :: FilePath
-    -> T.MySQLConfig
-    -> T.MySQLConfig
-    -> (T.MySQLConfig -> DBConfig BM.MySQLM)
-    -> (forall a . (FlowRuntime -> IO a) -> IO a)
-    -> (FlowRuntime -> IO ())
-    -> IO()
-prepareMysqlDB filePath msRootCfg msCfg@T.MySQLConfig{..} msCfgToDbCfg withRt next =
-    withRt $ \flowRt ->
-      bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
-        let
-          dropTestDbIfExist :: IO ()
-          dropTestDbIfExist = do
-            query rootConn $ "drop database if exists " <> fromString connectDatabase
 
-          createTestDb :: IO ()
-          createTestDb = do
-            query rootConn $ "create database " <> fromString connectDatabase
-            query rootConn $ "grant all privileges on " <> fromString connectDatabase <> ".* to 'cloud'@'%'"
-
-        bracket_
-          (dropTestDbIfExist >> createTestDb)
-          (dropTestDbIfExist)
-          (loadMySQLDump >> prepareDBConnections flowRt >> next flowRt)
-
+withMysqlDb :: String -> String -> MySQLConfig -> IO a -> IO a
+withMysqlDb dbName filePath msRootCfg next =
+    bracket_
+      (dropTestDbIfExist >> createTestDb)
+      (dropTestDbIfExist)
+      (loadMySQLDump >> next)
   where
-    prepareDBConnections :: FlowRuntime -> IO ()
-    prepareDBConnections flowRuntime = runFlow flowRuntime $ do
-        ePool <- initSqlDBConnection $ msCfgToDbCfg msCfg
-        either (error "Failed to connect to MySQL") (const $ pure ()) ePool
+    T.MySQLConfig
+      { connectPort
+      , connectHost
+      , connectUser
+      , connectPassword
+      } = msRootCfg
 
     loadMySQLDump :: IO ()
     loadMySQLDump =
-         void $ system $
-          "mysql " <> options <> " " <> connectDatabase <> " 2> /dev/null < " <> filePath
+        void $ system $
+          "mysql " <> options <> " " <> dbName <> " 2> /dev/null < " <> filePath
       where
         options =
           intercalate " "
@@ -64,6 +47,63 @@ prepareMysqlDB filePath msRootCfg msCfg@T.MySQLConfig{..} msCfgToDbCfg withRt ne
             , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
             , mwhen (not $ null connectPassword) $ "--password=" <> connectPassword
             ]
+
+    dropTestDbIfExist :: IO ()
+    dropTestDbIfExist =
+      bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
+        query rootConn $ "drop database if exists " <> encodeUtf8 dbName
+
+    createTestDb :: IO ()
+    createTestDb =
+      bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
+        query rootConn $ "create database " <> encodeUtf8 dbName
+        query rootConn $ "grant all privileges on " <> encodeUtf8 dbName <> ".* to 'cloud'@'%'"
+
+
+-- prepareMysqlDB
+--     :: FilePath
+--     -> T.MySQLConfig
+--     -> T.MySQLConfig
+--     -> (T.MySQLConfig -> DBConfig BM.MySQLM)
+--     -> (forall a . (FlowRuntime -> IO a) -> IO a)
+--     -> (FlowRuntime -> IO ())
+--     -> IO()
+-- prepareMysqlDB filePath msRootCfg msCfg@T.MySQLConfig{..} msCfgToDbCfg withRt next =
+--     withRt $ \flowRt ->
+--       bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
+--         let
+--           dropTestDbIfExist :: IO ()
+--           dropTestDbIfExist = do
+--             query rootConn $ "drop database if exists " <> fromString connectDatabase
+
+--           createTestDb :: IO ()
+--           createTestDb = do
+--             query rootConn $ "create database " <> fromString connectDatabase
+--             query rootConn $ "grant all privileges on " <> fromString connectDatabase <> ".* to 'cloud'@'%'"
+
+--         bracket_
+--           (dropTestDbIfExist >> createTestDb)
+--           (dropTestDbIfExist)
+--           (loadMySQLDump >> prepareDBConnections flowRt >> next flowRt)
+
+--   where
+--     prepareDBConnections :: FlowRuntime -> IO ()
+--     prepareDBConnections flowRuntime = runFlow flowRuntime $ do
+--         ePool <- initSqlDBConnection $ msCfgToDbCfg msCfg
+--         either (error "Failed to connect to MySQL") (const $ pure ()) ePool
+
+--     loadMySQLDump :: IO ()
+--     loadMySQLDump =
+--          void $ system $
+--           "mysql " <> options <> " " <> connectDatabase <> " 2> /dev/null < " <> filePath
+--       where
+--         options =
+--           intercalate " "
+--             [                                      "--port="     <> show connectPort
+--             , mwhen (not $ null connectHost    ) $ "--host="     <> connectHost
+--             , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
+--             , mwhen (not $ null connectPassword) $ "--password=" <> connectPassword
+--             ]
 
 
 preparePostgresDB

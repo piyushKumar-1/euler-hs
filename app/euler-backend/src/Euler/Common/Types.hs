@@ -14,9 +14,11 @@ import Euler.Common.Types.Mandate          as X
 import Euler.Common.Types.Merchant         as X
 import Euler.Common.Types.Money            as X
 import Euler.Common.Types.Order            as X
+import Euler.Common.Types.Refund           as X
+import Euler.Common.Types.RMSIDResult      as X
 import Euler.Common.Types.Promotion        as X
 import Euler.Common.Types.RedisService     as X
-
+import Euler.Common.Types.ViesFlow         as X
 
 
 -- EHS: remove type conflicts:

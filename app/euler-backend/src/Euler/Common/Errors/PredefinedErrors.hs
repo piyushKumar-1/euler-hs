@@ -345,6 +345,7 @@ pmNotFound txnId = ECErrorResponse
       }
   }
 
+-- EHS: looks as if id, not orderId was in the original author's mind here?
 orderDoesNotExist :: Text -> ECErrorResponse
 orderDoesNotExist orderId = ECErrorResponse
   { code = 400
@@ -356,6 +357,7 @@ orderDoesNotExist orderId = ECErrorResponse
       }
   }
 
+-- EHS: again, is `id`, not `orderId` expected here? Otherwise we are loosing order identification here
 orderNotFound :: Text -> ECErrorResponse
 orderNotFound orderId = ECErrorResponse
   { code = 200

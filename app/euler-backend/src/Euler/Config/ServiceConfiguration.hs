@@ -1,19 +1,25 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
+-- EHS: move some stuff to repository
 module Euler.Config.ServiceConfiguration where
 -- src/Types/Storage/EC/ServiceConfiguration.purs
 
 import EulerHS.Prelude
 
 import EulerHS.Language
-import WebService.Language
+
+import qualified Data.Aeson            as A
+import qualified Data.Text.Encoding   as T
+import qualified Data.ByteString.Lazy as BSL
 
 import Euler.Lens
-import Euler.Storage.DBConfig (ecDB)
 import Euler.Storage.Types.EulerDB
+import Euler.Storage.Repository.EulerDB
 import Euler.Storage.Types.ServiceConfiguration
 
+--import qualified Data.Map                  as Map
 import qualified Database.Beam             as B
+--import qualified Database.Beam.Backend.SQL as B
 
 import Database.Beam ((==.))
 
@@ -104,7 +110,7 @@ import Database.Beam ((==.))
 -- 	modelName _ = "service_configuration"
 
 getServiceConfigurationFromKey :: Text -> Flow (Maybe ServiceConfiguration)
-getServiceConfigurationFromKey key = withDB ecDB $ do
+getServiceConfigurationFromKey key = withEulerDB $ do
   findRow
     $ B.select
     $ B.limit_ 1
@@ -120,6 +126,9 @@ getServiceConfigurationValueFromKey key = do
 findByName :: Text -> Flow (Maybe ServiceConfiguration)
 findByName name = getServiceConfigurationFromKey name
 --   DB.findOne ecDB $ where_ := WHERE ["name" /\ String name] :: WHERE ServiceConfiguration
+
+decodeValue :: FromJSON a => Text -> Maybe a
+decodeValue = A.decode . BSL.fromStrict . T.encodeUtf8
 
 data MerchantWiseTokenExpiryData = MerchantWiseTokenExpiryData (Map Text TokenExpiryData)
   deriving (Generic, Eq, Show, ToJSON, FromJSON)

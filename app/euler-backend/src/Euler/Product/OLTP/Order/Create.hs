@@ -1,15 +1,13 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NamedFieldPuns  #-}
 
 module Euler.Product.OLTP.Order.Create where
 
-import EulerHS.Prelude hiding (id, get)
+import           EulerHS.Prelude hiding (get, id)
 
 import qualified Data.Text            as Text
+import           Data.Time (localDay)
 import qualified Text.Read            as TR
 import           Data.Generics.Product.Subtype
-import           Data.Time (localDay)
-
 -- EHS: it's beter to get rid of this dependency.
 -- Rework exceptions. Introduce app specific exceptions.
 -- Map to Servant in handlers.
@@ -19,6 +17,7 @@ import qualified EulerHS.Extra.Validation as V
 import           EulerHS.Language
 import           WebService.Language
 
+import qualified Euler.Constants                   as Constants
 
 -- EHS: Storage interaction should be extracted from here into separate modules.
 -- EHS: Storage namespace should have a single top level module.
@@ -27,22 +26,19 @@ import qualified Euler.Storage.KVRepository as Rep
 import qualified Euler.Storage.Repository   as Rep
 
 -- EHS: Should not depend on API?
-import qualified Euler.API.RouteParameters  as RP
-import qualified Euler.API.Order            as API
+import qualified Euler.API.Order as API
+import qualified Euler.API.RouteParameters as RP
 import qualified Euler.API.Validators.Order as VO
 
 -- EHS: rework imports. Use top level modules.
 import qualified Euler.Common.Types                as D
-import qualified Euler.Common.Types.External.Mandate as MEx
 import qualified Euler.Common.Types.External.Order as OEx
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
-import qualified Euler.Product.Domain.Order        as D
 import qualified Euler.Product.Domain              as D
 import           Euler.Product.Domain.MerchantAccount
-import qualified Euler.Product.Domain.Templates    as Ts
+import qualified Euler.Product.Domain.Templates as Ts
 import qualified Euler.Product.OLTP.Order.OrderVersioningService as OVS
 import qualified Euler.Config.Config               as Config
-import qualified Euler.Constants                   as Constants
 import           Euler.Lens
 
 orderCreate
@@ -56,7 +52,7 @@ orderCreate routeParams req ma = do
   let service       = OVS.mkOrderVersioningService mbVersion mbTokenNeeded
   case VO.transApiOrdCreateToOrdCreateT req of
     V.Failure err -> do
-      logError @String "OrderCreateRequest validation" $ show err
+      logErrorT "OrderCreateRequest validation" $ show err
       throwException $ Errs.mkValidationError err
     V.Success validatedOrder -> orderCreate'' routeParams service validatedOrder ma
 
@@ -74,8 +70,8 @@ orderCreate'' routeParams service order' mAccnt = do
 
   case mbExistingOrder of
     -- EHS: should we throw exception or return a previous order?
-    Just _        -> throwException $ Errs.orderAlreadyCreated (order' ^. _orderId)
-    Nothing       -> doOrderCreate routeParams service order' mAccnt
+    Just _  -> throwException $ Errs.orderAlreadyCreated (order' ^. _orderId)
+    Nothing -> doOrderCreate routeParams service order' mAccnt
 
 doOrderCreate
   :: RP.RouteParameters
@@ -86,14 +82,12 @@ doOrderCreate
 doOrderCreate routeParams (OVS.OrderVersioningService {makeOrderResponse}) order' mAccnt@MerchantAccount{..} = do
   merchantPrefs <- Rep.loadMerchantPrefs merchantId
   (dbOrder, order) <- createOrder' routeParams order' mAccnt merchantPrefs
+  -- EHS: I find alias `Rep` sort of misleading here
   _                <- Rep.updateOrderCache (order ^. _orderId) (order ^. _merchantId) dbOrder
   _                <- Rep.updateMandateCache order $ order' ^. _mandate
 
   mbReseller    <- Rep.loadReseller (mAccnt ^. _resellerId)
   makeOrderResponse Config.getECRConfig order mAccnt mbReseller
-
-
-
 
 
 -- EHS: previously isMandateOrder
@@ -126,7 +120,7 @@ validateMandate (Ts.OrderCreateTemplate {mandate}) merchantId = do
     fromStringToNumber str = do
       num <- pure $ readMayT str
       case num of
-        Just x -> pure $ x
+        Just x  -> pure $ x
         Nothing -> throwException $ err400 {errBody = "Invalid amount"}
 
 readMayT :: Read a => Text -> Maybe a

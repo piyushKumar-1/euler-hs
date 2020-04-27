@@ -49,9 +49,8 @@ eulerOrderStatusCachingKey = "EULER_ORDER_STATUS_CACHING"
 directWalletDebit :: IsString s => s
 directWalletDebit = "DIRECT_WALLET_DEBIT"
 
--- TODO
--- orderStatusCacheTTL :: Milliseconds
--- orderStatusCacheTTL = convertDuration $ Minutes 45.0
+orderStatusCacheTTL :: Integer
+orderStatusCacheTTL = 45 * 60
 
 -- EHS: hardcoded currency
 invalidMandateMaxAmount :: IsString s => s

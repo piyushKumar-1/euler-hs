@@ -3,11 +3,13 @@
 module Euler.Product.Domain.Customer
   ( Customer(..)
   , CreateCustomer(..)
+  , defaultCustomer
   ) where
 
 import EulerHS.Prelude
 
 import Data.Time
+import Euler.Common.Types.DefaultDate
 
 
 
@@ -38,3 +40,19 @@ data CreateCustomer = CreateCustomer
   , crtCstMobile_country_code :: Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- EHS: remove
+defaultCustomer :: Customer
+defaultCustomer = Customer
+  { customerId                 = ""
+  , customerVersion            = 1
+  , customerDateCreated        = defaultDate
+  , customerEmailAddress       = "me@domain.com"
+  , customerFirstName          = "Name"
+  , customerLastName           = "Surname"
+  , customerLastUpdated        = defaultDate
+  , customerMerchantAccountId  = 1
+  , customerMobileCountryCode  = "+91"
+  , customerMobileNumber       = "9000000000"
+  , customerObjectReferenceId  = "objectReferenceId"
+  }

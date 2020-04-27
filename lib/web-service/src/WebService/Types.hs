@@ -4,3 +4,4 @@ module WebService.Types
 
 
 import           WebService.Types.AppException as X
+import           WebService.Types.ReqResp      as X

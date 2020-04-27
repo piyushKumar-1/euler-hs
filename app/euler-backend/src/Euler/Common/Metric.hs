@@ -23,6 +23,9 @@ orderStatusCacheMissCounter :: P.Vector Text P.Counter
 orderStatusCacheMissCounter =
     P.unsafeRegister $ P.vector "merchant_id" $ P.counter $ P.Info (withPrefix "order_status_cache_miss") ""
 
+orderStatusCacheAddCounter :: P.Vector Text P.Counter
+orderStatusCacheAddCounter =
+    P.unsafeRegister $ P.vector "merchant_id" $ P.counter $ P.Info (withPrefix "order_status_cache_add") ""
 ----------------------------------------------------------------------
 
 
@@ -37,3 +40,7 @@ incrementOrderStatusCacheHitCount merchantId =
 incrementOrderStatusCacheMissCount :: Text -> IO ()
 incrementOrderStatusCacheMissCount merchantId =
     P.withLabel orderStatusCacheMissCounter merchantId P.incCounter
+
+incrementOrderStatusCacheAddCount :: Text -> IO ()
+incrementOrderStatusCacheAddCount merchantId =
+    P.withLabel orderStatusCacheAddCounter merchantId P.incCounter

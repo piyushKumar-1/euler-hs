@@ -9,7 +9,7 @@ import           EulerHS.Extra.Validation as V
 import           EulerHS.Language
 import           WebService.Language
 
-import           Euler.Storage.DBConfig
+import           Euler.Storage.Repository.EulerDB
 import           Euler.Storage.Validators.ResellerAccount
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
@@ -24,10 +24,10 @@ import qualified Database.Beam as B
 
 -- EHS: previously handleReseller
 -- EHS: return domain type for Reseller instead of DB type
-loadReseller :: Maybe Text -> Flow (Maybe D.ResellerAccount)
+loadReseller :: Maybe Int -> Flow (Maybe D.ResellerAccount)
 loadReseller Nothing = pure Nothing
 loadReseller (Just resellerId') = do
-  mbResAcc <- withDB eulerDB $ do
+  mbResAcc <- withEulerDB $ do
     -- EHS: DB types should be qualified or explicitly named.
     let predicate DB.ResellerAccount {resellerId} = resellerId ==. B.val_ resellerId'
     findRow
@@ -40,7 +40,7 @@ loadReseller (Just resellerId') = do
     Just racc -> case toDomResAcc racc of
       V.Success v -> pure $ Just v
       V.Failure e -> do
-        logError @String "Incorrect reseller account in DB"
-          $  " resellerId: " <> resellerId'
+        logErrorT "Incorrect reseller account in DB"
+          $  " resellerId: " <> show resellerId'
           <> " error: " <> show e
         throwException Errs.internalError

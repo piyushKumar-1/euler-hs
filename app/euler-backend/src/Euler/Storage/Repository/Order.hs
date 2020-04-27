@@ -1,20 +1,24 @@
 module Euler.Storage.Repository.Order
   ( loadOrder
+  , loadOrderById
   , saveOrder
   , updateOrder
   )
   where
 
-import EulerHS.Prelude
+import EulerHS.Prelude hiding (id)
 
-import           Euler.Storage.DBConfig
 import           EulerHS.Language
-import           WebService.Language
 import qualified EulerHS.Extra.Validation as V
+import           WebService.Language
+
+
+import           Euler.Storage.Repository.EulerDB
 
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Common.Types                   as C
 import qualified Euler.Product.Domain.Order           as D
+import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types                  as DB
 import qualified Euler.Storage.Types.OrderReference   as DBO
 import qualified Euler.Storage.Validators.Order       as SV
@@ -24,9 +28,11 @@ import qualified Database.Beam as B
 import           Euler.Lens
 
 
+
+-- EHS name `findOrder` would be more accurate
 loadOrder :: C.OrderId -> C.MerchantId -> Flow (Maybe D.Order)
 loadOrder orderId' merchantId' = do
-    mbOrderRef <- withDB eulerDB $ do
+    mbOrderRef <- withEulerDB $ do
       let predicate DB.OrderReference {orderId, merchantId} =
             (orderId    ==. B.just_ (B.val_ orderId')) &&.
             (merchantId ==. B.just_ (B.val_ merchantId'))
@@ -37,21 +43,43 @@ loadOrder orderId' merchantId' = do
         $ B.all_ (DB.order_reference DB.eulerDBSchema)
     case mbOrderRef of
       Nothing -> pure Nothing
-      Just ordRef -> do
-        case SV.transSOrderToDOrder ordRef of
-          V.Success order -> pure $ Just order
-          V.Failure e -> do
-            logError @String "Incorrect order in DB"
-              $  " orderId: "    <> orderId'
-              <> " merchantId: " <> merchantId'
-              <> " error: "      <> show e
-            throwException Errs.internalError
+      Just orderRef -> transOrder orderRef
+
+
+-- | Load an order by a surrogate ID value
+loadOrderById :: Int -> Flow (Maybe D.Order)
+loadOrderById id' = do
+  mbOrderRef <- withEulerDB $ do
+    let predicate DB.OrderReference {id} =
+          (id ==. B.just_ (B.val_ id'))
+    findRow
+      $ B.select
+      $ B.limit_ 1
+      $ B.filter_ predicate
+      $ B.all_ (DB.order_reference DB.eulerDBSchema)
+  case mbOrderRef of
+      Nothing -> pure Nothing
+      Just orderRef -> transOrder orderRef
+
+
+transOrder :: DB.OrderReference -> Flow (Maybe D.Order)
+transOrder ordRef = do
+  case (SV.transSOrderToDOrder ordRef) of
+    V.Success order -> pure $ Just order
+    V.Failure e     -> do
+      logErrorT "Incorrect order in DB"
+        $  " id: "         <> (maybe "no value" show $ ordRef ^. _id)
+        <> " orderId: "    <> (fromMaybe "no value" $ ordRef ^. _orderId)
+        <> " merchantId: " <> (fromMaybe "no value" $ ordRef ^. _merchantId)
+        <> " , validation errors: " <> show e
+      throwException Errs.internalError
+
 
 -- For compatibility with other backends, we should return types that we use together through Redis
 -- If the returned data is not expected to be saved to the Redis, then only domain type should be returned.
 saveOrder :: DB.OrderReference -> Flow (DB.OrderReference, D.Order)
 saveOrder orderRefVal = do
-  orderRef <- unsafeInsertRow (Errs.mkDBError "Inserting order reference failed.") eulerDB
+  orderRef <- unsafeInsertRowEulerDB (Errs.mkDBError "Inserting order reference failed.")
     $ B.insert (DB.order_reference DB.eulerDBSchema)
     $ B.insertExpressions [(B.val_ orderRefVal) & _id .~ B.default_]
 
@@ -60,13 +88,14 @@ saveOrder orderRefVal = do
   case SV.transSOrderToDOrder orderRef of
     V.Success order -> pure (orderRef, order)
     V.Failure _ -> do
-      logError @String "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
+      logErrorT "orderCreate" $ "Unexpectedly got an invalid order reference after save: " <> show orderRef
       throwException Errs.internalError
+
 
 updateOrder :: Int -> C.UDF -> Maybe C.Money -> Maybe C.AddressId -> Maybe C.AddressId -> Flow ()
 updateOrder orderRefId newUdf mAmount mbBillingAddrId mbShippingAddrId = do
   currentDate' <- getCurrentTimeUTC
-  withDB eulerDB
+  withEulerDB
     $ updateRows
     $ B.update (DB.order_reference DB.eulerDBSchema)
       (    (\oRef -> DBO.amount oRef  <-. case (C.fromMoney <$> mAmount) of

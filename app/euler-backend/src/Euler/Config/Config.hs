@@ -24,8 +24,8 @@ mandateTtl :: Int -- seconds
 mandateTtl = 60 * 60 * 24 -- 24 Hours
 
 data Config = Config
-  { protocol :: Text
-  , host :: Text
+  { protocol       :: Text
+  , host           :: Text
   , internalECHost :: Text
   }
   deriving (Eq, Show, Generic, ToJSON, FromJSON)
@@ -48,10 +48,10 @@ getMandatePathPrefix = case getEnv of
 getEnv :: Env
 getEnv = case _getEnv of
     "development" -> DEV
-    "uat" -> UAT
-    "production" -> PROD
-    "integ" -> INTEG
-    _ -> DEV
+    "uat"         -> UAT
+    "production"  -> PROD
+    "integ"       -> INTEG
+    _             -> DEV
 
 getECRConfig :: Config
 getECRConfig = case getEnv of
@@ -333,8 +333,10 @@ redisClusterConfig = case getEnv of
     , connectTimeout        = Nothing
     }
 
+
 kvdbConfig :: KVDBConfig
 kvdbConfig = mkKVDBConfig Constants.ecRedis redisConfig
+
 
 kvdbClusterConfig :: KVDBConfig
 kvdbClusterConfig = mkKVDBClusterConfig Constants.kvRedis redisClusterConfig
@@ -415,9 +417,9 @@ razorpayOAuthMode testMode = if testMode then "test" else "live"
 
 shouldLogQueryTime :: Bool
 shouldLogQueryTime = case getEnv of
-  DEV -> True
-  UAT -> True
-  PROD -> True
+  DEV   -> True
+  UAT   -> True
+  PROD  -> True
   INTEG -> True
 
 orderTokenExpiry :: Int

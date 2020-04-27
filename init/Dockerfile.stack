@@ -1,0 +1,34 @@
+FROM ubuntu:18.04
+
+ARG EULER_UID
+ARG EULER_GID
+
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends g++ gcc libc6-dev libffi-dev libgmp-dev make xz-utils zlib1g-dev git gnupg netbase curl ca-certificates libtinfo-dev libmysqlclient-dev libpq-dev locales mysql-client-core-5.7 openssh-client
+RUN curl -sSL https://get.haskellstack.org/ | sh
+
+## Add the wait script to the image
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.7.3/wait /usr/bin/dcwait
+RUN chmod +x /usr/bin/dcwait
+
+RUN locale-gen en_US.utf8
+ENV LC_ALL en_US.utf8
+
+RUN groupadd -g ${EULER_GID} stackgroup
+RUN useradd -m -u ${EULER_UID} -g ${EULER_GID} stackuser
+
+RUN mkdir /home/stackuser/.stack
+RUN chown -R ${EULER_UID}:${EULER_GID} /home/stackuser/.stack
+VOLUME /home/stackuser/.stack
+
+RUN mkdir /home/stackuser/.ssh
+COPY id_rsa     /home/stackuser/.ssh/id_rsa
+COPY ssh_config /home/stackuser/.ssh/config
+
+RUN chown -R ${EULER_UID}:${EULER_GID} /home/stackuser/.ssh
+RUN chmod 500 /home/stackuser/.ssh
+RUN chmod 400 /home/stackuser/.ssh/*
+
+WORKDIR /home/stackuser/euler-hs
+
+USER ${EULER_UID}

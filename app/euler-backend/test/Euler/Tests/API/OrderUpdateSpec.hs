@@ -6,34 +6,23 @@ module Euler.Tests.API.OrderUpdateSpec
 import           EulerHS.Prelude
 import           Test.Hspec
 
-import qualified Data.Text as T
-
+import           EulerHS.Interpreters
 import           EulerHS.Language
 import           EulerHS.Runtime
-import           EulerHS.Interpreters
-import           EulerHS.Types hiding (error)
+import           EulerHS.Types
 
+import           Euler.AppEnv
+import           Euler.Tests.Common
 
-import qualified Euler.Product.Domain as DM
-
-
-import qualified Euler.API.Order                        as OrderAPI
-import           Euler.API.Order                        (OrderUpdateRequest(..), Paymentlinks(..)
-                                                        , OrderTokenResp(..), OrderStatusResponse(..))
+import           Euler.API.Order (OrderUpdateRequest (..))
+import qualified Euler.API.Order as OrderAPI
 import           Euler.API.RouteParameters
-import qualified Euler.API.Validators.Order             as VO
-import qualified Euler.Common.Errors.PredefinedErrors   as Errs
-import qualified Euler.Storage.DBConfig                 as DB
-import qualified Euler.Storage.Types.MerchantAccount    as Merchant
-import qualified Euler.Product.OLTP.Services.AuthenticationService as Auth
-import qualified Euler.Product.OLTP.Order.Update        as OU
 
-
-import qualified WebService.Types as T
-import qualified WebService.Language as L
-import qualified EulerHS.Extra.Validation as V
-import qualified EulerHS.Types as T
 import           Data.Time.Clock (NominalDiffTime)
+import qualified EulerHS.Types as T
+import qualified WebService.Language as L
+import qualified WebService.Types as T
+
 
 testDBName :: String
 testDBName = "./test/Euler/TestData/tmp_test.db"
@@ -97,7 +86,7 @@ prepareDBConnections = do
 -- createMerchantAccount :: Flow DM.MerchantAccount
 -- createMerchantAccount = case Merchant.transSMaccToDomMacc Merchant.defaultMerchantAccount of
 --     V.Failure e -> do
---       logError "DB MerchantAccount Validation" $ show e
+--       logErrorT "DB MerchantAccount Validation" $ show e
 --       error "MerchantAccount faulted"
 --     V.Success validMAcc -> pure validMAcc
 
@@ -209,72 +198,72 @@ cleanupRequest = OrderUpdateRequest
   , udf10                             = Nothing
   }
 
-emptyPaymentlinks :: Paymentlinks
-emptyPaymentlinks = Paymentlinks
-  { iframe = Nothing
-  , web    = Nothing
-  , mobile = Nothing
-  }
+-- emptyPaymentlinks :: Paymentlinks
+-- emptyPaymentlinks = Paymentlinks
+--   { iframe = Nothing
+--   , web    = Nothing
+--   , mobile = Nothing
+--   }
 
-emptyOrderTokenResp :: OrderTokenResp
-emptyOrderTokenResp = OrderTokenResp
-  { client_auth_token        = Nothing -- :: Maybe Text
-  , client_auth_token_expiry = Nothing -- :: Maybe Text
-  }
+-- emptyOrderTokenResp :: OrderTokenResp
+-- emptyOrderTokenResp = OrderTokenResp
+--   { client_auth_token        = Nothing -- :: Maybe Text
+--   , client_auth_token_expiry = Nothing -- :: Maybe Text
+--   }
 
-emptyOrderStatusResponse :: OrderStatusResponse
-emptyOrderStatusResponse = OrderStatusResponse
-  {  id                        = "" -- :: Text
-  ,  merchant_id               = Nothing -- :: Maybe Text
-  ,  amount                    = Nothing -- :: Maybe Double
-  ,  currency                  = Nothing -- :: Maybe Text
-  ,  order_id                  = Nothing -- :: Maybe Text
-  ,  date_created              = "" -- :: Text
-  ,  return_url                = Nothing -- :: Maybe Text
-  ,  product_id                = "" -- :: Text
-  ,  customer_email            = Nothing -- :: Maybe Text -- Foreign
-  ,  customer_phone            = Nothing -- :: Maybe Text -- Foreign
-  ,  customer_id               = Nothing -- :: Maybe Text -- Foreign
-  ,  payment_links             = emptyPaymentlinks -- :: Paymentlinks
-  ,  udf1                      = "" -- :: Text
-  ,  udf2                      = "" -- :: Text
-  ,  udf3                      = "" -- :: Text
-  ,  udf4                      = "" -- :: Text
-  ,  udf5                      = "" -- :: Text
-  ,  udf6                      = "" -- :: Text
-  ,  udf7                      = "" -- :: Text
-  ,  udf8                      = "" -- :: Text
-  ,  udf9                      = "" -- :: Text
-  ,  udf10                     = "" -- :: Text
-  ,  txn_id                    = Nothing -- :: Maybe Text
-  ,  status_id                 = 0       -- :: Int
-  ,  status                    = "DEFAULT" -- :: Text
-  ,  payment_method_type       = Nothing -- :: Maybe Text
-  ,  auth_type                 = Nothing -- :: Maybe Text
-  ,  card                      = Nothing -- :: Maybe Card
-  ,  payment_method            = Nothing -- :: Maybe Text
-  ,  refunded                  = Nothing -- :: Maybe Bool
-  ,  amount_refunded           = Nothing -- :: Maybe Double
-  ,  chargebacks               = Nothing -- :: Maybe [Chargeback']
-  ,  refunds                   = Nothing -- :: Maybe [Refund']
-  ,  mandate                   = Nothing -- :: Maybe Mandate'
-  ,  promotion                 = Nothing -- :: Maybe Promotion'
-  ,  risk                      = Nothing -- :: Maybe Risk
-  ,  bank_error_code           = Nothing -- :: Maybe Text
-  ,  bank_error_message        = Nothing -- :: Maybe Text
-  ,  txn_uuid                  = Nothing -- :: Maybe Text
-  ,  gateway_payload           = Nothing -- :: Maybe Text
-  ,  txn_detail                = Nothing -- :: Maybe TxnDetail'
-  ,  payment_gateway_response' = Nothing -- :: Maybe MerchantPaymentGatewayResponse'
-  ,  payment_gateway_response  = Nothing -- :: Maybe MerchantPaymentGatewayResponse
-  ,  gateway_id                = Nothing -- :: Maybe Int
-  ,  emi_bank                  = Nothing -- :: Maybe Text
-  ,  emi_tenure                = Nothing -- :: Maybe Int
-  ,  gateway_reference_id      = Nothing -- :: Maybe Text -- Foreign
-  ,  payer_vpa                 = Nothing -- :: Maybe Text -- Foreign
-  ,  payer_app_name            = Nothing -- :: Maybe Text -- Foreign
-  ,  juspay                    = Nothing -- :: Maybe OrderTokenResp
-  }
+-- emptyOrderStatusResponse :: OrderStatusResponse
+-- emptyOrderStatusResponse = OrderStatusResponse
+--   {  id                        = "" -- :: Text
+--   ,  merchant_id               = Nothing -- :: Maybe Text
+--   ,  amount                    = Nothing -- :: Maybe Double
+--   ,  currency                  = Nothing -- :: Maybe Text
+--   ,  order_id                  = Nothing -- :: Maybe Text
+--   ,  date_created              = "" -- :: Text
+--   ,  return_url                = Nothing -- :: Maybe Text
+--   ,  product_id                = "" -- :: Text
+--   ,  customer_email            = Nothing -- :: Maybe Text -- Foreign
+--   ,  customer_phone            = Nothing -- :: Maybe Text -- Foreign
+--   ,  customer_id               = Nothing -- :: Maybe Text -- Foreign
+--   ,  payment_links             = emptyPaymentlinks -- :: Paymentlinks
+--   ,  udf1                      = "" -- :: Text
+--   ,  udf2                      = "" -- :: Text
+--   ,  udf3                      = "" -- :: Text
+--   ,  udf4                      = "" -- :: Text
+--   ,  udf5                      = "" -- :: Text
+--   ,  udf6                      = "" -- :: Text
+--   ,  udf7                      = "" -- :: Text
+--   ,  udf8                      = "" -- :: Text
+--   ,  udf9                      = "" -- :: Text
+--   ,  udf10                     = "" -- :: Text
+--   ,  txn_id                    = Nothing -- :: Maybe Text
+--   ,  status_id                 = 0       -- :: Int
+--   ,  status                    = "DEFAULT" -- :: Text
+--   ,  payment_method_type       = Nothing -- :: Maybe Text
+--   ,  auth_type                 = Nothing -- :: Maybe Text
+--   ,  card                      = Nothing -- :: Maybe Card
+--   ,  payment_method            = Nothing -- :: Maybe Text
+--   ,  refunded                  = Nothing -- :: Maybe Bool
+--   ,  amount_refunded           = Nothing -- :: Maybe Double
+--   ,  chargebacks               = Nothing -- :: Maybe [Chargeback']
+--   ,  refunds                   = Nothing -- :: Maybe [Refund']
+--   ,  mandate                   = Nothing -- :: Maybe Mandate'
+--   ,  promotion                 = Nothing -- :: Maybe Promotion'
+--   ,  risk                      = Nothing -- :: Maybe Risk
+--   ,  bank_error_code           = Nothing -- :: Maybe Text
+--   ,  bank_error_message        = Nothing -- :: Maybe Text
+--   ,  txn_uuid                  = Nothing -- :: Maybe Text
+--   ,  gateway_payload           = Nothing -- :: Maybe Text
+--   ,  txn_detail                = Nothing -- :: Maybe TxnDetail'
+--   ,  payment_gateway_response' = Nothing -- :: Maybe MerchantPaymentGatewayResponse'
+--   ,  payment_gateway_response  = Nothing -- :: Maybe MerchantPaymentGatewayResponse
+--   ,  gateway_id                = Nothing -- :: Maybe Int
+--   ,  emi_bank                  = Nothing -- :: Maybe Text
+--   ,  emi_tenure                = Nothing -- :: Maybe Int
+--   ,  gateway_reference_id      = Nothing -- :: Maybe Text -- Foreign
+--   ,  payer_vpa                 = Nothing -- :: Maybe Text -- Foreign
+--   ,  payer_app_name            = Nothing -- :: Maybe Text -- Foreign
+--   ,  juspay                    = Nothing -- :: Maybe OrderTokenResp
+--   }
 
 
 -- TODO: replace OrderAPI.defaultOrderStatusResponse with correct responses
@@ -288,12 +277,12 @@ spec =
 
         xit "Update" $ \rt -> do
           let rp = collectRPs orderForUpdate auth oldVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp updateRequest
+          eRes <- runFlow rt $ prepareDBConnections *> (orderUpdateMethod mkAppEnv) rp updateRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
         xit "Cleanup" $ \rt -> do
           let rp = collectRPs orderForCleanup auth oldVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp cleanupRequest
+          eRes <- runFlow rt $ prepareDBConnections *> (orderUpdateMethod mkAppEnv) rp cleanupRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
     describe "New version" $ do
@@ -302,10 +291,10 @@ spec =
 
         xit "Update" $ \rt -> do
           let rp = collectRPs orderForUpdate auth newVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp updateRequest
+          eRes <- runFlow rt $ prepareDBConnections *> (orderUpdateMethod mkAppEnv) rp updateRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse
 
         xit "Cleanup" $ \rt -> do
           let rp = collectRPs orderForCleanup auth newVersion
-          eRes <- runFlow rt $ prepareDBConnections *> Auth.withMacc OU.runOrderUpdate rp cleanupRequest
+          eRes <- runFlow rt $ prepareDBConnections *> (orderUpdateMethod mkAppEnv) rp cleanupRequest
           eRes `shouldBe` OrderAPI.defaultOrderStatusResponse

@@ -6,33 +6,33 @@ author:              "Juspay Technologies Pvt Ltd"
 copyright:           "Juspay Technologies Pvt Ltd 2019"
 
 default-extensions:
-- NoImplicitPrelude
-- GADTs
-- RankNTypes
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
 - DeriveFunctor
 - DeriveGeneric
-- OverloadedStrings
-- LambdaCase
-- MultiParamTypeClasses
-- FunctionalDependencies
+- DuplicateRecordFields
 - ExplicitNamespaces
-- TypeApplications
-- ScopedTypeVariables
-- TypeOperators
-- TypeFamilies
-- DataKinds
 - FlexibleContexts
 - FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
 - PatternSynonyms
 - PolyKinds
-- DefaultSignatures
-- ConstraintKinds
-- NamedFieldPuns
-- TupleSections
-- ViewPatterns
-- MultiWayIf
-- DuplicateRecordFields
+- RankNTypes
 - RecordWildCards
+- ScopedTypeVariables
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeOperators
+- ViewPatterns
 
 dependencies:
 - base >= 4.7 && < 5
@@ -115,6 +115,7 @@ library:
   - WebService.PostRewrite
   - WebService.AnyBase
   - WebService.UUID
+  - WebService.Relude
   ghc-options:
   - -Wall
   - -Wcompat

@@ -344,7 +344,7 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 --
 -- > myFlow = do
 -- >   content <- runIO $ readFromFile file
--- >   logDebug "content id" $ extractContentId content
+-- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
 runIO :: T.JSONEx a => IO a -> Flow a
 runIO = runIO' ""
@@ -356,7 +356,7 @@ runIO = runIO' ""
 --
 -- > myFlow = do
 -- >   content <- runIO' "reading from file" $ readFromFile file
--- >   logDebug "content id" $ extractContentId content
+-- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
 runIO' :: T.JSONEx a => Text -> IO a -> Flow a
 runIO' descr ioAct = liftFC $ RunIO descr ioAct id
@@ -383,7 +383,7 @@ getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 -- >
 -- >  myFlow = do
 -- >    _ <- setOption MerchantIdKey "abc1234567"
--- >    mKey <- getOption MerchantKey
+-- >    mKey <- getOption MerchantIdKey
 -- >    runIO $ putTextLn mKey
 setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
 setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
@@ -401,7 +401,7 @@ generateGUID = liftFC $ GenerateGUID id
 --
 -- > myFlow = do
 -- >   currentDir <- runSysCmd "pwd"
--- >   logInfo "currentDir" $ toText currentDir
+-- >   logInfoT "currentDir" $ toText currentDir
 -- >   ...
 runSysCmd :: String -> Flow String
 runSysCmd cmd = liftFC $ RunSysCmd cmd id
@@ -511,7 +511,7 @@ runDB conn dbAct = liftFC $ RunDB conn dbAct id
 -- Thread safe, exception free.
 --
 -- > myFlow1 = do
--- >   logInfo "myflow1" "logFromMyFlow1"
+-- >   logInfoT "myflow1" "logFromMyFlow1"
 -- >   someAction
 -- >
 -- > myFlow2 = do
@@ -525,7 +525,7 @@ forkFlow description flow = void $ forkFlow' description flow
 -- to await for the results from the flow.
 --
 -- > myFlow1 = do
--- >   logInfo "myflow1" "logFromMyFlow1"
+-- >   logInfoT "myflow1" "logFromMyFlow1"
 -- >   pure 10
 -- >
 -- > myFlow2 = do
@@ -556,7 +556,7 @@ forkFlow' description flow = do
 --     Awaiting may succeed ealier.
 --
 -- > myFlow1 = do
--- >   logInfo "myflow1" "logFromMyFlow1"
+-- >   logInfoT "myflow1" "logFromMyFlow1"
 -- >   pure 10
 -- >
 -- > myFlow2 = do

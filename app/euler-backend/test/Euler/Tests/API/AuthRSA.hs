@@ -3,9 +3,11 @@
 
 module Euler.Tests.API.AuthRSA where
 
+import Euler.Tests.Common
 
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Data.Text                              as Text
+import qualified Data.ByteString as BS
 
 import           EulerHS.Prelude
 import           EulerHS.Language
@@ -16,6 +18,7 @@ import qualified EulerHS.Types                          as T
 import qualified Euler.API.Authentication               as Auth
 import           Euler.Server (FlowServer', eulerServer_, FlowHandler)
 import qualified Euler.Server                           as S
+import qualified Euler.Playback.MethodPlayer            as S
 
 import           Network.Wai.Handler.Warp
 import           Network.HTTP.Types
@@ -32,13 +35,25 @@ import qualified WebService.Types                       as T
 import qualified WebService.Language                    as L
 import           Euler.API.RouteParameters
 
+import           Database.MySQL.Base
+import           EulerHS.Extra.Test
+import qualified Euler.Options.Options as Opt
+
+testDBName :: String
+testDBName = "auth_rsa_test_db"
+
 spec :: Spec
-spec = pure ()
-  where
-  x = describe "Authentication API" $ do
-    around_ (prepareDB . runServer) $
+spec = do
+  let prepare next =
+        withMysqlDb testDBName "test/Euler/TestData/rsaAuthMySQL.sql" mySQLRootCfg $
+          withFlowRuntime Nothing $ \rt -> flip runServer rt $ do
+            runFlow rt $ prepareDBConnections
+            next rt
+
+  describe "Authentication API" $ do
+    around prepare $
       describe "Authentication API, server with DB" $ do
-        it "Authentication works" $ withFlowRuntime Nothing $ \rt -> do
+        it "Authentication works" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
           eres <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
@@ -52,7 +67,7 @@ spec = pure ()
           res `shouldBe` "Something here"
 
 
-        it "If malformed signature should return 401" $ withFlowRuntime Nothing $ \rt -> do
+        it "If malformed signature should return 401" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
           eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
@@ -66,7 +81,7 @@ spec = pure ()
           status `shouldBe` status401
           body   `shouldBe` "Malformed signature. Expected Base64 encoded signature."
 
-        it "If malformed signature_payload should return 401" $ withFlowRuntime Nothing $ \rt -> do
+        it "If malformed signature_payload should return 401" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
           eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
@@ -80,7 +95,7 @@ spec = pure ()
           status `shouldBe` status401
           body   `shouldBe` "Malformed signature_payload. Can not parse expected structure from JSON."
 
-        it "If wrong merchant_key_id should return 401 without exposing details" $ withFlowRuntime Nothing $ \rt -> do
+        it "If wrong merchant_key_id should return 401 without exposing details" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
           eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
@@ -94,7 +109,7 @@ spec = pure ()
           status `shouldBe` status401
           body   `shouldBe` ""
 
-        it "If unable to fetch without exposing details" $ withFlowRuntime Nothing $ \rt -> do
+        it "If unable to fetch without exposing details" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
           eerr <- runFlow rt $ callAPI url $ protectedClient $
             Auth.Signed
@@ -122,7 +137,7 @@ spec = pure ()
           eerr `shouldSatisfy` isLeft
           let Left (FailureResponse _ Response { responseStatusCode = status, responseBody = body })= eerr
           status `shouldBe` status500
-          body   `shouldBe` ""
+          body   `shouldBe` "{\n    \"userMessage\": \"Internal Server Error\",\n    \"error\": true,\n    \"error_message\": \"Internal Server Error\"\n}"
 
 ----------------------------------------------------------------------
 
@@ -154,53 +169,51 @@ protected = S.runFlow "sTestFlow" emptyRPs S.noReqBodyJSON . Auth.authenticateUs
 
 ----------------------------------------------------------------------
 
-sqliteConn :: IsString a => a
-sqliteConn = "sqlite"
 
-keepConnsAliveForSecs :: NominalDiffTime
-keepConnsAliveForSecs = 60 * 10 -- 10 mins
+mySQLCfg :: T.MySQLConfig
+mySQLCfg = T.MySQLConfig
+  { connectHost     = "mysql"
+  , connectPort     = 3306
+  , connectUser     = "cloud"
+  , connectPassword = "scape"
+  , connectDatabase = testDBName
+  , connectOptions  = [T.CharsetName "utf8"]
+  , connectPath     = ""
+  , connectSSL      = Nothing
+  }
 
-maxTotalConns :: Int
-maxTotalConns = 8
+mySQLRootCfg :: T.MySQLConfig
+mySQLRootCfg =
+    T.MySQLConfig
+      { connectUser     = "root"
+      , connectPassword = "root"
+      , connectDatabase = ""
+      , ..
+      }
+  where
+    T.MySQLConfig {..} = mySQLCfg
 
-testDBName :: String
-testDBName = "./test/Euler/TestData/authRSAtest.db"
-
-testDBTemplateName :: String
-testDBTemplateName = "./test/Euler/TestData/authRSAtest.db.template"
-
-rmTestDB :: IO ()
-rmTestDB = void $ try @_ @SomeException $ system $ "rm -f " <> testDBName
-
-cpTestDB :: IO ()
-cpTestDB = do
-  res <- try @_ @SomeException $ system $ "cp " <> testDBTemplateName <> " " <> testDBName
-  case res of
-    Right ExitSuccess -> pure ()
-    _                 -> error "Unable to copy rsa test db mockup"
-
-prepareTestDB :: IO() -> IO ()
-prepareTestDB action = bracket_ rmTestDB rmTestDB (cpTestDB >> action)
 
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
-  ePool <- initSqlDBConnection
-    $ T.mkSQLitePoolConfig sqliteConn testDBName
-    $ T.PoolConfig 1 keepConnsAliveForSecs maxTotalConns
-  L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
+  let cfg = T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
 
-prepareDB :: (FlowRuntime -> IO ()) -> IO()
-prepareDB next = withFlowRuntime Nothing $ \flowRt ->
-  prepareTestDB $
-    try (runFlow flowRt prepareDBConnections) >>= \case
-      Left (e :: SomeException) -> putStrLn @String $ "Exception thrown: " <> show e
-      Right _ -> next flowRt
+  ePool <- initSqlDBConnection cfg
+  setOption Opt.EulerDbCfg cfg
+
+  L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to MySQL DB."
 
 runServer :: IO () -> FlowRuntime -> IO ()
 runServer act flowRt = do
-    let env = S.Env flowRt Nothing
+    let env = S.Env flowRt Nothing mkAppEnv
     serverStartupLock <- newEmptyMVar
-    let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $ setPort port defaultSettings
-    threadId <- forkIO $ runSettings settings $ serve api (eulerServer_ api server env)
+
+    let settings = setBeforeMainLoop (putMVar serverStartupLock ()) $
+          setPort port defaultSettings
+
+    threadId <- forkIO $ runSettings settings $
+      serve api (eulerServer_ api server env)
+
     readMVar serverStartupLock
+
     finally act $ killThread threadId

@@ -7,7 +7,7 @@ import Data.Time
 import Euler.Common.Types.External.Mandate (MandateFeature)
 import Euler.Common.Types.Merchant(MerchantId)
 import Euler.Common.Types.Money
-import Euler.Common.Types.Order (OrderStatus, OrderMandate, UDF, OrderType, OrderId, OrderPId)
+import Euler.Common.Types.Order (OrderStatus, UDF, OrderType, OrderId, OrderPId)
 import Euler.Common.Types.Currency (Currency)
 --import Euler.Common.Types.Promotion
 --import Euler.Common.Types.Address
@@ -39,7 +39,7 @@ data Order = Order
   , description       :: Maybe Text
   , returnUrl         :: Maybe Text
 
-  , amountRefunded    :: Maybe Double
+  , amountRefunded    :: Money                -- ^ refunded amount, 0 is default value meaning no refund has been done
   , refundedEntirely  :: Bool
   , autoRefund        :: Bool
 
@@ -98,11 +98,6 @@ data Order = Order
 --   , mandateFeature    = Nothing  -- :: Maybe MandateFeature
 --   , autoRefund        = Nothing  -- :: Maybe Bool
 --   }
-
-
-
-
-
 
 
 -- data OrderAddress = OrderAddress
@@ -169,20 +164,8 @@ data Order = Order
 --   , status          = Nothing -- :: Maybe Text
 --   }
 
--- from src/Types/Storage/EC/Promotions.purs
-data Promotions = Promotions
-  { id               :: Int
-  , dateCreated      :: LocalTime
-  , discountAmount   :: Double
-  , lastModified     :: LocalTime
-  , orderId          :: Maybe Int
-  , rules            :: Text
-  , status           :: Text
-  , orderReferenceId :: Maybe Int
+data OrderTokenResp = OrderTokenResp
+  { client_auth_token        :: Maybe Text
+  , client_auth_token_expiry :: Maybe Text
   }
-  deriving (Show, Read, Eq, Ord, Generic, ToJSON, FromJSON)
--- from src/Types/Storage/EC/Promotions.purs
---data Rules = Rules
---  { dimension :: Text
---  , value :: Text
---  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

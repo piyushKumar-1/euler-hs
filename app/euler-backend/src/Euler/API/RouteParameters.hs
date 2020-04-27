@@ -26,6 +26,11 @@ module Euler.API.RouteParameters
   , XUserId(..)
   -- Source IP
   , SourceIP(..)
+  -- Client authentication token
+  , ClientAuthToken(..)
+  -- Order Status API's option
+  , AddFullGatewayResponseOption(..)
+  , sendFullPgr
   -- Methods
   , collectRPs
   , emptyRPs
@@ -35,8 +40,10 @@ module Euler.API.RouteParameters
 
 import EulerHS.Prelude
 
+import           Data.Char (toLower)
 import           Data.Coerce
 import           Data.Data hiding (typeRep)
+import qualified Data.Text as T
 import           Network.Socket (SockAddr(..), hostAddressToTuple, hostAddress6ToTuple)
 import           Numeric (showHex)
 import           Text.Show (showString)
@@ -61,18 +68,18 @@ lookupRP :: forall a. Typeable a => RouteParameters -> Maybe Text
 lookupRP RouteParameters {..} = Map.lookup (show $ typeRep @a) unRP
 
 class TMClass t  where
- insertRP' :: RouteParameters -> t
+  insertRP' :: RouteParameters -> t
 
 instance TMClass RouteParameters where
   insertRP' = id
 
 instance ((Coercible a Text), TMClass r, Typeable a, RouteParameter a) => TMClass (a -> r) where
- insertRP' trmap = \a -> insertRP' (insertRP a trmap)
+  insertRP' trmap a = insertRP' (insertRP a trmap)
 
 instance {-# OVERLAPPING #-} ((Coercible a Text), TMClass r, Typeable a, RouteParameter a) => TMClass (Maybe a -> r) where
- insertRP' trmap = \a -> insertRP' (case a of
-  Just a' -> insertRP a' trmap
-  Nothing -> trmap)
+  insertRP' trmap a = insertRP' (case a of
+    Just a' -> insertRP a' trmap
+    Nothing -> trmap)
 
 collectRPs :: (TMClass r) => r
 collectRPs = insertRP' emptyRPs
@@ -92,7 +99,7 @@ instance FromHttpApiData Authorization where parseUrlPiece = Right . coerce
 
 -- EHS: name clash
 newtype OrderId = OrderId Text
-  deriving (Eq, Show, Data, Typeable, RouteParameter)
+  deriving (Eq, Show, Data, Typeable, RouteParameter, Generic, ToJSON, FromJSON)
 
 instance ToHttpApiData OrderId where toUrlPiece = coerce
 instance FromHttpApiData OrderId where parseUrlPiece = Right . coerce
@@ -229,3 +236,22 @@ sockAddrToSourceIP sAddr =
       showHex h ""
     separator8 = showString ":"
     separator4 = "."
+
+-- Client authentication token
+newtype ClientAuthToken = ClientAuthToken Text
+  deriving (Eq, Show, Data, Typeable, RouteParameter)
+
+instance ToHttpApiData ClientAuthToken where toUrlPiece = coerce
+instance FromHttpApiData ClientAuthToken where parseUrlPiece = Right . coerce
+
+-- Order Status API's option
+newtype AddFullGatewayResponseOption = AddFullGatewayResponseOption Text
+  deriving (Eq, Show, Data, Typeable, RouteParameter)
+
+instance ToHttpApiData AddFullGatewayResponseOption where toUrlPiece = coerce
+instance FromHttpApiData AddFullGatewayResponseOption where parseUrlPiece = Right . coerce
+
+sendFullPgr :: RouteParameters -> Bool
+sendFullPgr rps = case (lookupRP @AddFullGatewayResponseOption rps) of
+    Nothing  -> False
+    Just val -> val == "1" || T.map toLower val == "true"

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Euler.Product.Domain.Card where
@@ -7,6 +7,23 @@ import EulerHS.Prelude
 
 import Data.Data
 
+
+data Card = Card
+  { expiryYear         :: Maybe Text
+  , cardReference      :: Maybe Text
+  , savedToLocker      :: Bool
+  , expiryMonth        :: Maybe Text
+  , nameOnCard         :: Maybe Text
+  , cardIssuer         :: Maybe Text
+  , lastFourDigits     :: Maybe Text
+  , usingSavedCard     :: Maybe Bool
+  , cardFingerprint    :: Maybe Text
+  , cardIsin           :: Maybe Text
+  , cardType           :: Maybe Text
+  , cardBrand          :: Maybe Text
+  , shouldSendCardIsin :: Bool
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- From Graphh grails-app/services/juspay/JuspayLockerService.groovy 2 years ago
 
@@ -43,28 +60,30 @@ static constraints = {
 -}
 
 data StoredCard = StoredCard
-  { merchantAccountId :: Int
-  , customerId :: Text
-  , maskedCardNumber :: Text
-  , nameOnCard :: Maybe Text
-  , cardExpMonth :: Text
-  , cardExpYear :: Text
-  , cardIsin :: Text
-  , cardLastFourDigits :: Text
-  , cardReference :: Text
+  { merchantAccountId     :: Int
+  , customerId            :: Text
+  , maskedCardNumber      :: Text
+  , nameOnCard            :: Maybe Text
+  , cardExpMonth          :: Text
+  , cardExpYear           :: Text
+  , cardIsin              :: Text
+  , cardLastFourDigits    :: Text
+  , cardReference         :: Text
 
-  , cardFingerprint :: Maybe Text
+  , cardFingerprint       :: Maybe Text
   , cardGlobalFingerprint :: Maybe Text
-  , vaultProvider :: VaultProvider
+  , vaultProvider         :: VaultProvider
 
-  , nickname :: Maybe Text
+  , nickname              :: Maybe Text
 
-  , cardType :: Maybe CardType
-  , cardIssuer :: Maybe Text
-  , cardBrand :: Maybe Text
-  , cardToken :: Maybe Text
+  , cardType              :: Maybe CardType
+  , cardIssuer            :: Maybe Text
+  , cardBrand             :: Maybe Text
+  , cardToken             :: Maybe Text
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
 
 data VaultProvider = JUSPAY | PAYU | SODEXO
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
@@ -81,16 +100,3 @@ data CardType
   | REWARD
   deriving (Show, Read, Eq, Ord, Enum, Bounded, Generic, ToJSON, FromJSON, Data, Typeable)
 
-
--- From EC.CardInfo
-data CardInfo = CardInfo
-  { cardIsin :: Text -- 'id' in graphh
-  , cardIssuerBankName :: Maybe Text
-  , cardSwitchProvider :: Text
-  , cardType :: Maybe Text
-  , cardSubType :: Maybe Text
-  , cardIssuerCountry :: Maybe Text
-  , hit :: Maybe Int
-  -- , hdfcIvrEnabled :: Maybe Bool -- just in euler-ps
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

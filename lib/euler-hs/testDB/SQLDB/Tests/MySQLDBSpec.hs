@@ -17,19 +17,20 @@ import           EulerHS.Language
 import           System.Process
 import           Database.MySQL.Base
 import qualified Database.Beam.MySQL as BM
-import qualified Database.Beam.Postgres as BP
 
 import EulerHS.Extra.Test
 
 
+testDBName :: String
+testDBName = "mysql_db_spec_test_db"
 
 mySQLCfg :: T.MySQLConfig
 mySQLCfg = T.MySQLConfig
-  { connectHost     = "127.0.0.1"
+  { connectHost     = "mysql"
   , connectPort     = 3306
   , connectUser     = "cloud"
   , connectPassword = "scape"
-  , connectDatabase = "euler_test_db"
+  , connectDatabase = testDBName
   , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
@@ -101,12 +102,13 @@ spec = do
               _userFirstName u2 `shouldBe` "Doe"
               _userLastName  u2 `shouldBe` "John"
 
-  let prepare msCfgToDbCfg =
-        prepareMysqlDB "testDB/SQLDB/TestData/MySQLDBSpec.sql"
-        mySQLRootCfg
-        mySQLCfg
-        msCfgToDbCfg
-        (withFlowRuntime Nothing)
+  let prepare msCfgToDbCfg next =
+        withMysqlDb testDBName "testDB/SQLDB/TestData/MySQLDBSpec.sql" mySQLRootCfg $
+          withFlowRuntime Nothing $ \rt -> do
+            runFlow rt $ do
+              ePool <- initSqlDBConnection $ msCfgToDbCfg mySQLCfg
+              either (error "Failed to connect to MySQL") (const $ pure ()) ePool
+            next rt
 
   around (prepare mkMysqlConfig) $
     describe "EulerHS MySQL DB tests" $ test $ mkMysqlConfig mySQLCfg

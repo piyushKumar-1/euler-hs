@@ -2,13 +2,15 @@ module Euler.Config.EnvVars where
 
 -- original purescript src/Config/Config.js
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import qualified EulerHS.Types as T
+
 import qualified Data.Map as Map
 import           Data.Char (toUpper)
 import           System.Environment (getEnvironment)
 import           System.IO.Unsafe (unsafePerformIO)
+
 
 
 toTitle :: String -> String
@@ -22,7 +24,7 @@ environmentVars = Map.fromList $ unsafePerformIO getEnvironment
 lookupEnv :: String -> Maybe String
 lookupEnv k = Map.lookup k environmentVars
 
--- Environvent parameters
+-- Environment parameters
 
 getCacheConfigInterval :: Double -- maybe Int ?
 getCacheConfigInterval = fromMaybe 300000.0 $ readMaybe =<< lookupEnv "CACHE_CONFIG_INTERVAl"
@@ -64,7 +66,6 @@ getEulerDbNameR1 :: String
 getEulerDbNameR1 = fromMaybe getEulerDbName $ lookupEnv "EULER_NAME_R1"
 
 --
-
 
 getEcDbPass :: String
 getEcDbPass = fromMaybe "nodefaultvalue" $ lookupEnv "EC_DB_PASSWORD";
@@ -122,7 +123,6 @@ getInternalECHost :: String
 getInternalECHost = fromMaybe "http://api-internal.in-west-1.juspay.in" $ lookupEnv "INTERNAL_EC_HOST"
 
 -- For order sync proxy to ec. We must proxy to EC utility servers.
-
 
 getInternalECUtilsHost :: String
 getInternalECUtilsHost = fromMaybe "https://internal-utils-api.in-west-1.juspay.in" $ lookupEnv "INTERNAL_EC_UTILS_HOST"
@@ -283,9 +283,8 @@ getAwsRegion = fromMaybe "ap-south-1" $ lookupEnv "AWS_REGION"
 getKmsKeyId :: String
 getKmsKeyId = fromMaybe "arn:aws:kms:ap-south-1:980691203742:key/2ee54fc6-9bd4-4f9c-8cca-e1c179859a8e" $ lookupEnv "KMS_KEY_ID"
 
-
-
 -- DEV MySQL parameters
+
 devMysqlConnectionName :: String
 devMysqlConnectionName = fromMaybe "eulerMysqlDB" $ lookupEnv "DEV_MYSQL_CONNECTION_NAME"
 
@@ -362,9 +361,6 @@ productionRedisDB = fromMaybe 0 $ readMaybe =<< lookupEnv "REDIS_DB"
 
 -- Redis cluster parameters
 
-redisClusterConnName :: String
-redisClusterConnName = fromMaybe "redisCluster" $ lookupEnv "REDIS_CLUSTER_CONN_NAME"
-
 devRedisClusterHost :: String
 devRedisClusterHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CLUSTER_CONNECT_HOST"
 
@@ -408,6 +404,7 @@ productionRedisClusterDB :: Integer
 productionRedisClusterDB = fromMaybe 10 $ readMaybe =<< lookupEnv "KV_REDIS_DB"
 
 -- Logger parameters
+
 loggerIsAsync :: Bool
 loggerIsAsync = fromMaybe False $ readMaybe =<< toTitle <$> lookupEnv "LOGGER_IS_ASYNC"
 
@@ -422,3 +419,8 @@ loggerLogToConsole = fromMaybe True $ readMaybe =<< toTitle <$> lookupEnv "LOGGE
 
 loggerLogToFile :: Bool
 loggerLogToFile = fromMaybe True $ readMaybe =<< toTitle <$> lookupEnv "LOGGER_TO_FILE"
+
+-- Order status API parameters
+
+orderStatusAsyncSlowPath :: Bool
+orderStatusAsyncSlowPath = fromMaybe False $ readMaybe =<< toTitle <$> lookupEnv "ORDER_STATUS_ASYNC"

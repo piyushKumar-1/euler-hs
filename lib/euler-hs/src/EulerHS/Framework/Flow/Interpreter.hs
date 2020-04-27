@@ -154,7 +154,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
       void $ forkIO $ do
-        suppressErrors $ (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
+        suppressErrors $ (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalSafeRecordingVar    =<< readMVar forkSafeRecordingVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar

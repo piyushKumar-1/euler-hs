@@ -1,5 +1,14 @@
 # Changelog for euler-hs
 
+## [1.9.5.0] - 2020-04-13
+* Euler-HS 1.9.5.0: fixes
+  - Async logger mem consumption fixed.
+  - Integration tests with MySQL disabled
+  - Improved documentation [see README.md](README.md)
+* Euler-backend 0.9.0.0:
+  - Order Status API
+  - Integration tests disabled
+
 ## [1.9.0.0] - 2020-04-13
 * Euler-HS 1.9.0.0: a significant update with new features and fixes.
   - RunSafeFlow method: ability to catch exceptions thrown by throwException

@@ -6,22 +6,21 @@ packages:
 - app/euler-backend
 
 extra-deps:
-#- gogol-0.5.0@sha256:01b38acf97ae0afb2465935fee1bebce03c1b84e629cf0887467be7ae361f0a7,3222
-#- gogol-core-0.5.0
-#- gogol-bigquery-0.5.0@sha256:47ba01fd655f0b8e8789b10949e70a308041bc9db7892a0c7ab26ec4bcf174d4,2698
-#- git: https://github.com/shmish111/purescript-bridge.git
-#  commit: 0042602f8a195b1fe185138f9ccca02020b8dd62
+
 - git: https://github.com/juspay/hedis.git
   commit: ce6de8f158e87414cf11bcba4e95d54a9c3185f3
 - crc16-0.1.0@sha256:da3e4b82e437a054159ecc497372c997f784d77babcee641a5f657f6a0a8eb80,624
+
 - git: https://github.com/graninas/beam-mysql
   commit: 6794a25b24062678b0e61013f0e38494d4defcf0
+
 - random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
 - cryptostore-0.2.0.0@sha256:9fcc48b25b7989b9697afb3899387620b3d75b5d995ee2111e7cc942a4c27601,3881
 - wai-middleware-prometheus-1.0.0@sha256:1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4,1314
 - amazonka-1.6.1@sha256:d863557379350ed6bbb91187abeb8c349a654f60b140d138710486f58ae7c476,3536
 - amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698,5135
 - amazonka-kms-1.6.1@sha256:5462f18f64f2a4cc9d0f4e21d01ce1767b822b066158093b15e7063ff94b19ce,4307
+
 - git:  git@bitbucket.org:juspay/euler-db.git
   commit: 332d216c19982353270a5204cde115511f2d2e7d
   subdirs:

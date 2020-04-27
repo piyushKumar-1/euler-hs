@@ -7,6 +7,10 @@ RUN apt-get update
 RUN apt-get install -y --no-install-recommends g++ gcc libc6-dev libffi-dev libgmp-dev make xz-utils zlib1g-dev git gnupg netbase curl ca-certificates libtinfo-dev libmysqlclient-dev libpq-dev locales mysql-client-core-5.7 openssh-client
 RUN curl -sSL https://get.haskellstack.org/ | sh
 
+## Add the wait script to the image
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.7.3/wait /usr/bin/dcwait
+RUN chmod +x /usr/bin/dcwait
+
 RUN locale-gen en_US.utf8
 ENV LC_ALL en_US.utf8
 

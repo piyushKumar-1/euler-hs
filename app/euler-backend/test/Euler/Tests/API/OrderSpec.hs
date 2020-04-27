@@ -417,20 +417,6 @@ orderStatusResp = OrderAPI.OrderStatusResponse
   , txn_flow_info = Nothing
   }
 
-
-sqliteConn :: IsString a => a
-sqliteConn = "sqlite"
-
-keepConnsAliveForSecs :: NominalDiffTime
-keepConnsAliveForSecs = 60 * 10 -- 10 mins
-
-maxTotalConns :: Int
-maxTotalConns = 8
-
--- Redis config data
-redisConn :: IsString a => a
-redisConn = "redis"
-
 redisConnConfig :: T.RedisConfig
 redisConnConfig = T.RedisConfig
     { connectHost           = "redis"
@@ -450,7 +436,7 @@ prepareDBConnections = do
   setOption Opt.EulerDbCfg cfg
 
   redis <- initKVDBConnection
-    $ T.mkKVDBConfig redisConn $ redisConnConfig
+    $ T.mkKVDBConfig  Constants.ecRedis $ redisConnConfig
 
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
@@ -462,7 +448,7 @@ mySQLCfg = T.MySQLConfig
   , connectPort     = 3306
   , connectUser     = "cloud"
   , connectPassword = "scape"
-  , connectDatabase = "euler_test_db"
+  , connectDatabase = testDBName
   , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
@@ -494,12 +480,14 @@ shouldStartWithAnn s v p
   where
     plen = length p
 
+testDBName :: String
+testDBName = "order_spec_test_db"
 
 spec :: Spec
 spec = do
   let prepare next =
-        withMysqlDb "test/Euler/TestData/orderCreateMySQL.sql" mySQLRootCfg $
-          withFlowRuntime (Just defaultLoggerConfig) $ \rt -> do
+        withMysqlDb testDBName "test/Euler/TestData/orderCreateMySQL.sql" mySQLRootCfg $
+          withFlowRuntime Nothing $ \rt -> do
             runFlow rt $ prepareDBConnections
             next rt
 

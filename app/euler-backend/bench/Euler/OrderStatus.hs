@@ -157,11 +157,6 @@ rps3 = collectRPs
 
 
 
-
-
-
-
-
 -- DB cooking
 
 prepareDB :: (FlowRuntime -> IO ()) -> IO()
@@ -242,7 +237,7 @@ loadMySQLDump path T.MySQLConfig {..} = do
 
 mySQLCfg :: T.MySQLConfig
 mySQLCfg = T.MySQLConfig
-  { connectHost     = "127.0.0.1"
+  { connectHost     = "mysql"
   , connectPort     = 3306
   , connectUser     = "cloud"
   , connectPassword = "scape"

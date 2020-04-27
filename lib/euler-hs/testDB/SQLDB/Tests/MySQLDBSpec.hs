@@ -21,6 +21,8 @@ import qualified Database.Beam.MySQL as BM
 import EulerHS.Extra.Test
 
 
+testDBName :: String
+testDBName = "mysql_db_spec_test_db"
 
 mySQLCfg :: T.MySQLConfig
 mySQLCfg = T.MySQLConfig
@@ -28,7 +30,7 @@ mySQLCfg = T.MySQLConfig
   , connectPort     = 3306
   , connectUser     = "cloud"
   , connectPassword = "scape"
-  , connectDatabase = "euler_test_db"
+  , connectDatabase = testDBName
   , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
@@ -101,7 +103,7 @@ spec = do
               _userLastName  u2 `shouldBe` "John"
 
   let prepare msCfgToDbCfg next =
-        withMysqlDb "testDB/SQLDB/TestData/MySQLDBSpec.sql" mySQLRootCfg $
+        withMysqlDb testDBName "testDB/SQLDB/TestData/MySQLDBSpec.sql" mySQLRootCfg $
           withFlowRuntime Nothing $ \rt -> do
             runFlow rt $ do
               ePool <- initSqlDBConnection $ msCfgToDbCfg mySQLCfg

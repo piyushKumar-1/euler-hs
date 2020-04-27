@@ -21,23 +21,12 @@ mwhen True  = id
 mwnen False = const mempty
 
 
-withMysqlDb :: String -> MySQLConfig -> IO a -> IO a
-withMysqlDb filePath msRootCfg next =
-    bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
-      let
-        dropTestDbIfExist :: IO ()
-        dropTestDbIfExist = do
-          query rootConn $ "drop database if exists euler_test_db"
-
-        createTestDb :: IO ()
-        createTestDb = do
-          query rootConn $ "create database euler_test_db"
-          query rootConn $ "grant all privileges on euler_test_db.* to 'cloud'@'%'"
-
-      bracket_
-        (dropTestDbIfExist >> createTestDb)
-        (dropTestDbIfExist)
-        (loadMySQLDump >> next)
+withMysqlDb :: String -> String -> MySQLConfig -> IO a -> IO a
+withMysqlDb dbName filePath msRootCfg next =
+    bracket_
+      (dropTestDbIfExist >> createTestDb)
+      (dropTestDbIfExist)
+      (loadMySQLDump >> next)
   where
     T.MySQLConfig
       { connectPort
@@ -48,8 +37,8 @@ withMysqlDb filePath msRootCfg next =
 
     loadMySQLDump :: IO ()
     loadMySQLDump =
-      void $ system $
-        "mysql " <> options <> " euler_test_db 2> /dev/null < " <> filePath
+        void $ system $
+          "mysql " <> options <> " " <> dbName <> " 2> /dev/null < " <> filePath
       where
         options =
           intercalate " "
@@ -58,6 +47,17 @@ withMysqlDb filePath msRootCfg next =
             , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
             , mwhen (not $ null connectPassword) $ "--password=" <> connectPassword
             ]
+
+    dropTestDbIfExist :: IO ()
+    dropTestDbIfExist =
+      bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
+        query rootConn $ "drop database if exists " <> encodeUtf8 dbName
+
+    createTestDb :: IO ()
+    createTestDb =
+      bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
+        query rootConn $ "create database " <> encodeUtf8 dbName
+        query rootConn $ "grant all privileges on " <> encodeUtf8 dbName <> ".* to 'cloud'@'%'"
 
 
 -- prepareMysqlDB

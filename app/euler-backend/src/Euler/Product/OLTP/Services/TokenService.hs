@@ -88,9 +88,9 @@ getTokenExpiryData resourceType merchantId = do
     Just toknExpData -> do
       (SC.MerchantWiseTokenExpiryData val) <- parseAndDecodeJson (toknExpData ^. _value) "INTERNAL_SERVER_ERROR" "Error decoding Service Configuration"
       case Map.lookup merchantId val of
-        Just tokenExpiryData -> pure tokenExpiryData -- $  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
+        Just tokenExpiryData -> pure tokenExpiryData -- -$  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
         Nothing -> case Map.lookup "default" val of
-          Just tokenExpiryData -> pure tokenExpiryData -- $  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
+          Just tokenExpiryData -> pure tokenExpiryData -- -$  {expiryInSeconds = val.expiryInSeconds ,tokenMaxUsage = val.tokenMaxUsage}
           Nothing -> (logErrorT "getTokenExpiryData" "Could not find default service config") *>  throwException err500 {errBody = "getTokenExpiryData"} -- defaultThrowECException "INTERNAL_SERVER_ERROR" "Could not find default service config"
     Nothing -> pure $ SC.TokenExpiryData {expiryInSeconds = Constants.redis_token_expiry_default ,tokenMaxUsage = Constants.token_max_usage_default}
 

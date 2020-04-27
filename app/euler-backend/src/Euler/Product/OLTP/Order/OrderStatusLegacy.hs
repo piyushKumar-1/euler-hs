@@ -204,10 +204,10 @@ processOrderStatusGET orderId apiKey = do
   --instead of updateState we can save parameters with options (if they not shared over all api handlers)
   _ <- setOption FlowStateOption $ FlowState (getField @"merchantId" merchantAccount) orderId
   -- set metrics/log info
-  -- * field "merchantId" is mandatory, so we can define it as Text instead of Maybe Text in MerchantAccount data type
--- * if unauthenticated calls disabled by merchant - throw access forbidden
+  -- - field "merchantId" is mandatory, so we can define it as Text instead of Maybe Text in MerchantAccount data type
+-- - if unauthenticated calls disabled by merchant - throw access forbidden
   _  <- unless isAuthenticated $ rejectIfUnauthenticatedCallDisabled merchantAccount
--- * use unless/when instead of skipIfB/execIfB
+-- - use unless/when instead of skipIfB/execIfB
 --rejectIfUnauthenticatedCallDisabled merchantAccount `skipIfB` isAuthenticated
   response <- getOrderStatusWithoutAuth defaultOrderStatusRequest orderId {-routeParams-} merchantAccount isAuthenticated Nothing Nothing
  -- _ <- log "Process Order Status Response" $ response
@@ -258,20 +258,20 @@ getOrderStatusWithoutAuth req orderId merchantAccount isAuthenticated maybeOrder
   resp <- case cachedResp of
             Nothing -> do
               resp <- getOrdStatusResp req merchantAccount isAuthenticated orderId --route params can be replaced with orderId?
-         -- *     _    <- addToCache req isAuthenticated merchantAccount routeParams resp
+         --      _    <- addToCache req isAuthenticated merchantAccount routeParams resp
               pure resp
             Just resp -> pure resp
   ordResp'   <- pure resp -- versionSpecificTransforms routeParams resp
 
-  -- * This part probably shoul be moved to the separate function, used only for orderCreate request
+  -- This part probably shoul be moved to the separate function, used only for orderCreate request
   ordResp    <- if isJust maybeOrderCreateReq && isJust maybeOrd  then do
                     let order = fromJust maybeOrd
                     let orderCreateReq = fromJust maybeOrderCreateReq
                     checkAndAddOrderToken req orderCreateReq "routeParams" ordResp' merchId order
                   else pure ordResp'
  ------------------------------------------------
- -- * encode response to Foreign inside, why?
-  -- *checkEnableCaseForResponse req routeParams ordResp' -- ordResp
+ -- encode response to Foreign inside, why?
+ -- checkEnableCaseForResponse req routeParams ordResp' -- ordResp
   pure ordResp
 
 -- ----------------------------------------------------------------------------
@@ -566,10 +566,10 @@ rejectIfUnauthenticatedCallDisabled mAccnt =
   case  (enableUnauthenticatedOrderStatusApi mAccnt) of
     Just True -> pure ()
     _         -> throwException $ myerr "1" -- ecForbidden
-     -- * alot of errors predefined in Servant.Server
-     -- * https://hackage.haskell.org/package/servant-server-0.16.2/docs/Servant-Server.html#v:err404
-     -- * body message (and another parameters) can be redefined
-     -- * err403 { errBody = "Please login first." }
+     -- - alot of errors predefined in Servant.Server
+     -- - https://hackage.haskell.org/package/servant-server-0.16.2/docs/Servant-Server.html#v:err404
+     -- - body message (and another parameters) can be redefined
+     -- - err403 { errBody = "Please login first." }
      {- err403 :: ServerError
 
         data ServerError = ServerError
@@ -771,18 +771,18 @@ getCachedResp :: Text -> Flow (Maybe OrderStatusResponse)
 getCachedResp key = do
   eitherVal <- pure $ Right Nothing -- Presto.getCache ecRedis key
   case eitherVal of
-    Right (Just v) -> pure $ Just v -- * do
-      -- *  --let val' = S.replaceAll (S.Pattern "null") (S.Replacement (show "null")) v
-      -- *  --    val = S.replaceAll (S.Pattern "\"\"null\"\"") (S.Replacement (show "null")) val'
-      -- *  -- * Interesting transformations (maybe js - purescript related and we dont need it)
-      -- *  -- * parseAndReplaceWithStringNull
-      -- *  -- * camelCaseToSnakeCase
-      -- *  -- * replaceObjValWithForeignNull
-      -- *  let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
-      -- *  _ <- Presto.log ("Cache value for this order status cache key " <> key) v
-      -- *  case (runExcept (decode (camelCaseToSnakeCase resp))) of
-      -- *    Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
-      -- *    Left err -> pure Nothing -- log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
+    Right (Just v) -> pure $ Just v -- - do
+      -- -  --let val' = S.replaceAll (S.Pattern "null") (S.Replacement (show "null")) v
+      -- -  --    val = S.replaceAll (S.Pattern "\"\"null\"\"") (S.Replacement (show "null")) val'
+      -- -  -- - Interesting transformations (maybe js - purescript related and we dont need it)
+      -- -  -- - parseAndReplaceWithStringNull
+      -- -  -- - camelCaseToSnakeCase
+      -- -  -- - replaceObjValWithForeignNull
+      -- -  let resp = fromMaybe (toForeign "") (parseAndReplaceWithStringNull Just Nothing v)
+      -- -  _ <- Presto.log ("Cache value for this order status cache key " <> key) v
+      -- -  case (runExcept (decode (camelCaseToSnakeCase resp))) of
+      -- -    Right typedVal -> pure (replaceObjValWithForeignNull typedVal Just Nothing)
+      -- -    Left err -> pure Nothing -- log "decode_error" ("Error while decoding cached value for " <> key <> "_" <> show err) *> pure Nothing
     Right Nothing  -> pure Nothing -- log "redis_cache_value_not_found" ("value not found for this key " <> key) *> pure Nothing
     Left err       -> pure Nothing -- log "redis_fetch_error" ("Error while getting value from cache " <> key <> "_" <> show err) *> pure Nothing
 
@@ -2877,8 +2877,8 @@ casematch txn pgr dfpgresp gw xmls = match gw
                                     campaignCode = lookupXML xmls "campaignCode" "NA"
         match "PAYU"           = executePGR dfpgresp xmls (payu  pgr)
                                   # \upgr → if offer /= "NA"
-                                  -- * Payu allows merchants to send multiple offers and avails a valid offer among them
-                                  -- * offer_availed contains the successfully availed offer.
+                                  -- - Payu allows merchants to send multiple offers and avails a valid offer among them
+                                  -- - offer_availed contains the successfully availed offer.
                                         then upgr
                                                     # _offer           .~ (just offerVal)
                                                     # _offer_type      .~ offerType

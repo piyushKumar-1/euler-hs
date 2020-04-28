@@ -9,6 +9,8 @@ module EulerHS.Core.Types.DB
     -- * Core DB
     -- ** Types
     BeamRuntime(..)
+  , deleteReturningListPG
+  , updateReturningListPG
   , BeamRunner(..)
   , NativeSqlPool(..)
   , NativeSqlConn(..)
@@ -91,6 +93,19 @@ instance BeamRuntime BP.Postgres BP.Pg where
   rtInsertReturningList = B.runInsertReturningList
   rtUpdate = B.runUpdate
   rtDelete = B.runDelete
+
+deleteReturningListPG
+  :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
+  => B.SqlDelete BP.Postgres table
+  -> BP.Pg [table Identity]
+deleteReturningListPG = B.runDeleteReturningList
+
+
+updateReturningListPG
+  :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
+  => B.SqlUpdate BP.Postgres table
+  -> BP.Pg [table Identity]
+updateReturningListPG = B.runUpdateReturningList
 
 instance BeamRuntime BM.MySQL BM.MySQLM where
   rtSelectReturningList = B.runSelectReturningList

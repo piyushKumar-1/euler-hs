@@ -10,10 +10,10 @@ import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types as C
-import           Euler.Common.Validators (amountValidators, notNegative, textNotEmpty)
 import qualified Euler.Product.Domain as D
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Validators.Promotion
 
 
 import           Database.Beam ((==.))
@@ -37,17 +37,3 @@ loadPromotions orderPId = do
         $  "orderPId: " <> show orderPId
         <> " error: " <> show e
       throwException internalError
-
-
-transformPromotions :: DB.Promotion -> V D.Promotion
-transformPromotions r = D.Promotion
-  <$> (D.PromotionPId <$> withField @"id" r notNegative)
-  <*> withField @"dateCreated" r pure
-  <*> (C.mkMoney <$> withField @"discountAmount" r amountValidators)
-  <*> withField @"lastModified" r pure
-  <*> withField @"orderId" r (insideJust notNegative)
-  <*> withField @"rules" r textNotEmpty
-  <*> withField @"status" r textNotEmpty
-  <*> withField @"orderReferenceId" r (insideJust notNegative)
-
-

@@ -8,7 +8,6 @@ import           WebService.Language
 
 import qualified Euler.Constant.Feature               as Const
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Validators (notNegative)
 import qualified Euler.Common.Types as C
 
 import qualified Euler.Product.Domain.Feature as D
@@ -16,6 +15,7 @@ import qualified Euler.Product.Domain.Feature as D
 
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Validators.Feature (transformFeature)
 
 import           Database.Beam ((==.), (&&.))
 import qualified Database.Beam as B
@@ -38,13 +38,3 @@ loadFeature feat merchantId' = do
       logErrorT "Incorrect Feature in DB"
         $  "merchantId: " <> merchantId' <> ", error: " <> show e
       throwException internalError
-
-transformFeature :: DB.Feature -> V D.Feature
-transformFeature r = D.Feature
-  <$> (D.FeaturePId <$> withField @"id" r (extractJust >=> notNegative))
-  <*> withField @"version" r pure
-  <*> withField @"enabled" r pure
-  <*> withField @"name" r pure
-  <*> withField @"merchantId" r pure
-  <*> withField @"disabledUntil" r pure
-

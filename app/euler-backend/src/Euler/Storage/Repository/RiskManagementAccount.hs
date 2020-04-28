@@ -7,10 +7,10 @@ import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Validators (textNotEmpty, notNegative)
 import qualified Euler.Product.Domain.RiskManagementAccount as D
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Validators.RiskManagementAccount
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
@@ -31,14 +31,3 @@ loadRiskManagementAccount riskMAId = do
       logErrorT "Incorrect RiskManagementAccount in DB"
         $  "RiskManagementAccount id: " <> show riskMAId <> "error: " <> show e
       throwException internalError
-
-transformRiskManagementAccount :: DB.RiskManagementAccount -> V D.RiskManagementAccount
-transformRiskManagementAccount r = D.RiskManagementAccount
-  <$> (D.RiskManagementAccountPId <$> withField @"id" r notNegative)
-  <*> withField @"version" r pure
-  <*> withField @"accountDetailsJson" r textNotEmpty
-  <*> withField @"merchantAccountId" r pure
-  <*> withField @"provider" r pure
-  <*> withField @"dateCreated" r pure
-  <*> withField @"lastUpdated" r pure
-  <*> withField @"riskDsl" r pure

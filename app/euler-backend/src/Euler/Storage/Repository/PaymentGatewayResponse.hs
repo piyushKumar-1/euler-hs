@@ -9,8 +9,8 @@ import           WebService.Language
 
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types                  as DB
+import           Euler.Storage.Validators.PaymentGatewayResponse
 import qualified Euler.Product.Domain as D
-import           Euler.Common.Validators (notNegative)
 import           EulerHS.Extra.Validation
 
 import           Euler.Common.Errors.PredefinedErrors
@@ -38,21 +38,3 @@ loadPGR (Just successResponseId) = do
         $  "successResponseId: " <> show successResponseId
         <> " error: " <> show e
       throwException internalError
-
-
-transformPaymentGatewayResponse :: DB.PaymentGatewayResponse -> V D.PaymentGatewayResponse
-transformPaymentGatewayResponse r = D.PaymentGatewayResponse
-  <$> (D.PaymentGatewayResponsePId <$> withField @"id" r (extractJust >=> notNegative))
-  <*> withField @"version" r pure
-  <*> withField @"bankCode" r pure
-  <*> withField @"dateCreated" r pure
-  <*> withField @"responseXml" r pure
-  <*> withField @"txnId" r pure
-  <*> withField @"iciciRespCode" r pure
-  <*> withField @"iciciRespMessage" r pure
-  <*> withField @"axisRespCode" r pure
-  <*> withField @"axisRespMessage" r pure
-  <*> withField @"hdfcRespCode" r pure
-  <*> withField @"hdfcRespMessage" r pure
-  <*> withField @"respCode" r pure
-  <*> withField @"respMessage" r pure

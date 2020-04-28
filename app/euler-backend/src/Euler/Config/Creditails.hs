@@ -64,34 +64,3 @@ ecMandateParamsCred = do
 
 razorpayClientSecret :: String -> Flow ByteString
 razorpayClientSecret = E.decryptKMS . B64.decodeLenient . BC.pack
-
-getMySQLCfg :: Flow MySQLConfig
-getMySQLCfg = case C.getEnv of
-  C.DEV -> pure MySQLConfig
-          { connectHost     = devMysqlConnectHost
-          , connectPort     = devMysqlConnectPort
-          , connectUser     = devMysqlConnectUser
-          , connectPassword = devMysqlConnectPassword
-          , connectDatabase = devMysqlConnectDatabase
-          , connectOptions  = [CharsetName "utf8"]
-          , connectPath     = devMysqlConnectPath
-          , connectSSL      = Nothing
-          }
-  _ -> do
-    decodedPassword <- E.decryptKMS $ T.encodeUtf8 $ T.pack getEcDbPass
-    pure MySQLConfig
-          { connectHost     = getEcDbHost
-          , connectPort     = getEcDbPort
-          , connectUser     = getEcDbUserName
-          , connectPassword = T.unpack $ T.decodeUtf8 decodedPassword
-          , connectDatabase = getEcDbName
-          , connectOptions  = [CharsetName "utf8"]
-          , connectPath     = ""
-          , connectSSL      = Nothing
-          }
-
-mysqlDBC = do
-  mySqlConfig <- getMySQLCfg
-  case C.getEnv of
-    C.DEV -> pure $ mkMySQLPoolConfig (T.pack devMysqlConnectionName) mySqlConfig C.mySqlPoolConfig
-    _     -> pure $ mkMySQLPoolConfig (T.pack devMysqlConnectionName) mySqlConfig C.mySqlPoolConfig

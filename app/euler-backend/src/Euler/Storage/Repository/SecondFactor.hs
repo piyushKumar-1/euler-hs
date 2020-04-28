@@ -7,10 +7,10 @@ import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Validators (textNotEmpty, notNegative)
 import qualified Euler.Product.Domain as D
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Validators.SecondFactor
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
@@ -34,23 +34,3 @@ findSecondFactor txnDetail_id = do
         $  "txnDetailId: " <> show txnDetail_id
         <> "error: " <> show e
       throwException internalError
-
-transformSecondFactor :: DB.SecondFactor -> V D.SecondFactor
-transformSecondFactor sf = D.SecondFactor
-  <$> (D.SecondFactorPId <$> withField @"id" sf (extractJust >=> notNegative))
-  <*> withField @"version" sf pure
-  <*> withField @"otp" sf pure
-  <*> withField @"status" sf textNotEmpty
-  <*> withField @"txnId" sf textNotEmpty
-  <*> withField @"sfType" sf textNotEmpty
-  <*> withField @"url" sf pure
-  <*> withField @"secondFactorResponse" sf pure
-  <*> withField @"dateCreated" sf pure
-  <*> withField @"epgTxnId" sf pure
-  <*> withField @"lastUpdated" sf pure
-  <*> withField @"txnDetailId" sf pure
-  <*> withField @"gatewayAuthReqParams" sf pure
-  <*> withField @"authenticationAccountId" sf pure
-  <*> withField @"canAcceptResponse" sf pure
-  <*> withField @"challengesAttempted" sf pure
-  <*> withField @"responseAttempted" sf pure

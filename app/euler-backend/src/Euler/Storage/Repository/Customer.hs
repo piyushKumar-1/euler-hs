@@ -15,10 +15,10 @@ import           Euler.Storage.Repository.EulerDB
 
 import           Euler.Common.Errors.PredefinedErrors
 import qualified Euler.Common.Types                   as C
-import           Euler.Common.Validators
 import qualified Euler.Product.Domain                 as D
 import qualified Euler.Product.Domain.Templates       as Ts
 import qualified Euler.Storage.Types                  as DB
+import           Euler.Storage.Validators.Customer (validator)
 
 import           Database.Beam ((==.), (||.), (&&.))
 import qualified Database.Beam as B
@@ -70,17 +70,3 @@ findCustomerById cId = do
       logErrorT "findById"
         $ "Incorrect Customer in DB, id: " <> show cId <> " error: " <> show e
       throwException internalError
-
-validator :: DB.Customer -> V D.Customer
-validator v = D.Customer
-  <$> withField @"id" v (extractJust >=> textNotEmpty)
-  <*> withField @"version" v pure
-  <*> withField @"dateCreated" v pure
-  <*> withField @"emailAddress" v (extractJust >=> textNotEmpty)
-  <*> withField @"firstName" v (extractJust >=> textNotEmpty)
-  <*> withField @"lastName" v (extractJust >=> textNotEmpty)
-  <*> withField @"lastUpdated" v pure
-  <*> withField @"merchantAccountId" v pure
-  <*> withField @"mobileCountryCode" v pure
-  <*> withField @"mobileNumber" v pure
-  <*> withField @"objectReferenceId" v (extractJust >=> textNotEmpty)

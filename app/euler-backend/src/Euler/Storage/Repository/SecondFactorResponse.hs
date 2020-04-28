@@ -7,12 +7,12 @@ import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Validators (textNotEmpty, notNegative)
 
 import qualified Euler.Product.Domain as D
 
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Validators.SecondFactorResponse
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
@@ -35,20 +35,3 @@ findSecondFactorResponse second_factor_id = do
       logErrorT "Incorrect secondFactorResponse in DB"
         $  "txnDetailId: " <> show second_factor_id <> "error: " <> show e
       throwException internalError
-
-transformSecondFactorResponse :: DB.SecondFactorResponse -> V D.SecondFactorResponse
-transformSecondFactorResponse sfr = D.SecondFactorResponse
-  <$> (D.SecondFactorResponsePId <$> withField @"id" sfr (extractJust >=> notNegative))
-  <*> withField @"version" sfr pure
-  <*> withField @"cavv" sfr pure
-  <*> withField @"currency" sfr pure
-  <*> withField @"eci" sfr textNotEmpty
-  <*> withField @"mpiErrorCode" sfr pure
-  <*> withField @"purchaseAmount" sfr pure
-  <*> withField @"responseId" sfr pure
-  <*> withField @"shoppingContext" sfr textNotEmpty
-  <*> withField @"status" sfr textNotEmpty
-  <*> withField @"xid" sfr textNotEmpty
-  <*> withField @"dateCreated" sfr pure
-  <*> withField @"secondFactorId" sfr pure
-  <*> withField @"gatewayAuthResData" sfr pure

@@ -13,9 +13,9 @@ import           WebService.Language
 import           Euler.Storage.DBConfig
 import           Euler.Storage.Repository.EulerDB
 
-import           Euler.Common.Validators (notNegative)
 import qualified Euler.Common.Errors.PredefinedErrors as Errs
 import qualified Euler.Storage.Types                  as DB
+import           Euler.Storage.Validators.OrderMetadataV2
 import qualified Euler.Product.Domain as D
 import           Euler.Lens
 
@@ -48,20 +48,3 @@ loadOrderMetadataV2 ordRefId = do
         $  "orderReference Id: " <> show ordRefId
         <> " error: " <> show e
       throwException Errs.internalError
-
-
-transformOrderMetadataV2 :: DB.OrderMetadataV2 -> V D.OrderMetadataV2
-transformOrderMetadataV2 r = D.OrderMetadataV2
-  <$> (D.OrderMetadataV2PId <$> withField @"id" r (extractJust >=> notNegative))
-  <*> withField @"browser" r pure
-  <*> withField @"browserVersion" r pure
-  <*> withField @"dateCreated" r pure
-  <*> withField @"device" r pure
-  <*> withField @"lastUpdated" r pure
-  <*> withField @"metadata" r pure
-  <*> withField @"mobile" r pure
-  <*> withField @"operatingSystem" r pure
-  <*> withField @"orderReferenceId" r notNegative
-  <*> withField @"ipAddress" r pure
-  <*> withField @"referer" r pure
-  <*> withField @"userAgent" r pure

@@ -7,11 +7,10 @@ import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Types.Money
-import           Euler.Common.Validators (textNotEmpty, amountValidators, notNegative)
 import qualified Euler.Product.Domain.Chargeback as D
-import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types.Chargeback as S
+import           Euler.Storage.Repository.EulerDB
+import           Euler.Storage.Validators.Chargeback (transformChargeback)
 import           Euler.Storage.Types.EulerDB as EDB
 
 import           Database.Beam ((==.))
@@ -34,18 +33,3 @@ findChargebacks txnId = do
       logErrorT "Incorrect chargeback(s) in DB"
         $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
-
-
-
-transformChargeback :: S.Chargeback -> V D.Chargeback
-transformChargeback r = D.Chargeback
-  <$> (D.ChargebackPId <$> withField @"id" r textNotEmpty)
-  <*> withField @"version" r pure -- TODO: validate version?
-  <*> (mkMoney <$> withField @"amount" r amountValidators)
-  <*> withField @"dateCreated" r pure
-  <*> withField @"dateResolved" r pure
-  <*> withField @"disputeStatus" r textNotEmpty
-  <*> withField @"lastUpdated" r pure
-  <*> withField @"merchantAccountId" r pure -- TODO: validate merchantAccountId?
-  <*> withField @"txnDetailId" r (insideJust notNegative)
-  <*> withField @"objectReferenceId" r textNotEmpty

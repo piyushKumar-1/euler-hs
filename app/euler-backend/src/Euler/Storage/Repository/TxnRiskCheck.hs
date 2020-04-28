@@ -7,10 +7,10 @@ import           EulerHS.Language
 import           WebService.Language
 
 import           Euler.Common.Errors.PredefinedErrors
-import           Euler.Common.Validators (textNotEmpty, notNegative)
 import qualified Euler.Product.Domain.TxnRiskCheck as D
 import           Euler.Storage.Repository.EulerDB
 import qualified Euler.Storage.Types as DB
+import           Euler.Storage.Validators.TxnRiskCheck
 
 import           Database.Beam ((==.))
 import qualified Database.Beam as B
@@ -31,22 +31,3 @@ loadTxnRiskCheck txnId = do
       logErrorT "Incorrect txnRiskCheck(s) in DB"
         $  "txnDetailId: " <> show txnId <> "error: " <> show e
       throwException internalError
-
-transformTxnRiskCheck :: DB.TxnRiskCheck -> V D.TxnRiskCheck
-transformTxnRiskCheck r = D.TxnRiskCheck
-  <$> (D.TxnRiskCheckPId <$> withField @"id" r notNegative)
-  <*> withField @"completeResponse" r textNotEmpty
-  <*> withField @"dateCreated" r pure
-  <*> withField @"flagged" r pure
-  <*> withField @"lastUpdated" r pure
-  <*> withField @"recommendedAction" r pure
-  <*> withField @"resultJson" r pure
-  <*> withField @"riskManagementAccountId" r notNegative
-  <*> withField @"txnDetailId" r notNegative
-  <*> withField @"message" r pure
-  <*> withField @"status" r pure
-  <*> withField @"riskStatus" r pure
-  <*> withField @"domestic" r pure
-  <*> withField @"invocationMode" r pure
-  <*> withField @"paymentStatusUpdateResponseCode" r pure
-  <*> withField @"paymentStatusUpdated" r pure

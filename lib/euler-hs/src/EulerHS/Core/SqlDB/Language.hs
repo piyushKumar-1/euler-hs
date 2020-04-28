@@ -16,60 +16,14 @@ module EulerHS.Core.SqlDB.Language
   , insertRowsReturningList
   , updateRows
   , deleteRows
+  , deleteRowsReturningListPG
+  , updateRowsReturningListPG
   ) where
 
 import qualified Database.Beam as B
+import qualified Database.Beam.Postgres as BP
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
-
-
-data SqlDBAction beM a where
-  SqlDBAction :: beM a -> SqlDBAction beM a
-
-select''
-  :: (T.BeamRuntime be beM, B.FromBackendRow be a)
-  => B.SqlSelect be a
-  -> SqlDBAction beM [a]
-select'' a = SqlDBAction (T.rtSelectReturningList a)
-
-selectOne''
-  :: (T.BeamRuntime be beM, B.FromBackendRow be a)
-  => B.SqlSelect be a
-  -> SqlDBAction beM (Maybe a)
-selectOne'' a = SqlDBAction (T.rtSelectReturningOne a)
-
-insert''
-  :: T.BeamRuntime be beM
-  => B.SqlInsert be table
-  -> SqlDBAction beM ()
-insert'' a = SqlDBAction (T.rtInsert a)
-
-insertReturningList''
-  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM)
-  => B.SqlInsert be table
-  -> SqlDBAction beM [table Identity]
-insertReturningList'' a = SqlDBAction (T.rtInsertReturningList a)
-
-update''
-  :: T.BeamRuntime be beM
-  => B.SqlUpdate be table
-  -> SqlDBAction beM ()
-update'' a = SqlDBAction (T.rtUpdate a)
-
-delete''
-  :: T.BeamRuntime be beM
-  => B.SqlDelete be table
-  -> SqlDBAction beM ()
-delete'' a = SqlDBAction (T.rtDelete a)
-
-
-getBeamRunner'
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
-  => T.NativeSqlConn
-  -> SqlDBAction beM a
-  -> ((String -> IO ()) -> IO a)
-getBeamRunner' conn (SqlDBAction beM) = T.getBeamDebugRunner conn beM
-
 
 
 data SqlDBMethodF beM next where
@@ -82,51 +36,9 @@ type SqlDB beM = F (SqlDBMethodF beM)
 
 sqlDBMethod
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
-  => SqlDBAction beM a
+  => beM a
   -> SqlDB beM a
-sqlDBMethod act = do
-  let runner = \conn -> getBeamRunner' conn act
-  liftFC $ SqlDBMethod runner id
-
-
-
-select'
-  :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
-  => B.SqlSelect be a
-  -> SqlDB beM [a]
-select' = sqlDBMethod . select''
-
-selectOne'
-  :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
-  => B.SqlSelect be a
-  -> SqlDB beM (Maybe a)
-selectOne' = sqlDBMethod . selectOne''
-
-insert'
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
-  => B.SqlInsert be table
-  -> SqlDB beM ()
-insert' = sqlDBMethod . insert''
-
-insertReturningList'
-  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
-  => B.SqlInsert be table
-  -> SqlDB beM [table Identity]
-insertReturningList' = sqlDBMethod . insertReturningList''
-
-update'
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
-  => B.SqlUpdate be table
-  -> SqlDB beM ()
-update' = sqlDBMethod . update''
-
-delete'
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
-  => B.SqlDelete be table
-  -> SqlDB beM ()
-delete' = sqlDBMethod . delete''
-
-
+sqlDBMethod act = liftFC $ SqlDBMethod (flip T.getBeamDebugRunner act) id
 
 -- Convenience interface
 
@@ -135,39 +47,54 @@ findRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => B.SqlSelect be a
   -> SqlDB beM [a]
-findRows = select'
+findRows = sqlDBMethod . T.rtSelectReturningList
 
 -- | Select one
 findRow
   :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => B.SqlSelect be a
   -> SqlDB beM (Maybe a)
-findRow = selectOne'
+findRow = sqlDBMethod . T.rtSelectReturningOne
 
 -- | Insert
 insertRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlInsert be table
   -> SqlDB beM ()
-insertRows = insert'
+insertRows = sqlDBMethod . T.rtInsert
 
 -- | Insert returning list
 insertRowsReturningList
   :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
   => B.SqlInsert be table
   -> SqlDB beM [table Identity]
-insertRowsReturningList = insertReturningList'
+insertRowsReturningList = sqlDBMethod . T.rtInsertReturningList
 
 -- | Update
 updateRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlUpdate be table
   -> SqlDB beM ()
-updateRows = update'
+updateRows = sqlDBMethod . T.rtUpdate
 
 -- | Delete
 deleteRows
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlDelete be table
   -> SqlDB beM ()
-deleteRows = delete'
+deleteRows = sqlDBMethod . T.rtDelete
+
+
+-- Postgres only extra methods
+
+deleteRowsReturningListPG
+  :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
+  => B.SqlDelete BP.Postgres table
+  -> SqlDB BP.Pg [table Identity]
+deleteRowsReturningListPG = sqlDBMethod . T.deleteReturningListPG
+
+updateRowsReturningListPG
+  :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
+  => B.SqlUpdate BP.Postgres table
+  -> SqlDB BP.Pg [table Identity]
+updateRowsReturningListPG = sqlDBMethod . T.updateReturningListPG

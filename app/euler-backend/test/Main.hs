@@ -25,7 +25,7 @@ spec :: Spec
 spec = do
     -- describe "Order spec"                                 Order.spec
     -- describe "OrderUpdate"                                OrderUpdate.spec
-    -- describe "OrderStatus"                                OrderStatus.spec
+    describe "OrderStatus"                                OrderStatus.spec
     describe "Card validators spec"                       Card.spec
     describe "Txn transformation"                         TxnTransform.spec
     describe "Flex casing and content-types: sample API"  FlexApis.SampleApiSpec.spec

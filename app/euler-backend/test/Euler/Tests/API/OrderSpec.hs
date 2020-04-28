@@ -27,7 +27,9 @@ import qualified Euler.Storage.Validators.MerchantAccount as Merchant
 import qualified Euler.Product.OLTP.Order.Create        as OrderCreate
 import qualified Euler.Product.OLTP.Order.CreateUpdateLegacy  as OrderCreateUpdateLegacy
 import qualified Euler.Product.OLTP.Order.OrderStatus   as OrderStatus
-import qualified Euler.Product.OLTP.Services.AuthenticationService as Auth
+
+import qualified Euler.Product.OLTP.Services.Auth.AuthService as Auth
+import qualified Euler.Product.OLTP.Services.AuthConf as AuthConf
 
 import qualified WebService.Types as T
 import qualified WebService.Language as L
@@ -493,13 +495,16 @@ spec = do
 
   around prepare $
     describe "API Order methods" $ do
+
+      let authHandle = AuthConf.mkKeyAuthService
+
       let runOrderCreate rt ordReq rp = runFlow rt $ do
-            Auth.withMacc OrderCreate.orderCreate rp ordReq
+            Auth.withAuth authHandle OrderCreate.orderCreate rp ordReq
             --withMerchantAccount (OrderCreate.orderCreate rp ordReq)
 
       let getAddressesAfterCreate rt ordReq rp = runFlow rt $ do
             -- prepareDBConnections
-            resp <- Auth.withMacc OrderCreate.orderCreate rp ordReq
+            resp <- Auth.withAuth authHandle OrderCreate.orderCreate rp ordReq
             let oid = getField @"order_id" resp -- resp ^.  _order_id
             let mid = fromMaybe "" $ getField @"merchant_id" resp -- resp ^. _merchant_id
             mOrd <- Rep.loadOrder oid mid

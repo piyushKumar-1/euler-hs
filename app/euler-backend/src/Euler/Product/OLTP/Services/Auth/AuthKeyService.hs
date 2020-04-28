@@ -30,6 +30,7 @@ import           Euler.Storage.Types.IngressRule
 import qualified Euler.Storage.Types.MerchantAccount as DBM
 import           Euler.Storage.Types.MerchantKey
 import qualified Euler.Storage.Validators.MerchantAccount as MV
+import           Euler.Storage.Repository.EulerDB
 
 
 import qualified Database.Beam as B
@@ -58,10 +59,10 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
     case extractApiKey apiKeyStr of
       Left err -> do
         logErrorT "API key extracting" $ "Can't extract API key from " <> apiKeyStr <> " error: " <> err
-        throwException err403 {errBody = "Access denied, invalid API key."}
+        throwException $ eulerAccessDenied "Invalid API key."
       Right apiKey' -> do
         mk <- do
-          mMKey <- withDB eulerDB $ do
+          mMKey <- withEulerDB $ do
             let predicate MerchantKey{apiKey, status} = apiKey ==. B.just_ (B.val_ apiKey')
                  &&. status ==. B.just_ "ACTIVE"
             L.findRow
@@ -70,10 +71,10 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
               $ B.all_ (merchant_key eulerDBSchema)
           case mMKey of
             Just mk -> pure mk
-            Nothing -> throwException err403 {errBody = "Mkey not found"}
+            Nothing -> throwException ecAccessDenied
            -- findOneWithErr ecDB (where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"]) ecAccessDenied
         merchantAccount' <- do
-          mMAcc <- withDB eulerDB $ do
+          mMAcc <- withEulerDB $ do
             let predicate DBM.MerchantAccount {id} = id ==. (B.val_ $  mk ^. _merchantAccountId)
             L.findRow
               $ B.select
@@ -81,7 +82,7 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
               $ B.all_ (merchant_account eulerDBSchema)
           case mMAcc of
             Just ma -> pure ma
-            Nothing -> throwException err403 { errBody = "macc not found in db"}
+            Nothing -> throwException ecAccessDenied
         -- findOneWithErr ecDB (where_ := WHERE ["id" /\ Int (fromMaybe 0 (merchantAccountId))]) ecAccessDenied
         merchantAccount <- pure $ merchantAccount' & _apiKey .~ (Just apiKey') -- setField @"apiKey" (Just apiKey') merchantAccount'
         --TODO: Need to validate the X-Auth-Scope with MerchantKey.scope -> If different, throw ecAccessDenied
@@ -96,7 +97,7 @@ authenticate routeParams = case (lookupRP @Authorization routeParams) of
             pure $ Right validMAcc
   Nothing -> do
     logErrorT "authenticateRequestWithouthErr" "No authorization found in header"
-    throwException err403 {errBody = "API key not present in Authorization header"}
+    throwException $ eulerAccessDenied "API key not present in Authorization header"
  -- where getApiKeyFromHeader routeParams = do
  --         ((split (Pattern ":") <<< decodeBase64) <$> ((split (Pattern " ") <$> (lookup "Authorization" routeParams)) >>= last))
  --         >>= head
@@ -232,5 +233,6 @@ getWhitelistedIps mAcc = do
       -- findAll ecDB (where_ := WHERE ["merchant_account_id" /\ Int (fromMaybe 0 $ mAcc ^. _id)] :: WHERE IngressRule)
       if (length ir) == 0 then pure Nothing else do
         ips <- pure $ (\r -> r ^. _ipAddress) <$> ir
-        _   <- rSetex Constants.ecRedis ("euler_ip_whitelist_for_" <> mId) ips (5 * 60 * 60 :: Int)-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
+        let fiveHours :: Integer = 5 * 60 * 60
+        _   <- rSetex Constants.ecRedis ("euler_ip_whitelist_for_" <> mAcc ^. _merchantId) ips fiveHours-- setCacheEC (convertDuration $ Hours 5.0) ("euler_ip_whitelist_for_" <> mId) ips
         pure (Just ips)

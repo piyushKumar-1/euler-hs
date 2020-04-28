@@ -57,7 +57,7 @@ import           Euler.Product.Domain.Order (Order)
 import qualified Euler.Product.Domain.OrderStatusResponse as DO
 import           Euler.Product.OLTP.Card.Card
 -- EHS: legacy
-import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
+--import           Euler.Product.OLTP.Services.AuthenticationService (extractApiKey)
 
 
 import           Euler.Storage.Repository.EulerDB
@@ -397,45 +397,46 @@ authenticateReqAndGetMerchantAcc ostatusReq@(OrderStatusRequest req) headers = d
 -- part of authenticateReqAndGetMerchantAcc
 -- looks like authenticateRequest src/Product/OLTP/Services/AuthenticationService.purs
 authenticateWithAPIKey :: APIKey -> Flow (MerchantAccount, Bool)
-authenticateWithAPIKey apiKeyStr = do
-  let eApiKey = extractApiKey apiKeyStr
-  case eApiKey of
-    Right key -> do
-      logDebugT "Extracted API key" key
-      conn <- getConn eulerDB
-      merchantKey <- runDB conn $ do
-        let predicate MerchantKey {apiKey, status} = (apiKey ==. (B.just_ $ B.val_ key))
-              &&. (status ==. B.just_ "ACTIVE")
-        findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (merchant_key eulerDBSchema)
-      --pure $ Just defaultMerchantKey--DB.findOne ecDB
-      --(where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"])
-      case merchantKey of
-        Right (Just mKey) -> do
-          merchantAcc <- runDB conn $ do
-            let predicate MerchantAccount {id} = id ==. B.val_ (mKey ^. _merchantAccountId  )
-            findRow
-              $ B.select
-              $ B.limit_ 1
-              $ B.filter_ predicate
-              $ B.all_ (merchant_account eulerDBSchema)
-           -- pure defaultMerchantAccount --DB.findOneWithErr ecDB
-           -- (where_ := WHERE ["id" /\ Int (fromMaybe 0 (unNullOrUndefined merchantKey.merchantAccountId))]) ecAccessDenied
-          merchantAccount <- case merchantAcc of
-            Right (Just ma) -> pure $ setField @"apiKey" (Just key) ma-- merchantAcc # _apiKey .~ (just $ apiKeyStr)
-            _               -> throwException err403
-          _ <- pure True -- ipAddressFilters merchantAccount headers   --- checking IP whitelist in case of authenticated call
-          pure $ (merchantAccount, True)
-        Right Nothing -> throwException err403
-        Left err -> do
-          runIO $ putTextLn $ toText $ P.show err
-          throwException $ myerr "2" -- liftErr ecAccessDenied
-    Left err -> do
-      logErrorT "Authentication" $ "Invalid API key: " <> err
-      throwException err403 {errBody = "Invalid API key."}
+authenticateWithAPIKey apiKeyStr = undefined
+--authenticateWithAPIKey apiKeyStr = do
+--  let eApiKey = extractApiKey apiKeyStr
+--  case eApiKey of
+--    Right key -> do
+--      logDebugT "Extracted API key" key
+--      conn <- getConn eulerDB
+--      merchantKey <- runDB conn $ do
+--        let predicate MerchantKey {apiKey, status} = (apiKey ==. (B.just_ $ B.val_ key))
+--              &&. (status ==. B.just_ "ACTIVE")
+--        findRow
+--          $ B.select
+--          $ B.limit_ 1
+--          $ B.filter_ predicate
+--          $ B.all_ (merchant_key eulerDBSchema)
+--      --pure $ Just defaultMerchantKey--DB.findOne ecDB
+--      --(where_ := WHERE ["api_key" /\ String apiKeyStr, "status" /\ String "ACTIVE"])
+--      case merchantKey of
+--        Right (Just mKey) -> do
+--          merchantAcc <- runDB conn $ do
+--            let predicate MerchantAccount {id} = id ==. B.val_ (mKey ^. _merchantAccountId  )
+--            findRow
+--              $ B.select
+--              $ B.limit_ 1
+--              $ B.filter_ predicate
+--              $ B.all_ (merchant_account eulerDBSchema)
+--           -- pure defaultMerchantAccount --DB.findOneWithErr ecDB
+--           -- (where_ := WHERE ["id" /\ Int (fromMaybe 0 (unNullOrUndefined merchantKey.merchantAccountId))]) ecAccessDenied
+--          merchantAccount <- case merchantAcc of
+--            Right (Just ma) -> pure $ setField @"apiKey" (Just key) ma-- merchantAcc # _apiKey .~ (just $ apiKeyStr)
+--            _               -> throwException err403
+--          _ <- pure True -- ipAddressFilters merchantAccount headers   --- checking IP whitelist in case of authenticated call
+--          pure $ (merchantAccount, True)
+--        Right Nothing -> throwException err403
+--        Left err -> do
+--          runIO $ putTextLn $ toText $ P.show err
+--          throwException $ myerr "2" -- liftErr ecAccessDenied
+--    Left err -> do
+--      logErrorT "Authentication" $ "Invalid API key: " <> err
+--      throwException err403 {errBody = "Invalid API key."}
 
 -- ----------------------------------------------------------------------------
 -- function: updateAuthTokenUsage

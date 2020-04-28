@@ -23,7 +23,7 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-    -- describe "Order spec"                                 Order.spec
+    describe "Order spec"                                 Order.spec
     -- describe "OrderUpdate"                                OrderUpdate.spec
     describe "OrderStatus"                                OrderStatus.spec
     describe "Card validators spec"                       Card.spec

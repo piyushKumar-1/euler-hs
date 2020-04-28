@@ -31,7 +31,7 @@ spec = do
     describe "Flex casing and content-types: sample API"  FlexApis.SampleApiSpec.spec
     describe "Encryption"                                 Encryption.spec
     describe "Money Tests"                                MoneySpec.spec
-    -- describe "AuthRSA"                                    AuthRSA.spec
+    describe "AuthRSA"                                    AuthRSA.spec
     describe "RMSIDResultXML"                             RMSIDResultXML.spec
     describe "PGRXml"                                     PGRXml.spec
     describe "OrderStatus builder"                        OrderStatusBuilder.spec

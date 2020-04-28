@@ -6,7 +6,7 @@
 
 2. run `mysql -h mysql -u cloud -p`
 
-3. Change root password to your own local at `mySQLRootCfg`. Do not forget to revert before commit.
+3. Change root password to your own local at `Euler.Tests.Common` in `mySQLRootCfg`. Do not forget to revert before commit.
 
 4. `stack test euler-backend`
 

@@ -1,43 +1,45 @@
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 module Euler.Tests.API.AuthRSA where
 
-import Euler.Tests.Common
+import           Euler.Tests.Common
 
-import           Data.Time.Clock (NominalDiffTime)
-import qualified Data.Text                              as Text
 import qualified Data.ByteString as BS
+import qualified Data.Text as Text
+import           Data.Time.Clock (NominalDiffTime)
 
-import           EulerHS.Prelude
-import           EulerHS.Language
-import           EulerHS.Runtime
 import           EulerHS.Interpreters
-import qualified EulerHS.Types                          as T
+import           EulerHS.Language
+import           EulerHS.Prelude
+import           EulerHS.Runtime
+import qualified EulerHS.Types as T
 
-import qualified Euler.API.Authentication               as Auth
-import           Euler.Server (FlowServer', eulerServer_, FlowHandler)
-import qualified Euler.Server                           as S
-import qualified Euler.Playback.MethodPlayer            as S
+import qualified Euler.API.Authentication as Auth
+import qualified Euler.Playback.MethodPlayer as S
+import           Euler.Server (FlowHandler, FlowServer', eulerServer_)
+import qualified Euler.Server as S
 
-import           Network.Wai.Handler.Warp
+import           Euler.Tests.Common
+
 import           Network.HTTP.Types
+import           Network.Wai.Handler.Warp
 
-import           Servant.Server (serve)
 import           Servant.API
 import           Servant.Client
-import           System.Process
+import           Servant.Server (serve)
 import           System.Exit
+import           System.Process
 
 import           Test.Hspec
 
-import qualified WebService.Types                       as T
-import qualified WebService.Language                    as L
 import           Euler.API.RouteParameters
+import qualified WebService.Language as L
+import qualified WebService.Types as T
 
 import           Database.MySQL.Base
-import           EulerHS.Extra.Test
 import qualified Euler.Options.Options as Opt
+import           EulerHS.Extra.Test
 
 testDBName :: String
 testDBName = "auth_rsa_test_db"
@@ -45,7 +47,7 @@ testDBName = "auth_rsa_test_db"
 spec :: Spec
 spec = do
   let prepare next =
-        withMysqlDb testDBName "test/Euler/TestData/rsaAuthMySQL.sql" mySQLRootCfg $
+        withMysqlDb testDBName "test/Euler/TestData/rsaAuthMySQL.sql" (mySQLRootCfg testDBName) $
           withFlowRuntime Nothing $ \rt -> flip runServer rt $ do
             runFlow rt $ prepareDBConnections
             next rt
@@ -169,34 +171,9 @@ protected = S.runFlow "sTestFlow" emptyRPs S.noReqBodyJSON . Auth.authenticateUs
 
 ----------------------------------------------------------------------
 
-
-mySQLCfg :: T.MySQLConfig
-mySQLCfg = T.MySQLConfig
-  { connectHost     = "mysql"
-  , connectPort     = 3306
-  , connectUser     = "cloud"
-  , connectPassword = "scape"
-  , connectDatabase = testDBName
-  , connectOptions  = [T.CharsetName "utf8"]
-  , connectPath     = ""
-  , connectSSL      = Nothing
-  }
-
-mySQLRootCfg :: T.MySQLConfig
-mySQLRootCfg =
-    T.MySQLConfig
-      { connectUser     = "root"
-      , connectPassword = "root"
-      , connectDatabase = ""
-      , ..
-      }
-  where
-    T.MySQLConfig {..} = mySQLCfg
-
-
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
-  let cfg = T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
+  let cfg = T.mkMySQLConfig "eulerMysqlDB" (mySQLCfg testDBName)
 
   ePool <- initSqlDBConnection cfg
   setOption Opt.EulerDbCfg cfg

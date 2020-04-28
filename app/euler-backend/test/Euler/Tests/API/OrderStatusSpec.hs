@@ -36,7 +36,7 @@ testDBName = "order_status_spec_test_db"
 spec :: Spec
 spec = do
   let prepare next =
-        withMysqlDb testDBName "test/Euler/TestData/mysqldump.sql" mySQLRootCfg $
+        withMysqlDb testDBName "test/Euler/TestData/mysqldump.sql" (mySQLRootCfg testDBName) $
           withFlowRuntime Nothing $ \rt -> do
             runFlow rt $ prepareDBConnections
             next rt
@@ -82,7 +82,7 @@ runOrderStatus rt rps isAsync = runFlow rt $ orderStatusMethod (mkAppEnv' isAsyn
 
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
-  let cfg = T.mkMySQLConfig "eulerMysqlDB" mySQLCfg
+  let cfg = T.mkMySQLConfig "eulerMysqlDB" (mySQLCfg testDBName)
 
   ePool <- initSqlDBConnection cfg
   setOption Opt.EulerDbCfg cfg
@@ -92,47 +92,6 @@ prepareDBConnections = do
 
   L.throwOnFailedWithLog ePool T.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
   L.throwOnFailedWithLog redis T.KVDBConnectionFailedException "Failed to connect to Redis DB."
-
--- Redis config data
-redisConn :: IsString a => a
-redisConn = "redis"
-
-redisConnConfig :: T.RedisConfig
-redisConnConfig = T.RedisConfig
-    { connectHost           = "redis"
-    , connectPort           = 6379
-    , connectAuth           = Nothing
-    , connectDatabase       = 0
-    , connectMaxConnections = 50
-    , connectMaxIdleTime    = 30
-    , connectTimeout        = Nothing
-    }
-
-
-mySQLCfg :: T.MySQLConfig
-mySQLCfg = T.MySQLConfig
-  { connectHost     = "mysql"
-  , connectPort     = 3306
-  , connectUser     = "cloud"
-  , connectPassword = "scape"
-  , connectDatabase = testDBName
-  , connectOptions  = [T.CharsetName "utf8"]
-  , connectPath     = ""
-  , connectSSL      = Nothing
-  }
-
-mySQLRootCfg :: T.MySQLConfig
-mySQLRootCfg =
-    T.MySQLConfig
-      { connectUser     = "root"
-      , connectPassword = "root" -- use your local password when test out of docker
-      , connectDatabase = ""
-      , ..
-      }
-  where
-    T.MySQLConfig {..} = mySQLCfg
-
-
 
 -- shouldBeAnn ::
 {-# INLINE shouldBeAnn #-}

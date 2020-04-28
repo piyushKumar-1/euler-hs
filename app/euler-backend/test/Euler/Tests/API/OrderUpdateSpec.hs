@@ -56,21 +56,6 @@ keepConnsAliveForSecs = 60 * 10 -- 10 mins
 maxTotalConns :: Int
 maxTotalConns = 8
 
--- Redis config data
-redisConn :: IsString a => a
-redisConn = "redis"
-
-redisConnConfig :: T.RedisConfig
-redisConnConfig = T.RedisConfig
-    { connectHost           = "localhost"
-    , connectPort           = 6379
-    , connectAuth           = Nothing
-    , connectDatabase       = 0
-    , connectMaxConnections = 50
-    , connectMaxIdleTime    = 30
-    , connectTimeout        = Nothing
-    }
-
 prepareDBConnections :: Flow ()
 prepareDBConnections = do
   ePool <- initSqlDBConnection

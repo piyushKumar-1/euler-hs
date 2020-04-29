@@ -213,6 +213,8 @@ instance Functor FlowMethod where
 
   fmap f (SetOption k v next)                 = SetOption k v (f . next)
 
+  fmap f (DelOption k next)                   = DelOption k (f . next)
+
   fmap f (InitSqlDBConnection cfg next)       = InitSqlDBConnection cfg (f . next)
 
   fmap f (DeInitSqlDBConnection conn next)    = DeInitSqlDBConnection conn (f.next)

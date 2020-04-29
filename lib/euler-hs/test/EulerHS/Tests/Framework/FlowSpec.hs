@@ -156,7 +156,6 @@ spec = do
             getOption TestStringKey2
           result `shouldBe` Nothing
 
-
         it "Two keys" $ \rt -> do
           result <- runFlow rt $ do
             _ <- setOption TestStringKey "lore ipsum"
@@ -165,6 +164,16 @@ spec = do
             s2 <- getOption TestStringKey2
             pure (s1,s2)
           result `shouldBe` (Just "lore ipsum", Just "lore ipsum2")
+        
+
+        it "Delete Key" $ \rt -> do
+          result <- runFlow rt $ do
+            _ <- setOption TestStringKey "lorem ipsum"
+            s1 <- getOption TestStringKey 
+            _ <- delOption TestStringKey
+            s2 <- getOption TestStringKey
+            pure (s1, s2)
+          result `shouldBe` (Just "lorem ipsum", Nothing)
 
         it "Different encoding, types & payload" $ \rt -> do
           testKVals <- runFlow rt $ do

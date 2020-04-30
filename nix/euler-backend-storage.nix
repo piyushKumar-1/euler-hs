@@ -7,8 +7,8 @@ mkDerivation {
   version = "20.2.27.1";
   src = fetchgit {
     url    = "git@bitbucket.org:juspay/euler-db.git";
-    rev    = "332d216c19982353270a5204cde115511f2d2e7d";
-    sha256 = "0qwdn4q5k8rs6b5dmg27xf7c6i0qcs88cg6ca4f61nms42k8fn9p";
+    rev    = "8be8da36c76b73db7ccd3d18b5cc65655b77405e";
+    sha256 = "32r2dwbc4dbph46nhivqdfxm529pf39zhd1bryfkz4ar4nf6mb";
   };
   libraryHaskellDepends = [
     aeson base beam-core beam-mysql beam-postgres beam-sqlite

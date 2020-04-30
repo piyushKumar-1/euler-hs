@@ -49,7 +49,7 @@ mySQLRootCfg :: String -> T.MySQLConfig
 mySQLRootCfg testDBName =
     T.MySQLConfig
       { connectUser     = "root"
-      , connectPassword = "4" -- use your local password when test out of docker
+      , connectPassword = "root" -- use your local password when test out of docker
       , connectDatabase = ""
       , ..
       }

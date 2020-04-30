@@ -23,15 +23,16 @@ main = hspec spec
 
 spec :: Spec
 spec = do
-    describe "Order spec"                                 Order.spec
+    -- describe "Order spec"                                 Order.spec
     -- describe "OrderUpdate"                                OrderUpdate.spec
-    describe "OrderStatus"                                OrderStatus.spec
+    -- describe "OrderStatus"                                OrderStatus.spec
+    -- describe "AuthRSA"                                    AuthRSA.spec
+
     describe "Card validators spec"                       Card.spec
     describe "Txn transformation"                         TxnTransform.spec
     describe "Flex casing and content-types: sample API"  FlexApis.SampleApiSpec.spec
     describe "Encryption"                                 Encryption.spec
     describe "Money Tests"                                MoneySpec.spec
-    describe "AuthRSA"                                    AuthRSA.spec
     describe "RMSIDResultXML"                             RMSIDResultXML.spec
     describe "PGRXml"                                     PGRXml.spec
     describe "OrderStatus builder"                        OrderStatusBuilder.spec

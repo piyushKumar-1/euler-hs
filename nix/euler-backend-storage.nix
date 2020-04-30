@@ -15,9 +15,10 @@ mkDerivation {
     containers http-api-data http-types text time
   ];
   postUnpack = "sourceRoot+=/lib/euler-backend-storage";
-  libraryToolDepends = [ hpack ];
-  prePatch = "hpack";
+ # libraryToolDepends = [ hpack ];
+ # prePatch = "hpack";
   description = "DB types for euler-backend";
   license = "OtherLicense";
   doHaddock = false;
+  isLibrary = true;
 }

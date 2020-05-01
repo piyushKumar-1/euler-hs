@@ -39,6 +39,7 @@ module EulerHS.Framework.Flow.Language
   , callAPI'
   , runIO
   , runIO'
+  , runUntracedIO
   , generateGUID
   , runSysCmd
   , forkFlow
@@ -81,6 +82,11 @@ data FlowMethod next where
     :: T.JSONEx a
     => Text
     -> IO a
+    -> (a -> next)
+    -> FlowMethod next
+
+  RunUntracedIO
+    :: IO a
     -> (a -> next)
     -> FlowMethod next
 
@@ -208,6 +214,8 @@ instance Functor FlowMethod where
   fmap f (RunSafeFlow guid flow next)         = RunSafeFlow guid flow (f . next)
 
   fmap f (RunIO descr ioAct next)             = RunIO descr ioAct (f . next)
+
+  fmap f (RunUntracedIO ioAct next)           = RunUntracedIO ioAct (f . next)
 
   fmap f (GetOption k next)                   = GetOption k (f . next)
 
@@ -368,6 +376,19 @@ runIO = runIO' ""
 -- >   pure content
 runIO' :: T.JSONEx a => Text -> IO a -> Flow a
 runIO' descr ioAct = liftFC $ RunIO descr ioAct id
+
+-- | The same as runIO, but do not record IO outputs in the ART recordings.
+--   For example, this can be useful to implement things like STM or use mutable
+--   state.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runUntracedIO $ readFromFile file
+-- >   logDebugT "content id" $ extractContentId content
+-- >   pure content
+runUntracedIO :: IO a -> Flow a
+runUntracedIO ioAct = liftFC $ RunUntracedIO ioAct id
 
 -- | Gets stored a typed option by a typed key.
 --

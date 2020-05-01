@@ -203,9 +203,8 @@ to have race conditions anyway.
 The idea is to have IORef, MVar or TVar defined outside the flows and use it
 in flows to store data.
 
-You can't create any of these within the Flow monad
-because there is no such interface in the language, and the RunIO method
-can't return a created variable. Let's elaborate.
+It is preferable to create any of these outside of the Flow monad
+as the `runIO` method can't return a created variable. Let's elaborate.
 
 This code will work, but it's kinda useless because doesn't allow to expose
 the internal IORef state:
@@ -267,6 +266,43 @@ orderCreate' mVar ref = do
 
 MVar and STM is thread safe, IORef is not thread safe.
 Still, race coniditions are possible even with MVars and STM.
+
+***Untraced IO and STM***
+It is possible to run IO actions outside of the ART tracing system, however
+it should be used with extreme caution as this means the following:
+
+    1. no trace will be collected
+    2. replay is not possible; instead, untraced IO-actions are re-executed on playback
+
+Such functionality only really makes sense for mutation of in-memory data structures
+using `STM` -- in particular, the use of `atomically` and `newTVarIO`.
+
+For example:
+
+```haskell
+countStuff :: Flow Int
+  countVar <- runUntracedIO $ newTVarIO (0 :: Int)
+  forkFlow "counter1" $ runUntracedIO $ countTo100 countVar
+  forkFlow "counter2" $ runUntracedIO $ countTo100 countVar
+  count <- runUntracedIO $ atomically $ readTVar countVar
+  return count
+
+countTo100 :: TVar Int -> IO Int
+countTo100 countVar = do
+  count <- atomically $ updateCount countVar
+  if count < 100
+    then countTo100 countVar
+    else return count
+
+updateCount :: TVar Int -> STM Int
+updateCount countVar = do
+  count <- readTVar countVar
+  when (count < 100) (writeTVar countVar (count + 1))
+  readTVar countVar
+```
+
+***KV DB and SQL DB based state***
+
 
 ***KV DB and SQL DB based state***
 

@@ -59,6 +59,22 @@ withServer action = do
   finally action (killThread threadId)
 
 
+-- STM test helper
+updateCount :: TVar Int -> STM Int
+updateCount countVar = do
+  count <- readTVar countVar
+  when (count < 100) (writeTVar countVar (count + 1))
+  readTVar countVar
+
+-- STM test helper
+countTo100 :: TVar Int -> IO Int
+countTo100 countVar = do
+  count <- atomically $ updateCount countVar
+  if count < 100
+    then countTo100 countVar
+    else return count
+
+
 spec :: Spec
 spec = do
   around (withFlowRuntime Nothing) $ do
@@ -120,27 +136,43 @@ spec = do
           userEither <- runFlow rt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isLeft
 
-      it "RunIO" $ \rt -> do
-        result <- runFlow rt $ runIO (pure ("hi" :: String))
-        result `shouldBe` "hi"
+      describe "runIO tests" $ do
+        it "RunIO" $ \rt -> do
+          result <- runFlow rt $ runIO (pure ("hi" :: String))
+          result `shouldBe` "hi"
 
-      it "RunIO with exception" $ \rt -> do
-        result <- E.catch
-          (runFlow rt $ do
-            runIO ioActWithException
-            pure ("Never returned" :: Text))
-          (\e -> do let err = show (e :: E.AssertionFailed)
-                    pure err)
-        result `shouldBe` ("Exception from IO" :: Text)
+        it "RunIO with exception" $ \rt -> do
+          result <- E.catch
+            (runFlow rt $ do
+              runIO ioActWithException
+              pure ("Never returned" :: Text))
+            (\e -> do let err = show (e :: E.AssertionFailed)
+                      pure err)
+          result `shouldBe` ("Exception from IO" :: Text)
 
-      it "RunIO with catched exception" $ \rt -> do
-        result <-runFlow rt $ do
-            runIO $
-              E.catch
-                ioActWithException
-                (\e -> do let err = show (e :: E.AssertionFailed)
-                          pure err)
-        result `shouldBe` ("Exception from IO" :: Text)
+        it "RunIO with catched exception" $ \rt -> do
+          result <-runFlow rt $ do
+              runIO $
+                E.catch
+                  ioActWithException
+                  (\e -> do let err = show (e :: E.AssertionFailed)
+                            pure err)
+          result `shouldBe` ("Exception from IO" :: Text)
+
+        it "RunUntracedIO" $ \rt -> do
+          result <- runFlow rt $ runUntracedIO (pure ("hi" :: String))
+          result `shouldBe` "hi"
+
+      describe "STM tests" $ do
+        it "STM Test" $ \rt -> do
+          result <- runFlow rt $ do
+            countVar <- runUntracedIO $ newTVarIO (0 :: Int)
+            forkFlow "counter1" $ runUntracedIO $ countTo100 countVar
+            forkFlow "counter2" $ runUntracedIO $ countTo100 countVar
+            count <- runUntracedIO $ atomically $ readTVar countVar
+            return count
+
+          result `shouldBe` 100
 
       describe "Options" $ do
 

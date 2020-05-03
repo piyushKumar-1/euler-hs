@@ -19,6 +19,5 @@ mkDerivation {
  # prePatch = "hpack";
   description = "DB types for euler-backend";
   license = "OtherLicense";
-  doHaddock = false;
   isLibrary = true;
 }

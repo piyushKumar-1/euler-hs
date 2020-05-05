@@ -274,8 +274,10 @@ it should be used with extreme caution as this means the following:
     1. no trace will be collected
     2. replay is not possible; instead, untraced IO-actions are re-executed on playback
 
-Such functionality only really makes sense for mutation of in-memory data structures
-using `STM` -- in particular, the use of `atomically` and `newTVarIO`.
+Such functionality only really makes sense for two scenarios:
+
+    1. mutation of in-memory data structures using `STM` -- in particular, the use of `atomically` and `newTVarIO`.
+    2. reading of sensitive data, such as API keys
 
 For example:
 
@@ -300,6 +302,22 @@ updateCount countVar = do
   when (count < 100) (writeTVar countVar (count + 1))
   readTVar countVar
 ```
+
+Although such `TVar`s can be allocated outside of `Flow`, this may make
+use of local and composable abstractions difficult.
+
+***Untraced IO and Sensitive Data***
+Another good use case is reading sensitive data which should not be collected
+by the ART system, such as e.g. API keys stored in a config inside of an `IORef`.
+
+Arguably the best way to deal with this is as follows:
+
+    1. store sensitive data as separate configuration state, for example in an `IORef`
+    2. read and write to this `IORef` using `runUntracedIO`
+    3. use `runIO` for any non-sensitive data
+
+This way the ART traces will never collect sensitive data, and replay/mocking of ART
+traces will still work in different execution environments with e.g. test API keys.
 
 ***KV DB and SQL DB based state***
 

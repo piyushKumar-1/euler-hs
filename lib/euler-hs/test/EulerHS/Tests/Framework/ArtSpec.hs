@@ -39,7 +39,7 @@ spec = do
       case _runMode flowRuntime of
         T.RecordingMode T.RecorderRuntime{recording} -> do
           T.ResultRecording{..} <- awaitRecording recording
-          V.length recording        `shouldBe` 9
+          V.length recording        `shouldBe` 10
           Map.size forkedRecordings `shouldBe` 2
           result                    `shouldBe` "hello\n"
         _ -> fail "wrong mode"

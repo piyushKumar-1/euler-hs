@@ -101,9 +101,12 @@ interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
 interpretFlowMethod R.FlowRuntime {..} (L.RunIO descr ioAct next) =
   next <$> P.withRunMode _runMode (P.mkRunIOEntry descr) ioAct
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunUntracedIO ioAct next) =
-  -- Replay is not possible for untraced IO calls, rerun the IO action
-  next <$> ioAct
+interpretFlowMethod R.FlowRuntime {..} (L.RunUntracedIO descr ioAct next) =
+  case _runMode of
+    (T.RecordingMode recorderRt) ->
+      next <$> P.record recorderRt (P.mkRunUntracedIOEntry descr) ioAct
+    _ ->
+      next <$> ioAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do

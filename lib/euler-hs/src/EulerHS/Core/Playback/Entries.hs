@@ -181,6 +181,22 @@ instance T.JSONEx a => MockedResult RunIOEntry a where
 
 -- ----------------------------------------------------------------------
 
+data RunUntracedIOEntry = RunUntracedIOEntry
+  { description :: Text
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkRunUntracedIOEntry :: Text -> a -> RunUntracedIOEntry
+mkRunUntracedIOEntry descr _ = RunUntracedIOEntry descr
+
+instance RRItem RunUntracedIOEntry where
+  getTag _ = "RunUntracedIOEntry"
+
+-- Not possible to mock these values, you have to re-run the IO action
+-- instance MockedResult RunUntracedIOEntry () where
+--   getMock (RunUntracedIOEntry _) = Just ()
+
+------------------------------------------------------------------------
+
 data InitSqlDBConnectionEntry beM = InitSqlDBConnectionEntry
   { dBConfig :: T.DBConfig beM
   , initConnResult :: Either T.DBError ()

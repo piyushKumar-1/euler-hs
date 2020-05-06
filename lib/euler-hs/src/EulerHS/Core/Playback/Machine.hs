@@ -3,6 +3,8 @@
 module EulerHS.Core.Playback.Machine
   (
     -- * Playback Machine
+    -- needed for `runUntracedIO`
+    record,
     withRunMode
   ) where
 

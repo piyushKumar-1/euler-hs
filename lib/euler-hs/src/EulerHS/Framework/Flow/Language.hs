@@ -86,7 +86,8 @@ data FlowMethod next where
     -> FlowMethod next
 
   RunUntracedIO
-    :: IO a
+    :: Text
+    -> IO a
     -> (a -> next)
     -> FlowMethod next
 
@@ -215,7 +216,7 @@ instance Functor FlowMethod where
 
   fmap f (RunIO descr ioAct next)             = RunIO descr ioAct (f . next)
 
-  fmap f (RunUntracedIO ioAct next)           = RunUntracedIO ioAct (f . next)
+  fmap f (RunUntracedIO descr ioAct next)     = RunUntracedIO descr ioAct (f . next)
 
   fmap f (GetOption k next)                   = GetOption k (f . next)
 
@@ -388,7 +389,19 @@ runIO' descr ioAct = liftFC $ RunIO descr ioAct id
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
 runUntracedIO :: IO a -> Flow a
-runUntracedIO ioAct = liftFC $ RunUntracedIO ioAct id
+runUntracedIO = runUntracedIO' ""
+
+-- | The same as runUntracedIO, but accepts a description which will be written into
+-- the ART recordings for better clarity.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runUntracedIO' "reading secret data" $ readFromFile secret_file
+-- >   logDebugT "content id" $ extractContentId content
+-- >   pure content
+runUntracedIO' :: Text -> IO a -> Flow a
+runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
 
 -- | Gets stored a typed option by a typed key.
 --

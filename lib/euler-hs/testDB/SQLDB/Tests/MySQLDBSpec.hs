@@ -74,6 +74,21 @@ spec = do
                 "ConnectionError {errFunction = \"query\", errNumber = 1062, errMessage = \"Duplicate entry '2' for key 'PRIMARY'\"}"
             )
 
+        it "Txn should be rollbacked in the case of DB error (Eva)" $ \rt -> do
+          _ <- runFlow rt $ uniqueConstraintViolationEveDbScript dbCfg
+          eRes <- runFlow rt $ selectAbsentRowEveDbScript dbCfg
+          eRes `shouldBe` (Right Nothing)
+
+        it "Only last Txn should be rollbacked in the case of DB error (Mickey)" $ \rt -> do
+          _ <- runFlow rt $ uniqueConstraintViolationMickeyDbScript dbCfg
+          eRes <- runFlow rt $ selectAbsentRowMickeyDbScript dbCfg
+          eRes `shouldSatisfy` (someUser "Mickey" "Mouse")
+
+        it "Txn should be rollbacked on exception (Billy)" $ \rt -> do
+          _ <- runFlow rt $ throwExceptionFlowScript dbCfg
+          eRes <- runFlow rt $ selectAbsentRowBillyDbScript dbCfg
+          eRes `shouldBe` (Right Nothing)
+
         it "Select one, row not found" $ \rt -> do
           eRes <- runFlow rt $ selectUnknownDbScript dbCfg
           eRes `shouldBe` (Right Nothing)

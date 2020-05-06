@@ -18,15 +18,69 @@ uniqueConstraintViolationDbScript dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn -> do
-      L.runDB conn
-        $ L.insertRows
-        $ B.insert (_users eulerDb)
-        $ B.insertValues [User 2 "Eve" "Beon"]
+      L.runDB conn $
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 2 "Rosa" "Rosa"]
 
-      L.runDB conn
-        $ L.insertRows
-        $ B.insert (_users eulerDb)
-        $ B.insertValues [User 2 "Eve" "Beon"]
+      L.runDB conn $
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 2 "Rosa" "Rosa"]
+
+
+uniqueConstraintViolationEveDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
+uniqueConstraintViolationEveDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
+      L.runDB conn $ do
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 3 "Eve" "Beon"]
+
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 3 "Eve" "Beon"]
+
+uniqueConstraintViolationMickeyDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
+uniqueConstraintViolationMickeyDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
+      L.runDB conn $
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 4 "Mickey" "Mouse"]
+
+      L.runDB conn $
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 4 "Mickey" "Mouse"]
+
+
+data MyException = ThisException | ThatException
+    deriving Show
+
+instance Exception MyException
+
+throwExceptionFlowScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult ())
+throwExceptionFlowScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
+      L.runDB conn $ do
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 6 "Billy" "Evil"]
+
+        -- Could we emulate exceptin here?
+        --fail "Bang!"
+
+
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 7 "Billy" "Bang"]
 
 
 selectUnknownDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
@@ -36,6 +90,45 @@ selectUnknownDbScript dbcfg = do
     flip (either $ error "Unable to get connection") econn $ \conn ->
       L.runDB conn $ do
         let predicate User {..} = _userFirstName ==. "Unknown"
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (_users eulerDb)
+
+selectAbsentRowEveDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
+selectAbsentRowEveDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn ->
+      L.runDB conn $ do
+        let predicate User {..} = _userId ==. 2
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (_users eulerDb)
+
+selectAbsentRowMickeyDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
+selectAbsentRowMickeyDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn ->
+      L.runDB conn $ do
+        let predicate User {..} = _userId ==. 4
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (_users eulerDb)
+
+selectAbsentRowBillyDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
+selectAbsentRowBillyDbScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn ->
+      L.runDB conn $ do
+        let predicate User {..} = _userId ==. 6
         L.findRow
           $ B.select
           $ B.limit_ 1

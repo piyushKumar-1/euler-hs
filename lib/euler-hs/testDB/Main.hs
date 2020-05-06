@@ -17,5 +17,5 @@ main = hspec $ do
   Ex.spec
   -- PGDB.spec
   -- PGDBP.spec
-  -- MySQL.spec
+  MySQL.spec
   -- MySQLP.spec

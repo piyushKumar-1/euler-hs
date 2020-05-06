@@ -59,22 +59,6 @@ withServer action = do
   finally action (killThread threadId)
 
 
--- STM test helper
-updateCount :: TVar Int -> STM Int
-updateCount countVar = do
-  count <- readTVar countVar
-  when (count < 100) (writeTVar countVar (count + 1))
-  readTVar countVar
-
--- STM test helper
-countTo100 :: TVar Int -> IO Int
-countTo100 countVar = do
-  count <- atomically $ updateCount countVar
-  if count < 100
-    then countTo100 countVar
-    else return count
-
-
 spec :: Spec
 spec = do
   around (withFlowRuntime Nothing) $ do
@@ -167,8 +151,22 @@ spec = do
         it "STM Test" $ \rt -> do
           result <- runFlow rt $ do
             countVar <- runUntracedIO $ newTVarIO (0 :: Int)
-            forkFlow "counter1" $ runUntracedIO $ countTo100 countVar
-            forkFlow "counter2" $ runUntracedIO $ countTo100 countVar
+
+            let
+              updateCount = do
+                count <- readTVar countVar
+                when (count < 100) (writeTVar countVar (count + 1))
+                readTVar countVar
+
+            let 
+              countTo100 = do
+                count <- atomically $ updateCount
+                if count < 100
+                  then countTo100
+                  else return count
+
+            forkFlow "counter1" $ runUntracedIO countTo100
+            forkFlow "counter2" $ runUntracedIO countTo100
             count <- runUntracedIO $ atomically $ readTVar countVar
             return count
 

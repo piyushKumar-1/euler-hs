@@ -12,6 +12,8 @@ import           Network.Wai.Handler.Warp
 import           Servant.Client
 import           Servant.Server
 import           Test.Hspec
+import qualified Data.UUID as UUID (toText)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
@@ -122,6 +124,17 @@ spec = do
         L.runIO $ pure bs
       res `shouldBe` bs
 
+    it "RunUntracedIO" $ do
+      res <- runFlowWithArt $ do
+        L.runUntracedIO $ pure ()
+      res `shouldBe` ()
+
+    -- run an example with non-deterministic outputs
+    it "RunUntracedIO with UUID" $ do
+      runFlowWithArt $ do
+        L.runUntracedIO (UUID.toText <$> UUID.nextRandom)
+        pure ()
+
     it "RunSysCmd" $ do
       let value = "hello"
       res <- runFlowWithArt $ do
@@ -221,6 +234,8 @@ mainScript :: Flow String
 mainScript = do
   guid1 <- generateGUID
   guid2 <- generateGUID
+  -- This should re-execute each time and not break replay
+  runUntracedIO (UUID.toText <$> UUID.nextRandom)
   forkFlow guid1 forkScript
   forkFlow guid2 forkScript
   runSysCmd "echo hello"

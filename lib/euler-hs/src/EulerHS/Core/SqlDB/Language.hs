@@ -45,7 +45,7 @@ sqlDBMethod
   -> SqlDB beM a
 sqlDBMethod act = liftFC $ SqlDBMethod (flip T.getBeamDebugRunner act) id
 
--- For testing perposes
+-- For testing purposes
 sqlThrowException :: forall a e beM be . (Exception e, T.BeamRunner beM, T.BeamRuntime be beM) => e -> SqlDB beM a
 sqlThrowException ex = liftFC $ SqlThrowException ex id
 

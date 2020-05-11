@@ -37,7 +37,7 @@ uniqueConstraintViolationEveDbScript dbcfg = do
       L.runDB conn $ do
         L.insertRows
           $ B.insert (_users eulerDb)
-          $ B.insertValues [User 3 "Eve" "Beon"]
+          $ B.insertValues [User 2 "Eve" "Beon"]
 
         L.insertRows
           $ B.insert (_users eulerDb)
@@ -74,14 +74,30 @@ throwExceptionFlowScript dbcfg = do
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 6 "Billy" "Evil"]
 
-        -- Could we emulate exceptin here?
-        --fail "Bang!"
-
+        L.sqlThrowException ThisException
 
         L.insertRows
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 7 "Billy" "Bang"]
 
+
+insertAndSelectWithinOneConnectionScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
+insertAndSelectWithinOneConnectionScript dbcfg = do
+    econn <- L.getSqlDBConnection dbcfg
+
+    flip (either $ error "Unable to get connection") econn $ \conn -> do
+      L.runDB conn $ do
+        L.insertRows
+          $ B.insert (_users eulerDb)
+          $ B.insertValues [User 4 "Milky" "Way"]
+
+        let predicate User {..} = _userId ==. 4
+
+        L.findRow
+          $ B.select
+          $ B.limit_ 1
+          $ B.filter_ predicate
+          $ B.all_ (_users eulerDb)
 
 selectUnknownDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
 selectUnknownDbScript dbcfg = do
@@ -96,39 +112,13 @@ selectUnknownDbScript dbcfg = do
           $ B.filter_ predicate
           $ B.all_ (_users eulerDb)
 
-selectAbsentRowEveDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
-selectAbsentRowEveDbScript dbcfg = do
+selectRowDbScript :: Int -> T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
+selectRowDbScript userId dbcfg = do
     econn <- L.getSqlDBConnection dbcfg
 
     flip (either $ error "Unable to get connection") econn $ \conn ->
       L.runDB conn $ do
-        let predicate User {..} = _userId ==. 2
-        L.findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (_users eulerDb)
-
-selectAbsentRowMickeyDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
-selectAbsentRowMickeyDbScript dbcfg = do
-    econn <- L.getSqlDBConnection dbcfg
-
-    flip (either $ error "Unable to get connection") econn $ \conn ->
-      L.runDB conn $ do
-        let predicate User {..} = _userId ==. 4
-        L.findRow
-          $ B.select
-          $ B.limit_ 1
-          $ B.filter_ predicate
-          $ B.all_ (_users eulerDb)
-
-selectAbsentRowBillyDbScript :: T.DBConfig BM.MySQLM -> L.Flow (T.DBResult (Maybe User))
-selectAbsentRowBillyDbScript dbcfg = do
-    econn <- L.getSqlDBConnection dbcfg
-
-    flip (either $ error "Unable to get connection") econn $ \conn ->
-      L.runDB conn $ do
-        let predicate User {..} = _userId ==. 6
+        let predicate User {..} = _userId ==. (B.val_ userId)
         L.findRow
           $ B.select
           $ B.limit_ 1

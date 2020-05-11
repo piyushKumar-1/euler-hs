@@ -146,16 +146,13 @@ instance BeamRunner BM.MySQLM where
     \logger -> BM.runBeamMySQLDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
 
-withTransaction :: SqlConn beM -> (NativeSqlConn -> IO a) -> IO (DBResult a)
+withTransaction :: SqlConn beM -> (NativeSqlConn -> IO a) -> IO (Either SomeException a)
 withTransaction p actF =
   withNativeConnection p $ \nativeConn -> do
-    eRes <- try @_ @SomeException $ bracketOnError (begin nativeConn) (const (rollback nativeConn)) $ const $ do
+    try @_ @SomeException $ bracketOnError (begin nativeConn) (const (rollback nativeConn)) $ const $ do
       res <- actF nativeConn
       commit nativeConn
       return res
-    case eRes of
-      Left e    -> pure $ Left $ DBError TransactionRollbacked $ show e
-      Right res -> pure $ Right res
   where
     withNativeConnection (PostgresPool _ pool) f = DP.withResource pool $ \conn -> f (NativePGConn conn)
     withNativeConnection (MySQLPool _ pool)    f = DP.withResource pool $ \conn -> f (NativeMySQLConn conn)

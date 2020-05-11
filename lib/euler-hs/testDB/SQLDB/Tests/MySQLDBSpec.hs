@@ -74,20 +74,29 @@ spec = do
                 "ConnectionError {errFunction = \"query\", errNumber = 1062, errMessage = \"Duplicate entry '2' for key 'PRIMARY'\"}"
             )
 
-        it "Txn should be rollbacked in the case of DB error (Eva)" $ \rt -> do
+        it "Txn should be commited in both cases in one connection (Eva)" $ \rt -> do
           _ <- runFlow rt $ uniqueConstraintViolationEveDbScript dbCfg
-          eRes <- runFlow rt $ selectAbsentRowEveDbScript dbCfg
-          eRes `shouldBe` (Right Nothing)
+          eRes2 <- runFlow rt $ selectRowDbScript 2 dbCfg
+          eRes3 <- runFlow rt $ selectRowDbScript 3 dbCfg
+          (eRes2, eRes3) `shouldBe`
+            ( Right (Just (User {_userId = 2, _userFirstName = "Eve", _userLastName = "Beon"}))
+            , Right (Just (User {_userId = 3, _userFirstName = "Eve", _userLastName = "Beon"}))
+            )
 
-        it "Only last Txn should be rollbacked in the case of DB error (Mickey)" $ \rt -> do
+        it "First insert success, last insert resolved on DB side (Mickey)" $ \rt -> do
           _ <- runFlow rt $ uniqueConstraintViolationMickeyDbScript dbCfg
-          eRes <- runFlow rt $ selectAbsentRowMickeyDbScript dbCfg
+          eRes <- runFlow rt $ selectRowDbScript 4 dbCfg
           eRes `shouldSatisfy` (someUser "Mickey" "Mouse")
 
-        it "Txn should be rollbacked on exception (Billy)" $ \rt -> do
+        it "Txn should be completely rollbacked on exception (Billy)" $ \rt -> do
           _ <- runFlow rt $ throwExceptionFlowScript dbCfg
-          eRes <- runFlow rt $ selectAbsentRowBillyDbScript dbCfg
-          eRes `shouldBe` (Right Nothing)
+          eRes6 <- runFlow rt $ selectRowDbScript 6 dbCfg
+          eRes7 <- runFlow rt $ selectRowDbScript 7 dbCfg
+          (eRes6, eRes7) `shouldBe` (Right Nothing, Right Nothing)
+
+        it "Insert and Select in one db connection (Milky way)" $ \rt -> do
+          eRes <- runFlow rt $ insertAndSelectWithinOneConnectionScript dbCfg
+          eRes `shouldSatisfy` (someUser "Milky" "Way")
 
         it "Select one, row not found" $ \rt -> do
           eRes <- runFlow rt $ selectUnknownDbScript dbCfg

@@ -10,6 +10,7 @@ module EulerHS.Core.SqlDB.Language
     SqlDB
   , SqlDBMethodF(..)
   -- ** Methods
+  , sqlThrowException -- for tests
   , findRow
   , findRows
   , insertRows
@@ -26,19 +27,27 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
 
 
+type SqlDB beM = F (SqlDBMethodF beM)
+
 data SqlDBMethodF beM next where
   SqlDBMethod :: (T.NativeSqlConn -> (String -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
 
+  SqlThrowException :: (Exception e)
+    => e -> (a -> next) -> SqlDBMethodF beM next
+
 instance Functor (SqlDBMethodF beM) where
   fmap f (SqlDBMethod runner next) = SqlDBMethod runner (f . next)
-
-type SqlDB beM = F (SqlDBMethodF beM)
+  fmap f (SqlThrowException message next) = SqlThrowException message (f . next)
 
 sqlDBMethod
   :: (T.BeamRunner beM, T.BeamRuntime be beM)
   => beM a
   -> SqlDB beM a
 sqlDBMethod act = liftFC $ SqlDBMethod (flip T.getBeamDebugRunner act) id
+
+-- For testing perposes
+sqlThrowException :: forall a e beM be . (Exception e, T.BeamRunner beM, T.BeamRuntime be beM) => e -> SqlDB beM a
+sqlThrowException ex = liftFC $ SqlThrowException ex id
 
 -- Convenience interface
 

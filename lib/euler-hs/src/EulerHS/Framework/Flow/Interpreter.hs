@@ -409,13 +409,10 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod next) = do
     fmap (next . fst)  $ P.withRunMode runMode P.mkRunDBEntry $ case conn of
       (T.MockedPool _) -> error "Mocked Pool not implemented"
       _ -> do
-        eRes <-  R.withTransaction conn $ \nativeConn ->
-              fmap (first wrapException)
-              $ try @_ @SomeException
-              $ R.runSqlDB nativeConn dbgLogAction sqlDbMethod
-        let res = join eRes
+        eRes <-  fmap (first wrapException) $ R.withTransaction conn $ \nativeConn ->
+              R.runSqlDB nativeConn dbgLogAction sqlDbMethod
         rawSql <- DL.toList <$> readTVarIO rawSqlTVar
-        pure (res, rawSql)
+        pure (eRes, rawSql)
   where
       wrapException :: SomeException -> T.DBError
       wrapException e = fromMaybe (T.DBError T.UnrecognizedError $ show e) $

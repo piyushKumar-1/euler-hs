@@ -8,7 +8,6 @@ pipeline {
       steps {
         sh 'nix-build -A euler-hs --option sandbox false'
         sh 'nix-build -A web-service --option sandbox false'
-        sh 'nix-build -A euler-backend --option sandbox false'
       }
 
       options {

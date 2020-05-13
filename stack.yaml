@@ -3,7 +3,6 @@ resolver: lts-14.4
 packages:
 - lib/euler-hs
 - lib/web-service
-- app/euler-backend
 
 extra-deps:
 

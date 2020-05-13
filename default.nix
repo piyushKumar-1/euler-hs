@@ -49,8 +49,6 @@ let
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };
           web-service =
             self.callCabal2nix "web-service" ./lib/web-service { };
-          euler-backend =
-            self.callCabal2nix "euler-backend" ./app/euler-backend { };
         };
       };
     };
@@ -61,5 +59,4 @@ in {
   pkgs = pkgs;
   euler-hs = pkgs.haskellPackages.euler-hs;
   web-service = pkgs.haskellPackages.web-service;
-  euler-backend = pkgs.haskellPackages.euler-backend;
 }

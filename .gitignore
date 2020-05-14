@@ -43,3 +43,5 @@ tags
 
 .vscode/
 .nvimrc
+
+init/id_rsa

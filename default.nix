@@ -42,9 +42,7 @@ let
             self.callPackage ./nix/hedis.nix { };
           crc16 =
             self.callPackage ./nix/crc16.nix { };
-          euler-backend-storage =
-            self.callPackage ./nix/euler-backend-storage.nix { };
-          # Our own packages
+
           euler-hs =
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };
           web-service =

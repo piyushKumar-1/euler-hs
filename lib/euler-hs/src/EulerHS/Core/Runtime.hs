@@ -13,17 +13,16 @@ module EulerHS.Core.Runtime
 
 import           EulerHS.Prelude
 
-import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
-import           EulerHS.Core.Types (LoggerConfig (..), LogLevel(..))
-import           EulerHS.Core.Types.DB as X (withTransaction)
+import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
+import           EulerHS.Core.Types                            (LogLevel (..), LoggerConfig (..))
+import           EulerHS.Core.Types.DB                         as X (withTransaction)
 
-data LoggerRuntime
-  = LoggerRuntime !LogLevel Impl.LoggerHandle
-  | MemoryLoggerRuntime !LogLevel !(MVar [Text])
+data LoggerRuntime = LoggerRuntime !LogLevel Impl.LoggerHandle
+    | MemoryLoggerRuntime !LogLevel !(MVar [Text])
 
 data CoreRuntime = CoreRuntime
-  { _loggerRuntime :: LoggerRuntime
-  }
+    { _loggerRuntime :: LoggerRuntime
+    }
 
 createLoggerRuntime :: LoggerConfig -> IO LoggerRuntime
 createLoggerRuntime (MemoryLoggerConfig cfgLogLevel) = MemoryLoggerRuntime cfgLogLevel <$> newMVar []
@@ -34,7 +33,7 @@ createVoidLoggerRuntime = LoggerRuntime Debug <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime _ handle) = Impl.disposeLogger handle
-clearLoggerRuntime _ = pure ()
+clearLoggerRuntime _                        = pure ()
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
 createCoreRuntime = pure . CoreRuntime

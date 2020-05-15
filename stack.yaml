@@ -3,7 +3,6 @@ resolver: lts-14.4
 packages:
 - lib/euler-hs
 - lib/web-service
-- app/euler-backend
 
 extra-deps:
 
@@ -20,11 +19,6 @@ extra-deps:
 - amazonka-1.6.1@sha256:d863557379350ed6bbb91187abeb8c349a654f60b140d138710486f58ae7c476,3536
 - amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698,5135
 - amazonka-kms-1.6.1@sha256:5462f18f64f2a4cc9d0f4e21d01ce1767b822b066158093b15e7063ff94b19ce,4307
-
-- git:  git@bitbucket.org:juspay/euler-db.git
-  commit: 8be8da36c76b73db7ccd3d18b5cc65655b77405e
-  subdirs:
-    - lib/euler-backend-storage
 
 # MySQL
 # MacOS:

@@ -30,7 +30,6 @@ client/
 credit-platform.cabal
 euler-hs.cabal
 web-service.cabal
-euler-backend.cabal
 
 .ghci
 .ghcid
@@ -44,3 +43,5 @@ tags
 
 .vscode/
 .nvimrc
+
+init/id_rsa

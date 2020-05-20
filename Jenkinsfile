@@ -7,7 +7,6 @@ pipeline {
     stage('Build and Test') {
       steps {
         sh 'nix-build -A euler-hs --option sandbox false'
-        sh 'nix-build -A web-service --option sandbox false'
       }
 
       options {

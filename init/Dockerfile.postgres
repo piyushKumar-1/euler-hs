@@ -1,2 +1,0 @@
-FROM postgres:12
-COPY psqldump.sql /docker-entrypoint-initdb.d/

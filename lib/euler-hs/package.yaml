@@ -114,6 +114,7 @@ library:
   - EulerHS.Prelude
   - EulerHS.Types
   - EulerHS.Runtime
+  - EulerHS.Extra.AltValidation
   - EulerHS.Extra.Validation
   - EulerHS.Extra.Test
   ghc-options:

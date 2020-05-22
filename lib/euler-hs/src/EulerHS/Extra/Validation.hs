@@ -42,7 +42,7 @@ type V a = Validation [Text] a
 
 --- | This class represents transformation abilities between types.
 class Transform a b where
-  transform :: a -> Validation [Text] b
+  transform :: a -> Validation Errors b
 
 type Transformer a b = a -> ReaderT Ctx (Either Errors) b
 

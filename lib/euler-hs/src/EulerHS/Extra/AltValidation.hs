@@ -6,16 +6,20 @@ module EulerHS.Extra.AltValidation
     -- * Extra Validation
     Transform(..)
   , mkValidator
+  , mkCustomValidator
+  , withCustomError
   , Transformer
   , Validator
   , V
   , Errors
+  , VErrorPayload(..)
   , module X
   , withField
   , runParser
   , extractJust
   , extractMaybeWithDefault
   , guarded
+  , guardedCustom
   , decode
   , insideJust
   , parValidate
@@ -24,6 +28,7 @@ module EulerHS.Extra.AltValidation
 import           EulerHS.Prelude hiding (or, pred)
 import qualified Prelude as P
 
+import           Data.Either.Extra (mapLeft)
 import           Data.Data hiding (typeRep)
 import           Data.Generics.Product.Fields
 import qualified Data.Text as T
@@ -75,6 +80,11 @@ mkValidator :: Text -> (t -> Bool) -> Validator t
 mkValidator msg pred v = ReaderT (\ctx -> if not $ pred v
   then Left [validationError { error_message =  Just msg, error_field = Just ctx }]
   else pure v)
+
+-- | Make a validator using a particular error message, original
+-- errors are ignored
+withCustomError :: VErrorPayload -> Validator a -> Validator a
+withCustomError err v a = ReaderT (\ctx -> mapLeft (\_ -> [err]) $ runReaderT (v a) ctx)
 
 -- | Takes error message and predicate and returns validation function
 -- using custom error

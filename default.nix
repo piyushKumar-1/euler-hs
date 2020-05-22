@@ -45,8 +45,6 @@ let
 
           euler-hs =
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };
-          web-service =
-            self.callCabal2nix "web-service" ./lib/web-service { };
         };
       };
     };
@@ -55,6 +53,5 @@ let
     import nixpkgs { inherit config; };
 in {
   pkgs = pkgs;
-  euler-hs = pkgs.haskellPackages.euler-hs;
-  web-service = pkgs.haskellPackages.web-service;
+  euler-hs = with pkgs; haskell.lib.disableLibraryProfiling haskellPackages.euler-hs;
 }

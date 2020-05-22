@@ -2,7 +2,6 @@ resolver: lts-14.4
 
 packages:
 - lib/euler-hs
-- lib/web-service
 
 extra-deps:
 

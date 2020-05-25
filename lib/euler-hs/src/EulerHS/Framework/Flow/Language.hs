@@ -37,6 +37,7 @@ module EulerHS.Framework.Flow.Language
   , callServantAPI
   , callAPI
   , callAPI'
+  , callHttpAPI
   , runIO
   , runIO'
   , runUntracedIO
@@ -57,6 +58,8 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import qualified Data.ByteString.Lazy as ByteString
+import qualified Network.HTTP.Client  as HTTP
 import           Servant.Client (ClientError, BaseUrl)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
@@ -70,6 +73,12 @@ data FlowMethod next where
     => Maybe T.ManagerSelector
     -> BaseUrl
     -> T.EulerClient a
+    -> (Either ClientError a -> next)
+    -> FlowMethod next
+
+  CallHttpAPI
+    :: T.JSONEx a
+    => Text
     -> (Either ClientError a -> next)
     -> FlowMethod next
 
@@ -200,6 +209,8 @@ data FlowMethod next where
 instance Functor FlowMethod where
   fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
 
+  fmap f (CallHttpAPI url next)               = CallHttpAPI url (f . next)
+
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
 
   fmap f (GenerateGUID next)                  = GenerateGUID (f . next)
@@ -284,6 +295,23 @@ callServantAPI
   -> T.EulerClient a             -- ^ servant client 'EulerClient'
   -> Flow (Either ClientError a) -- ^ result
 callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
+
+
+-- | Method for calling external HTTP APIs without bothering with types.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHttpAPI url
+
+callHttpAPI
+  :: T.JSONEx a
+  => T.Request                             -- ^ remote url 'Text'
+  -> Flow (Either ClientError T.Response)  -- ^ result
+callHttpAPI url = liftFC $ CallHttpAPI url id
+
 
 -- | Method for calling external HTTP APIs using the facilities of servant-client.
 -- Allows to specify what manager should be used. If no manager found,

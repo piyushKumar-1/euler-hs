@@ -12,4 +12,5 @@ import           EulerHS.Core.Types.MySQL        as X
 import           EulerHS.Core.Types.Playback     as X
 import           EulerHS.Core.Types.Postgres     as X
 import           EulerHS.Core.Types.Serializable as X
+import           EulerHS.Core.Types.HttpAPI      as X
 import           EulerHS.Core.Api                as X

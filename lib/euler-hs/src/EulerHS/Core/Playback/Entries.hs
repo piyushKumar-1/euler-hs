@@ -62,6 +62,26 @@ instance RRItem CallServantAPIEntry where
 instance T.JSONEx a => MockedResult CallServantAPIEntry (Either S.ClientError a) where
     getMock CallServantAPIEntry {jsonResult} = T.jsonDecode jsonResult
 
+----------------------------------------------------------------------
+
+data CallHttpAPIEntry = CallHttpAPIEntry
+  { request    :: T.Request
+  , jsonResult :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkCallHttpAPIEntry
+  :: T.JSONEx a
+  => T.Request
+  -> Either S.ClientError a
+  -> CallHttpAPIEntry
+mkCallHttpAPIEntry request = CallHttpAPIEntry request . T.jsonEncode
+
+instance RRItem CallHttpAPIEntry where
+  getTag _ = "CallHttpAPIEntry"
+
+instance T.JSONEx a => MockedResult CallHttpAPIEntry (Either S.ClientError a) where
+    getMock CallHttpAPIEntry {jsonResult} = T.jsonDecode jsonResult
+
 -- ----------------------------------------------------------------------
 
 data SetOptionEntry = SetOptionEntry

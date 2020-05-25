@@ -17,6 +17,7 @@ import qualified Data.UUID                       as UUID (toText)
 import qualified Data.UUID.V4                    as UUID (nextRandom)
 import           EulerHS.Prelude
 import qualified Servant.Client                  as S
+import qualified Network.HTTP.Client             as HTTP
 import           System.Process                  (readCreateProcess, shell)
 
 import qualified Data.Pool                       as DP
@@ -92,6 +93,21 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
+              . show
+
+interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHttpAPI request next) =
+    fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry url) $ do
+      let manager = _defaultHttpClientManager
+      -- request <- HTTP.parseRequest (Text.unpack url)
+      response <- try $ HTTP.httpLbs request manager
+      case response of
+        Left err -> do
+          dbgLogger url
+          pure $ Left $ S.ConnectionError $ toException err
+        Right response -> pure $ Right response
+  where
+    dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+              . L.logMessage' T.Debug ("CallHttpAPI failure" :: String)
               . show
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =

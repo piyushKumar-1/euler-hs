@@ -8,8 +8,11 @@ module EulerHS.Extra.Language
   , rHset
   , rIncr
   , rSet
+  , rSetT
   , rGet
+  , rGetT
   , rSetex
+  , rSetexT
   ) where
 
 import           EulerHS.Prelude hiding (id, get)
@@ -19,8 +22,9 @@ import qualified EulerHS.Core.Types          as T
 import qualified EulerHS.Framework.Language  as L
 import qualified EulerHS.Core.KVDB.Language  as L
 
-import qualified Data.Aeson           as A
-import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Aeson                  as A
+import qualified Data.ByteString.Lazy        as BSL
+import qualified Data.Text.Encoding          as TE
 
 -- | Get existing SQL connection, or init a new connection.
 getOrInitSqlConn :: T.DBConfig beM -> L.Flow (T.DBResult (T.SqlConn beM))
@@ -114,6 +118,17 @@ rIncr cName k = do
       L.logError @Text "Redis incr" $ show err
       pure res
 
+rSetT :: (ToJSON v) => Text -> Text -> v -> L.Flow (Either T.KVDBReply T.KVDBStatus)
+rSetT cName k v = do
+  res <- L.runKVDB cName $ L.set (TE.encodeUtf8 k) (BSL.toStrict $ A.encode v)
+  case res of
+    Right r -> do
+      L.logInfo @Text "Redis set" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis set" $ show err
+      pure res
+
 rSet :: (ToJSON k, ToJSON v) => Text -> k -> v -> L.Flow (Either T.KVDBReply T.KVDBStatus)
 rSet cName k v = do
   res <- L.runKVDB cName $ L.set (BSL.toStrict $ A.encode k) (BSL.toStrict $ A.encode v)
@@ -124,6 +139,25 @@ rSet cName k v = do
     Left err -> do
       L.logError @Text "Redis set" $ show err
       pure res
+
+rGetT :: (FromJSON v, Show v) => Text -> Text -> L.Flow (Maybe v)
+rGetT cName k = do
+  mv <- L.runKVDB cName $ L.get (TE.encodeUtf8 k)
+  L.logDebug @Text "Raw value" $ show mv
+  case mv of
+    Right (Just val) -> do
+      let v = A.eitherDecode $ BSL.fromStrict val
+      case v of
+        Left err -> do
+          L.logInfo @Text "Decoding error: " $ show err
+          pure Nothing
+        Right v' -> do
+          L.logDebug @Text "Decoded value" $ show v'
+          pure $ Just v'
+    Right (Nothing) -> pure Nothing
+    Left err -> do
+      L.logError @Text "Redis get" $ show err
+      pure Nothing
 
 rGet :: (ToJSON k, FromJSON v) => Text -> k -> L.Flow (Maybe v)
 rGet cName k = do
@@ -139,6 +173,18 @@ rSetex :: (ToJSON k, ToJSON v, Integral t) => Text -> k -> v -> t -> L.Flow (Eit
 rSetex cName k v t = do
   res <- L.runKVDB cName $
     L.setex (BSL.toStrict $ A.encode k) (toInteger t) (BSL.toStrict $ A.encode v)
+  case res of
+    Right r -> do
+      L.logInfo @Text "Redis setex" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis setex" $ show err
+      pure res
+
+rSetexT :: (ToJSON v, Integral t) => Text -> Text -> v -> t -> L.Flow (Either T.KVDBReply T.KVDBStatus)
+rSetexT cName k v t = do
+  res <- L.runKVDB cName $
+    L.setex (TE.encodeUtf8 k) (toInteger t) (BSL.toStrict $ A.encode v)
   case res of
     Right r -> do
       L.logInfo @Text "Redis setex" $ show r

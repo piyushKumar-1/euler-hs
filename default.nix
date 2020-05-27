@@ -10,10 +10,11 @@ let
     sha256 = "0mhqhq21y5vrr1f30qd2bvydv4bbbslvyzclhw0kdxmkgg3z4c92";
   };
 
-  beam-mysql-repo = fetchGit {
-    url = "git@github.com:juspay/beam-mysql.git";
-    ref = "old-deps-patched-beam/no-tmp-table";
+  beam-mysql-repo = fetchFromGitHub {
+    owner = "juspay";
+    repo = "beam-mysql";
     rev = "3d03598b11be40929ee95984a83c3d9ed4be8536";
+    sha256 = "0jhziprq0knxsbakg4r45db5w9sh7xyxqaldc4l04qfms1v1s80k";
   };
 
   beam-mysql-path = beam-mysql-repo;

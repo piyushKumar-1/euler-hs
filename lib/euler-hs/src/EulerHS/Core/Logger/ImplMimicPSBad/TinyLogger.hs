@@ -124,8 +124,8 @@ createLogger :: D.LoggerConfig -> IO LoggerHandle
 createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = do
     -- This is a temporary hack for euler-api-order deployment
     envVars <- Map.fromList <$> getEnvironment
-    let hostname = maybe "hostname" id <$> Map.lookup "HOSTNAME" envVars
-    let env = maybe "env" id <$> Map.lookup "NODE_ENV" envVars
+    let hostname = maybe "hostname" id $ Map.lookup "HOSTNAME" envVars
+    let env = maybe "env" id $ Map.lookup "NODE_ENV" envVars
 
     let consoleSettings =
           (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $ Log.setOutput Log.StdOut Log.defSettings

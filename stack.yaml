@@ -9,8 +9,8 @@ extra-deps:
   commit: ce6de8f158e87414cf11bcba4e95d54a9c3185f3
 - crc16-0.1.0@sha256:da3e4b82e437a054159ecc497372c997f784d77babcee641a5f657f6a0a8eb80,624
 
-- git: https://github.com/graninas/beam-mysql
-  commit: 6794a25b24062678b0e61013f0e38494d4defcf0
+- git: https://github.com/juspay/beam-mysql
+  commit: 3d03598b11be40929ee95984a83c3d9ed4be8536
 
 - random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
 - cryptostore-0.2.0.0@sha256:9fcc48b25b7989b9697afb3899387620b3d75b5d995ee2111e7cc942a4c27601,3881

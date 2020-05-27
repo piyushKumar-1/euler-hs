@@ -9,6 +9,16 @@ let
     rev = "19.09";
     sha256 = "0mhqhq21y5vrr1f30qd2bvydv4bbbslvyzclhw0kdxmkgg3z4c92";
   };
+
+  beam-mysql-repo = fetchFromGitHub {
+    owner = "juspay";
+    repo = "beam-mysql";
+    rev = "3d03598b11be40929ee95984a83c3d9ed4be8536";
+    sha256 = "0jhziprq0knxsbakg4r45db5w9sh7xyxqaldc4l04qfms1v1s80k";
+  };
+
+  beam-mysql-path = beam-mysql-repo;
+
   config = {
     packageOverrides = pkgs: rec {
       haskellPackages = pkgs.haskellPackages.override {
@@ -34,14 +44,15 @@ let
             self.callPackage ./nix/xmlbf-xeno.nix { };
           beam-postgres =
             self.callPackage ./nix/beam-postgres.nix { };
-          beam-mysql =
-            self.callPackage ./nix/beam-mysql.nix { };
           cryptostore =
             self.callPackage ./nix/cryptostore.nix { };
           hedis =
             self.callPackage ./nix/hedis.nix { };
           crc16 =
             self.callPackage ./nix/crc16.nix { };
+
+          beam-mysql = pkgs.haskell.lib.disableLibraryProfiling
+            (self.callCabal2nix "beam-mysql" "${beam-mysql-path}" { });
 
           euler-hs =
             self.callCabal2nix "euler-hs" ./lib/euler-hs { };

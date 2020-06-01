@@ -26,8 +26,6 @@ dist-newstyle
 .stack-work
 client/
 
-credit-platform.cabal
-
 .ghci
 .ghcid
 

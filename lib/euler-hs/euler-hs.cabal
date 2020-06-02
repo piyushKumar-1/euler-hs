@@ -6,7 +6,7 @@ homepage:      https://bitbucket.org/juspay/euler-hs
 license:
 author:        Juspay Technologies Pvt Ltd
 maintainer:    koz.ross@juspay.in
-copyright:     (C) Juspay Technologies Pvt Ltd 2019-202
+copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
 category:      Euler
 build-type:    Simple
 tested-with:   GHC ==8.6.5

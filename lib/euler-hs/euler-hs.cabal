@@ -20,7 +20,7 @@ common common-lang
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints
 
-  build-depends:      base >=4.12 && <5
+  build-depends:      base >=4.13 && <5
   default-extensions:
     NoImplicitPrelude
     ConstraintKinds
@@ -119,7 +119,7 @@ library
     , fmt
     , free
     , generic-lens
-    , hedis                   ^>=0.12.8
+    , hedis                   ^>=0.12.8.1
     , http-client
     , http-client-tls
     , http-media

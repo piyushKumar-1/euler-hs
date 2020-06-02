@@ -59,7 +59,8 @@ module EulerHS.Framework.Flow.Language
 import           EulerHS.Prelude hiding (getOption)
 
 import qualified Data.ByteString.Lazy as ByteString
-import qualified Network.HTTP.Client  as HTTP
+import qualified Data.Text as Text
+import qualified Network.HTTP.Client as HTTP
 import           Servant.Client (ClientError, BaseUrl)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
@@ -77,9 +78,8 @@ data FlowMethod next where
     -> FlowMethod next
 
   CallHttpAPI
-    :: T.JSONEx a
-    => Text
-    -> (Either ClientError a -> next)
+    :: T.HTTPRequest
+    -> (Either Text T.HTTPResponse -> next)
     -> FlowMethod next
 
   EvalLogger
@@ -209,7 +209,7 @@ data FlowMethod next where
 instance Functor FlowMethod where
   fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
 
-  fmap f (CallHttpAPI url next)               = CallHttpAPI url (f . next)
+  fmap f (CallHttpAPI req next)               = CallHttpAPI req (f . next)
 
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
 
@@ -308,8 +308,8 @@ callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
 
 callHttpAPI
   :: T.JSONEx a
-  => T.Request                             -- ^ remote url 'Text'
-  -> Flow (Either ClientError T.Response)  -- ^ result
+  => T.HTTPRequest                           -- ^ remote url 'Text'
+  -> Flow (Either Text.Text T.HTTPResponse)  -- ^ result
 callHttpAPI url = liftFC $ CallHttpAPI url id
 
 

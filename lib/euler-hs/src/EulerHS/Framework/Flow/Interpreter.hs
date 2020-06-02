@@ -96,13 +96,13 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
               . show
 
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHttpAPI request next) =
-    fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry url) $ do
+    fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
       let manager = _defaultHttpClientManager
       -- request <- HTTP.parseRequest (Text.unpack url)
       response <- try $ HTTP.httpLbs request manager
       case response of
         Left err -> do
-          dbgLogger url
+          dbgLogger (T.getRequestURL request)
           pure $ Left $ S.ConnectionError $ toException err
         Right response -> pure $ Right response
   where

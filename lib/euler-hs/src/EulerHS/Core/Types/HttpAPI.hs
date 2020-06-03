@@ -7,7 +7,11 @@ module EulerHS.Core.Types.HttpAPI
       HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
-    , BinaryString(..)
+    , httpGet
+    , httpPut
+    , httpPost
+    , httpDelete
+    , httpHead
     ) where
 
 import EulerHS.Prelude
@@ -17,18 +21,20 @@ import qualified Data.Text            as Text
 import qualified Data.Text.Encoding   as Encoding
 import qualified Data.ByteString.Lazy as Lazy
 
+import qualified EulerHS.Core.Types.BinaryString as T
+
 data HTTPRequest
   = HTTPRequest
     { getRequestMethod  :: HTTPMethod
     , getRequestHeaders :: Map.Map HeaderName HeaderValue
-    , getRequestBody    :: Maybe BinaryString
+    , getRequestBody    :: Maybe T.LBinaryString
     , getRequestURL     :: Text.Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data HTTPResponse
   = HTTPResponse
-    { getResponseBody    :: BinaryString
+    { getResponseBody    :: T.LBinaryString
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Int
     }
@@ -44,18 +50,6 @@ data HTTPMethod
 
 type HeaderName = Text.Text
 type HeaderValue = Text.Text
-
-newtype BinaryString 
-  = BinaryString
-    { getBinaryString :: Lazy.ByteString }
-    deriving (Show, Eq, Ord)
-
-instance ToJSON BinaryString where
-  toJSON = toJSON . Encoding.decodeUtf8 . Lazy.toStrict . getBinaryString
-
-instance FromJSON BinaryString where
-  -- parseJSON = BinaryString . Encoding.encodeUtf8 . parseJSON
-  parseJSON = undefined
 
 --------------------------------------------------------------------------
 -- Convenience functions

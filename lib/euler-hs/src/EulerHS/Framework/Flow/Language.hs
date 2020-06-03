@@ -37,7 +37,7 @@ module EulerHS.Framework.Flow.Language
   , callServantAPI
   , callAPI
   , callAPI'
-  , callHttpAPI
+  , callHTTP
   , runIO
   , runIO'
   , runUntracedIO
@@ -78,7 +78,7 @@ data FlowMethod next where
     -> (Either ClientError a -> next)
     -> FlowMethod next
 
-  CallHttpAPI
+  CallHTTP
     :: T.HTTPRequest
     -> (Either Text T.HTTPResponse -> next)
     -> FlowMethod next
@@ -210,7 +210,7 @@ data FlowMethod next where
 instance Functor FlowMethod where
   fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
 
-  fmap f (CallHttpAPI req next)               = CallHttpAPI req (f . next)
+  fmap f (CallHTTP req next)               = CallHTTP req (f . next)
 
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
 
@@ -307,13 +307,12 @@ callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
 -- Takes remote url and returns either client error or result.
 --
 -- > myFlow = do
--- >   book <- callHttpAPI url
+-- >   book <- callHTTP url
 
-callHttpAPI
-  :: T.JSONEx a
-  => T.HTTPRequest                           -- ^ remote url 'Text'
+callHTTP
+  :: T.HTTPRequest                           -- ^ remote url 'Text'
   -> Flow (Either Text.Text T.HTTPResponse)  -- ^ result
-callHttpAPI url = liftFC $ CallHttpAPI url id
+callHTTP url = liftFC $ CallHTTP url id
 
 
 -- | Method for calling external HTTP APIs using the facilities of servant-client.

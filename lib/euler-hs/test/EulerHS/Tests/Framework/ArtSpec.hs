@@ -228,6 +228,16 @@ spec = do
           userEither <- runFlowWithArt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isRight
 
+    it "Untyped HTTP API Calls" $ do
+      let url = "https://google.com"
+      (statusCode, body) <- runFlowWithArt $ do
+        eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
+        response <- case eResponse of
+          Left err -> throwException err403 {errBody = "403"}
+          Right response -> pure response
+        return (getResponseStatus response, getResponseBody response)
+      statusCode `shouldBe` 200
+
 
 
 mainScript :: Flow String

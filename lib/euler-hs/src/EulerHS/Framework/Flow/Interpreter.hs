@@ -87,7 +87,7 @@ awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
 
 -- | Utility function to convert HttpApi HTTPRequests to http-client HTTP
 -- requests
-getHttpLibRequest :: T.HTTPRequest -> L.Flow HTTP.Request
+getHttpLibRequest :: MonadThrow m => T.HTTPRequest -> m HTTP.Request
 getHttpLibRequest request = do
   let url = Text.unpack $ T.getRequestURL request
   httpLibRequest <- HTTP.parseRequest url
@@ -101,8 +101,8 @@ getHttpLibRequest request = do
   let
     setBody = case T.getRequestBody request of
       Just body ->
-        let body' = T.getBinaryString body
-        in  \request -> request { HTTP.requestBody = HTTP.RequestBodyLBS body' }
+        let body' = T.getLBinaryString body
+        in  \req -> req { HTTP.requestBody = HTTP.RequestBodyLBS body' }
       Nothing   -> id
 
   -- TODO: Respect "Content-Transfer-Encoding" header
@@ -123,7 +123,7 @@ translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text T.HTTPResp
 translateHttpResponse response = do
   headers <- translateResponseHeaders $ HTTP.responseHeaders response
   pure $ T.HTTPResponse
-    { getResponseBody    = T.BinaryString $ HTTP.responseBody response
+    { getResponseBody    = T.LBinaryString $ HTTP.responseBody response
     , getResponseHeaders = headers
     , getResponseStatus  = HTTP.statusCode $ HTTP.responseStatus response
     }
@@ -131,12 +131,12 @@ translateHttpResponse response = do
 translateResponseHeaders
   :: [(CI.CI Strict.ByteString, Strict.ByteString)]
   -> Either Text (Map.Map Text.Text Text.Text)
-translateResponseHeaders headers = do
+translateResponseHeaders httpLibHeaders = do
   let
     result = do
-      headerNames <- mapM (Text.toLower . Encoding.decodeUtf8' . fst) headers
-      headerValues <- mapM (Encoding.decodeUtf8' . snd) headers
-      return (zip headerNames headerValues)
+      headerNames <- mapM  (Encoding.decodeUtf8' . CI.original . fst) httpLibHeaders
+      headerValues <- mapM (Encoding.decodeUtf8' . snd) httpLibHeaders
+      return $ zip (map Text.toLower headerNames) headerValues
 
   -- TODO: Look up encoding and use some thread-safe unicode package to decode
   --       headers
@@ -150,6 +150,8 @@ translateResponseHeaders headers = do
     Right headers ->
       Right $ Map.fromList headers
     
+-- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
+-- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
@@ -169,16 +171,17 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
               . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
               . show
 
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHttpAPI request next) =
+interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
       let manager = _defaultHttpClientManager
-      let httpLibRequest = getHttpLibRequest request
-      response <- try $ HTTP.httpLbs httpLibRequest manager
-      case response of
+      httpLibRequest <- getHttpLibRequest request
+      eResponse <- try $ HTTP.httpLbs httpLibRequest manager
+      case eResponse of
         Left (err :: IOException) -> do
           dbgLogger (T.getRequestURL request)
           pure $ Left $ Text.pack $ displayException err
-        Right response -> pure $ translateHttpResponse response
+        Right response ->
+          pure $ translateHttpResponse response
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallHttpAPI failure" :: String)

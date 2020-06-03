@@ -6,78 +6,123 @@
 packages:
 - completed:
     name: hedis
-    version: 0.12.8
-    git: https://github.com/juspay/hedis.git
+    version: 0.12.8.1
+    git: https://github.com/kozross/hedis
     pantry-tree:
-      size: 2571
-      sha256: 26be8561de07049a22a771597e3b141f4e46664321e5c13ad234467bc64b9d20
-    commit: ce6de8f158e87414cf11bcba4e95d54a9c3185f3
+      size: 2570
+      sha256: 11c0fb0068a34b685bbd0b5d8daa90bf7dbaaae84a6094fd04d9c6697bb1952e
+    commit: 8e152fdc7dc66bc47af23fe739daa9289163043a
   original:
-    git: https://github.com/juspay/hedis.git
-    commit: ce6de8f158e87414cf11bcba4e95d54a9c3185f3
-- completed:
-    hackage: crc16-0.1.0@sha256:da3e4b82e437a054159ecc497372c997f784d77babcee641a5f657f6a0a8eb80,624
-    pantry-tree:
-      size: 257
-      sha256: 2e913535bbaf1061779982787d54c7a8fa37f34ad680bb13aa76e0aa32040112
-  original:
-    hackage: crc16-0.1.0@sha256:da3e4b82e437a054159ecc497372c997f784d77babcee641a5f657f6a0a8eb80,624
+    git: https://github.com/kozross/hedis
+    commit: 8e152fdc7dc66bc47af23fe739daa9289163043a
 - completed:
     name: beam-mysql
-    version: 0.2.0.0
+    version: 0.3.1.1
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
-      size: 542
-      sha256: 2ec8c8ac068ed54bd8dcff219e9c247b657ce1c51186922afe56ef4fb8b63f46
-    commit: 3d03598b11be40929ee95984a83c3d9ed4be8536
+      size: 662
+      sha256: 375207c013ee18285f2239068221754954bcfcd9f9187d6ec131084b6cdb26d0
+    commit: 8c6ec33aca6c49cd30a9cbb48c4609c4923a9743
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: 3d03598b11be40929ee95984a83c3d9ed4be8536
+    commit: 8c6ec33aca6c49cd30a9cbb48c4609c4923a9743
 - completed:
-    hackage: random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
+    subdir: beam-core
+    name: beam-core
+    version: 0.8.1.0
+    git: https://github.com/tathougies/beam
     pantry-tree:
-      size: 663
-      sha256: 5a382966fdd8d5220b5791f3bff6db00d2ea29235e2716dadd52461b8a8beb97
+      size: 2838
+      sha256: f277650c08fb9872f5f09806ac5f72f1d73347175882d98086a2e271137a8c23
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
   original:
-    hackage: random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
+    subdir: beam-core
+    git: https://github.com/tathougies/beam
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
 - completed:
-    hackage: cryptostore-0.2.0.0@sha256:9fcc48b25b7989b9697afb3899387620b3d75b5d995ee2111e7cc942a4c27601,3881
+    subdir: beam-migrate
+    name: beam-migrate
+    version: 0.4.0.1
+    git: https://github.com/tathougies/beam
     pantry-tree:
-      size: 8595
-      sha256: 33cafffb96a250791f6e1322a67752cb38b71250456d335787013024d3a95849
+      size: 1898
+      sha256: cfbc972287f4c8f3c8ee1181a29b68323d153b29a9d9a8c452de3e691a563b76
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
   original:
-    hackage: cryptostore-0.2.0.0@sha256:9fcc48b25b7989b9697afb3899387620b3d75b5d995ee2111e7cc942a4c27601,3881
+    subdir: beam-migrate
+    git: https://github.com/tathougies/beam
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
 - completed:
-    hackage: wai-middleware-prometheus-1.0.0@sha256:1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4,1314
+    subdir: beam-sqlite
+    name: beam-sqlite
+    version: 0.4.0.0
+    git: https://github.com/tathougies/beam
     pantry-tree:
-      size: 307
-      sha256: 6d64803c639ed4c7204ea6fab0536b97d3ee16cdecb9b4a883cd8e56d3c61402
+      size: 859
+      sha256: f7fee96faeb431048108e99a63e5fc345df4051c34267f49b57bf75e9f7cedd5
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
   original:
-    hackage: wai-middleware-prometheus-1.0.0@sha256:1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4,1314
+    subdir: beam-sqlite
+    git: https://github.com/tathougies/beam
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
 - completed:
-    hackage: amazonka-1.6.1@sha256:d863557379350ed6bbb91187abeb8c349a654f60b140d138710486f58ae7c476,3536
+    subdir: beam-postgres
+    name: beam-postgres
+    version: 0.4.1.0
+    git: https://github.com/tathougies/beam
     pantry-tree:
-      size: 992
-      sha256: 55747f9b56063ea1be73a962e1ce44528b9856e119e2d9f1238397b3112b6e70
+      size: 2508
+      sha256: 8304a2845b9b7a5046c33ed700a020fb9c92352734334e3948e012ab26d4527d
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
   original:
-    hackage: amazonka-1.6.1@sha256:d863557379350ed6bbb91187abeb8c349a654f60b140d138710486f58ae7c476,3536
+    subdir: beam-postgres
+    git: https://github.com/tathougies/beam
+    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
 - completed:
-    hackage: amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698,5135
+    hackage: dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
     pantry-tree:
-      size: 3438
-      sha256: c13e643176308771491ec0e06390e269047bb1b28be4535992842f7426a95eb4
+      size: 551
+      sha256: e49230ff3bb1ddc9bef79c22b080ec04a5bb7829808d52df910f734d1cffdddc
   original:
-    hackage: amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698,5135
+    hackage: dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
 - completed:
-    hackage: amazonka-kms-1.6.1@sha256:5462f18f64f2a4cc9d0f4e21d01ce1767b822b066158093b15e7063ff94b19ce,4307
+    hackage: dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
     pantry-tree:
-      size: 8467
-      sha256: 5ee7323fb29b90d2cec47c4bb7615c64c2759ab5bca36b70adf6aa0b580cea41
+      size: 474
+      sha256: ad3fbed5104f9ee9c8082c9dcc8ade847674e3053572533e8d26ad1a866f1107
   original:
-    hackage: amazonka-kms-1.6.1@sha256:5462f18f64f2a4cc9d0f4e21d01ce1767b822b066158093b15e7063ff94b19ce,4307
+    hackage: dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
+- completed:
+    hackage: haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
+    pantry-tree:
+      size: 95170
+      sha256: 487db8defe20a7c8bdf5b4a9a68ec616a4349bdb643f2dc7c9d71e1a6495c8c7
+  original:
+    hackage: haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
+- completed:
+    hackage: sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
+    pantry-tree:
+      size: 1930
+      sha256: e58b9955e483d51ee0966f8ba4384305d871480e2a38b32ee0fcd4573d74cf95
+  original:
+    hackage: sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
+- completed:
+    hackage: constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
+    pantry-tree:
+      size: 594
+      sha256: b0bcc96d375ee11b1972a2e9e8e42039b3f420b0e1c46e9c70652470445a6505
+  original:
+    hackage: constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
+- completed:
+    hackage: direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
+    pantry-tree:
+      size: 770
+      sha256: 11874ab21e10c5b54cd1e02a037b677dc1e2ee9986f38c599612c56654dc01c3
+  original:
+    hackage: direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
 snapshots:
 - completed:
-    size: 523884
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/4.yaml
-    sha256: 16f24be248b42c9e16d59db84378836b1e7c239448a041cae46d32daffa45a8b
-  original: lts-14.4
+    size: 496112
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/15.yaml
+    sha256: 86169722ad0056ffc9eacc157ef80ee21d7024f92c0d2961c89ccf432db230a3
+  original: lts-15.15

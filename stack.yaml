@@ -2,7 +2,7 @@
 resolver: lts-15.15
 
 packages:
-  - lib/euler-hs
+  - .
 
 extra-deps:
   - git: https://github.com/kozross/hedis 

@@ -7,14 +7,14 @@ packages:
 - completed:
     name: hedis
     version: 0.12.8.1
-    git: https://github.com/kozross/hedis
+    git: https://github.com/juspay/hedis
     pantry-tree:
       size: 2570
       sha256: 11c0fb0068a34b685bbd0b5d8daa90bf7dbaaae84a6094fd04d9c6697bb1952e
-    commit: 8e152fdc7dc66bc47af23fe739daa9289163043a
+    commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   original:
-    git: https://github.com/kozross/hedis
-    commit: 8e152fdc7dc66bc47af23fe739daa9289163043a
+    git: https://github.com/juspay/hedis
+    commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
 - completed:
     name: beam-mysql
     version: 0.3.1.1
@@ -29,55 +29,55 @@ packages:
 - completed:
     subdir: beam-core
     name: beam-core
-    version: 0.8.1.0
-    git: https://github.com/tathougies/beam
+    version: 0.8.2.0
+    git: https://github.com/juspay/beam
     pantry-tree:
-      size: 2838
-      sha256: f277650c08fb9872f5f09806ac5f72f1d73347175882d98086a2e271137a8c23
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+      size: 2907
+      sha256: fe5befc6e388a2707db40026777d3f14418143cd472009039f8acab4d7133c76
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
   original:
     subdir: beam-core
-    git: https://github.com/tathougies/beam
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    git: https://github.com/juspay/beam
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
 - completed:
     subdir: beam-migrate
     name: beam-migrate
     version: 0.4.0.1
-    git: https://github.com/tathougies/beam
+    git: https://github.com/juspay/beam
     pantry-tree:
       size: 1898
       sha256: cfbc972287f4c8f3c8ee1181a29b68323d153b29a9d9a8c452de3e691a563b76
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
   original:
     subdir: beam-migrate
-    git: https://github.com/tathougies/beam
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    git: https://github.com/juspay/beam
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
 - completed:
     subdir: beam-sqlite
     name: beam-sqlite
     version: 0.4.0.0
-    git: https://github.com/tathougies/beam
+    git: https://github.com/juspay/beam
     pantry-tree:
       size: 859
       sha256: f7fee96faeb431048108e99a63e5fc345df4051c34267f49b57bf75e9f7cedd5
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
   original:
     subdir: beam-sqlite
-    git: https://github.com/tathougies/beam
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    git: https://github.com/juspay/beam
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
 - completed:
     subdir: beam-postgres
     name: beam-postgres
     version: 0.4.1.0
-    git: https://github.com/tathougies/beam
+    git: https://github.com/juspay/beam
     pantry-tree:
       size: 2508
       sha256: 8304a2845b9b7a5046c33ed700a020fb9c92352734334e3948e012ab26d4527d
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
   original:
     subdir: beam-postgres
-    git: https://github.com/tathougies/beam
-    commit: ca5d28695a2cf413b81cf170a87d6933fcfb5ccf
+    git: https://github.com/juspay/beam
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
 - completed:
     hackage: dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
     pantry-tree:

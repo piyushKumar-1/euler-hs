@@ -59,17 +59,21 @@ let
 
           haskell-src-exts_1_21_1 = self.callPackage ./nix/haskell-src-exts.nix { };
 
+          beam-sqlite =
+            pkgs.haskell.lib.appendPatch
+              (pkgs.haskell.lib.disableLibraryProfiling
+                (self.callCabal2nix "beam-sqlite" beam-sqlite-path { }))
+              ./nix/0001-Bump-hashable-bound-for-mysql-sqlite.patch;
+
           beam-core = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-core" "${beam-core-path}" { });
           beam-postgres = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-postgres" "${beam-postgres-path}" { });
-          beam-sqlite = pkgs.haskell.lib.disableLibraryProfiling
-            (self.callCabal2nix "beam-sqlite" "${beam-sqlite-path}" { });
           beam-mysql = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-mysql" "${beam-mysql-path}" { });
 
           euler-hs =
-            self.callCabal2nix "euler-hs" ./lib/euler-hs { };
+            self.callCabal2nix "euler-hs" ./. { };
         };
       };
     };

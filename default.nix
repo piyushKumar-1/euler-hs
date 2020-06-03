@@ -52,8 +52,9 @@ let
 
           # Overrides for broken packages in nix
 
-          hedis = pkgs.haskell.lib.disableLibraryProfiling
-            (self.callCabal2nix "hedis" "${hedis-path}" { });
+          hedis = pkgs.haskell.lib.dontCheck
+            (pkgs.haskell.lib.disableLibraryProfiling
+              (self.callCabal2nix "hedis" "${hedis-path}" { }));
 
           # TODO: bump in juspay and make upstream PR
           beam-migrate =

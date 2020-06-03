@@ -9,7 +9,11 @@ module EulerHS.Framework.Flow.Interpreter
     runFlow
   ) where
 
-import           Control.Exception               (throwIO)
+import           Control.Exception               (throwIO, IOException)
+import qualified Control.Exception               as Exception
+import qualified Data.ByteString.Lazy            as Lazy
+import qualified Data.ByteString                 as Strict
+import qualified Data.CaseInsensitive            as CI
 import qualified Data.DList                      as DL
 import           Data.Either.Extra               (mapLeft)
 import qualified Data.Map                        as Map
@@ -18,6 +22,7 @@ import qualified Data.UUID.V4                    as UUID (nextRandom)
 import           EulerHS.Prelude
 import qualified Servant.Client                  as S
 import qualified Network.HTTP.Client             as HTTP
+import qualified Network.HTTP.Types              as HTTP
 import           System.Process                  (readCreateProcess, shell)
 
 import qualified Data.Pool                       as DP
@@ -30,6 +35,7 @@ import qualified EulerHS.Framework.Runtime       as R
 
 -- TODO: no explicit dependencies from languages.
 import qualified Data.Text                       as Text
+import qualified Data.Text.Encoding              as Encoding
 import qualified Data.Vector                     as V
 import qualified EulerHS.Core.Logger.Language    as L
 import qualified EulerHS.Core.Playback.Entries   as P
@@ -79,6 +85,72 @@ awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
             Just (Left err) -> pure $ Left $ T.ForkedFlowError err
             Nothing  -> threadDelay portion >> go (rest - portion)
 
+-- | Utility function to convert HttpApi HTTPRequests to http-client HTTP
+-- requests
+getHttpLibRequest :: T.HTTPRequest -> L.Flow HTTP.Request
+getHttpLibRequest request = do
+  let url = Text.unpack $ T.getRequestURL request
+  httpLibRequest <- HTTP.parseRequest url
+  let
+    requestMethod = case T.getRequestMethod request of
+      T.Get -> "GET"
+      T.Put -> "PUT"
+      T.Post -> "POST"
+      T.Delete -> "DELETE"
+      T.Head -> "HEAD"
+  let
+    setBody = case T.getRequestBody request of
+      Just body ->
+        let body' = T.getBinaryString body
+        in  \request -> request { HTTP.requestBody = HTTP.RequestBodyLBS body' }
+      Nothing   -> id
+
+  -- TODO: Respect "Content-Transfer-Encoding" header
+  let
+    headers :: HTTP.RequestHeaders = T.getRequestHeaders request
+      & Map.toList
+      & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
+
+  pure $ setBody $
+      httpLibRequest
+        { HTTP.method         = requestMethod
+        , HTTP.requestHeaders = headers
+        }
+
+-- | Utility function to translate http-client HTTP responses back to HttpAPI 
+-- responses
+translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text T.HTTPResponse
+translateHttpResponse response = do
+  headers <- translateResponseHeaders $ HTTP.responseHeaders response
+  pure $ T.HTTPResponse
+    { getResponseBody    = T.BinaryString $ HTTP.responseBody response
+    , getResponseHeaders = headers
+    , getResponseStatus  = HTTP.statusCode $ HTTP.responseStatus response
+    }
+
+translateResponseHeaders
+  :: [(CI.CI Strict.ByteString, Strict.ByteString)]
+  -> Either Text (Map.Map Text.Text Text.Text)
+translateResponseHeaders headers = do
+  let
+    result = do
+      headerNames <- mapM (Text.toLower . Encoding.decodeUtf8' . fst) headers
+      headerValues <- mapM (Encoding.decodeUtf8' . snd) headers
+      return (zip headerNames headerValues)
+
+  -- TODO: Look up encoding and use some thread-safe unicode package to decode
+  --       headers
+  -- let encoding
+  --   = List.findIndex (\name -> name == "content-transfer-encoding") headerNames
+
+  case result of
+    Left unicodeError ->
+      let err = Text.pack $ Exception.displayException unicodeError
+      in  Left $ "Error decoding HTTP response headers: " <> err
+    Right headers ->
+      Right $ Map.fromList headers
+    
+
 interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
@@ -89,7 +161,9 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
         Right mngr -> catchAny
          (S.runClientM (T.runEulerClient dbgLogger bUrl clientAct) (S.mkClientEnv mngr bUrl))
          (pure . Left . S.ConnectionError)
-        Left name -> pure $ Left $ S.ConnectionError $ toException $ T.HttpManagerNotFound name
+        Left name ->
+          pure $ Left
+               $ S.ConnectionError $ toException $ T.HttpManagerNotFound name
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
@@ -98,13 +172,13 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHttpAPI request next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
       let manager = _defaultHttpClientManager
-      -- request <- HTTP.parseRequest (Text.unpack url)
-      response <- try $ HTTP.httpLbs request manager
+      let httpLibRequest = getHttpLibRequest request
+      response <- try $ HTTP.httpLbs httpLibRequest manager
       case response of
-        Left err -> do
+        Left (err :: IOException) -> do
           dbgLogger (T.getRequestURL request)
-          pure $ Left $ S.ConnectionError $ toException err
-        Right response -> pure $ Right response
+          pure $ Left $ Text.pack $ displayException err
+        Right response -> pure $ translateHttpResponse response
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallHttpAPI failure" :: String)

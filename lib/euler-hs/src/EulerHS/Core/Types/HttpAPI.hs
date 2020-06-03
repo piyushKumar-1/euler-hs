@@ -7,10 +7,12 @@ module EulerHS.Core.Types.HttpAPI
       HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
+    , BinaryString(..)
     ) where
 
 import EulerHS.Prelude
 
+import qualified Data.Map             as Map
 import qualified Data.Text            as Text
 import qualified Data.Text.Encoding   as Encoding
 import qualified Data.ByteString.Lazy as Lazy
@@ -18,15 +20,17 @@ import qualified Data.ByteString.Lazy as Lazy
 data HTTPRequest
   = HTTPRequest
     { getRequestMethod  :: HTTPMethod
-    , getRequestHeaders :: [(Text.Text, Text.Text)]
+    , getRequestHeaders :: Map.Map HeaderName HeaderValue
+    , getRequestBody    :: Maybe BinaryString
     , getRequestURL     :: Text.Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data HTTPResponse
   = HTTPResponse
-    { getResponseStatus :: Int
-    , getResponseBody   :: BinaryString
+    { getResponseBody    :: BinaryString
+    , getResponseHeaders :: Map.Map HeaderName HeaderValue
+    , getResponseStatus  :: Int
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -37,6 +41,9 @@ data HTTPMethod
   | Delete
   | Head
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+type HeaderName = Text.Text
+type HeaderValue = Text.Text
 
 newtype BinaryString 
   = BinaryString
@@ -58,19 +65,19 @@ instance FromJSON BinaryString where
 --
 -- > httpGet "https://google.com"
 httpGet :: Text.Text -> HTTPRequest
-httpGet = HTTPRequest Get []
+httpGet = HTTPRequest Get Map.empty Nothing
 
 httpPut :: Text.Text -> HTTPRequest
-httpPut = HTTPRequest Put []
+httpPut = HTTPRequest Put Map.empty Nothing
 
 httpPost :: Text.Text -> HTTPRequest
-httpPost = HTTPRequest Post []
+httpPost = HTTPRequest Post Map.empty Nothing
 
 httpDelete :: Text.Text -> HTTPRequest
-httpDelete = HTTPRequest Delete []
+httpDelete = HTTPRequest Delete Map.empty Nothing
 
 httpHead :: Text.Text -> HTTPRequest
-httpHead = HTTPRequest Head []
+httpHead = HTTPRequest Head Map.empty Nothing
 
 -- | Add a header to an HTTPRequest
 --
@@ -78,5 +85,6 @@ httpHead = HTTPRequest Head []
 --  >   & withHeader "Content-Type" "application/json"
 --
 withHeader :: Text.Text -> Text.Text -> HTTPRequest -> HTTPRequest
-withHeader headerName headerValue (HTTPRequest method headers url)
-  = HTTPRequest method ((headerName, headerValue):headers) url
+withHeader headerName headerValue (request@HTTPRequest {getRequestHeaders}) =
+  let headers = Map.insert headerName headerValue getRequestHeaders
+  in  request { getRequestHeaders = headers }

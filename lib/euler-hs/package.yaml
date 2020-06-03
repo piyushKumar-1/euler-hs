@@ -81,6 +81,7 @@ dependencies:
 - random
 - resource-pool
 - safe-exceptions
+- exceptions
 - semigroupoids
 - servant
 - servant-client

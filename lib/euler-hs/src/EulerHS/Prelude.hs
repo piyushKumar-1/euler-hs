@@ -32,6 +32,7 @@ import           Data.Aeson                   as X (FromJSON, ToJSON, ToJSONKey,
                                                     genericToJSON, parseJSON,
                                                     toJSON)
 import           Data.Maybe                   as X (fromJust, fromMaybe)
+import           Data.Function                as X ((&))
 import           Data.Serialize               as X (Serialize)
 import           Fmt                          as X ((+|), (+||), (|+), (||+))
 import           GHC.Base                     as X (until)

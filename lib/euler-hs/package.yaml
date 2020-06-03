@@ -41,6 +41,7 @@ dependencies:
 - attoparsec
 - async
 - base64-bytestring-type
+- base64-bytestring
 - beam-core
 - beam-migrate
 - beam-mysql

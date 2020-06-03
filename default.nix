@@ -67,8 +67,10 @@ let
 
           beam-core = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-core" "${beam-core-path}" { });
-          beam-postgres = pkgs.haskell.lib.disableLibraryProfiling
-            (self.callCabal2nix "beam-postgres" "${beam-postgres-path}" { });
+          beam-postgres =
+            pkgs.haskell.lib.dontCheck
+              (pkgs.haskell.lib.disableLibraryProfiling
+                (self.callCabal2nix "beam-postgres" "${beam-postgres-path}" { }));
           beam-mysql = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-mysql" "${beam-mysql-path}" { });
 

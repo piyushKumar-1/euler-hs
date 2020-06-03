@@ -32,6 +32,15 @@ let
 
   beam-mysql-path = beam-mysql-repo;
 
+  hedis-repo = fetchFromGitHub {
+    owner = "juspay";
+    repo = "hedis";
+    rev = "4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e";
+    sha256 = "094r4pxkc3h6w2vy4lha1zfdz29qihvkx2wi3mb7g1m3a6c7xp4h";
+  };
+
+  hedis-path = hedis-repo;
+
   config = {
     packageOverrides = pkgs: rec {
       haskellPackages = pkgs.haskellPackages.override {
@@ -40,14 +49,11 @@ let
             super.ghc // { withPackages = if withHoogle then super.ghc.withHoogle else super.ghc ; };
           ghcWithPackages =
             self.ghc.withPackages;
+
           # Overrides for broken packages in nix
 
-          # TODO: point to juspay
-          hedis =
-            self.callPackage ./nix/hedis.nix { };
-          # TODO: remove
-          crc16 =
-            self.callPackage ./nix/crc16.nix { };
+          hedis = pkgs.haskell.lib.disableLibraryProfiling
+            (self.callCabal2nix "hedis" "${hedis-path}" { });
 
           # TODO: bump in juspay and make upstream PR
           beam-migrate =

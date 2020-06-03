@@ -58,6 +58,7 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import qualified Control.Monad.Catch  as Monad
 import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as HTTP
@@ -255,6 +256,8 @@ instance Functor FlowMethod where
 
 type Flow = F FlowMethod
 
+instance Monad.MonadThrow Flow where
+  throwM = throwException
 
 -- | Method for calling external HTTP APIs using the facilities of servant-client.
 -- Allows to specify what manager should be used. If no manager found,

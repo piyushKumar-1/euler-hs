@@ -8,6 +8,7 @@ module EulerHS.Core.Playback.Entries where
 
 import EulerHS.Prelude
 import EulerHS.Core.Types.Playback (RRItem(..), MockedResult(..))
+import qualified Data.Text      as Text
 import qualified Data.Aeson     as A
 import qualified EulerHS.Types  as T
 import qualified Servant.Client as S
@@ -61,6 +62,25 @@ instance RRItem CallServantAPIEntry where
 
 instance T.JSONEx a => MockedResult CallServantAPIEntry (Either S.ClientError a) where
     getMock CallServantAPIEntry {jsonResult} = T.jsonDecode jsonResult
+
+----------------------------------------------------------------------
+
+data CallHttpAPIEntry = CallHttpAPIEntry
+  { request   :: T.HTTPRequest
+  , eResponse :: Either Text.Text T.HTTPResponse
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+mkCallHttpAPIEntry
+  :: T.HTTPRequest
+  -> Either Text.Text T.HTTPResponse
+  -> CallHttpAPIEntry
+mkCallHttpAPIEntry = CallHttpAPIEntry
+
+instance RRItem CallHttpAPIEntry where
+  getTag _ = "CallHttpAPIEntry"
+
+instance MockedResult CallHttpAPIEntry (Either Text.Text T.HTTPResponse) where
+    getMock (CallHttpAPIEntry {eResponse}) = Just eResponse
 
 -- ----------------------------------------------------------------------
 

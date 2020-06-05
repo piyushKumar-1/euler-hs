@@ -37,6 +37,7 @@ module EulerHS.Framework.Flow.Language
   , callServantAPI
   , callAPI
   , callAPI'
+  , callHTTP
   , runIO
   , runIO'
   , runUntracedIO
@@ -57,6 +58,10 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import qualified Control.Monad.Catch  as Monad
+import qualified Data.ByteString.Lazy as ByteString
+import qualified Data.Text as Text
+import qualified Network.HTTP.Client as HTTP
 import           Servant.Client (ClientError, BaseUrl)
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Language (Logger, logMessage', KVDB)
@@ -71,6 +76,11 @@ data FlowMethod next where
     -> BaseUrl
     -> T.EulerClient a
     -> (Either ClientError a -> next)
+    -> FlowMethod next
+
+  CallHTTP
+    :: T.HTTPRequest
+    -> (Either Text T.HTTPResponse -> next)
     -> FlowMethod next
 
   EvalLogger
@@ -200,6 +210,8 @@ data FlowMethod next where
 instance Functor FlowMethod where
   fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
 
+  fmap f (CallHTTP req next)               = CallHTTP req (f . next)
+
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
 
   fmap f (GenerateGUID next)                  = GenerateGUID (f . next)
@@ -244,6 +256,8 @@ instance Functor FlowMethod where
 
 type Flow = F FlowMethod
 
+instance Monad.MonadThrow Flow where
+  throwM = throwException
 
 -- | Method for calling external HTTP APIs using the facilities of servant-client.
 -- Allows to specify what manager should be used. If no manager found,
@@ -284,6 +298,22 @@ callServantAPI
   -> T.EulerClient a             -- ^ servant client 'EulerClient'
   -> Flow (Either ClientError a) -- ^ result
 callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
+
+
+-- | Method for calling external HTTP APIs without bothering with types.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHTTP url
+
+callHTTP
+  :: T.HTTPRequest                           -- ^ remote url 'Text'
+  -> Flow (Either Text.Text T.HTTPResponse)  -- ^ result
+callHTTP url = liftFC $ CallHTTP url id
+
 
 -- | Method for calling external HTTP APIs using the facilities of servant-client.
 -- Allows to specify what manager should be used. If no manager found,

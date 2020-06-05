@@ -6,11 +6,17 @@ module EulerHS.Tests.Framework.ArtSpec where
 
 import           Data.Aeson as A
 import           Data.Aeson.Encode.Pretty
+import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Map as Map
+import qualified Data.String.Conversions as Conversions
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Encoding
+import qualified Data.Text.Encoding.Error as Encoding
 import qualified Data.Vector as V
 import           Network.Wai.Handler.Warp
 import           Servant.Client
 import           Servant.Server
+import qualified System.IO.Error as Error
 import           Test.Hspec
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
@@ -230,13 +236,35 @@ spec = do
 
     it "Untyped HTTP API Calls" $ do
       let url = "https://google.com"
-      (statusCode, body) <- runFlowWithArt $ do
+      (statusCode, body, headers) <- runFlowWithArt $ do
         eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
         response <- case eResponse of
-          Left err -> throwException err403 {errBody = "403"}
+          Left err -> throwException err403 {errBody = "Expected a response"}
           Right response -> pure response
-        return (getResponseStatus response, getResponseBody response)
+        return
+          ( getResponseStatus  response
+          , getResponseBody    response
+          , getResponseHeaders response
+          )
+      -- check status code
       statusCode `shouldBe` 200
+      -- check body
+      Lazy.putStr (getLBinaryString body)
+      -- seem to be non-breaking latin-1 encoded spaces in what is supposed to
+      -- be a UTF-8 output xD; show some leniency
+      let
+        body' =
+          Encoding.decodeUtf8With
+            Encoding.lenientDecode
+            (Conversions.convertString body)
+      Text.isInfixOf "google" body' `shouldBe` True
+      Text.isInfixOf "<html" body' `shouldBe` True
+      -- -- check headers
+      case Map.lookup "content-type" headers of
+        Nothing          ->
+          throwM $ Error.userError "Expected a Content-Type header"
+        Just headerValue -> do
+          Text.isInfixOf "text/html" headerValue `shouldBe` True
 
 
 

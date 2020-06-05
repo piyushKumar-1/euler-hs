@@ -84,9 +84,11 @@ library
     EulerHS.Core.SqlDB.Interpreter
     EulerHS.Core.SqlDB.Language
     EulerHS.Core.Types
+    EulerHS.Core.Types.BinaryString
     EulerHS.Core.Types.Common
     EulerHS.Core.Types.DB
     EulerHS.Core.Types.Exceptions
+    EulerHS.Core.Types.HttpAPI
     EulerHS.Core.Types.KVDB
     EulerHS.Core.Types.Logger
     EulerHS.Core.Types.MySQL
@@ -104,6 +106,7 @@ library
 
   build-depends:
     , aeson
+    , base64-bytestring
     , base64-bytestring-type
     , beam-core               ^>=0.8.1.0
     , beam-mysql              ^>=0.3.1.1
@@ -115,6 +118,7 @@ library
     , cereal
     , containers
     , dlist
+    , exceptions
     , extra
     , fmt
     , free
@@ -134,6 +138,7 @@ library
     , servant-client-core
     , sqlite-simple
     , stm
+    , string-conversions
     , text
     , time
     , tinylog
@@ -180,6 +185,8 @@ test-suite language
     , servant-client
     , servant-mock
     , servant-server
+    , string-conversions
+    , text
     , uuid
     , vector
     , warp

@@ -24,12 +24,7 @@ cabal.project.local~
 .ghc.environment.*
 dist-newstyle
 .stack-work
-stack.yaml.lock
 client/
-
-credit-platform.cabal
-euler-hs.cabal
-web-service.cabal
 
 .ghci
 .ghcid

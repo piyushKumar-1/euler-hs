@@ -21,6 +21,7 @@ module EulerHS.Extra.AltValidation
   , guarded
   , guardedCustom
   , decode
+  , decodeCustom
   , insideJust
   , parValidate
   ) where
@@ -107,6 +108,7 @@ guardedCustom err pred | pred      = ReaderT (\_   -> pure ())
 decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
+-- FIXME Could throw 'Data.Data.dataTypeConstrs is not supported for Prelude.Double' for primitive types!
   _      -> Left [ validationError { error_message = Just ("Can't decode value" <> v <> ", should be one of " <> showConstructors @t)
                        , error_field = Just ctx}])
 
@@ -114,8 +116,10 @@ decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
 decodeCustom :: forall t . (Data t, Read t) => VErrorPayload -> Transformer Text t
 decodeCustom err v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
-  _      -> Left [ err { error_message = Just ("Can't decode value" <> v <> ", should be one of " <> showConstructors @t)
-                       , error_field = Just ctx}])
+  _      -> Left [ err ])
+-- Could throw 'Data.Data.dataTypeConstrs is not supported for Prelude.Double' for primitive types!
+--  _      -> Left [ err { error_message = Just ("Can't decode value" <> v <> ", should be one of " <> showConstructors @t)
+--                       , error_field = Just ctx}])
 
 insideJust :: Transformer a b -> Transformer (Maybe a) (Maybe b)
 insideJust _ Nothing    = pure Nothing
@@ -124,7 +128,14 @@ insideJust val (Just a) = Just <$> val a
 -- | Trying to extract the argument from Maybe type
 --   if value is Nothing then raise Failure
 extractJust :: Transformer (Maybe a) a
-extractJust r = ReaderT (\ctx -> maybe (Left [validationError { error_message = Just "mandatory value is not present", error_field = Just ctx }]) Right r)
+extractJust r = ReaderT (\ctx -> maybe (Left [err ctx]) Right r)
+  where
+    err ctx = validationError
+      { status = "Bad Request"
+      , error_message = Just "Mandatory fields are missing"
+      , error_code = Just "Mandatory fields are missing"
+      , error_field = Just ctx
+      }
 
 extractMaybeWithDefault :: a -> Transformer (Maybe a) a
 extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)

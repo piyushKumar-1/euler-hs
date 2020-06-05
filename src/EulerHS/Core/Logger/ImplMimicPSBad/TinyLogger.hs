@@ -30,6 +30,10 @@ import           Data.Text                     (Text)
 import qualified Data.Text.Lazy                as TL
 import qualified Data.Text.Lazy.Encoding       as TL
 
+-- TODO: remove this along with the whole impl
+import qualified Data.Map                      as Map
+import           System.Environment            (getEnvironment)
+
 type LogQueue = TQueue D.PendingMsg
 
 type Loggers = [Log.Logger]
@@ -81,12 +85,12 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- TODO: this is terrible quick version
 -- would use Aeson.Value in the end
 -- rewrite all this with katip or forked tinylog
-jsonRenderer :: Log.Renderer
-jsonRenderer separator dateFormat logLevel fields =
+jsonRenderer :: String -> String -> Log.Renderer
+jsonRenderer hostname env separator dateFormat logLevel fields =
   Json.fromEncoding $
     Json.pairs ("timestamp" Json..= (TL.decodeUtf8 timestamp)
-               <> "hostname" Json..= ("euler-hs-order-create-staging" :: Text)
-               <> "env" Json..= ("production" :: Text)
+               <> "hostname" Json..= hostname
+               <> "env" Json..= env
                <> "level" Json..= ("info" :: Text)
                <> "txn_uuid" Json..= ("null" :: Text)
                <> "order_id" Json..= ("null" :: Text)
@@ -111,18 +115,23 @@ jsonRenderer separator dateFormat logLevel fields =
     elementToBS (LogMsg.Bytes builder)   = convBS builder
     elementToBS (LogMsg.Field keyB valB) = convBS keyB
 
-mimicEulerPSSettings :: Log.Settings -> Log.Settings
-mimicEulerPSSettings = Log.setFormat (Just dateFormat) . Log.setRenderer jsonRenderer
+mimicEulerPSSettings :: String -> String -> Log.Settings -> Log.Settings
+mimicEulerPSSettings hostname env = Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env)
   where dateFormat = "%0d-%0m-%Y %0H:%0M:%0S.000"
 
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
 createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = do
+    -- This is a temporary hack for euler-api-order deployment
+    envVars <- Map.fromList <$> getEnvironment
+    let hostname = maybe "hostname" id $ Map.lookup "HOSTNAME" envVars
+    let env = maybe "env" id $ Map.lookup "NODE_ENV" envVars
+
     let consoleSettings =
-          mimicEulerPSSettings . Log.setBufSize 4096 $ Log.setOutput Log.StdOut Log.defSettings
+          (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $ Log.setOutput Log.StdOut Log.defSettings
 
     let fileSettings    =
-          mimicEulerPSSettings . Log.setBufSize 4096 $
+          (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $
           Log.setOutput (Log.Path logFileName) Log.defSettings
 
     let fileH           = [Log.new fileSettings    | isFileLog]

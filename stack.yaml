@@ -1,24 +1,28 @@
-resolver: lts-14.27
+---
+resolver: lts-15.15
 
 packages:
-- lib/euler-hs
+  - .
 
 extra-deps:
-
-- git: https://github.com/juspay/hedis.git
-  commit: ce6de8f158e87414cf11bcba4e95d54a9c3185f3
-- crc16-0.1.0@sha256:da3e4b82e437a054159ecc497372c997f784d77babcee641a5f657f6a0a8eb80,624
-
-- git: https://github.com/graninas/beam-mysql
-  commit: 6794a25b24062678b0e61013f0e38494d4defcf0
-
-- random-strings-0.1.1.0@sha256:935a7a23dab45411960df77636a29b44ce42b89eeb15f2b1e809d771491fa677,2517
-- cryptostore-0.2.0.0@sha256:9fcc48b25b7989b9697afb3899387620b3d75b5d995ee2111e7cc942a4c27601,3881
-- wai-middleware-prometheus-1.0.0@sha256:1625792914fb2139f005685be8ce519111451cfb854816e430fbf54af46238b4,1314
-- amazonka-1.6.1@sha256:d863557379350ed6bbb91187abeb8c349a654f60b140d138710486f58ae7c476,3536
-- amazonka-core-1.6.1@sha256:9bc59ce403c6eeba3b3eaf3f10e5f0b6a33b6edbbf8f6de0dd6f4c67b86fa698,5135
-- amazonka-kms-1.6.1@sha256:5462f18f64f2a4cc9d0f4e21d01ce1767b822b066158093b15e7063ff94b19ce,4307
-
+  - git: https://github.com/juspay/hedis
+    commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
+  - git: https://github.com/juspay/beam-mysql
+    commit: 8c6ec33aca6c49cd30a9cbb48c4609c4923a9743
+  - git: https://github.com/juspay/beam
+    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    subdirs:
+      - beam-core
+      - beam-migrate
+      - beam-sqlite
+      - beam-postgres
+  # Needed for beam
+  - dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
+  - dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
+  - haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
+  - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
+  - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
+  - direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
 # MySQL
 # MacOS:
 # Problem: MacOS build failure
@@ -29,9 +33,9 @@ extra-deps:
 # https://github.com/depressed-pho/HsOpenSSL/issues/41
 # TODO: how to make it portable?
 extra-include-dirs:
-- /usr/local/opt/openssl/include
+  - /usr/local/opt/openssl/include
 extra-lib-dirs:
-- /usr/local/opt/openssl/lib
+  - /usr/local/opt/openssl/lib
 
 # Linux:
 # sudo apt install mysql-client

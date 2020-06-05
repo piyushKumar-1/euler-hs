@@ -19,7 +19,7 @@ module EulerHS.Core.SqlDB.Language
   , deleteRows
   , deleteRowsReturningListPG
   , updateRowsReturningListPG
-  , insertRowReturningIdMySQL
+  , insertRowReturningMySQL
   ) where
 
 import qualified Database.Beam          as B
@@ -112,22 +112,8 @@ updateRowsReturningListPG = sqlDBMethod . T.updateReturningListPG
 
 -- MySQL only extra methods
 
--- This won't work for non-int IDs and tables without autoincrement
--- TODO: recheck connection
-insertRowReturningIdMySQL
-  :: (B.Beamable table, B.Database BM.MySQL db)
-  => B.SqlInsertValues BM.MySQL (table (B.QExpr BM.MySQL s))
-  -> B.DatabaseEntity BM.MySQL db (B.TableEntity table)
-  -> SqlDB BM.MySQLM (Maybe Int)
-insertRowReturningIdMySQL insertValues tableRef = sqlDBMethod $ do
-  let insertStmt = B.insert tableRef insertValues
-  -- TODO: add checks
-  res <- T.rtInsert insertStmt
-
-  rowId <- T.rtSelectReturningOne
-        $ B.select
-        $ B.aggregate_ (\_ -> B.as_ @Int @B.QAggregateContext $ B.customExpr_ "last_insert_id()")
-        $ B.limit_ 1
-        $ B.all_ tableRef
-
-  pure (rowId :: Maybe Int)
+insertRowReturningMySQL :: (B.FromBackendRow BM.MySQL (table Identity))
+                        => B.SqlInsert BM.MySQL table
+                        -> SqlDB BM.MySQLM (Maybe (table Identity))
+insertRowReturningMySQL =
+  sqlDBMethod . BM.runInsertRowReturning

@@ -1,16 +1,17 @@
 module EulerHS.Core.Types.BinaryString
-( BinaryString
+( BinaryString(..)
 , LBinaryString(..)
 ) where
 
 import EulerHS.Prelude
 
-import qualified Data.ByteString        as Strict
-import qualified Data.ByteString.Lazy   as Lazy
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.Text              as Text
-import qualified Data.Text.Encoding     as Encoding
-import qualified Control.Monad.Fail     as MonadFail
+import qualified Data.ByteString         as Strict
+import qualified Data.ByteString.Lazy    as Lazy
+import qualified Data.ByteString.Base64  as B64
+import qualified Data.Text               as Text
+import qualified Data.Text.Encoding      as Encoding
+import qualified Control.Monad.Fail      as MonadFail
+import qualified Data.String.Conversions as Conversions
 
 -- TODO: Move to euler-db
 
@@ -29,6 +30,17 @@ instance ToJSON BinaryString where
 instance FromJSON BinaryString where
   parseJSON val = pure . BinaryString =<< base64Decode =<< parseJSON val
 
+instance Conversions.ConvertibleStrings Strict.ByteString BinaryString where
+  convertString = BinaryString
+
+instance Conversions.ConvertibleStrings BinaryString Strict.ByteString where
+  convertString = getBinaryString
+
+instance Conversions.ConvertibleStrings Lazy.ByteString BinaryString where
+  convertString = BinaryString . Conversions.convertString
+
+instance Conversions.ConvertibleStrings BinaryString Lazy.ByteString where
+  convertString = Conversions.convertString . getBinaryString
 
 --------------------------------------------------------------------------
 -- Lazy BinaryString
@@ -45,6 +57,18 @@ instance ToJSON LBinaryString where
 instance FromJSON LBinaryString where
   parseJSON val =
     pure . LBinaryString . Lazy.fromStrict =<< base64Decode =<< parseJSON val
+
+instance Conversions.ConvertibleStrings Lazy.ByteString LBinaryString where
+  convertString = LBinaryString
+
+instance Conversions.ConvertibleStrings LBinaryString Lazy.ByteString where
+  convertString = getLBinaryString
+
+instance Conversions.ConvertibleStrings Strict.ByteString LBinaryString where
+  convertString = LBinaryString . Conversions.convertString
+
+instance Conversions.ConvertibleStrings LBinaryString Strict.ByteString where
+  convertString = Conversions.convertString . getLBinaryString
 
 --------------------------------------------------------------------------
 -- Base64 encoding/decoding helpers

@@ -249,7 +249,7 @@ spec = do
       -- check status code
       statusCode `shouldBe` 200
       -- check body
-      Lazy.putStr (getLBinaryString body)
+      -- Lazy.putStr (getLBinaryString body)
       -- seem to be non-breaking latin-1 encoded spaces in what is supposed to
       -- be a UTF-8 output xD; show some leniency
       let

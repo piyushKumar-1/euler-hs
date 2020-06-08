@@ -40,3 +40,7 @@ extra-lib-dirs:
 # Linux:
 # sudo apt install mysql-client
 # sudo apt-get install libmysqlclient-dev
+
+nix:
+  enable: false
+  packages: [mysql57, openssl, zlib, postgresql]

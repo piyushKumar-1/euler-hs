@@ -17,15 +17,15 @@ packages:
     commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
 - completed:
     name: beam-mysql
-    version: 0.3.1.1
+    version: 0.3.0.0
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
-      size: 662
-      sha256: 375207c013ee18285f2239068221754954bcfcd9f9187d6ec131084b6cdb26d0
-    commit: 8c6ec33aca6c49cd30a9cbb48c4609c4923a9743
+      size: 542
+      sha256: 476ced970faad0a44dc8530e712e637f0dc8a0654618bd23d738d82a9fc16a3f
+    commit: 3382f1b07ee77883ff68af2a1e16776b46dc7b18
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: 8c6ec33aca6c49cd30a9cbb48c4609c4923a9743
+    commit: 3382f1b07ee77883ff68af2a1e16776b46dc7b18
 - completed:
     subdir: beam-core
     name: beam-core
@@ -34,11 +34,11 @@ packages:
     pantry-tree:
       size: 2907
       sha256: fe5befc6e388a2707db40026777d3f14418143cd472009039f8acab4d7133c76
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
   original:
     subdir: beam-core
     git: https://github.com/juspay/beam
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
 - completed:
     subdir: beam-migrate
     name: beam-migrate
@@ -46,12 +46,12 @@ packages:
     git: https://github.com/juspay/beam
     pantry-tree:
       size: 1898
-      sha256: cfbc972287f4c8f3c8ee1181a29b68323d153b29a9d9a8c452de3e691a563b76
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+      sha256: adfbc275fca2080a4c0cf8866b1edc0bee17421b97359303bacbf896a8cf6364
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
   original:
     subdir: beam-migrate
     git: https://github.com/juspay/beam
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
 - completed:
     subdir: beam-sqlite
     name: beam-sqlite
@@ -60,11 +60,11 @@ packages:
     pantry-tree:
       size: 859
       sha256: f7fee96faeb431048108e99a63e5fc345df4051c34267f49b57bf75e9f7cedd5
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
   original:
     subdir: beam-sqlite
     git: https://github.com/juspay/beam
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
 - completed:
     subdir: beam-postgres
     name: beam-postgres
@@ -73,25 +73,25 @@ packages:
     pantry-tree:
       size: 2508
       sha256: 8304a2845b9b7a5046c33ed700a020fb9c92352734334e3948e012ab26d4527d
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
   original:
     subdir: beam-postgres
     git: https://github.com/juspay/beam
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
 - completed:
-    hackage: dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
+    hackage: dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
     pantry-tree:
       size: 551
-      sha256: e49230ff3bb1ddc9bef79c22b080ec04a5bb7829808d52df910f734d1cffdddc
+      sha256: 5defa30010904d2ad05a036f3eaf83793506717c93cbeb599f40db1a3632cfc5
   original:
-    hackage: dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
+    hackage: dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
 - completed:
-    hackage: dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
+    hackage: dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
     pantry-tree:
-      size: 474
-      sha256: ad3fbed5104f9ee9c8082c9dcc8ade847674e3053572533e8d26ad1a866f1107
+      size: 290
+      sha256: 9cbfb32b5a8a782b7a1c941803fd517633cb699159b851c1d82267a9e9391b50
   original:
-    hackage: dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
+    hackage: dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
 - completed:
     hackage: haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
     pantry-tree:

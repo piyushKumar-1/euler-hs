@@ -86,5 +86,5 @@ let
     import nixpkgs { inherit config; };
 in {
   pkgs = pkgs;
-  euler-hs = with pkgs; haskell.lib.disableLibraryProfiling haskellPackages.euler-hs;
+  euler-hs = pkgs.haskell.lib.dontCheck pkgs.haskellPackages.euler-hs;
 }

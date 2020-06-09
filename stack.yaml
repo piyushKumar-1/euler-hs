@@ -8,17 +8,17 @@ extra-deps:
   - git: https://github.com/juspay/hedis
     commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql
-    commit: 8c6ec33aca6c49cd30a9cbb48c4609c4923a9743
+    commit: 3382f1b07ee77883ff68af2a1e16776b46dc7b18
   - git: https://github.com/juspay/beam
-    commit: 111d427c1d1d7f8062d787b561e52df2aa0209a1
+    commit: f1264f1139f5b8e3315351d086870de9318dbc45
     subdirs:
       - beam-core
       - beam-migrate
       - beam-sqlite
       - beam-postgres
   # Needed for beam
-  - dependent-map-0.3.1.0@sha256:f33391e51264aab38b11d581bb8d2f7c6fc9fcf012bdbb6122708c23b3360b2a,1657
-  - dependent-sum-0.6.2.0@sha256:bff37c85b38e768b942f9d81c2465b63a96076f1ba006e35612aa357770807b6,1856
+  - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
+  - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068
   - haskell-src-exts-1.21.1@sha256:11d18ec3f463185f81b7819376b532e3087f8192cffc629aac5c9eec88897b35,4541
   - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
   - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
@@ -40,3 +40,7 @@ extra-lib-dirs:
 # Linux:
 # sudo apt install mysql-client
 # sudo apt-get install libmysqlclient-dev
+
+nix:
+  enable: false
+  packages: [mysql57, openssl, zlib, postgresql]

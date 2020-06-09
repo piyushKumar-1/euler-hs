@@ -10,12 +10,11 @@ let
     sha256 = "0nkk492aa7pr0d30vv1aw192wc16wpa1j02925pldc09s9m9i0r3";
   };
 
-  # TODO: change this to juspay tomorrow
   beam-repo = fetchFromGitHub {
-    owner = "tathougies";
+    owner = "juspay";
     repo = "beam";
-    rev = "44d7cf4752853fb33d49a008c3e7d4a9a4bd1ee7";
-    sha256 = "0gz1fch9awr2p08yiflmck0qyhprwpzmrslj2v6fp2lhnjbxkl59";
+    rev = "f1264f1139f5b8e3315351d086870de9318dbc45";
+    sha256 = "1pv7rj9qqq1gdnlq8sczhjw2fpfxy9mbqfbdnz51xabmrps7nrjr";
   };
 
   beam-core-path = "${beam-repo}/beam-core";
@@ -26,8 +25,8 @@ let
   beam-mysql-repo = fetchFromGitHub {
     owner = "juspay";
     repo = "beam-mysql";
-    rev = "8c6ec33aca6c49cd30a9cbb48c4609c4923a9743";
-    sha256 = "0ljz188laz0vffdkq2jkcbdfghbccrb5ms75rjfxi7f5qmzx9xka";
+    rev = "3382f1b07ee77883ff68af2a1e16776b46dc7b18";
+    sha256 = "0428d0aa81jsjlbss258xdhcafdr441wg201v1g2nk6bapwknk2d";
   };
 
   beam-mysql-path = beam-mysql-repo;
@@ -52,37 +51,33 @@ let
 
           # Overrides for broken packages in nix
 
-          hedis = pkgs.haskell.lib.dontCheck
-            (pkgs.haskell.lib.disableLibraryProfiling
+          hedis = with pkgs.haskell.lib;
+            dontCheck (disableLibraryProfiling
               (self.callCabal2nix "hedis" "${hedis-path}" { }));
 
-          # TODO: bump in juspay and make upstream PR
-          beam-migrate =
-            (pkgs.haskell.lib.appendPatch
-              (pkgs.haskell.lib.disableLibraryProfiling
-                (self.callCabal2nix "beam-migrate" beam-migrate-path { }))
-              ./nix/0001-Bump-bounds-for-beam-migrate-on-dependent-haskell-sr.patch
+          beam-migrate = with pkgs.haskell.lib;
+            (disableLibraryProfiling
+              (self.callCabal2nix "beam-migrate" beam-migrate-path { })
             ).override { haskell-src-exts = haskell-src-exts_1_21_1; };
 
+          # needed for ClassA error in beam-migrate
           haskell-src-exts_1_21_1 = self.callPackage ./nix/haskell-src-exts.nix { };
-
-          beam-sqlite =
-            pkgs.haskell.lib.appendPatch
-              (pkgs.haskell.lib.disableLibraryProfiling
-                (self.callCabal2nix "beam-sqlite" beam-sqlite-path { }))
-              ./nix/0001-Bump-hashable-bound-for-mysql-sqlite.patch;
 
           beam-core = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-core" "${beam-core-path}" { });
-          beam-postgres =
-            pkgs.haskell.lib.dontCheck
-              (pkgs.haskell.lib.disableLibraryProfiling
-                (self.callCabal2nix "beam-postgres" "${beam-postgres-path}" { }));
+          beam-sqlite =
+            pkgs.haskell.lib.disableLibraryProfiling
+              (self.callCabal2nix "beam-sqlite" beam-sqlite-path { });
+
+          beam-postgres = with pkgs.haskell.lib;
+            dontCheck (disableLibraryProfiling
+              (self.callCabal2nix "beam-postgres" "${beam-postgres-path}" { }));
+
           beam-mysql = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-mysql" "${beam-mysql-path}" { });
 
-          euler-hs =
-            self.callCabal2nix "euler-hs" ./. { };
+          euler-hs = pkgs.haskell.lib.disableLibraryProfiling
+            (self.callCabal2nix "euler-hs" ./. { });
         };
       };
     };
@@ -91,5 +86,5 @@ let
     import nixpkgs { inherit config; };
 in {
   pkgs = pkgs;
-  euler-hs = with pkgs; haskell.lib.disableLibraryProfiling haskellPackages.euler-hs;
+  euler-hs = pkgs.haskell.lib.dontCheck pkgs.haskellPackages.euler-hs;
 }

@@ -76,7 +76,14 @@ let
           beam-mysql = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "beam-mysql" "${beam-mysql-path}" { });
 
-          euler-hs = pkgs.haskell.lib.disableLibraryProfiling
+          euler-hs = with pkgs.haskell.lib;
+            dontCheck
+              (disableLibraryProfiling
+                (self.callCabal2nix "euler-hs" ./. { }));
+
+          # TODO: remove dontCheck above and remove this package
+          # after fixing call untyped API test
+          euler-hs-with-tests = pkgs.haskell.lib.disableLibraryProfiling
             (self.callCabal2nix "euler-hs" ./. { });
         };
       };
@@ -86,5 +93,5 @@ let
     import nixpkgs { inherit config; };
 in {
   pkgs = pkgs;
-  euler-hs = pkgs.haskell.lib.dontCheck pkgs.haskellPackages.euler-hs;
+  euler-hs = pkgs.haskellPackages.euler-hs;
 }

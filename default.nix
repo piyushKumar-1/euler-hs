@@ -53,28 +53,29 @@ let
 
           hedis = with pkgs.haskell.lib;
             dontCheck (disableLibraryProfiling
-              (self.callCabal2nix "hedis" "${hedis-path}" { }));
+              (self.callCabal2nix "hedis" hedis-path { }));
 
           beam-migrate = with pkgs.haskell.lib;
-            (disableLibraryProfiling
-              (self.callCabal2nix "beam-migrate" beam-migrate-path { })
-            ).override { haskell-src-exts = haskell-src-exts_1_21_1; };
+            disableLibraryProfiling
+              (self.callCabal2nix "beam-migrate" beam-migrate-path {
+                haskell-src-exts = haskell-src-exts_1_21_1;
+              });
 
           # needed for ClassA error in beam-migrate
           haskell-src-exts_1_21_1 = self.callPackage ./nix/haskell-src-exts.nix { };
 
           beam-core = pkgs.haskell.lib.disableLibraryProfiling
-            (self.callCabal2nix "beam-core" "${beam-core-path}" { });
+            (self.callCabal2nix "beam-core" beam-core-path { });
           beam-sqlite =
             pkgs.haskell.lib.disableLibraryProfiling
               (self.callCabal2nix "beam-sqlite" beam-sqlite-path { });
 
           beam-postgres = with pkgs.haskell.lib;
             dontCheck (disableLibraryProfiling
-              (self.callCabal2nix "beam-postgres" "${beam-postgres-path}" { }));
+              (self.callCabal2nix "beam-postgres" beam-postgres-path { }));
 
           beam-mysql = pkgs.haskell.lib.disableLibraryProfiling
-            (self.callCabal2nix "beam-mysql" "${beam-mysql-path}" { });
+            (self.callCabal2nix "beam-mysql" beam-mysql-path { });
 
           euler-hs = with pkgs.haskell.lib;
             dontCheck

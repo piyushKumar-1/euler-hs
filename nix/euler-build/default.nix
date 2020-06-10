@@ -1,0 +1,44 @@
+{
+  nixpkgs
+, haskellCompiler
+}:
+let
+  # Needed for lib and fetchFromGitHub
+  pkgs = import nixpkgs { };
+  inherit (pkgs) fetchFromGitHub;
+  inherit (pkgs) lib;
+
+  importOverlay = path: params:
+    import path ({ inherit eulerBuild; } // params);
+
+  mkHaskellOverlay = eulerOverrides: self: super: {
+    eulerHaskellPackages =
+      (super.eulerHaskellPackages
+        or super.haskell.packages."${haskellCompiler}").override (oldArgs: {
+          overrides = self.lib.composeExtensions (oldArgs.overrides or (_: _: {}))
+            (eulerOverrides self super);
+        }
+      );
+  };
+
+  nix-inclusive = fetchFromGitHub {
+    owner = "manveru";
+    repo = "nix-inclusive";
+    rev = "bb435b7dce2b8a27d174543f0d768646d0d48fa3";
+    sha256 = "0fg4dbk7x62z86ah3qw4dlaiippgd0ckcqgm89zz5sapna1v4d56";
+  };
+  inclusive = import "${nix-inclusive}/inclusive.nix" { inherit lib; };
+
+  allowedPaths = { root, paths }: inclusive root paths;
+
+  composeOverlays = lib.foldl' lib.composeExtensions (_: _: {});
+
+  eulerBuild = {
+    inherit (pkgs) fetchFromGitHub;
+    inherit importOverlay;
+    inherit composeOverlays;
+    inherit mkHaskellOverlay;
+    inherit allowedPaths;
+  };
+
+in eulerBuild

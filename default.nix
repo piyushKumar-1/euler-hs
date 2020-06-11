@@ -48,4 +48,7 @@ in {
   inherit beam-overlay;
   inherit euler-hs-overlay;
   overlay = eulerBuild.composeOverlays allUsedOverlays;
+
+  # TODO: (?) put in a separate repo together with ./nix/euler-build
+  inherit eulerBuild;
 }

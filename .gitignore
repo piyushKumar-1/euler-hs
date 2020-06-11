@@ -1,5 +1,6 @@
 out
 result
+result-*
 dist
 dist-*
 cabal-dev
@@ -33,10 +34,15 @@ client/
 *.iml
 
 *.diff
+!nix/packages/*.diff
 *.patch
+!nix/packages/*.patch
+
 tags
 
 .vscode/
 .nvimrc
 
 init/id_rsa
+
+*~

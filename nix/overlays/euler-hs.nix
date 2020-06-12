@@ -13,7 +13,7 @@ let
   hedis-path = hedis-repo;
 in
 eulerBuild.mkHaskellOverlay
-  (self: super: hself: hsuper: rec {
+  (self: super: hself: hsuper: {
     hedis =
       eulerBuild.fastBuildExternal {
         drv = hself.callCabal2nix "hedis" hedis-path { };

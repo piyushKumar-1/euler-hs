@@ -15,19 +15,22 @@ in
 eulerBuild.mkHaskellOverlay
   (self: super: hself: hsuper: rec {
     hedis =
-      with self.haskell.lib;
-      dontCheck (disableLibraryProfiling
-        (hself.callCabal2nix "hedis" hedis-path { }));
+      eulerBuild.fastBuildExternal {
+        drv = hself.callCabal2nix "hedis" hedis-path { };
+      };
 
     euler-hs =
-      with self.haskell.lib;
-      dontCheck
-        (disableLibraryProfiling
-          (hself.callCabal2nix "euler-hs" src { }));
+      eulerBuild.fastBuild {
+        drv = hself.callCabal2nix "euler-hs" src { };
+      };
 
     # TODO: remove dontCheck above and remove this package
     # after fixing call untyped API test
     euler-hs-with-tests =
-      self.haskell.lib.disableLibraryProfiling
-        (hself.callCabal2nix "euler-hs" src { });
+      eulerBuild.fastBuild {
+        drv = hself.callCabal2nix "euler-hs" src { };
+        overrides = {
+          runTests = true;
+        };
+      };
   })

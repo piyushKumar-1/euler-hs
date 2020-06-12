@@ -34,6 +34,15 @@ eulerBuild.mkHaskellOverlay
     # needed for ClassA error in beam-migrate
     haskell-src-exts_1_21_1 =
       hself.callPackage ../packages/haskell-src-exts.nix { };
+    # TODO: use this override (will cause a lot of rebuilds)
+    # haskell-src-exts = hself.haskell-src-exts_1_21_1;
+
+    # TODO: remove this override after enabled HSE above
+    # needed for hspec-wai-json used in euler-api-order
+    haskell-src-meta = self.haskell.lib.dontCheck
+      (hsuper.haskell-src-meta.override {
+        haskell-src-exts = haskell-src-exts_1_21_1;
+      });
 
     beam-core = self.haskell.lib.disableLibraryProfiling
       (hself.callCabal2nix "beam-core" beam-core-path { });

@@ -1,6 +1,12 @@
 {
   nixpkgs
 , haskellCompiler
+, fastBuildParams ? { runTests = false;
+                      enableProfiling = false;
+                      buildDocs = false;
+                      enableBenchmarks = false;
+                      dontOptimize = false;
+                    }
 }:
 let
   # Needed for lib and fetchFromGitHub
@@ -33,12 +39,31 @@ let
 
   composeOverlays = lib.foldl' lib.composeExtensions (_: _: {});
 
+  fastBuild = { drv, overrides ? {} }:
+    let
+      params = fastBuildParams // overrides;
+
+      modifiers =
+        with pkgs.haskell.lib;
+        pkgs.lib.optional (!params.runTests) dontCheck ++ 
+        pkgs.lib.optional (!params.enableProfiling) disableLibraryProfiling ++
+        pkgs.lib.optional (!params.buildDocs) dontHaddock ++
+        pkgs.lib.optional (!params.enableBenchmarks) dontBenchmark ++
+        pkgs.lib.optional params.dontOptimize disableOptimization;
+    in
+      pkgs.lib.pipe drv modifiers;
+
+  fastBuildExternal = fastBuild;
+
   eulerBuild = {
     inherit (pkgs) fetchFromGitHub;
     inherit importOverlay;
     inherit composeOverlays;
     inherit mkHaskellOverlay;
     inherit allowedPaths;
+
+    inherit fastBuild;
+    inherit fastBuildExternal;
   };
 
 in eulerBuild

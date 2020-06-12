@@ -25,35 +25,44 @@ let
 in
 eulerBuild.mkHaskellOverlay
   (self: super: hself: hsuper: rec {
-    beam-migrate = with self.haskell.lib;
-      disableLibraryProfiling
-        (hself.callCabal2nix "beam-migrate" beam-migrate-path {
+    beam-migrate =
+      eulerBuild.fastBuildExternal {
+        drv = hself.callCabal2nix "beam-migrate" beam-migrate-path {
           haskell-src-exts = haskell-src-exts_1_21_1;
-        });
+        };
+      };
 
     # needed for ClassA error in beam-migrate
     haskell-src-exts_1_21_1 =
-      hself.callPackage ../packages/haskell-src-exts.nix { };
+      eulerBuild.fastBuildExternal {
+        drv = hself.callPackage ../packages/haskell-src-exts.nix { };
+      };
     # TODO: use this override (will cause a lot of rebuilds)
     # haskell-src-exts = hself.haskell-src-exts_1_21_1;
 
     # TODO: remove this override after enabled HSE above
     # needed for hspec-wai-json used in euler-api-order
-    haskell-src-meta = self.haskell.lib.dontCheck
-      (hsuper.haskell-src-meta.override {
-        haskell-src-exts = haskell-src-exts_1_21_1;
-      });
+    # dontCheck
+    haskell-src-meta =
+      eulerBuild.fastBuildExternal {
+        drv = hsuper.haskell-src-meta.override {
+          haskell-src-exts = haskell-src-exts_1_21_1;
+        };
+      };
 
-    beam-core = self.haskell.lib.disableLibraryProfiling
-      (hself.callCabal2nix "beam-core" beam-core-path { });
-    beam-sqlite =
-      self.haskell.lib.disableLibraryProfiling
-        (hself.callCabal2nix "beam-sqlite" beam-sqlite-path { });
+    beam-core = eulerBuild.fastBuildExternal {
+      drv = hself.callCabal2nix "beam-core" beam-core-path { };
+    };
+    beam-sqlite = eulerBuild.fastBuildExternal {
+      drv = hself.callCabal2nix "beam-sqlite" beam-sqlite-path { };
+    };
 
-    beam-postgres = with self.haskell.lib;
-      dontCheck (disableLibraryProfiling
-        (hself.callCabal2nix "beam-postgres" beam-postgres-path { }));
+    # dontCheck
+    beam-postgres = eulerBuild.fastBuildExternal {
+      drv = hself.callCabal2nix "beam-postgres" beam-postgres-path { };
+    };
 
-    beam-mysql = self.haskell.lib.disableLibraryProfiling
-      (hself.callCabal2nix "beam-mysql" beam-mysql-path { });
+    beam-mysql = eulerBuild.fastBuildExternal {
+      drv = hself.callCabal2nix "beam-mysql" beam-mysql-path { };
+    };
   })

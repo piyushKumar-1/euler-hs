@@ -23,7 +23,7 @@ let
 
   beam-mysql-path = beam-mysql-repo;
 in
-eulerBuild.mkHaskellOverlay
+eulerBuild.mkEulerHaskellOverlay
   (self: super: hself: hsuper:
     let 
       # needed for ClassA error in beam-migrate

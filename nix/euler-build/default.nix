@@ -17,15 +17,19 @@ let
   importOverlay = path: params:
     import path ({ inherit eulerBuild; } // params);
 
-  mkHaskellOverlay = eulerOverrides: self: super: {
-    eulerHaskellPackages =
-      (super.eulerHaskellPackages
-        or super.haskell.packages."${haskellCompiler}").override (oldArgs: {
-          overrides = self.lib.composeExtensions (oldArgs.overrides or (_: _: {}))
-            (eulerOverrides self super);
-        }
+  mkHaskellOverlayWith = pkgsAttrName: userOverrides:
+    self: super: {
+      "${pkgsAttrName}" =
+        (super."${pkgsAttrName}"
+          or super.haskell.packages."${haskellCompiler}").override (oldArgs: {
+            overrides = self.lib.composeExtensions (oldArgs.overrides or (_: _: {}))
+              (userOverrides self super);
+          }
       );
-  };
+    };
+
+  mkHaskellOverlay = mkHaskellOverlayWith "haskellPackages";
+  mkEulerHaskellOverlay = mkHaskellOverlayWith "eulerHaskellPackages";
 
   nix-inclusive = fetchFromGitHub {
     owner = "manveru";
@@ -60,6 +64,7 @@ let
     inherit importOverlay;
     inherit composeOverlays;
     inherit mkHaskellOverlay;
+    inherit mkEulerHaskellOverlay;
     inherit allowedPaths;
 
     inherit fastBuild;

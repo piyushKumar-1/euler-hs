@@ -1,6 +1,5 @@
 {
-  withHoogle ? true
-, haskellCompiler ? "ghc883"
+  haskellCompiler ? "ghc883"
 }:
 let
   inherit (import <nixpkgs> {}) fetchFromGitHub;
@@ -17,9 +16,6 @@ let
     inherit haskellCompiler;
   };
 
-  ghc-overlay = eulerBuild.importOverlay ./nix/overlays/ghc.nix {
-    inherit withHoogle;
-  };
   beam-overlay = eulerBuild.importOverlay ./nix/overlays/beam.nix { };
 
   euler-hs-src = eulerBuild.allowedPaths {
@@ -35,7 +31,12 @@ let
     src = euler-hs-src;
   };
 
-  allUsedOverlays = [ ghc-overlay beam-overlay euler-hs-overlay ];
+  # for both dev and CI
+  code-tools-overlay = eulerBuild.importOverlay ./nix/overlays/code-tools.nix { };
+  # for dev only
+  devtools-overlay = import ./nix/overlays/devtools.nix { };
+
+  allUsedOverlays = [ beam-overlay euler-hs-overlay ];
 
   pkgs = import nixpkgs {
     overlays = allUsedOverlays;
@@ -44,10 +45,12 @@ in {
   inherit pkgs;
   euler-hs = pkgs.eulerHaskellPackages.euler-hs;
 
-  inherit ghc-overlay;
   inherit beam-overlay;
   inherit euler-hs-overlay;
   overlay = eulerBuild.composeOverlays allUsedOverlays;
+
+  inherit code-tools-overlay;
+  inherit devtools-overlay;
 
   # TODO: (?) put in a separate repo together with ./nix/euler-build
   inherit eulerBuild;

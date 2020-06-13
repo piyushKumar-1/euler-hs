@@ -6,7 +6,7 @@ pipeline {
   stages {
     stage('Build and Test') {
       steps {
-        sh 'nix-build -A pkgs.eulerHaskellPackages.euler-hs-with-tests --option sandbox false --arg withHoogle false'
+        sh 'nix-build -A pkgs.eulerHaskellPackages.euler-hs-with-tests --option sandbox false --arg remoteDeps true'
       }
 
       options {

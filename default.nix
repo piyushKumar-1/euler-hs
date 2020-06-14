@@ -11,7 +11,14 @@ let
     sha256 = "0nkk492aa7pr0d30vv1aw192wc16wpa1j02925pldc09s9m9i0r3";
   };
 
-  eulerBuild = import ./nix/euler-build {
+  # To avoid importing nixpkgs here
+  makeOverridable = f: origArgs:
+    let
+      origRes = f origArgs;
+    in
+      origRes // { override = newArgs: f (origArgs // newArgs); };
+
+  eulerBuild = makeOverridable (import ./nix/euler-build) {
     inherit nixpkgs;
     inherit haskellCompiler;
   };

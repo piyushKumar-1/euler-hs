@@ -36,10 +36,31 @@ let
   # for dev only
   devtools-overlay = import ./nix/overlays/devtools.nix { };
 
-  allUsedOverlays = [ beam-overlay euler-hs-overlay ];
+  allUsedOverlays = [
+    code-tools-overlay
+    beam-overlay
+    euler-hs-overlay
+  ];
 
   pkgs = import nixpkgs {
     overlays = allUsedOverlays;
+  };
+
+  haskellPackagesTools =
+    with pkgs.haskellPackages;
+    [
+      hlint
+      cabal-fmt
+      nixfmt
+      stylish-haskell
+    ];
+  tools = [];
+
+  mkShell = eulerBuild.mkShell {
+    drvPath = ./default.nix;
+    drvName = "euler-hs";
+    inherit haskellPackagesTools;
+    inherit tools;
   };
 in {
   inherit pkgs;
@@ -51,6 +72,7 @@ in {
 
   inherit code-tools-overlay;
   inherit devtools-overlay;
+  inherit mkShell;
 
   # TODO: (?) put in a separate repo together with ./nix/euler-build
   inherit eulerBuild;

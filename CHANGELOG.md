@@ -1,5 +1,39 @@
 # Changelog for euler-hs
 
+## [1.10.0.0] - 2020-06-16
+* Euler-HS 1.10.0.0: a significant update with new features and fixes.
+  - New authentication service in euler-api-order
+  - Rework of repository structure, each library has its own repo now.
+  - Added an `eulerBuild` --  a collection of nix functions for building and developing euler-based projects.
+  - See `eulerBuild` documentation [BUILD.md](BUILD.md) for upgrade and usage instructions.
+  - Compatibility with GHC 8.8.
+  - Updated stack resolver to 15.15.
+  - Updated pinned nixpkgs to `nixos-unstable` at `0f5ce2fac0c726036ca69a5524c59a49e2973dd4` (~ 18.05.2020)
+  - Added CI builds.
+  - See notes on how to upgrade in [UPGRADE.md](UPGRADE.md).
+  - New policy for releases -- create a new tag with the same name for all core libraries,
+    i.e. `euler-hs`, `euler-db`, `euler-types`, `euler-webservice` have a tag `EulerHS-1.10.0.0` for this release.
+### `euler-hs`
+  - Added `run[Update/Delete]ReturningList` for Postgres.
+  - Added `delOption`.
+  - Added `runUntracedIO` for reading/writing sensitive data.
+  - Log format temporarily changed to partly mimic euler-ps.
+  - Added untyped HTTP calls to `Flow`.
+  - Lots of various fixes not listed here.
+  - Added `insertRowReturningMySql` function which does not use temporary tables internally.
+  - Beware of `SqlBool` vs `Bool` when writing `beam` queries, and other gotchas: [see BEAM_NOTES.md](BEAM_NOTES.md),
+    read this if you use database at all via `euler-hs`.
+    Some of this can have a critical effect on performance, especially on MySQL.
+### `euler-db`
+  - Contains DB-facing types.
+  - https://bitbucket.org/juspay/euler-db
+### `euler-types`
+  - Contains domain types.
+  - https://bitbucket.org/juspay/euler-types
+### `euler-webservice`
+  - Contains utilities for writing servant-based web services.
+  - https://bitbucket.org/juspay/euler-webservice
+
 ## [1.9.5.0] - 2020-04-13
 * Euler-HS 1.9.5.0: fixes
   - Async logger mem consumption fixed.

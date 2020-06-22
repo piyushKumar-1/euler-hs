@@ -15,6 +15,7 @@ module EulerHS.Framework.Flow.Language
   , deinitSqlDBConnection
   , getSqlDBConnection
   , runDB
+  , runTransaction
   -- *** KVDB
   , initKVDBConnection
   , deinitKVDBConnection
@@ -581,6 +582,7 @@ runDB
   -> Flow (T.DBResult a)
 runDB conn dbAct = liftFC $ RunDB conn dbAct False id
 
+-- | Like `runDB` but runs inside a SQL transaction.
 runTransaction
   ::
     ( T.JSONEx a

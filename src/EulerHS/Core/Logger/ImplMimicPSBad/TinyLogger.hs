@@ -87,6 +87,24 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- rewrite all this with katip or forked tinylog
 jsonRenderer :: String -> String -> Log.Renderer
 jsonRenderer hostname env separator dateFormat logLevel fields =
+  BinaryBuilder.fromByteString "{ timestamp = " <> quote <> timestamp <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "hostname = " <> quote <> fromString hostname <> quote <> commaSep <>
+  BinaryBuilder.fromByteString invariant <>
+  BinaryBuilder.fromByteString "message = " <> quote <> message <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "message_type = \"string\" }"
+  where
+    quote = BinaryBuilder.fromByteString "\""
+    (timestamp, message) = case fields of
+      [ts, _, t]    -> (elementToBS ts, elementToBS t)
+      [ts, _, _, m] -> (elementToBS ts, elementToBS m)
+      _             -> error "Malformed log fields."
+    commaSep = BinaryBuilder.fromByteString ", "
+    invariant = "level = \"info\", txn_uuid = \"null\", order_id = \"null\", x-request-id = \"null\", "
+    elementToBS = LogMsg.builderBytes . \case
+      LogMsg.Bytes b -> b
+      LogMsg.Field k _ -> k
+{-
+jsonRenderer hostname env separator dateFormat logLevel fields =
   Json.fromEncoding $
     Json.pairs ("timestamp" Json..= (TL.decodeUtf8 timestamp)
                <> "hostname" Json..= hostname
@@ -114,6 +132,7 @@ jsonRenderer hostname env separator dateFormat logLevel fields =
     elementToBS :: LogMsg.Element -> BSL.ByteString
     elementToBS (LogMsg.Bytes builder)   = convBS builder
     elementToBS (LogMsg.Field keyB valB) = convBS keyB
+-}
 
 mimicEulerPSSettings :: String -> String -> Log.Settings -> Log.Settings
 mimicEulerPSSettings hostname env = Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env)

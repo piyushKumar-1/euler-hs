@@ -193,6 +193,7 @@ data FlowMethod next where
     :: T.JSONEx a
     => T.SqlConn beM
     -> L.SqlDB beM a
+    -> Bool
     -> (T.DBResult a -> next)
     -> FlowMethod next
 
@@ -248,7 +249,7 @@ instance Functor FlowMethod where
 
   fmap f (GetKVDBConnection cfg next)         = GetKVDBConnection cfg (f . next)
 
-  fmap f (RunDB conn sqlDbAct next)           = RunDB conn sqlDbAct (f . next)
+  fmap f (RunDB conn sqlDbAct runInTransaction next) = RunDB conn sqlDbAct runInTransaction (f . next)
 
   fmap f (RunKVDB cName act next)             = RunKVDB cName act (f . next)
 
@@ -536,7 +537,7 @@ deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
 getKVDBConnection :: T.KVDBConfig -> Flow (T.KVDBAnswer T.KVDBConn)
 getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
 
--- | Evaluates SQL DB operations transactionally.
+-- | Evaluates SQL DB operations outside of any transaction.
 -- It's possible to have a chain of SQL DB calls (within the SqlDB language).
 -- These chains will be executed as a single transaction.
 --
@@ -578,7 +579,18 @@ runDB
   => T.SqlConn beM
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
-runDB conn dbAct = liftFC $ RunDB conn dbAct id
+runDB conn dbAct = liftFC $ RunDB conn dbAct False id
+
+runTransaction
+  ::
+    ( T.JSONEx a
+    , T.BeamRunner beM
+    , T.BeamRuntime be beM
+    )
+  => T.SqlConn beM
+  -> L.SqlDB beM a
+  -> Flow (T.DBResult a)
+runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
 
 -- | Fork a flow.
 --

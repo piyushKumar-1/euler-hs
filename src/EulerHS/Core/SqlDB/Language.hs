@@ -32,7 +32,7 @@ import           EulerHS.Prelude
 type SqlDB beM = F (SqlDBMethodF beM)
 
 data SqlDBMethodF beM next where
-  SqlDBMethod :: (T.NativeSqlConn -> (String -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
+  SqlDBMethod :: (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
 
   SqlThrowException :: (Exception e)
     => e -> (a -> next) -> SqlDBMethodF beM next

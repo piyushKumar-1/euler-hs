@@ -363,6 +363,8 @@ runDB
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
 ```
+ 
+Runs outside of a transaction. For transactions you can use `runTransaction`.
 
 *Extracting existing connection from FlowRuntime by given db config and runs sql query (described using BEAM syntax). Acts like 'getSqlDBConnection' + 'runDB'*
 ```haskell

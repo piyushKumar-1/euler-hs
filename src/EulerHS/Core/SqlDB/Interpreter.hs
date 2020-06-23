@@ -12,6 +12,7 @@ import qualified EulerHS.Core.Types as T
 import           Control.Exception (throwIO)
 
 
+-- TODO: The runner runner gets composed in in `sqlDBMethod`. Move it into the interpreter!
 interpretSqlDBMethod
   :: T.NativeSqlConn
   -> (String -> IO ())

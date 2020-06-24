@@ -116,7 +116,7 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtDelete = B.runDelete
 
 class BeamRunner beM where
-  getBeamDebugRunner :: NativeSqlConn -> beM a -> ((String -> IO ()) -> IO a)
+  getBeamDebugRunner :: NativeSqlConn -> beM a -> ((Text -> IO ()) -> IO a)
 
 
 instance BeamRunner BS.SqliteM where

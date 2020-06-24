@@ -19,6 +19,7 @@ import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
 import qualified Database.Redis as RD
 import qualified System.Mem as SYSM (performGC)
+import qualified Database.MySQL.Base as MySQL
 
 import           System.IO.Unsafe (unsafePerformIO)
 
@@ -51,6 +52,7 @@ data FlowRuntime = FlowRuntime
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
+  MySQL.initLibrary
   defaultManagerVar <- newManager tlsManagerSettings
   optionsVar        <- newMVar mempty
   kvdbConnections   <- newMVar Map.empty

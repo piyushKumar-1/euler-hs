@@ -25,6 +25,7 @@ import qualified Network.HTTP.Client             as HTTP
 import qualified Network.HTTP.Types              as HTTP
 import           System.Process                  (readCreateProcess, shell)
 
+import qualified Database.MySQL.Base             as MySQL
 import qualified Data.Pool                       as DP
 import qualified EulerHS.Core.Interpreters       as R
 import qualified EulerHS.Core.Runtime            as R
@@ -40,6 +41,7 @@ import qualified Data.Vector                     as V
 import qualified EulerHS.Core.Logger.Language    as L
 import qualified EulerHS.Core.Playback.Entries   as P
 import qualified EulerHS.Core.Playback.Machine   as P
+
 
 import           Data.Generics.Product.Positions (getPosition)
 import           Unsafe.Coerce                   (unsafeCoerce)
@@ -63,6 +65,11 @@ disconnect (T.MockedPool _)        = pure ()
 disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
+
+forkAndInitMySQL :: IO () -> IO ThreadId
+forkAndInitMySQL io = forkIO $ do
+  MySQL.initThread
+  io
 
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
@@ -233,7 +240,7 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
 interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   case R._runMode rt of
-    T.RegularMode -> void $ forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+    T.RegularMode -> void $ forkAndInitMySQL (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
 
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
@@ -259,7 +266,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
-      void $ forkIO $ do
+      void $ forkAndInitMySQL $ do
         suppressErrors $ (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalSafeRecordingVar    =<< readMVar forkSafeRecordingVar
@@ -315,7 +322,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
             Map.insert newFlowGUID finalReplayErrors forkedFlowErrs
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
-          void $ forkIO $ do
+          void $ forkAndInitMySQL $ do
             suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
             putMVar finalSafeFlowErrorVar   =<< readMVar forkSafeFlowErrorVar

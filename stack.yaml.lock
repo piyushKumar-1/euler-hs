@@ -5,6 +5,9 @@
 
 packages:
 - completed:
+    cabal-file:
+      size: 5329
+      sha256: f48f3574d2453272743a610a5a2e8a1b4b707955543de4e3a1e36901cee67ae3
     name: hedis
     version: 0.12.8.1
     git: https://github.com/juspay/hedis
@@ -16,68 +19,83 @@ packages:
     git: https://github.com/juspay/hedis
     commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
 - completed:
+    cabal-file:
+      size: 2283
+      sha256: f6c5b46a1e0b43787ac42546fd7a6a9ca71f2b2bec0af869a60f4a7393c87489
     name: beam-mysql
     version: 0.3.0.0
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
       size: 542
-      sha256: 84a5983f91aac3c3c484fe4aa8fe9d489afc4685cee340dadb5bb941cfc788d2
-    commit: 7960580e041188459cfafef9c49aa6535ef4243e
+      sha256: c10362057a0140ebfc3050a26256da6d157eb652aad127282071807d383a0b3c
+    commit: 5d17599e02f30c220b679439ee0c1025e3086250
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: 7960580e041188459cfafef9c49aa6535ef4243e
+    commit: 5d17599e02f30c220b679439ee0c1025e3086250
 - completed:
     subdir: beam-core
+    cabal-file:
+      size: 5144
+      sha256: b4c3443aef0ae6284bf04963c909b56d7f9260d7b07b71dde819661f87a93918
     name: beam-core
     version: 0.9.0.0
     git: https://github.com/juspay/beam
     pantry-tree:
       size: 2623
       sha256: 365f420adf34642df7ffac56f80a578da48b3bebfac140748f3e163f83b4e37c
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
   original:
     subdir: beam-core
     git: https://github.com/juspay/beam
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
 - completed:
     subdir: beam-migrate
+    cabal-file:
+      size: 4921
+      sha256: 0d76aeac145a7dd73db6e1157c421d9ff4f58fbcd0cedcc6edeb91ee4b31e1c7
     name: beam-migrate
     version: 0.5.0.0
     git: https://github.com/juspay/beam
     pantry-tree:
       size: 1825
       sha256: 3ef904145e6e05e2f1cf6558e40f109f2751f08d2f8ce446f4e43ab70675936b
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
   original:
     subdir: beam-migrate
     git: https://github.com/juspay/beam
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
 - completed:
     subdir: beam-sqlite
+    cabal-file:
+      size: 2792
+      sha256: d65cc870d6920f662eae460f74f52e964d6c4be2e83fccc23ee649a231fd5fa8
     name: beam-sqlite
     version: 0.5.0.0
     git: https://github.com/juspay/beam
     pantry-tree:
       size: 859
-      sha256: 7e7b71af08698075ebf1cddb7437ee6f02ad565d313efd04c95919a330b6dee4
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+      sha256: d28565e631ed326b35719b4f0b1825dbdda0daed39618bff3506b70f45b9d2e8
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
   original:
     subdir: beam-sqlite
     git: https://github.com/juspay/beam
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
 - completed:
     subdir: beam-postgres
+    cabal-file:
+      size: 4177
+      sha256: 5385f2fbb22671b621201ea0196c90b2ff0fa5715be9b247e50fd8bde0810e58
     name: beam-postgres
     version: 0.5.0.0
     git: https://github.com/juspay/beam
     pantry-tree:
       size: 2507
-      sha256: b361d1eb8fe769bee4ba44c2049f70f26cb5b83566db438bbdc68406f6543d37
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+      sha256: 324e99224bacf35d65f138d68a21fdb6b5c2377b32517048ad9c4e43a75e0846
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
   original:
     subdir: beam-postgres
     git: https://github.com/juspay/beam
-    commit: b626c85f4d86b0960359d8b99613a9a0439667a2
+    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
 - completed:
     hackage: dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
     pantry-tree:

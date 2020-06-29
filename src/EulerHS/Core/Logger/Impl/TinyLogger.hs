@@ -38,7 +38,7 @@ dispatchLogLevel D.Error   = Log.Error
 
 -- TODO: extract formatting from this module.
 -- Make it configurable.
-strMsg :: String -> LogMsg.Msg -> LogMsg.Msg
+strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
 strMsg = Log.msg
 
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()

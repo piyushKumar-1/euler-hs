@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -67,9 +66,7 @@ disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 
 forkAndInitMySQL :: IO () -> IO ThreadId
-forkAndInitMySQL io = forkIO $ do
-  MySQL.initThread
-  io
+forkAndInitMySQL = forkIO
 
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException

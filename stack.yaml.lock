@@ -21,11 +21,11 @@ packages:
     git: https://github.com/kozross/beam-mysql
     pantry-tree:
       size: 909
-      sha256: 151b6209b562264ccf63e0d65d749720ddf2539e521975d0fc0c3079da437dd9
-    commit: b97162238b4978aa5a4d78ea4a4a6e099487d1e9
+      sha256: f1fe4ebe77b845dee623396c54f3f48257efd81b6e02def48de7814b27f0a9b3
+    commit: f69341daedf7a7ccae1d63379674f69a970b0d6f
   original:
     git: https://github.com/kozross/beam-mysql
-    commit: b97162238b4978aa5a4d78ea4a4a6e099487d1e9
+    commit: f69341daedf7a7ccae1d63379674f69a970b0d6f
 - completed:
     name: mysql-haskell
     version: 0.8.4.2

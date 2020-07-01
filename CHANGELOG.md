@@ -34,6 +34,10 @@
   - Contains utilities for writing servant-based web services.
   - https://bitbucket.org/juspay/euler-webservice
 
+## [2.0.0.0] - 2020-07-01
+
+* Use `beam-mysql` based on `mysql-haskell` instead of `mysql`
+
 ## [1.9.5.0] - 2020-04-13
 * Euler-HS 1.9.5.0: fixes
   - Async logger mem consumption fixed.

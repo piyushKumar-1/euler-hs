@@ -10,8 +10,7 @@ import EulerHS.Types
 import qualified EulerHS.Types as T
 import           EulerHS.Language
 import           System.Process
-import           Database.MySQL.Base
-import qualified Database.Beam.MySQL as BM
+import qualified Database.MySQL.Base as MySQL
 import qualified Database.Beam.Postgres as BP
 import           Database.PostgreSQL.Simple (execute_)
 
@@ -51,13 +50,13 @@ withMysqlDb dbName filePath msRootCfg next =
     dropTestDbIfExist :: IO ()
     dropTestDbIfExist =
       bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
-        query rootConn $ "drop database if exists " <> encodeUtf8 dbName
+        void . MySQL.execute_ rootConn . MySQL.Query $ "drop database if exists " <> encodeUtf8 dbName
 
     createTestDb :: IO ()
     createTestDb =
       bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
-        query rootConn $ "create database " <> encodeUtf8 dbName
-        query rootConn $ "grant all privileges on " <> encodeUtf8 dbName <> ".* to 'cloud'@'%'"
+        _ <- MySQL.execute_ rootConn . MySQL.Query $ "create database " <> encodeUtf8 dbName
+        void . MySQL.execute_ rootConn . MySQL.Query $ "grant all privileges on " <> encodeUtf8 dbName <> ".* to 'cloud'@'%'"
 
 
 -- prepareMysqlDB

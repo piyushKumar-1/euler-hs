@@ -66,9 +66,8 @@ spec = do
             ( Left $ DBError
                 ( SQLError $ MysqlError $
                     MysqlSqlError
-                      { errFunction = "query"
-                      , errNumber   = 1062
-                      , errMessage  = "Duplicate entry '2' for key 'PRIMARY'"
+                      { errCode   = 1062
+                      , errMsg  = "Duplicate entry '2' for key 'PRIMARY'"
                       }
                 )
                 "ConnectionError {errFunction = \"query\", errNumber = 1062, errMessage = \"Duplicate entry '2' for key 'PRIMARY'\"}"

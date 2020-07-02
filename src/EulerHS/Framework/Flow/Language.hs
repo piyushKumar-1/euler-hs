@@ -259,6 +259,17 @@ instance Functor FlowMethod where
 
 type Flow = F FlowMethod
 
+newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
+
+type MessageCallback
+    =  ByteString  -- ^ Message payload
+    -> Flow ()
+
+type PMessageCallback
+    =  ByteString  -- ^ Channel name
+    -> ByteString  -- ^ Message payload
+    -> Flow ()
+
 instance Monad.MonadThrow Flow where
   throwM = throwException
 
@@ -303,24 +314,97 @@ forkFlow' description flow = do
       tag :: Text
       tag = "ForkFlow"
 
-newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
 
-type MessageCallback
-    =  ByteString  -- ^ Message payload
-    -> Flow ()
+-- | Method for calling external HTTP APIs using the facilities of servant-client.
+-- Allows to specify what manager should be used. If no manager found,
+-- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
+--
+-- Thread safe, exception free.
+--
+-- Alias for callServantAPI.
+--
+-- | Takes remote url, servant client for this endpoint
+-- and returns either client error or result.
+--
+-- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > data Book = Book { author :: String, name :: String }
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > type API = "user" :> Get '[JSON] User
+-- >       :<|> "book" :> Get '[JSON] Book
+-- >
+-- > api :: Proxy API
+-- > api = Proxy
+-- >
+-- > getUser :: EulerClient User
+-- > getBook :: EulerClient Book
+-- > (getUser :<|> getBook) = client api
+-- >
+-- > url = BaseUrl Http "localhost" port ""
+-- >
+-- >
+-- > myFlow = do
+-- >   book <- callAPI url getBook
+-- >   user <- callAPI url getUser
+callAPI' :: (T.JSONEx a, MonadFlow m) => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
+callAPI' = callServantAPI
 
-type PMessageCallback
-    =  ByteString  -- ^ Channel name
-    -> ByteString  -- ^ Message payload
-    -> Flow ()
+-- | The same as `callAPI'` but with default manager to be used.
+callAPI :: (T.JSONEx a, MonadFlow m) => BaseUrl -> T.EulerClient a -> m (Either ClientError a)
+callAPI = callServantAPI Nothing
 
--- $> :t show
+-- | Log message with Info level.
+--
+-- Thread safe
+logInfo :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
 -- | Log message with Error level.
 --
 -- Thread safe.
--- logError :: Show tag => tag -> T.Message -> Flow ()
--- logError tag msg = evalLogger' $ logMessage' T.Error tag msg
+logError :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logError tag msg = evalLogger' $ logMessage' T.Error tag msg
+
+-- | Log message with Debug level.
+--
+-- Thread safe.
+logDebug :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
+
+-- | Log message with Warning level.
+--
+-- Thread safe.
+logWarning :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
+
+-- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
+-- because we have to collect it in recordings for ART system.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runIO $ readFromFile file
+-- >   logDebugT "content id" $ extractContentId content
+-- >   pure content
+runIO :: (MonadFlow m, T.JSONEx a) => IO a -> m a
+runIO = runIO' ""
+
+-- | The same as runIO, but do not record IO outputs in the ART recordings.
+--   For example, this can be useful to implement things like STM or use mutable
+--   state.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runUntracedIO $ readFromFile file
+-- >   logDebugT "content id" $ extractContentId content
+-- >   pure content
+runUntracedIO :: MonadFlow m => IO a -> m a
+runUntracedIO = runUntracedIO' ""
+
+
 
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
@@ -368,17 +452,6 @@ class Monad m => MonadFlow m where
     -> T.EulerClient a             -- ^ servant client 'EulerClient'
     -> m (Either ClientError a) -- ^ result
 
-  -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
-  -- because we have to collect it in recordings for ART system.
-  --
-  -- Warning. This method is dangerous and should be used wisely.
-  --
-  -- > myFlow = do
-  -- >   content <- runIO $ readFromFile file
-  -- >   logDebugT "content id" $ extractContentId content
-  -- >   pure content
-  runIO :: T.JSONEx a => IO a -> m a
-
   -- | Method for calling external HTTP APIs without bothering with types.
   --
   -- Thread safe, exception free.
@@ -391,67 +464,8 @@ class Monad m => MonadFlow m where
     :: T.HTTPRequest                           -- ^ remote url 'Text'
     -> m (Either Text.Text T.HTTPResponse)  -- ^ result
 
-  -- | Method for calling external HTTP APIs using the facilities of servant-client.
-  -- Allows to specify what manager should be used. If no manager found,
-  -- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
-  --
-  -- Thread safe, exception free.
-  --
-  -- Alias for callServantAPI.
-  --
-  -- | Takes remote url, servant client for this endpoint
-  -- and returns either client error or result.
-  --
-  -- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
-  -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
-  -- >
-  -- > data Book = Book { author :: String, name :: String }
-  -- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
-  -- >
-  -- > type API = "user" :> Get '[JSON] User
-  -- >       :<|> "book" :> Get '[JSON] Book
-  -- >
-  -- > api :: Proxy API
-  -- > api = Proxy
-  -- >
-  -- > getUser :: EulerClient User
-  -- > getBook :: EulerClient Book
-  -- > (getUser :<|> getBook) = client api
-  -- >
-  -- > url = BaseUrl Http "localhost" port ""
-  -- >
-  -- >
-  -- > myFlow = do
-  -- >   book <- callAPI url getBook
-  -- >   user <- callAPI url getUser
-
-  callAPI' :: T.JSONEx a => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
-
-  -- | The same as `callAPI'` but with default manager to be used.
-  callAPI :: T.JSONEx a => BaseUrl -> T.EulerClient a -> m (Either ClientError a)
-
   -- | Evaluates a logging action.
   evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> m a
-
-  -- | Log message with Info level.
-  --
-  -- Thread safe.
-  logInfo :: Show tag => tag -> T.Message -> m ()
-
-  -- | Log message with Error level.
-  --
-  -- Thread safe.
-  logError :: forall tag . Show tag => tag -> T.Message -> m ()
-
-  -- | Log message with Debug level.
-  --
-  -- Thread safe.
-  logDebug :: Show tag => tag -> T.Message -> m ()
-
-  -- | Log message with Warning level.
-  --
-  -- Thread safe.
-  logWarning :: Show tag => tag -> T.Message -> m ()
 
   -- | The same as runIO, but accepts a description which will be written into the ART recordings
   -- for better clarity.
@@ -463,18 +477,6 @@ class Monad m => MonadFlow m where
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
   runIO' :: T.JSONEx a => Text -> IO a -> m a
-
-  -- | The same as runIO, but do not record IO outputs in the ART recordings.
-  --   For example, this can be useful to implement things like STM or use mutable
-  --   state.
-  --
-  -- Warning. This method is dangerous and should be used wisely.
-  --
-  -- > myFlow = do
-  -- >   content <- runUntracedIO $ readFromFile file
-  -- >   logDebugT "content id" $ extractContentId content
-  -- >   pure content
-  runUntracedIO :: IO a -> m a
 
   -- | The same as runUntracedIO, but accepts a description which will be written into
   -- the ART recordings for better clarity.
@@ -736,27 +738,13 @@ class Monad m => MonadFlow m where
 
 instance MonadFlow Flow where
   callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
-
   callHTTP url = liftFC $ CallHTTP url id
-  callAPI' = callServantAPI
-  callAPI = callServantAPI Nothing
-
-  evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> Flow a
   evalLogger' logAct = liftFC $ EvalLogger logAct id
 
-  logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
-
-  logError :: Show tag => tag -> T.Message -> Flow ()
-  logError tag msg = undefined -- evalLogger' $ logMessage' T.Error tag msg
-  logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
-  logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
-
-  runIO = runIO' ""
   runIO' descr ioAct = liftFC $ RunIO descr ioAct id
-  runUntracedIO = runUntracedIO' ""
   runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
 
-  getOption :: forall m k v. T.OptionEntity k v => k -> Flow (Maybe v)
+  getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
   getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 
   setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
@@ -798,3 +786,31 @@ instance MonadFlow Flow where
 
   psubscribe channels cb = fmap (runIO' "psubscribe") $
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
+
+
+instance MonadFlow m => MonadFlow (ReaderT r m) where
+  callServantAPI mbMgrSel url cl = lift $ callServantAPI mbMgrSel url cl
+  callHTTP = lift . callHTTP
+  evalLogger' = lift . evalLogger'
+  runIO' descr = lift . runIO' descr
+  runUntracedIO' descr = lift . runUntracedIO' descr
+  getOption = lift . getOption
+  setOption k = lift . setOption k
+  delOption = lift . delOption
+  generateGUID = lift generateGUID
+  runSysCmd = lift . runSysCmd
+  initSqlDBConnection = lift . initSqlDBConnection
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  getSqlDBConnection = lift . getSqlDBConnection
+  initKVDBConnection = lift . initKVDBConnection
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  getKVDBConnection = lift . getKVDBConnection
+  runDB conn = lift . runDB conn
+  runTransaction conn = lift . runTransaction conn
+  await mbMcs = lift . await mbMcs
+  throwException =  lift . throwException
+  runSafeFlow m = ReaderT $ runSafeFlow . runReaderT m
+  runKVDB cName = lift . runKVDB cName
+  runPubSub = lift . runPubSub
+  publish channel = lift . publish channel
+  subscribe channels = lift . subscribe channels

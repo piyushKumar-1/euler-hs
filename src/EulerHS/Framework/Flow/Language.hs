@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE InstanceSigs          #-}
+-- {-# LANGUAGE OverlappingInstances  #-}
 
 module EulerHS.Framework.Flow.Language
   (
@@ -60,6 +61,7 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import           Control.Monad.Trans.Writer (WriterT)
 import qualified Control.Monad.Catch  as Monad
 import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Text as Text
@@ -270,8 +272,8 @@ type PMessageCallback
     -> ByteString  -- ^ Message payload
     -> Flow ()
 
-instance Monad.MonadThrow Flow where
-  throwM = throwException
+-- instance Monad.MonadThrow Flow where
+--   throwM = throwException
 
 -- | Fork a flow.
 --
@@ -690,7 +692,7 @@ class Monad m => MonadFlow m where
   -- >   case eitherContent of
   -- >     Left err -> ...
   -- >     Right content -> ...
-  runSafeFlow :: (FromJSON a, ToJSON a) => m a -> m (Either Text a)
+  runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
 
   -- | Execute kvdb actions.
   --
@@ -788,8 +790,9 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
 
 
+-- instance (MonadTrans t, MonadFlow m) => MonadFlow (t m) where
 instance MonadFlow m => MonadFlow (ReaderT r m) where
-  callServantAPI mbMgrSel url cl = lift $ callServantAPI mbMgrSel url cl
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   callHTTP = lift . callHTTP
   evalLogger' = lift . evalLogger'
   runIO' descr = lift . runIO' descr
@@ -809,8 +812,65 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
   throwException =  lift . throwException
-  runSafeFlow m = ReaderT $ runSafeFlow . runReaderT m
+  runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
   publish channel = lift . publish channel
   subscribe channels = lift . subscribe channels
+  psubscribe channels = lift . psubscribe channels
+
+instance MonadFlow m => MonadFlow (StateT s m) where
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  callHTTP = lift . callHTTP
+  evalLogger' = lift . evalLogger'
+  runIO' descr = lift . runIO' descr
+  runUntracedIO' descr = lift . runUntracedIO' descr
+  getOption = lift . getOption
+  setOption k = lift . setOption k
+  delOption = lift . delOption
+  generateGUID = lift generateGUID
+  runSysCmd = lift . runSysCmd
+  initSqlDBConnection = lift . initSqlDBConnection
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  getSqlDBConnection = lift . getSqlDBConnection
+  initKVDBConnection = lift . initKVDBConnection
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  getKVDBConnection = lift . getKVDBConnection
+  runDB conn = lift . runDB conn
+  runTransaction conn = lift . runTransaction conn
+  await mbMcs = lift . await mbMcs
+  throwException =  lift . throwException
+  runSafeFlow = lift . runSafeFlow
+  runKVDB cName = lift . runKVDB cName
+  runPubSub = lift . runPubSub
+  publish channel = lift . publish channel
+  subscribe channels = lift . subscribe channels
+  psubscribe channels = lift . psubscribe channels
+
+instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  callHTTP = lift . callHTTP
+  evalLogger' = lift . evalLogger'
+  runIO' descr = lift . runIO' descr
+  runUntracedIO' descr = lift . runUntracedIO' descr
+  getOption = lift . getOption
+  setOption k = lift . setOption k
+  delOption = lift . delOption
+  generateGUID = lift generateGUID
+  runSysCmd = lift . runSysCmd
+  initSqlDBConnection = lift . initSqlDBConnection
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  getSqlDBConnection = lift . getSqlDBConnection
+  initKVDBConnection = lift . initKVDBConnection
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  getKVDBConnection = lift . getKVDBConnection
+  runDB conn = lift . runDB conn
+  runTransaction conn = lift . runTransaction conn
+  await mbMcs = lift . await mbMcs
+  throwException =  lift . throwException
+  runSafeFlow = lift . runSafeFlow
+  runKVDB cName = lift . runKVDB cName
+  runPubSub = lift . runPubSub
+  publish channel = lift . publish channel
+  subscribe channels = lift . subscribe channels
+  psubscribe channels = lift . psubscribe channels

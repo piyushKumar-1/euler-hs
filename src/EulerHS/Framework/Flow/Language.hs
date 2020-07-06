@@ -360,25 +360,25 @@ callAPI = callServantAPI Nothing
 -- | Log message with Info level.
 --
 -- Thread safe
-logInfo :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logInfo :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
 -- | Log message with Error level.
 --
 -- Thread safe.
-logError :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logError :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logError tag msg = evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
 --
 -- Thread safe.
-logDebug :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logDebug :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 
 -- | Log message with Warning level.
 --
 -- Thread safe.
-logWarning :: (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logWarning :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),

@@ -1,17 +1,17 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module EulerHS.Testing.Types where
 
-import EulerHS.Prelude
 import qualified Data.ByteString.Lazy as BSL
-import qualified Database.Redis  as R
-import Data.Data
+import           Data.Data
+import qualified Database.Redis as R
+import           EulerHS.Prelude
 
 data FlowMockedValues' = FlowMockedValues'
   { mockedCallServantAPI :: [Any]
-  , mockedRunIO :: [Any]
-  , mockedGetOption :: [BSL.ByteString]
-  , mockedGenerateGUID :: [Text]
-  , mockedRunSysCmd :: [String]
+  , mockedRunIO          :: [Any]
+  , mockedGetOption      :: [BSL.ByteString]
+  , mockedGenerateGUID   :: [Text]
+  , mockedRunSysCmd      :: [String]
   } deriving (Generic, Typeable)
 
 

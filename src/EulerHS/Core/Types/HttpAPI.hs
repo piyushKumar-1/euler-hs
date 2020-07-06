@@ -14,12 +14,12 @@ module EulerHS.Core.Types.HttpAPI
     , httpHead
     ) where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import qualified Data.Map             as Map
-import qualified Data.Text            as Text
-import qualified Data.Text.Encoding   as Encoding
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Encoding
 
 import qualified EulerHS.Core.Types.BinaryString as T
 

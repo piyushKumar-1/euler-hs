@@ -1,18 +1,18 @@
 module EulerHS.Testing.Util where
 
-import EulerHS.Prelude
-import Control.Monad.Except (MonadError, throwError, runExceptT)
-import           Data.Aeson (Value(..), Result(..))
+import           Control.Monad.Except (MonadError, runExceptT, throwError)
+import           Data.Aeson (Result (..), Value (..))
 import qualified Data.Aeson as Aeson
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import           Data.Vector (Vector(..), (!?))
+import           Data.Vector (Vector (..), (!?))
 import qualified Data.Vector as Vector
+import           EulerHS.Prelude
 
-import           EulerHS.Testing.CommonLog (CommonLog(..), HasCommonLog)
+import           EulerHS.Testing.CommonLog (CommonLog (..), HasCommonLog)
 import qualified EulerHS.Testing.CommonLog as CommonLog
-import qualified EulerHS.Testing.PSLog as PSLog
 import qualified EulerHS.Testing.HSLog as HSLog
+import qualified EulerHS.Testing.PSLog as PSLog
 
 
 readJSONFile :: FilePath -> IO (Maybe Aeson.Value)
@@ -65,9 +65,9 @@ compareLogs psLogs hsLogs = case psLogs !? 0 of
 
 drop1of :: forall a. (Eq a) => a -> Vector a -> Vector a
 drop1of x xs = fst $ foldr go (Vector.empty, Vector.empty) xs
-  where 
+  where
     go :: a -> (Vector a, Vector a) -> (Vector a, Vector a)
-    go new acc@(l, r) = if Vector.null r 
+    go new acc@(l, r) = if Vector.null r
       then if (new == x) then (l, Vector.cons new r) else (Vector.cons new l, r)
       else acc
 
@@ -76,7 +76,7 @@ processPSFile :: (MonadError CheckJSONError m) => Maybe Value ->  m (Vector Comm
 processPSFile maybeValue = do
   case maybeValue of
     Nothing -> throwError LoadJsonError
-    Just val -> do 
+    Just val -> do
       case (  fmap CommonLog.fromPSLog . catMaybeVec . fmap (aesonMaybe . Aeson.fromJSON)) <$> purescriptEntries val of
         Nothing -> throwError ImpossibleError
         Just vec -> pure . Vector.filter (not . CommonLog.isLog) $ catMaybeVec vec
@@ -87,7 +87,7 @@ processHSFile maybeValue = do
     Nothing -> throwError LoadJsonError
     Just val -> do
       case (fmap CommonLog.fromHSLog . catMaybeVec . fmap (aesonMaybe . Aeson.fromJSON)) <$> haskellEntries val of
-        Nothing -> throwError ImpossibleError
+        Nothing  -> throwError ImpossibleError
         Just vec -> pure $ catMaybeVec vec
 
 aesonMaybe :: Result a -> Maybe a

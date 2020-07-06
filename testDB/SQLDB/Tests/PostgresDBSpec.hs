@@ -11,13 +11,13 @@ import           SQLDB.TestData.Connections (connectOrFail)
 import           SQLDB.TestData.Scenarios.Postgres
 import           SQLDB.TestData.Types
 
-import           Test.Hspec hiding (runIO)
-import           Database.PostgreSQL.Simple (execute_)
-import           EulerHS.Runtime (withFlowRuntime, FlowRuntime)
 import qualified Database.Beam.Postgres as BP
+import           Database.PostgreSQL.Simple (execute_)
+import           EulerHS.Extra.Test
 import           EulerHS.Language
+import           EulerHS.Runtime (FlowRuntime, withFlowRuntime)
 import           System.Process
-import EulerHS.Extra.Test
+import           Test.Hspec hiding (runIO)
 
 -- Configurations
 

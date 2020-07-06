@@ -1,14 +1,14 @@
 module EulerHS.Core.PubSub.Interpreter where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import           Data.Coerce
+import qualified Database.Redis as R
 import qualified EulerHS.Core.Playback.Machine as P
-import qualified Database.Redis                as R
-import qualified EulerHS.Types                 as T
+import qualified EulerHS.Types as T
 
-import           EulerHS.Core.PubSub.Language
 import           EulerHS.Core.PubSub.Entries
+import           EulerHS.Core.PubSub.Language
 
 
 interpretPubSubF

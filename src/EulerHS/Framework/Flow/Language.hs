@@ -1,9 +1,9 @@
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE InstanceSigs          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE InstanceSigs          #-}
 -- {-# LANGUAGE OverlappingInstances  #-}
 
 module EulerHS.Framework.Flow.Language
@@ -61,16 +61,16 @@ module EulerHS.Framework.Flow.Language
 
 import           EulerHS.Prelude hiding (getOption)
 
+import qualified Control.Monad.Catch as Monad
 import           Control.Monad.Trans.Writer (WriterT)
-import qualified Control.Monad.Catch  as Monad
 import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Text as Text
-import qualified Network.HTTP.Client as HTTP
-import           Servant.Client (ClientError, BaseUrl)
-import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Language (Logger, logMessage', KVDB)
+import           EulerHS.Core.Language (KVDB, Logger, logMessage')
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.PubSub.Language as PSL
+import qualified EulerHS.Core.Types as T
+import qualified Network.HTTP.Client as HTTP
+import           Servant.Client (BaseUrl, ClientError)
 
 -- | Flow language.
 data FlowMethod next where
@@ -636,7 +636,7 @@ class Monad m => MonadFlow m where
     => T.SqlConn beM
     -> L.SqlDB beM a
     -> m (T.DBResult a)
- 
+
   -- | Await for some a result from the flow.
   -- If the timeout is Nothing than the operation is blocking.
   -- If the timeout is set then the internal mechanism tries to do several (10) checks for the result.

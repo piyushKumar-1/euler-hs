@@ -7,9 +7,9 @@ module EulerHS.Core.SqlDB.Interpreter
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Core.Types    as T
+import qualified EulerHS.Core.Types as T
 
-import           Control.Exception     (throwIO)
+import           Control.Exception (throwIO)
 
 
 -- TODO: The runner runner gets composed in in `sqlDBMethod`. Move it into the interpreter!

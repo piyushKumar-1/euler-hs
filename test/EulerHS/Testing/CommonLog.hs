@@ -1,9 +1,9 @@
 module EulerHS.Testing.CommonLog where
 
-import EulerHS.Prelude
-import EulerHS.Testing.HSLog (HSLog(..))
+import           EulerHS.Prelude
+import           EulerHS.Testing.HSLog (HSLog (..))
 import qualified EulerHS.Testing.HSLog as HSLog
-import EulerHS.Testing.PSLog (PSLog(..))
+import           EulerHS.Testing.PSLog (PSLog (..))
 import qualified EulerHS.Testing.PSLog as PSLog
 
 data CommonLog

@@ -1,15 +1,15 @@
+{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DerivingStrategies #-}
 
 
 module EulerHS.Core.Api where
 
-import EulerHS.Prelude
-import qualified Servant.Client.Free                as SCF
-import qualified Servant.Client                     as SC
-import qualified Servant.Client.Core                as SCC
+import           EulerHS.Prelude
+import qualified Servant.Client as SC
+import qualified Servant.Client.Core as SCC
+import           Servant.Client.Core.RunClient (RunClient)
+import qualified Servant.Client.Free as SCF
 import qualified Servant.Client.Internal.HttpClient as SCIHC
-import Servant.Client.Core.RunClient (RunClient)
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)

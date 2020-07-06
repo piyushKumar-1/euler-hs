@@ -1,19 +1,19 @@
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module EulerHS.Extra.Test where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import EulerHS.Interpreters
-import EulerHS.Runtime (FlowRuntime)
-import EulerHS.Types
-import qualified EulerHS.Types as T
-import           EulerHS.Language
-import           System.Process
-import           Database.MySQL.Base
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
+import           Database.MySQL.Base
 import           Database.PostgreSQL.Simple (execute_)
+import           EulerHS.Interpreters
+import           EulerHS.Language
+import           EulerHS.Runtime (FlowRuntime)
+import           EulerHS.Types
+import qualified EulerHS.Types as T
+import           System.Process
 
 
 mwhen :: Monoid m => Bool -> m -> m

@@ -1,30 +1,30 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE StandaloneDeriving    #-}
 
 module SQLDB.Tests.QueryExamplesSpec where
 
 
-import           EulerHS.Prelude   hiding (getOption)
-import           Test.Hspec        hiding (runIO)
-import           Data.Aeson               (encode)
+import           Data.Aeson (encode)
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Time
+import           EulerHS.Prelude hiding (getOption)
+import           Test.Hspec hiding (runIO)
 import           Unsafe.Coerce
 
-import           EulerHS.Types hiding (error)
 import           EulerHS.Interpreters
 import           EulerHS.Language
 import           EulerHS.Runtime (withFlowRuntime)
+import           EulerHS.Types hiding (error)
 
 import qualified EulerHS.Language as L
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Types as T
 
+import           Database.Beam ((&&.), (/=.), (<-.), (<.), (==.), (>.), (>=.))
 import qualified Database.Beam as B
-import qualified Database.Beam.Sqlite as BS
 import qualified Database.Beam.Backend.SQL as B
-import Database.Beam ((==.), (&&.), (<-.), (/=.), (>=.), (>.), (<.))
+import qualified Database.Beam.Sqlite as BS
 
 
 date1 :: LocalTime
@@ -74,14 +74,14 @@ td3 = TimeOfDay
   }
 
 data MemberT f = Member
-    { memberId        :: B.C f Int
-    , surName         :: B.C f Text
-    , firstName       :: B.C f Text
-    , address         :: B.C f Text
-    , zipCode         :: B.C f Int
-    , telephone       :: B.C f Text
-    , recommendedBy   :: B.C f (Maybe Int)
-    , joinDate        :: B.C f LocalTime
+    { memberId      :: B.C f Int
+    , surName       :: B.C f Text
+    , firstName     :: B.C f Text
+    , address       :: B.C f Text
+    , zipCode       :: B.C f Int
+    , telephone     :: B.C f Text
+    , recommendedBy :: B.C f (Maybe Int)
+    , joinDate      :: B.C f LocalTime
     } deriving (Generic, B.Beamable)
 
 instance B.Table MemberT where
@@ -194,9 +194,9 @@ bookingsEMod = B.modifyTableFields
 
 
 data ClubDB f = ClubDB
-    { members :: f (B.TableEntity MemberT)
+    { members    :: f (B.TableEntity MemberT)
     , facilities :: f (B.TableEntity FacilityT)
-    , bookings :: f (B.TableEntity BookingT)
+    , bookings   :: f (B.TableEntity BookingT)
     } deriving (Generic, B.Database be)
 
 clubDB :: B.DatabaseSettings be ClubDB

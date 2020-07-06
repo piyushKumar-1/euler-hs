@@ -63,7 +63,8 @@ import qualified Database.PostgreSQL.Simple as PGS
 import qualified Database.SQLite.Simple as SQLite
 
 import           EulerHS.Core.Types.MySQL (MySQLConfig, createMySQLConn)
-import           EulerHS.Core.Types.Postgres (PostgresConfig, createPostgresConn)
+import           EulerHS.Core.Types.Postgres (PostgresConfig,
+                                              createPostgresConn)
 
 
 
@@ -312,37 +313,37 @@ data SqliteError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 toSqliteError :: SQLite.Error -> SqliteError
-toSqliteError SQLite.ErrorOK                  = SqliteErrorOK
-toSqliteError SQLite.ErrorError               = SqliteErrorError
-toSqliteError SQLite.ErrorInternal            = SqliteErrorInternal
-toSqliteError SQLite.ErrorPermission          = SqliteErrorPermission
-toSqliteError SQLite.ErrorAbort               = SqliteErrorAbort
-toSqliteError SQLite.ErrorBusy                = SqliteErrorBusy
-toSqliteError SQLite.ErrorLocked              = SqliteErrorLocked
-toSqliteError SQLite.ErrorNoMemory            = SqliteErrorNoMemory
-toSqliteError SQLite.ErrorReadOnly            = SqliteErrorReadOnly
-toSqliteError SQLite.ErrorInterrupt           = SqliteErrorInterrupt
-toSqliteError SQLite.ErrorIO                  = SqliteErrorIO
-toSqliteError SQLite.ErrorCorrupt             = SqliteErrorCorrupt
-toSqliteError SQLite.ErrorNotFound            = SqliteErrorNotFound
-toSqliteError SQLite.ErrorFull                = SqliteErrorFull
-toSqliteError SQLite.ErrorCan'tOpen           = SqliteErrorCantOpen
-toSqliteError SQLite.ErrorProtocol            = SqliteErrorProtocol
-toSqliteError SQLite.ErrorEmpty               = SqliteErrorEmpty
-toSqliteError SQLite.ErrorSchema              = SqliteErrorSchema
-toSqliteError SQLite.ErrorTooBig              = SqliteErrorTooBig
-toSqliteError SQLite.ErrorConstraint          = SqliteErrorConstraint
-toSqliteError SQLite.ErrorMismatch            = SqliteErrorMismatch
-toSqliteError SQLite.ErrorMisuse              = SqliteErrorMisuse
-toSqliteError SQLite.ErrorNoLargeFileSupport  = SqliteErrorNoLargeFileSupport
-toSqliteError SQLite.ErrorAuthorization       = SqliteErrorAuthorization
-toSqliteError SQLite.ErrorFormat              = SqliteErrorFormat
-toSqliteError SQLite.ErrorRange               = SqliteErrorRange
-toSqliteError SQLite.ErrorNotADatabase        = SqliteErrorNotADatabase
-toSqliteError SQLite.ErrorNotice              = SqliteErrorNotice
-toSqliteError SQLite.ErrorWarning             = SqliteErrorWarning
-toSqliteError SQLite.ErrorRow                 = SqliteErrorRow
-toSqliteError SQLite.ErrorDone                = SqliteErrorDone
+toSqliteError SQLite.ErrorOK                 = SqliteErrorOK
+toSqliteError SQLite.ErrorError              = SqliteErrorError
+toSqliteError SQLite.ErrorInternal           = SqliteErrorInternal
+toSqliteError SQLite.ErrorPermission         = SqliteErrorPermission
+toSqliteError SQLite.ErrorAbort              = SqliteErrorAbort
+toSqliteError SQLite.ErrorBusy               = SqliteErrorBusy
+toSqliteError SQLite.ErrorLocked             = SqliteErrorLocked
+toSqliteError SQLite.ErrorNoMemory           = SqliteErrorNoMemory
+toSqliteError SQLite.ErrorReadOnly           = SqliteErrorReadOnly
+toSqliteError SQLite.ErrorInterrupt          = SqliteErrorInterrupt
+toSqliteError SQLite.ErrorIO                 = SqliteErrorIO
+toSqliteError SQLite.ErrorCorrupt            = SqliteErrorCorrupt
+toSqliteError SQLite.ErrorNotFound           = SqliteErrorNotFound
+toSqliteError SQLite.ErrorFull               = SqliteErrorFull
+toSqliteError SQLite.ErrorCan'tOpen          = SqliteErrorCantOpen
+toSqliteError SQLite.ErrorProtocol           = SqliteErrorProtocol
+toSqliteError SQLite.ErrorEmpty              = SqliteErrorEmpty
+toSqliteError SQLite.ErrorSchema             = SqliteErrorSchema
+toSqliteError SQLite.ErrorTooBig             = SqliteErrorTooBig
+toSqliteError SQLite.ErrorConstraint         = SqliteErrorConstraint
+toSqliteError SQLite.ErrorMismatch           = SqliteErrorMismatch
+toSqliteError SQLite.ErrorMisuse             = SqliteErrorMisuse
+toSqliteError SQLite.ErrorNoLargeFileSupport = SqliteErrorNoLargeFileSupport
+toSqliteError SQLite.ErrorAuthorization      = SqliteErrorAuthorization
+toSqliteError SQLite.ErrorFormat             = SqliteErrorFormat
+toSqliteError SQLite.ErrorRange              = SqliteErrorRange
+toSqliteError SQLite.ErrorNotADatabase       = SqliteErrorNotADatabase
+toSqliteError SQLite.ErrorNotice             = SqliteErrorNotice
+toSqliteError SQLite.ErrorWarning            = SqliteErrorWarning
+toSqliteError SQLite.ErrorRow                = SqliteErrorRow
+toSqliteError SQLite.ErrorDone               = SqliteErrorDone
 
 data SqliteSqlError
   = SqliteSqlError

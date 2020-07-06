@@ -9,21 +9,21 @@
 
 module EulerHS.Testing.Flow.Interpreter where
 
-import           EulerHS.Prelude -- hiding (view, (^.))
-import           Data.Aeson                      (encode, decode)
-import Servant.Client (ClientError(..))
-import qualified EulerHS.Language as L
-import qualified EulerHS.Runtime as R
+import           Data.Aeson (decode, encode)
 import qualified EulerHS.Interpreters as R
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
+import qualified EulerHS.Runtime as R
+import           Servant.Client (ClientError (..))
 
-import EulerHS.Testing.Types
-import Unsafe.Coerce
+import           EulerHS.Testing.Types
+import           Unsafe.Coerce
 
-import Control.Lens
-import Data.Generics.Product.Fields
-import GHC.Generics
-import GHC.TypeLits
-import Type.Reflection (typeRep)
+import           Control.Lens
+import           Data.Generics.Product.Fields
+import           GHC.Generics
+import           GHC.TypeLits
+import           Type.Reflection (typeRep)
 
 runFlowWithTestInterpreter :: FlowMockedValues -> R.FlowRuntime -> L.Flow a -> IO a
 runFlowWithTestInterpreter mv flowRt = foldF (interpretFlowMethod mv flowRt)

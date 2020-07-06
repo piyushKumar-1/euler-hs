@@ -240,7 +240,7 @@ instance MockedResult (InitSqlDBConnectionEntry beM) (T.DBResult (T.SqlConn beM)
 
 ----------------------------------------------------------------------
 
-data DeInitSqlDBConnectionEntry beM = DeInitSqlDBConnectionEntry
+data DeInitSqlDBConnectionEntry (beM :: Type -> Type) = DeInitSqlDBConnectionEntry
   { connTag :: Text
   } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

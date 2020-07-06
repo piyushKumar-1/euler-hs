@@ -142,6 +142,7 @@ library
     , text
     , time
     , tinylog
+    , transformers
     , universum
     , uuid
     , validation

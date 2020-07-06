@@ -790,7 +790,7 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
 
 
--- instance (MonadTrans t, MonadFlow m) => MonadFlow (t m) where
+-- instance (MonadTrans t, MonadFlow m, Monad m, Monad (t m)) => MonadFlow (t m) where
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   callHTTP = lift . callHTTP
@@ -848,6 +848,34 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  callHTTP = lift . callHTTP
+  evalLogger' = lift . evalLogger'
+  runIO' descr = lift . runIO' descr
+  runUntracedIO' descr = lift . runUntracedIO' descr
+  getOption = lift . getOption
+  setOption k = lift . setOption k
+  delOption = lift . delOption
+  generateGUID = lift generateGUID
+  runSysCmd = lift . runSysCmd
+  initSqlDBConnection = lift . initSqlDBConnection
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  getSqlDBConnection = lift . getSqlDBConnection
+  initKVDBConnection = lift . initKVDBConnection
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  getKVDBConnection = lift . getKVDBConnection
+  runDB conn = lift . runDB conn
+  runTransaction conn = lift . runTransaction conn
+  await mbMcs = lift . await mbMcs
+  throwException =  lift . throwException
+  runSafeFlow = lift . runSafeFlow
+  runKVDB cName = lift . runKVDB cName
+  runPubSub = lift . runPubSub
+  publish channel = lift . publish channel
+  subscribe channels = lift . subscribe channels
+  psubscribe channels = lift . psubscribe channels
+
+instance MonadFlow m => MonadFlow (ExceptT e m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   callHTTP = lift . callHTTP
   evalLogger' = lift . evalLogger'

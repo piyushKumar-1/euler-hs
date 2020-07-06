@@ -3,15 +3,15 @@ module EulerHS.Core.Types.BinaryString
 , LBinaryString(..)
 ) where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import qualified Data.ByteString         as Strict
-import qualified Data.ByteString.Lazy    as Lazy
-import qualified Data.ByteString.Base64  as B64
-import qualified Data.Text               as Text
-import qualified Data.Text.Encoding      as Encoding
-import qualified Control.Monad.Fail      as MonadFail
+import qualified Control.Monad.Fail as MonadFail
+import qualified Data.ByteString as Strict
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.String.Conversions as Conversions
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Encoding
 
 -- TODO: Move to euler-db
 
@@ -46,7 +46,7 @@ instance Conversions.ConvertibleStrings BinaryString Lazy.ByteString where
 -- Lazy BinaryString
 --------------------------------------------------------------------------
 
-newtype LBinaryString 
+newtype LBinaryString
   = LBinaryString
     { getLBinaryString :: Lazy.ByteString }
     deriving (Show, Eq, Ord)
@@ -87,5 +87,5 @@ base64Encode = Encoding.decodeUtf8 . B64.encode
 --
 base64Decode :: MonadFail.MonadFail m => Text.Text -> m Strict.ByteString
 base64Decode s = case B64.decode (Encoding.encodeUtf8 s) of
-  Left err -> fail err
+  Left err  -> fail err
   Right res -> return res

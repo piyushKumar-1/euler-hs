@@ -14,8 +14,8 @@ module EulerHS.Core.Runtime
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
-import           EulerHS.Core.Types                            (LogLevel (..), LoggerConfig (..))
-import           EulerHS.Core.Types.DB                         as X (withTransaction)
+import           EulerHS.Core.Types (LogLevel (..), LoggerConfig (..))
+import           EulerHS.Core.Types.DB as X (withTransaction)
 
 data LoggerRuntime = LoggerRuntime !LogLevel Impl.LoggerHandle
     | MemoryLoggerRuntime !LogLevel !(MVar [Text])

@@ -9,12 +9,12 @@ where
 
 import           EulerHS.Prelude
 
-import qualified EulerHS.Core.Language                         as L
-import qualified EulerHS.Core.Logger.Entries                   as E
+import qualified EulerHS.Core.Language as L
+import qualified EulerHS.Core.Logger.Entries as E
 import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
-import qualified EulerHS.Core.Playback.Machine                 as P
-import qualified EulerHS.Core.Runtime                          as R
-import qualified EulerHS.Core.Types                            as D
+import qualified EulerHS.Core.Playback.Machine as P
+import qualified EulerHS.Core.Runtime as R
+import qualified EulerHS.Core.Types as D
 
 
 interpretLogger :: D.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a

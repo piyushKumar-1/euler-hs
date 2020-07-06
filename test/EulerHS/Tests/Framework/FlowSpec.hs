@@ -158,7 +158,7 @@ spec = do
                 when (count < 100) (writeTVar countVar (count + 1))
                 readTVar countVar
 
-            let 
+            let
               countTo100 = do
                 count <- atomically $ updateCount
                 if count < 100
@@ -194,12 +194,12 @@ spec = do
             s2 <- getOption TestStringKey2
             pure (s1,s2)
           result `shouldBe` (Just "lore ipsum", Just "lore ipsum2")
-        
+
 
         it "Delete Key" $ \rt -> do
           result <- runFlow rt $ do
             _ <- setOption TestStringKey "lorem ipsum"
-            s1 <- getOption TestStringKey 
+            s1 <- getOption TestStringKey
             _ <- delOption TestStringKey
             s2 <- getOption TestStringKey
             pure (s1, s2)

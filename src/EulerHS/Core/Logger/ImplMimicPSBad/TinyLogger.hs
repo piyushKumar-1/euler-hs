@@ -14,25 +14,25 @@ module EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
 
 import           EulerHS.Prelude
 
-import           Control.Concurrent            (forkOn, getNumCapabilities)
+import           Control.Concurrent (forkOn, getNumCapabilities)
 import           Control.Concurrent.STM.TQueue
-import qualified System.Logger                 as Log
-import qualified System.Logger.Message         as LogMsg
+import qualified System.Logger as Log
+import qualified System.Logger.Message as LogMsg
 
-import qualified EulerHS.Core.Types            as D
+import qualified EulerHS.Core.Types as D
 
 
-import qualified Data.Aeson                    as Json
-import qualified Data.Binary.Builder           as BinaryBuilder
-import qualified Data.ByteString.Builder       as ByteStringBuilder
-import qualified Data.ByteString.Lazy          as BSL
-import           Data.Text                     (Text)
-import qualified Data.Text.Lazy                as TL
-import qualified Data.Text.Lazy.Encoding       as TL
+import qualified Data.Aeson as Json
+import qualified Data.Binary.Builder as BinaryBuilder
+import qualified Data.ByteString.Builder as ByteStringBuilder
+import qualified Data.ByteString.Lazy as BSL
+import           Data.Text (Text)
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 -- TODO: remove this along with the whole impl
-import qualified Data.Map                      as Map
-import           System.Environment            (getEnvironment)
+import qualified Data.Map as Map
+import           System.Environment (getEnvironment)
 
 type LogQueue = TQueue D.PendingMsg
 

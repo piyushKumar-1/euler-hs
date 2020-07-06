@@ -27,6 +27,7 @@ module EulerHS.Core.Types.Serializable
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as BS
+import           Data.ByteString.Base64.Type as B64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
@@ -36,7 +37,6 @@ import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as S
 import qualified Servant.Client.Core.Request as S
-import           Data.ByteString.Base64.Type as B64
 
 
 

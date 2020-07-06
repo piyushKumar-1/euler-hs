@@ -18,7 +18,7 @@ module EulerHS.Core.Types.Logger
     , nullLoger
     ) where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error

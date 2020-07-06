@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 module EulerHS.Core.Playback.Machine
   (
     -- * Playback Machine
@@ -8,11 +8,11 @@ module EulerHS.Core.Playback.Machine
     withRunMode
   ) where
 
-import EulerHS.Prelude hiding (note)
-import EulerHS.Types
+import           Control.Exception (throwIO)
+import           Data.Vector as V ((!?))
 import qualified Data.Vector as V
-import Data.Vector as V ((!?))
-import Control.Exception (throwIO)
+import           EulerHS.Prelude hiding (note)
+import           EulerHS.Types
 
 
 showInfo :: String -> String -> String
@@ -142,7 +142,7 @@ replayWithGlobalConfig playerRt  ioAct mkRRItem eNextRRItemRes = do
   let config = checkForReplayConfig playerRt tag
   case config of
     GlobalNoVerify -> case eNextRRItemRes of
-      Left err -> setReplayingError playerRt err
+      Left err        -> setReplayingError playerRt err
       Right (_, _, r) -> pure r
     GlobalNormal    -> case eNextRRItemRes of
         Left err -> setReplayingError playerRt err
@@ -176,7 +176,7 @@ replay playerRt@PlayerRuntime{..} mkRRItem ioAct
         Normal -> do
           replayWithGlobalConfig playerRt ioAct mkRRItem eNextRRItemRes
         NoVerify -> case eNextRRItemRes of
-          Left err -> setReplayingError playerRt err
+          Left err        -> setReplayingError playerRt err
           Right (_, _, r) -> pure r
         NoMock -> ioAct
 

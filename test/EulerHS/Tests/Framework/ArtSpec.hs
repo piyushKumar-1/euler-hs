@@ -12,14 +12,14 @@ import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified Data.Text.Encoding.Error as Encoding
+import qualified Data.UUID as UUID (toText)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Vector as V
 import           Network.Wai.Handler.Warp
 import           Servant.Client
 import           Servant.Server
 import qualified System.IO.Error as Error
 import           Test.Hspec
-import qualified Data.UUID as UUID (toText)
-import qualified Data.UUID.V4 as UUID (nextRandom)
 
 import           EulerHS.Interpreters
 import           EulerHS.Language as L

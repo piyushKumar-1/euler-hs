@@ -1,9 +1,9 @@
 {-# LANGUAGE DeriveAnyClass #-}
 module EulerHS.TestData.Types where
 
+import qualified Data.Aeson as A
 import           EulerHS.Prelude
 import           EulerHS.Types
-import qualified Data.Aeson as A
 
 import           Test.QuickCheck.Arbitrary
 
@@ -108,28 +108,28 @@ instance OptionEntity NTTestKeyWithIntPayloadAnotherEnc Int
 
 
 data TestKVals = TestKVals
-  { mbTestStringKey                            :: Maybe String
-  , mbTestStringKey2                           :: Maybe String
-  , mbTestIntKey                               :: Maybe Int
-  , mbTestIntKey2                              :: Maybe Int
-  , mbTestStringKeyAnotherEnc                  :: Maybe String
-  , mbTestStringKey2AnotherEnc                 :: Maybe String
-  , mbTestKeyWithStringPayloadS1               :: Maybe String
-  , mbTestKeyWithStringPayloadS2               :: Maybe String
-  , mbTestKeyWithIntPayloadS1                  :: Maybe String
-  , mbTestKeyWithIntPayloadS2                  :: Maybe String
-  , mbTestKeyWithStringPayloadAnotherEncS1     :: Maybe String
-  , mbTestKeyWithStringPayloadAnotherEncS2     :: Maybe String
-  , mbTestKeyWithIntPayloadAnotherEncS1        :: Maybe String
-  , mbTestKeyWithIntPayloadAnotherEncS2        :: Maybe String
-  , mbNTTestKeyWithStringPayloadS1             :: Maybe String
-  , mbNTTestKeyWithStringPayloadS2             :: Maybe String
-  , mbNTTestKeyWithIntPayloadS1                :: Maybe Int
-  , mbNTTestKeyWithIntPayloadS2                :: Maybe Int
-  , mbNTTestKeyWithStringPayloadAnotherEncS1   :: Maybe String
-  , mbNTTestKeyWithStringPayloadAnotherEncS2   :: Maybe String
-  , mbNTTestKeyWithIntPayloadAnotherEncS1      :: Maybe Int
-  , mbNTTestKeyWithIntPayloadAnotherEncS2      :: Maybe Int
+  { mbTestStringKey                          :: Maybe String
+  , mbTestStringKey2                         :: Maybe String
+  , mbTestIntKey                             :: Maybe Int
+  , mbTestIntKey2                            :: Maybe Int
+  , mbTestStringKeyAnotherEnc                :: Maybe String
+  , mbTestStringKey2AnotherEnc               :: Maybe String
+  , mbTestKeyWithStringPayloadS1             :: Maybe String
+  , mbTestKeyWithStringPayloadS2             :: Maybe String
+  , mbTestKeyWithIntPayloadS1                :: Maybe String
+  , mbTestKeyWithIntPayloadS2                :: Maybe String
+  , mbTestKeyWithStringPayloadAnotherEncS1   :: Maybe String
+  , mbTestKeyWithStringPayloadAnotherEncS2   :: Maybe String
+  , mbTestKeyWithIntPayloadAnotherEncS1      :: Maybe String
+  , mbTestKeyWithIntPayloadAnotherEncS2      :: Maybe String
+  , mbNTTestKeyWithStringPayloadS1           :: Maybe String
+  , mbNTTestKeyWithStringPayloadS2           :: Maybe String
+  , mbNTTestKeyWithIntPayloadS1              :: Maybe Int
+  , mbNTTestKeyWithIntPayloadS2              :: Maybe Int
+  , mbNTTestKeyWithStringPayloadAnotherEncS1 :: Maybe String
+  , mbNTTestKeyWithStringPayloadAnotherEncS2 :: Maybe String
+  , mbNTTestKeyWithIntPayloadAnotherEncS1    :: Maybe Int
+  , mbNTTestKeyWithIntPayloadAnotherEncS2    :: Maybe Int
   }
   deriving (Show, Eq)
 

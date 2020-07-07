@@ -2,15 +2,15 @@ module EulerHS.Tests.Framework.PubSubSpec
   ( spec
   ) where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import Test.Hspec
+import           Test.Hspec
 
-import Data.Aeson
-import EulerHS.Language as L
-import EulerHS.Tests.Framework.Common
-import EulerHS.Types as T
+import           Data.Aeson
 import qualified Database.Redis as R
+import           EulerHS.Language as L
+import           EulerHS.Tests.Framework.Common
+import           EulerHS.Types as T
 
 connectInfo :: R.ConnectInfo
 connectInfo = R.defaultConnectInfo {R.connectHost = "redis"}

@@ -2,13 +2,13 @@ module EulerHS.TestData.API.Client where
 
 import           EulerHS.Prelude
 
+import           EulerHS.Types
+import           Servant.API
 import           Servant.API
 import           Servant.Mock (mock)
 import           Servant.Server (Server)
-import           Servant.API
-import           EulerHS.Types
 
-import EulerHS.TestData.Types
+import           EulerHS.TestData.Types
 
 
 type API = "user" :> Get '[JSON] User

@@ -9,42 +9,42 @@ module EulerHS.Framework.Flow.Interpreter
     runFlow
   ) where
 
-import           Control.Exception               (throwIO, IOException)
-import qualified Control.Exception               as Exception
-import qualified Data.ByteString.Lazy            as Lazy
-import qualified Data.ByteString                 as Strict
-import qualified Data.CaseInsensitive            as CI
-import qualified Data.DList                      as DL
-import           Data.Either.Extra               (mapLeft)
-import qualified Data.Map                        as Map
-import qualified Data.UUID                       as UUID (toText)
-import qualified Data.UUID.V4                    as UUID (nextRandom)
+import           Control.Exception (IOException, throwIO)
+import qualified Control.Exception as Exception
+import qualified Data.ByteString as Strict
+import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.CaseInsensitive as CI
+import qualified Data.DList as DL
+import           Data.Either.Extra (mapLeft)
+import qualified Data.Map as Map
+import qualified Data.UUID as UUID (toText)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 import           EulerHS.Prelude
-import qualified Servant.Client                  as S
-import qualified Network.HTTP.Client             as HTTP
-import qualified Network.HTTP.Types              as HTTP
-import           System.Process                  (readCreateProcess, shell)
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Types as HTTP
+import qualified Servant.Client as S
+import           System.Process (readCreateProcess, shell)
 
-import qualified Database.MySQL.Base             as MySQL
-import qualified Data.Pool                       as DP
-import qualified EulerHS.Core.Interpreters       as R
-import qualified EulerHS.Core.Runtime            as R
-import qualified EulerHS.Core.Types              as T
+import qualified Data.Pool as DP
+import qualified Database.MySQL.Base as MySQL
+import qualified EulerHS.Core.Interpreters as R
+import qualified EulerHS.Core.Runtime as R
+import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Framework.Language      as L
-import qualified EulerHS.Framework.Runtime       as R
+import qualified EulerHS.Framework.Language as L
+import qualified EulerHS.Framework.Runtime as R
 
 -- TODO: no explicit dependencies from languages.
-import qualified Data.Text                       as Text
-import qualified Data.Text.Encoding              as Encoding
-import qualified Data.Vector                     as V
-import qualified EulerHS.Core.Logger.Language    as L
-import qualified EulerHS.Core.Playback.Entries   as P
-import qualified EulerHS.Core.Playback.Machine   as P
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Encoding
+import qualified Data.Vector as V
+import qualified EulerHS.Core.Logger.Language as L
+import qualified EulerHS.Core.Playback.Entries as P
+import qualified EulerHS.Core.Playback.Machine as P
 
 
 import           Data.Generics.Product.Positions (getPosition)
-import           Unsafe.Coerce                   (unsafeCoerce)
+import           Unsafe.Coerce (unsafeCoerce)
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect cfg = do
@@ -100,11 +100,11 @@ getHttpLibRequest request = do
   httpLibRequest <- HTTP.parseRequest url
   let
     requestMethod = case T.getRequestMethod request of
-      T.Get -> "GET"
-      T.Put -> "PUT"
-      T.Post -> "POST"
+      T.Get    -> "GET"
+      T.Put    -> "PUT"
+      T.Post   -> "POST"
       T.Delete -> "DELETE"
-      T.Head -> "HEAD"
+      T.Head   -> "HEAD"
   let
     setBody = case T.getRequestBody request of
       Just body ->
@@ -124,7 +124,7 @@ getHttpLibRequest request = do
         , HTTP.requestHeaders = headers
         }
 
--- | Utility function to translate http-client HTTP responses back to HttpAPI 
+-- | Utility function to translate http-client HTTP responses back to HttpAPI
 -- responses
 translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text T.HTTPResponse
 translateHttpResponse response = do
@@ -156,7 +156,7 @@ translateResponseHeaders httpLibHeaders = do
       in  Left $ "Error decoding HTTP response headers: " <> err
     Right headers ->
       Right $ Map.fromList headers
-    
+
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 

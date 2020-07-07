@@ -1,11 +1,11 @@
-{-# LANGUAGE DeriveFunctor  #-}
+{-# LANGUAGE DeriveFunctor #-}
 
 module EulerHS.Core.PubSub.Language where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import qualified Database.Redis                as R
-import qualified EulerHS.Types                 as T
+import qualified Database.Redis as R
+import qualified EulerHS.Types as T
 
 newtype Channel        = Channel        ByteString
 newtype ChannelPattern = ChannelPattern ByteString

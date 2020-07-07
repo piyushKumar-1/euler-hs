@@ -21,16 +21,16 @@ module EulerHS.Extra.Language
   , rSetexT
   ) where
 
-import           EulerHS.Prelude            hiding (get, id)
+import           EulerHS.Prelude hiding (get, id)
 
 
 import qualified EulerHS.Core.KVDB.Language as L
-import qualified EulerHS.Core.Types         as T
+import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
 
-import qualified Data.Aeson                 as A
-import qualified Data.ByteString.Lazy       as BSL
-import qualified Data.Text.Encoding         as TE
+import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Text.Encoding as TE
 
 -- | Get existing SQL connection, or init a new connection.
 getOrInitSqlConn :: T.DBConfig beM -> L.Flow (T.DBResult (T.SqlConn beM))

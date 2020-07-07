@@ -1,8 +1,8 @@
 module EulerHS.Tests.Framework.Common where
 
+import           Data.Aeson
 import qualified Data.Map as Map
 import qualified Data.Vector as V
-import           Data.Aeson
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai.Handler.Warp
@@ -10,15 +10,16 @@ import           Servant.Client
 import           Servant.Server
 import           Test.Hspec
 
+import           Control.Concurrent.MVar (modifyMVar_)
+import           Data.Aeson.Encode.Pretty
+import           Database.Redis (ConnectInfo, checkedConnect,
+                                 defaultConnectInfo, pubSubForever)
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Runtime
 import           EulerHS.TestData.API.Client
 import           EulerHS.Types as T
-import           Control.Concurrent.MVar (modifyMVar_)
-import           Data.Aeson.Encode.Pretty
-import           Database.Redis (checkedConnect, defaultConnectInfo, pubSubForever, ConnectInfo)
 
 
 runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b

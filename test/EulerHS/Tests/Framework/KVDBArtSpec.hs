@@ -7,11 +7,11 @@ import           EulerHS.Prelude
 import           Data.Aeson as A
 import           Test.Hspec
 
+import qualified Database.Redis as R
 import           EulerHS.Language as L
 import           EulerHS.Runtime
 import           EulerHS.Tests.Framework.Common
 import           EulerHS.Types as T
-import qualified Database.Redis as R
 
 connectInfo :: R.ConnectInfo
 -- connectInfo = R.defaultConnectInfo -- fot recording

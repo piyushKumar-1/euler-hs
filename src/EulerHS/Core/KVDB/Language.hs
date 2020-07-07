@@ -21,9 +21,9 @@ module EulerHS.Core.KVDB.Language
   , setTx, getTx, delTx, setexTx
   ) where
 
-import            EulerHS.Prelude hiding (get)
-import qualified Database.Redis     as R
+import qualified Database.Redis as R
 import qualified EulerHS.Core.Types as T
+import           EulerHS.Prelude hiding (get)
 
 type KVDBKey = ByteString
 type KVDBValue = ByteString

@@ -22,10 +22,10 @@ module EulerHS.Core.SqlDB.Language
   , insertRowReturningMySQL
   ) where
 
-import qualified Database.Beam          as B
-import qualified Database.Beam.MySQL    as BM
+import qualified Database.Beam as B
+import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
-import qualified EulerHS.Core.Types     as T
+import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
 
 

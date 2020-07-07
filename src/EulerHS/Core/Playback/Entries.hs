@@ -1,18 +1,18 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module EulerHS.Core.Playback.Entries where
 
-import EulerHS.Prelude
-import EulerHS.Core.Types.Playback (RRItem(..), MockedResult(..))
-import qualified Data.Text      as Text
-import qualified Data.Aeson     as A
-import qualified EulerHS.Types  as T
+import qualified Data.Aeson as A
+import           Data.Generics.Product.Positions (getPosition)
+import qualified Data.Text as Text
+import           EulerHS.Core.Types.Playback (MockedResult (..), RRItem (..))
+import           EulerHS.Prelude
+import qualified EulerHS.Types as T
 import qualified Servant.Client as S
-import Data.Generics.Product.Positions (getPosition)
 
 ----------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ instance MockedResult SetOptionEntry () where
   getMock _ = Just ()
 -------------------------------------------------------------------------
 
-data DelOptionEntry = DelOptionEntry { key :: Text } 
+data DelOptionEntry = DelOptionEntry { key :: Text }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 mkDelOptionEntry :: Text -> () -> DelOptionEntry
@@ -179,7 +179,7 @@ instance MockedResult GenerateGUIDEntry Text where
 
 data RunIOEntry = RunIOEntry
   { description :: Text
-  , jsonResult :: A.Value
+  , jsonResult  :: A.Value
   }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
@@ -219,14 +219,14 @@ instance RRItem RunUntracedIOEntry where
 ------------------------------------------------------------------------
 
 data InitSqlDBConnectionEntry beM = InitSqlDBConnectionEntry
-  { dBConfig :: T.DBConfig beM
+  { dBConfig       :: T.DBConfig beM
   , initConnResult :: Either T.DBError ()
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 mkInitSqlDBConnectionEntry :: T.DBConfig beM -> Either T.DBError a -> InitSqlDBConnectionEntry beM
 mkInitSqlDBConnectionEntry dbcfg res = case res of
   Left err -> InitSqlDBConnectionEntry dbcfg (Left err)
-  Right _ -> InitSqlDBConnectionEntry dbcfg (Right ())
+  Right _  -> InitSqlDBConnectionEntry dbcfg (Right ())
 
 instance RRItem (InitSqlDBConnectionEntry beM)  where
   getTag _ = "InitSqlDBConnectionEntry"
@@ -256,14 +256,14 @@ instance MockedResult (DeInitSqlDBConnectionEntry beM) () where
 ------------------------------------------------------------------------
 
 data GetSqlDBConnectionEntry beM = GetSqlDBConnectionEntry
-  { dBConfig :: T.DBConfig beM
+  { dBConfig      :: T.DBConfig beM
   , getConnResult :: Either T.DBError ()
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 mkGetSqlDBConnectionEntry :: T.DBConfig beM -> Either T.DBError a -> GetSqlDBConnectionEntry beM
 mkGetSqlDBConnectionEntry dbcfg res = case res of
   Left err -> GetSqlDBConnectionEntry dbcfg (Left err)
-  Right _ -> GetSqlDBConnectionEntry dbcfg (Right ())
+  Right _  -> GetSqlDBConnectionEntry dbcfg (Right ())
 
 instance RRItem (GetSqlDBConnectionEntry beM)  where
   getTag _ = "GetSqlDBConnectionEntry"
@@ -340,7 +340,7 @@ instance FromJSON v => MockedResult AwaitEntry v where
 -------------------------------------------------------------------------------------
 
 data RunSafeFlowEntry = RunSafeFlowEntry
-  { guid :: Text
+  { guid       :: Text
   , jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 

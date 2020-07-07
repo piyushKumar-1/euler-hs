@@ -14,12 +14,12 @@ module EulerHS.Core.Logger.Impl.TinyLogger
 
 import           EulerHS.Prelude
 
-import Control.Concurrent (forkOn, getNumCapabilities)
+import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
-import qualified System.Logger             as Log
-import qualified System.Logger.Message     as LogMsg
+import qualified System.Logger as Log
+import qualified System.Logger.Message as LogMsg
 
-import qualified EulerHS.Core.Types        as D
+import qualified EulerHS.Core.Types as D
 
 type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)
 
@@ -57,8 +57,8 @@ loggerWorker queue loggers = do
   logPendingMsg loggers pendingMsg
 
 sendPendingMsg :: LoggerHandle -> D.PendingMsg -> IO ()
-sendPendingMsg VoidLoggerHandle = const (pure ())
-sendPendingMsg (SyncLoggerHandle loggers) = logPendingMsgSync loggers
+sendPendingMsg VoidLoggerHandle                    = const (pure ())
+sendPendingMsg (SyncLoggerHandle loggers)          = logPendingMsgSync loggers
 sendPendingMsg (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan
 
 createVoidLogger :: IO LoggerHandle

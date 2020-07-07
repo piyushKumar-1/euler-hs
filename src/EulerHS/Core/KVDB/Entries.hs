@@ -1,14 +1,14 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module EulerHS.Core.KVDB.Entries where
 
 
-import EulerHS.Prelude
-import EulerHS.Types (RRItem(..), MockedResult(..))
-import qualified EulerHS.Types    as T
-import qualified Data.Aeson       as A
+import qualified Data.Aeson as A
+import           EulerHS.Prelude
+import           EulerHS.Types (MockedResult (..), RRItem (..))
+import qualified EulerHS.Types as T
 
 data SetEntry = SetEntry
   { jsonKey    :: A.Value

@@ -11,6 +11,7 @@ module EulerHS.Framework.Flow.Language
   -- * Flow language
     Flow
   , FlowMethod(..)
+  , MonadFlow(..)
   -- ** Methods
   -- *** SQLDB
   , initSqlDBConnection

@@ -1,6 +1,8 @@
 module EulerHS.Core.Types.BinaryString
 ( BinaryString(..)
 , LBinaryString(..)
+, base64Encode
+, base64Decode
 ) where
 
 import           EulerHS.Prelude

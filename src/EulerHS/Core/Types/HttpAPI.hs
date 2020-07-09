@@ -35,8 +35,9 @@ data HTTPRequest
 data HTTPResponse
   = HTTPResponse
     { getResponseBody    :: T.LBinaryString
+    , getResponseCode    :: Int
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
-    , getResponseStatus  :: Int
+    , getResponseStatus  :: Text.Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

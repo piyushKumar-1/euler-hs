@@ -131,8 +131,9 @@ translateHttpResponse response = do
   headers <- translateResponseHeaders $ HTTP.responseHeaders response
   pure $ T.HTTPResponse
     { getResponseBody    = T.LBinaryString $ HTTP.responseBody response
+    , getResponseCode    = HTTP.statusCode $ HTTP.responseStatus response
     , getResponseHeaders = headers
-    , getResponseStatus  = HTTP.statusCode $ HTTP.responseStatus response
+    , getResponseStatus  = T.base64Encode . HTTP.statusMessage . HTTP.responseStatus $ response
     }
 
 translateResponseHeaders

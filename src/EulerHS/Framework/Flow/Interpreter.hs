@@ -118,7 +118,17 @@ getHttpLibRequest request = do
       & Map.toList
       & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
 
-  pure $ setBody $
+  let
+    setTimeout = case T.getRequestTimeout request of
+      Just x  -> \req -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro x}
+      Nothing -> id
+
+  let
+    setRedirects = case T.getRequestRedirects request of
+      Just x -> \req -> req {HTTP.redirectCount = x}
+      Nothing -> id
+
+  pure $ setRedirects . setTimeout . setBody $
       httpLibRequest
         { HTTP.method         = requestMethod
         , HTTP.requestHeaders = headers

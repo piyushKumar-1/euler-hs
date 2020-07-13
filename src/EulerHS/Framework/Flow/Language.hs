@@ -85,6 +85,7 @@ data FlowMethod next where
 
   CallHTTP
     :: T.HTTPRequest
+    -> Maybe T.HTTPCert
     -> (Either Text T.HTTPResponse -> next)
     -> FlowMethod next
 
@@ -216,7 +217,7 @@ data FlowMethod next where
 instance Functor FlowMethod where
   fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
 
-  fmap f (CallHTTP req next)               = CallHTTP req (f . next)
+  fmap f (CallHTTP req cert next)               = CallHTTP req cert (f . next)
 
   fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
 
@@ -407,7 +408,16 @@ runIO = runIO' ""
 runUntracedIO :: MonadFlow m => IO a -> m a
 runUntracedIO = runUntracedIO' ""
 
-
+-- | The same as callHTTPWithCert but does not need certificate data.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHTTP url
+callHTTP :: MonadFlow m => T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
+callHTTP url = callHTTPWithCert url Nothing
 
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
@@ -459,12 +469,13 @@ class Monad m => MonadFlow m where
   --
   -- Thread safe, exception free.
   --
-  -- Takes remote url and returns either client error or result.
+  -- Takes remote url, optional certificate data and returns either client error or result.
   --
   -- > myFlow = do
-  -- >   book <- callHTTP url
-  callHTTP
-    :: T.HTTPRequest                           -- ^ remote url 'Text'
+  -- >   book <- callHTTPWithCert url cert
+  callHTTPWithCert
+    :: T.HTTPRequest                        -- ^ remote url 'Text'
+    -> Maybe T.HTTPCert                     -- ^ TLS certificate data
     -> m (Either Text.Text T.HTTPResponse)  -- ^ result
 
   -- | Evaluates a logging action.
@@ -741,7 +752,7 @@ class Monad m => MonadFlow m where
 
 instance MonadFlow Flow where
   callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
-  callHTTP url = liftFC $ CallHTTP url id
+  callHTTPWithCert url cert = liftFC $ CallHTTP url cert id
   evalLogger' logAct = liftFC $ EvalLogger logAct id
 
   runIO' descr ioAct = liftFC $ RunIO descr ioAct id
@@ -794,7 +805,7 @@ instance MonadFlow Flow where
 -- instance (MonadTrans t, MonadFlow m, Monad m, Monad (t m)) => MonadFlow (t m) where
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  callHTTP = lift . callHTTP
+  callHTTPWithCert url = lift . callHTTPWithCert url
   evalLogger' = lift . evalLogger'
   runIO' descr = lift . runIO' descr
   runUntracedIO' descr = lift . runUntracedIO' descr
@@ -822,7 +833,7 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  callHTTP = lift . callHTTP
+  callHTTPWithCert url = lift . callHTTPWithCert url
   evalLogger' = lift . evalLogger'
   runIO' descr = lift . runIO' descr
   runUntracedIO' descr = lift . runUntracedIO' descr
@@ -850,7 +861,7 @@ instance MonadFlow m => MonadFlow (StateT s m) where
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  callHTTP = lift . callHTTP
+  callHTTPWithCert url = lift . callHTTPWithCert url
   evalLogger' = lift . evalLogger'
   runIO' descr = lift . runIO' descr
   runUntracedIO' descr = lift . runUntracedIO' descr
@@ -878,7 +889,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  callHTTP = lift . callHTTP
+  callHTTPWithCert url = lift . callHTTPWithCert url
   evalLogger' = lift . evalLogger'
   runIO' descr = lift . runIO' descr
   runUntracedIO' descr = lift . runUntracedIO' descr

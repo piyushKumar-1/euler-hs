@@ -7,6 +7,7 @@ module EulerHS.Core.Types.HttpAPI
       HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
+    , HTTPCert(..)
     , httpGet
     , httpPut
     , httpPost
@@ -16,10 +17,9 @@ module EulerHS.Core.Types.HttpAPI
 
 import           EulerHS.Prelude
 
-import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString as B
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Encoding
 
 import qualified EulerHS.Core.Types.BinaryString as T
 
@@ -42,6 +42,14 @@ data HTTPResponse
     , getResponseStatus  :: Text.Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data HTTPCert
+  = HTTPCert
+    { getCert      :: B.ByteString
+    , getCertChain :: [B.ByteString]
+    , getCertHost  :: String
+    , getCertKey   :: B.ByteString
+    }
 
 data HTTPMethod
   = Get

@@ -115,7 +115,9 @@ library
     , bytestring
     , case-insensitive
     , cereal
+    , connection
     , containers
+    , data-default
     , dlist
     , exceptions
     , extra
@@ -141,6 +143,7 @@ library
     , text
     , time
     , tinylog
+    , tls
     , transformers
     , universum
     , unagi-chan

@@ -48,6 +48,7 @@ module EulerHS.Core.Types.DB
 
 import           EulerHS.Prelude
 
+import           Data.Kind (Type)
 import qualified Data.Pool as DP
 import qualified Data.Text as T
 import           Data.Time.Clock (NominalDiffTime)
@@ -212,7 +213,7 @@ type SQliteDBname = String
 
 -- | Represents SQL connection that we use in flow.
 --   Parametrised by BEAM monad corresponding to the certain DB (MySQL, Postgres, SQLite)
-data SqlConn beM
+data SqlConn (beM :: Type -> Type)
   = MockedPool ConnTag
   | PostgresPool ConnTag (DP.Pool BP.Connection)
   -- ^ 'Pool' with Postgres connections
@@ -224,7 +225,7 @@ data SqlConn beM
 
 
 -- | Represents DB configurations
-data DBConfig beM
+data DBConfig (beM :: Type -> Type)
   = MockConfig ConnTag
   | PostgresPoolConf ConnTag PostgresConfig PoolConfig
   -- ^ config for 'Pool' with Postgres connections

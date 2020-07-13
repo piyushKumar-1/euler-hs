@@ -14,14 +14,19 @@ import qualified Control.Exception as Exception
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
+import           Data.Default (def)
 import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.Map as Map
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import           EulerHS.Prelude
+import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as TLS
 import qualified Network.HTTP.Types as HTTP
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 
@@ -170,6 +175,20 @@ translateResponseStatusMessage = displayEitherException "Error decoding HTTP res
 displayEitherException :: Exception e => Text -> Either e a -> Either Text a
 displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
+-- | Utility function to create a manager from certificate data
+mkManagerFromCert :: T.HTTPCert -> IO (Either String HTTP.Manager)
+mkManagerFromCert T.HTTPCert {..} = do
+  case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+    Right creds -> do
+      let hooks = def { TLS.onCertificateRequest = \_ -> return $ Just creds }
+      let clientParams = (TLS.defaultParamsClient getCertHost "")
+                         { TLS.clientHooks = hooks
+                         , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
+                         }
+      let tlsSettings = Conn.TLSSettings clientParams
+      fmap Right $ HTTP.newManager $ TLS.mkManagerSettings tlsSettings Nothing
+    Left err -> pure $ Left err
+
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
@@ -191,17 +210,22 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
               . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
               . show
 
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request next) =
+interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
-      let manager = _defaultHttpClientManager
       httpLibRequest <- getHttpLibRequest request
-      eResponse <- try $ HTTP.httpLbs httpLibRequest manager
-      case eResponse of
-        Left (err :: IOException) -> do
+      _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
+      case _manager of
+        Left err -> do
           dbgLogger (T.getRequestURL request)
-          pure $ Left $ Text.pack $ displayException err
-        Right response ->
-          pure $ translateHttpResponse response
+          pure $ Left $ ("Certificate failure: " <> Text.pack err)
+        Right manager -> do
+          eResponse <- try $ HTTP.httpLbs httpLibRequest manager
+          case eResponse of
+            Left (err :: IOException) -> do
+              dbgLogger (T.getRequestURL request)
+              pure $ Left $ Text.pack $ displayException err
+            Right response ->
+              pure $ translateHttpResponse response
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallHttpAPI failure" :: String)

@@ -236,18 +236,20 @@ spec = do
 
     it "Untyped HTTP API Calls" $ do
       let url = "https://google.com"
-      (statusCode, body, headers) <- runFlowWithArt $ do
+      (statusCode, status, body, headers) <- runFlowWithArt $ do
         eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
         response <- case eResponse of
           Left err -> throwException err403 {errBody = "Expected a response"}
           Right response -> pure response
         return
-          ( getResponseStatus  response
+          ( getResponseCode    response
+          , getResponseStatus  response
           , getResponseBody    response
           , getResponseHeaders response
           )
       -- check status code
       statusCode `shouldBe` 200
+      status `shouldBe` "OK"
       -- check body
       -- Lazy.putStr (getLBinaryString body)
       -- seem to be non-breaking latin-1 encoded spaces in what is supposed to

@@ -29,14 +29,17 @@ data HTTPRequest
     , getRequestHeaders :: Map.Map HeaderName HeaderValue
     , getRequestBody    :: Maybe T.LBinaryString
     , getRequestURL     :: Text.Text
+    , getRequestTimeout :: Maybe Int
+    , getRequestRedirects :: Maybe Int
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 data HTTPResponse
   = HTTPResponse
     { getResponseBody    :: T.LBinaryString
+    , getResponseCode    :: Int
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
-    , getResponseStatus  :: Int
+    , getResponseStatus  :: Text.Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -59,19 +62,22 @@ type HeaderValue = Text.Text
 --
 -- > httpGet "https://google.com"
 httpGet :: Text.Text -> HTTPRequest
-httpGet = HTTPRequest Get Map.empty Nothing
+httpGet = defaultRequest Get
 
 httpPut :: Text.Text -> HTTPRequest
-httpPut = HTTPRequest Put Map.empty Nothing
+httpPut = defaultRequest Put
 
 httpPost :: Text.Text -> HTTPRequest
-httpPost = HTTPRequest Post Map.empty Nothing
+httpPost = defaultRequest Post
 
 httpDelete :: Text.Text -> HTTPRequest
-httpDelete = HTTPRequest Delete Map.empty Nothing
+httpDelete = defaultRequest Delete
 
 httpHead :: Text.Text -> HTTPRequest
-httpHead = HTTPRequest Head Map.empty Nothing
+httpHead = defaultRequest Head
+
+defaultRequest :: HTTPMethod -> Text.Text -> HTTPRequest
+defaultRequest method url = HTTPRequest method Map.empty Nothing url Nothing Nothing
 
 -- | Add a header to an HTTPRequest
 --

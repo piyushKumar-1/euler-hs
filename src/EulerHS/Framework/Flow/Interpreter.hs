@@ -118,7 +118,17 @@ getHttpLibRequest request = do
       & Map.toList
       & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
 
-  pure $ setBody $
+  let
+    setTimeout = case T.getRequestTimeout request of
+      Just x  -> \req -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro x}
+      Nothing -> id
+
+  let
+    setRedirects = case T.getRequestRedirects request of
+      Just x -> \req -> req {HTTP.redirectCount = x}
+      Nothing -> id
+
+  pure $ setRedirects . setTimeout . setBody $
       httpLibRequest
         { HTTP.method         = requestMethod
         , HTTP.requestHeaders = headers
@@ -129,10 +139,12 @@ getHttpLibRequest request = do
 translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text T.HTTPResponse
 translateHttpResponse response = do
   headers <- translateResponseHeaders $ HTTP.responseHeaders response
+  status <-  translateResponseStatusMessage . HTTP.statusMessage . HTTP.responseStatus $ response
   pure $ T.HTTPResponse
     { getResponseBody    = T.LBinaryString $ HTTP.responseBody response
+    , getResponseCode    = HTTP.statusCode $ HTTP.responseStatus response
     , getResponseHeaders = headers
-    , getResponseStatus  = HTTP.statusCode $ HTTP.responseStatus response
+    , getResponseStatus  = status
     }
 
 translateResponseHeaders
@@ -149,13 +161,14 @@ translateResponseHeaders httpLibHeaders = do
   --       headers
   -- let encoding
   --   = List.findIndex (\name -> name == "content-transfer-encoding") headerNames
+  headers <- displayEitherException "Error decoding HTTP response headers: " result
+  pure $ Map.fromList headers
 
-  case result of
-    Left unicodeError ->
-      let err = Text.pack $ Exception.displayException unicodeError
-      in  Left $ "Error decoding HTTP response headers: " <> err
-    Right headers ->
-      Right $ Map.fromList headers
+translateResponseStatusMessage :: Strict.ByteString -> Either Text Text
+translateResponseStatusMessage = displayEitherException "Error decoding HTTP response status message: " . Encoding.decodeUtf8'
+  
+displayEitherException :: Exception e => Text -> Either e a -> Either Text a
+displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original

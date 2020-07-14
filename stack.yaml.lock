@@ -18,14 +18,14 @@ packages:
 - completed:
     name: beam-mysql
     version: 1.0.0.0
-    git: https://github.com/kozross/beam-mysql
+    git: https://github.com/juspay/beam-mysql
     pantry-tree:
-      size: 909
-      sha256: f1fe4ebe77b845dee623396c54f3f48257efd81b6e02def48de7814b27f0a9b3
-    commit: f69341daedf7a7ccae1d63379674f69a970b0d6f
+      size: 1044
+      sha256: ba5b9f070d96f92d994c4009b56dda84bcdf386a04c6b2b9eb83f4850c9ee6c1
+    commit: fde4386029463750a872aeb7a823f52fcf036a56
   original:
-    git: https://github.com/kozross/beam-mysql
-    commit: f69341daedf7a7ccae1d63379674f69a970b0d6f
+    git: https://github.com/juspay/beam-mysql
+    commit: fde4386029463750a872aeb7a823f52fcf036a56
 - completed:
     name: mysql-haskell
     version: 0.8.4.2

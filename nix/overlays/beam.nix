@@ -22,6 +22,15 @@ let
   };
 
   beam-mysql-path = beam-mysql-repo;
+
+  mysql-haskell-repo = fetchFromGitHub {
+    owner = "juspay";
+    repo = "mysql-haskell";
+    rev = "788022d65538db422b02ecc0be138b862d2e5cee";
+    sha256 = "030qq1hgh15zkwa6j6x568d248iyfaw5idj2hh2mvb7j8xd1l4lv";
+  };
+
+  mysql-haskell-path = mysql-haskell-repo;
 in
 eulerBuild.mkEulerHaskellOverlay
   (self: super: hself: hsuper:
@@ -62,6 +71,10 @@ eulerBuild.mkEulerHaskellOverlay
       # dontCheck
       beam-postgres = eulerBuild.fastBuildExternal {
         drv = hself.callCabal2nix "beam-postgres" beam-postgres-path { };
+      };
+
+      mysql-haskell = eulerBuild.fastBuildExternal {
+        drv = hself.callCabal2nix "mysql-haskell" mysql-haskell-path { };
       };
 
       beam-mysql = eulerBuild.fastBuildExternal {

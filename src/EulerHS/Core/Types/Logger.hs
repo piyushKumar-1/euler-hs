@@ -18,7 +18,7 @@ module EulerHS.Core.Types.Logger
     , nullLoger
     ) where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
@@ -36,6 +36,7 @@ data LoggerConfig
   , _logFilePath  :: FilePath
   , _logToConsole :: Bool
   , _logToFile    :: Bool
+  , _maxQueueSize :: Word
   } deriving (Generic, Show, Read)
 
 type Message = Text
@@ -54,6 +55,7 @@ defaultLoggerConfig = LoggerConfig
     , _logFilePath = ""
     , _logToConsole = True
     , _logToFile = False
+    , _maxQueueSize = 1000
     }
 
 mkMemoryLoggerConfig :: LogLevel -> LoggerConfig

@@ -2,11 +2,11 @@ module KVDB.KVDBSpec where
 
 import           Test.Hspec hiding (runIO)
 
-import           EulerHS.Prelude
 import           EulerHS.Interpreters
-import qualified EulerHS.Language          as L
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
 import           EulerHS.Runtime
-import qualified EulerHS.Types             as T
+import qualified EulerHS.Types as T
 
 
 redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig

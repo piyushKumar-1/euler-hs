@@ -29,8 +29,8 @@ module EulerHS.Extra.AltValidation
 import           EulerHS.Prelude hiding (or, pred)
 import qualified Prelude as P
 
-import           Data.Either.Extra (mapLeft)
 import           Data.Data hiding (typeRep)
+import           Data.Either.Extra (mapLeft)
 import           Data.Generics.Product.Fields
 import qualified Data.Text as T
 import           Data.Validation

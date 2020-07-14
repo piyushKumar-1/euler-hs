@@ -17,9 +17,9 @@ import           Network.HTTP.Client.TLS (tlsManagerSettings)
 
 import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
+import qualified Database.MySQL.Base as MySQL
 import qualified Database.Redis as RD
 import qualified System.Mem as SYSM (performGC)
-import qualified Database.MySQL.Base as MySQL
 
 import           System.IO.Unsafe (unsafePerformIO)
 
@@ -29,23 +29,23 @@ import qualified EulerHS.Core.Types as T
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
-  { _coreRuntime       :: R.CoreRuntime
+  { _coreRuntime              :: R.CoreRuntime
   -- ^ Contains logger settings
   , _defaultHttpClientManager :: Manager
   -- ^ Http default manager, used for external api calls
-  , _httpClientManagers :: Map String Manager
+  , _httpClientManagers       :: Map String Manager
   -- ^ Http managers, used for external api calls
-  , _options           :: MVar (Map Text Any)
+  , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
-  , _kvdbConnections   :: MVar (Map Text T.NativeKVDBConn)
+  , _kvdbConnections          :: MVar (Map Text T.NativeKVDBConn)
   -- ^ Connections for key-value databases
-  , _runMode           :: T.RunMode
+  , _runMode                  :: T.RunMode
   -- ^ ART mode in which current flow runs
-  , _sqldbConnections  :: MVar (Map T.ConnTag T.NativeSqlPool)
+  , _sqldbConnections         :: MVar (Map T.ConnTag T.NativeSqlPool)
   -- ^ Connections for SQL databases
-  , _pubSubController  :: RD.PubSubController
+  , _pubSubController         :: RD.PubSubController
   -- ^ Subscribe controller
-  , _pubSubConnection  :: Maybe RD.Connection
+  , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
   }
 

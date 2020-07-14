@@ -13,8 +13,8 @@ module EulerHS.Core.Types.Common
   , Microseconds (..)
   ) where
 
-import           EulerHS.Prelude
 import qualified Data.Word as W
+import           EulerHS.Prelude
 
 type ForkGUID = Text
 type SafeFlowGUID = Text

@@ -8,42 +8,47 @@ module EulerHS.Framework.Flow.Interpreter
     runFlow
   ) where
 
-import           Control.Exception               (throwIO, IOException)
-import qualified Control.Exception               as Exception
-import qualified Data.ByteString.Lazy            as Lazy
-import qualified Data.ByteString                 as Strict
-import qualified Data.CaseInsensitive            as CI
-import qualified Data.DList                      as DL
-import           Data.Either.Extra               (mapLeft)
-import qualified Data.Map                        as Map
-import qualified Data.UUID                       as UUID (toText)
-import qualified Data.UUID.V4                    as UUID (nextRandom)
+import           Control.Exception (IOException, throwIO)
+import qualified Control.Exception as Exception
+import qualified Data.ByteString as Strict
+import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.CaseInsensitive as CI
+import           Data.Default (def)
+import qualified Data.DList as DL
+import           Data.Either.Extra (mapLeft)
+import qualified Data.Map as Map
+import qualified Data.UUID as UUID (toText)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 import           EulerHS.Prelude
-import qualified Servant.Client                  as S
-import qualified Network.HTTP.Client             as HTTP
-import qualified Network.HTTP.Types              as HTTP
-import           System.Process                  (readCreateProcess, shell)
+import qualified Network.Connection as Conn
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.HTTP.Client.TLS as TLS
+import qualified Network.HTTP.Types as HTTP
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
+import qualified Servant.Client as S
+import           System.Process (readCreateProcess, shell)
 
-import qualified Database.MySQL.Base             as MySQL
-import qualified Data.Pool                       as DP
-import qualified EulerHS.Core.Interpreters       as R
-import qualified EulerHS.Core.Runtime            as R
-import qualified EulerHS.Core.Types              as T
+import qualified Data.Pool as DP
+import qualified Database.MySQL.Base as MySQL
+import qualified EulerHS.Core.Interpreters as R
+import qualified EulerHS.Core.Runtime as R
+import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Framework.Language      as L
-import qualified EulerHS.Framework.Runtime       as R
+import qualified EulerHS.Framework.Language as L
+import qualified EulerHS.Framework.Runtime as R
 
 -- TODO: no explicit dependencies from languages.
-import qualified Data.Text                       as Text
-import qualified Data.Text.Encoding              as Encoding
-import qualified Data.Vector                     as V
-import qualified EulerHS.Core.Logger.Language    as L
-import qualified EulerHS.Core.Playback.Entries   as P
-import qualified EulerHS.Core.Playback.Machine   as P
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Encoding
+import qualified Data.Vector as V
+import qualified EulerHS.Core.Logger.Language as L
+import qualified EulerHS.Core.Playback.Entries as P
+import qualified EulerHS.Core.Playback.Machine as P
 
 
 import           Data.Generics.Product.Positions (getPosition)
-import           Unsafe.Coerce                   (unsafeCoerce)
+import           Unsafe.Coerce (unsafeCoerce)
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
 connect cfg = do
@@ -97,11 +102,11 @@ getHttpLibRequest request = do
   httpLibRequest <- HTTP.parseRequest url
   let
     requestMethod = case T.getRequestMethod request of
-      T.Get -> "GET"
-      T.Put -> "PUT"
-      T.Post -> "POST"
+      T.Get    -> "GET"
+      T.Put    -> "PUT"
+      T.Post   -> "POST"
       T.Delete -> "DELETE"
-      T.Head -> "HEAD"
+      T.Head   -> "HEAD"
   let
     setBody = case T.getRequestBody request of
       Just body ->
@@ -115,21 +120,33 @@ getHttpLibRequest request = do
       & Map.toList
       & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
 
-  pure $ setBody $
+  let
+    setTimeout = case T.getRequestTimeout request of
+      Just x  -> \req -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro x}
+      Nothing -> id
+
+  let
+    setRedirects = case T.getRequestRedirects request of
+      Just x -> \req -> req {HTTP.redirectCount = x}
+      Nothing -> id
+
+  pure $ setRedirects . setTimeout . setBody $
       httpLibRequest
         { HTTP.method         = requestMethod
         , HTTP.requestHeaders = headers
         }
 
--- | Utility function to translate http-client HTTP responses back to HttpAPI 
+-- | Utility function to translate http-client HTTP responses back to HttpAPI
 -- responses
 translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text T.HTTPResponse
 translateHttpResponse response = do
   headers <- translateResponseHeaders $ HTTP.responseHeaders response
+  status <-  translateResponseStatusMessage . HTTP.statusMessage . HTTP.responseStatus $ response
   pure $ T.HTTPResponse
     { getResponseBody    = T.LBinaryString $ HTTP.responseBody response
+    , getResponseCode    = HTTP.statusCode $ HTTP.responseStatus response
     , getResponseHeaders = headers
-    , getResponseStatus  = HTTP.statusCode $ HTTP.responseStatus response
+    , getResponseStatus  = status
     }
 
 translateResponseHeaders
@@ -146,14 +163,29 @@ translateResponseHeaders httpLibHeaders = do
   --       headers
   -- let encoding
   --   = List.findIndex (\name -> name == "content-transfer-encoding") headerNames
+  headers <- displayEitherException "Error decoding HTTP response headers: " result
+  pure $ Map.fromList headers
 
-  case result of
-    Left unicodeError ->
-      let err = Text.pack $ Exception.displayException unicodeError
-      in  Left $ "Error decoding HTTP response headers: " <> err
-    Right headers ->
-      Right $ Map.fromList headers
-    
+translateResponseStatusMessage :: Strict.ByteString -> Either Text Text
+translateResponseStatusMessage = displayEitherException "Error decoding HTTP response status message: " . Encoding.decodeUtf8'
+  
+displayEitherException :: Exception e => Text -> Either e a -> Either Text a
+displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
+
+-- | Utility function to create a manager from certificate data
+mkManagerFromCert :: T.HTTPCert -> IO (Either String HTTP.Manager)
+mkManagerFromCert T.HTTPCert {..} = do
+  case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+    Right creds -> do
+      let hooks = def { TLS.onCertificateRequest = \_ -> return $ Just creds }
+      let clientParams = (TLS.defaultParamsClient getCertHost "")
+                         { TLS.clientHooks = hooks
+                         , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
+                         }
+      let tlsSettings = Conn.TLSSettings clientParams
+      fmap Right $ HTTP.newManager $ TLS.mkManagerSettings tlsSettings Nothing
+    Left err -> pure $ Left err
+
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
@@ -175,17 +207,22 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
               . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
               . show
 
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request next) =
+interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
-      let manager = _defaultHttpClientManager
       httpLibRequest <- getHttpLibRequest request
-      eResponse <- try $ HTTP.httpLbs httpLibRequest manager
-      case eResponse of
-        Left (err :: IOException) -> do
+      _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
+      case _manager of
+        Left err -> do
           dbgLogger (T.getRequestURL request)
-          pure $ Left $ Text.pack $ displayException err
-        Right response ->
-          pure $ translateHttpResponse response
+          pure $ Left $ ("Certificate failure: " <> Text.pack err)
+        Right manager -> do
+          eResponse <- try $ HTTP.httpLbs httpLibRequest manager
+          case eResponse of
+            Left (err :: IOException) -> do
+              dbgLogger (T.getRequestURL request)
+              pure $ Left $ Text.pack $ displayException err
+            Right response ->
+              pure $ translateHttpResponse response
   where
     dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
               . L.logMessage' T.Debug ("CallHttpAPI failure" :: String)

@@ -1,12 +1,12 @@
 {-# OPTIONS -fno-warn-deprecations #-}
 module EulerHS.TestData.Scenarios.Scenario1 where
 
-import           EulerHS.Prelude hiding (getOption)
 import           EulerHS.Language
-import           Servant.Client                  (BaseUrl(..), Scheme(..))
+import           EulerHS.Prelude hiding (getOption)
+import           Servant.Client (BaseUrl (..), Scheme (..))
 
-import           EulerHS.TestData.Types
 import           EulerHS.TestData.API.Client
+import           EulerHS.TestData.Types
 
 mkUrl :: String -> BaseUrl
 mkUrl host = BaseUrl Http host port ""

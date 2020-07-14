@@ -21,16 +21,16 @@ module EulerHS.Core.SqlDB.Language
   , updateRowsReturningListPG
   ) where
 
-import qualified Database.Beam          as B
-import qualified Database.Beam.MySQL    as BM
+import qualified Database.Beam as B
+import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
-import qualified EulerHS.Core.Types     as T
+import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
 
 
 type SqlDB beM = F (SqlDBMethodF beM)
 
-data SqlDBMethodF beM next where
+data SqlDBMethodF (beM :: Type -> Type) next where
   SqlDBMethod :: (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
 
   SqlThrowException :: (Exception e)

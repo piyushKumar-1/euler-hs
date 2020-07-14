@@ -1,7 +1,7 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE TypeFamilies        #-}
 module EulerHS.Core.KVDB.Interpreter
   (
     -- * KVDB Interpreter
@@ -10,14 +10,14 @@ module EulerHS.Core.KVDB.Interpreter
 
 import           EulerHS.Prelude
 
-import qualified Database.Redis             as R
+import qualified Data.Map as Map
+import qualified Database.Redis as R
 import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Core.Types.KVDB
-import qualified Data.Map                   as Map
 
+import qualified EulerHS.Core.KVDB.Entries as E
 import qualified EulerHS.Core.Playback.Machine as P
-import qualified EulerHS.Core.KVDB.Entries     as E
-import qualified EulerHS.Core.Types            as D
+import qualified EulerHS.Core.Types as D
 
 
 interpretKeyValueF

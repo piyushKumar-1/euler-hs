@@ -1,12 +1,12 @@
 module EulerHS.Testing.PSLog where
 
-import EulerHS.Prelude
-import           Data.Aeson (Value(..), (.:), FromJSON)
+import           Data.Aeson (FromJSON, Value (..), (.:))
 import qualified Data.Aeson as Aeson
-import           Data.Aeson.Types (Parser, typeMismatch, prependFailure)
+import           Data.Aeson.Types (Parser, prependFailure, typeMismatch)
 import           Data.Vector ((!?))
+import           EulerHS.Prelude
 
-data PSLog 
+data PSLog
   = LogEntry
   | RunDBEntry
   | RunKVDBEitherEntry
@@ -55,11 +55,11 @@ psLogFromText = \case
   _ -> Nothing
 
 instance FromJSON PSLog where
-  parseJSON j = Aeson.withArray "PSLog" 
+  parseJSON j = Aeson.withArray "PSLog"
     (\a -> do
       logType <- (traverse Aeson.parseJSON $ a !? 2  :: Parser (Maybe Text))
       case psLogFromText =<< logType of
-        Nothing -> prependFailure "parsing PSLog failed, " 
+        Nothing -> prependFailure "parsing PSLog failed, "
           (typeMismatch "PSLog" j)
         Just x -> pure x
     )

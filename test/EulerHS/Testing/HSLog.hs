@@ -1,9 +1,9 @@
-module EulerHS.Testing.HSLog where 
+module EulerHS.Testing.HSLog where
 
-import EulerHS.Prelude
-import           Data.Aeson (Value(..), (.:), FromJSON)
+import           Data.Aeson (FromJSON, Value (..), (.:))
 import qualified Data.Aeson as Aeson
-import           Data.Aeson.Types (typeMismatch, prependFailure)
+import           Data.Aeson.Types (prependFailure, typeMismatch)
+import           EulerHS.Prelude
 
 data HSLog
   = SetEntry
@@ -13,7 +13,7 @@ data HSLog
   | DelEntry
   | ExpireEntry
   | IncrEntry
-  | HSetEntry 
+  | HSetEntry
   | HGetEntry
   | MultiExecEntry
   | ThrowExceptionEntry
@@ -26,7 +26,7 @@ data HSLog
   | RunIOEntry
   | InitSqlDBConnectionEntry
   | DeInitSqlDBConnectionEntry
-  | GetSqlDBConnectionEntry 
+  | GetSqlDBConnectionEntry
   | RunDBEntry
   | GetKVDBConnectionEntry
   | AwaitEntry
@@ -34,7 +34,7 @@ data HSLog
   | LogMessageEntry
 
 hsLogFromText :: Text -> Maybe HSLog
-hsLogFromText = \case 
+hsLogFromText = \case
   "SetEntry" -> Just SetEntry
   "SetExEntry" -> Just SetExEntry
   "GetEntry" -> Just GetEntry
@@ -64,11 +64,11 @@ hsLogFromText = \case
   _  -> Nothing
 
 instance FromJSON HSLog where
-  parseJSON j = Aeson.withObject "HSLog" 
+  parseJSON j = Aeson.withObject "HSLog"
     (\o -> do
       logType <- o .: "_entryName"
       case hsLogFromText logType of
-        Nothing -> prependFailure "parsing HSLog failed, " 
+        Nothing -> prependFailure "parsing HSLog failed, "
           (typeMismatch "HSLog" j)
         Just x -> pure x
     )

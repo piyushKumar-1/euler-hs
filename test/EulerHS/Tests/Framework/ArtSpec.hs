@@ -12,14 +12,14 @@ import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified Data.Text.Encoding.Error as Encoding
+import qualified Data.UUID as UUID (toText)
+import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Vector as V
 import           Network.Wai.Handler.Warp
 import           Servant.Client
 import           Servant.Server
 import qualified System.IO.Error as Error
 import           Test.Hspec
-import qualified Data.UUID as UUID (toText)
-import qualified Data.UUID.V4 as UUID (nextRandom)
 
 import           EulerHS.Interpreters
 import           EulerHS.Language as L
@@ -148,10 +148,10 @@ spec = do
       res `shouldBe` "hello\n"
 
     it "Logging" $ runFlowWithArt $ do
-      L.logInfo    @String "Info"    "L.logInfo"
-      L.logError   @String "Error"   "L.logError"
-      L.logDebug   @String "Debug"   "L.logDebug"
-      L.logWarning @String "Warning" "L.logWarning"
+      L.logInfo    "Info"    "L.logInfo"
+      L.logError   "Error"   "L.logError"
+      L.logDebug   "Debug"   "L.logDebug"
+      L.logWarning "Warning" "L.logWarning"
 
     it "SafeFlow, throwException" $ do
       res <- runFlowWithArt $ do
@@ -166,61 +166,61 @@ spec = do
 
     it "Fork" $ runFlowWithArt $ do
       L.forkFlow "Fork" $
-        L.logInfo @String "Fork" "Hello"
+        L.logInfo "Fork" "Hello"
 
     it "SafeFlow and Fork" $ runFlowWithArt $ do
       runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
       L.forkFlow "Fork" $
-        L.logInfo @String "Fork" "Hello"
+        L.logInfo "Fork" "Hello"
 
     it "SafeFlow exception and Fork" $ runFlowWithArt $ do
       runSafeFlow $ (throwException err403 {errBody = "403"} :: Flow Text)
       L.forkFlow "Fork" $
-        L.logInfo @String "Fork" "Hello"
+        L.logInfo "Fork" "Hello"
 
     it "Fork by fork" $ runFlowWithArt $ do
       L.forkFlow "Fork" $
-        L.logInfo @String "Fork" "Hello"
+        L.logInfo "Fork" "Hello"
       L.forkFlow "Fork 2" $
-        L.logInfo @String "Fork 2" "Bye"
+        L.logInfo "Fork 2" "Bye"
 
     it "SafeFlow and Fork" $ runFlowWithArt $ do
       runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
       L.forkFlow "Fork" $
-        L.logInfo @String "Fork" "Hello"
+        L.logInfo "Fork" "Hello"
 
     it "Fork and flow from SafeFlow" $ do
       res <- runFlowWithArt $ do
         runSafeFlow $ do
           L.runSysCmd $ "echo " <> "safe hello"
           L.forkFlow "Fork" $
-            L.logInfo @String "Fork" "Hello"
+            L.logInfo "Fork" "Hello"
       res `shouldBe` (Right ())
 
     it "Flow and fork from SafeFlow" $ do
       res <- runFlowWithArt $ do
         runSafeFlow $ do
           L.forkFlow "Fork" $
-            L.logInfo @String "Fork" "Hello"
+            L.logInfo "Fork" "Hello"
           L.runSysCmd $ "echo " <> "safe hello"
       res `shouldBe` (Right "safe hello\n")
 
     it "Fork from Fork" $ runFlowWithArt $ do
       L.forkFlow "ForkOne" $ do
-        L.logInfo @String "ForkOne" "Hello"
+        L.logInfo "ForkOne" "Hello"
         L.forkFlow "ForkTwo" $
           L.forkFlow "ForkThree" $ do
             L.forkFlow "ForkFour" $
-              L.logInfo @String "ForkFour" "Hello"
+              L.logInfo "ForkFour" "Hello"
 
     it "Fork and safeFlow from Fork" $ runFlowWithArt $ do
       L.forkFlow "ForkOne" $ do
-        L.logInfo @String "ForkOne" "Hello"
+        L.logInfo "ForkOne" "Hello"
         runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
         L.forkFlow "ForkTwo" $
           L.forkFlow "ForkThree" $ do
             L.forkFlow "ForkFour" $
-              L.logInfo @String "ForkFour" "Hello"
+              L.logInfo "ForkFour" "Hello"
 
     around_ withServer $ do
       describe "CallServantAPI tests" $ do
@@ -236,18 +236,20 @@ spec = do
 
     it "Untyped HTTP API Calls" $ do
       let url = "https://google.com"
-      (statusCode, body, headers) <- runFlowWithArt $ do
+      (statusCode, status, body, headers) <- runFlowWithArt $ do
         eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
         response <- case eResponse of
           Left err -> throwException err403 {errBody = "Expected a response"}
           Right response -> pure response
         return
-          ( getResponseStatus  response
+          ( getResponseCode    response
+          , getResponseStatus  response
           , getResponseBody    response
           , getResponseHeaders response
           )
       -- check status code
       statusCode `shouldBe` 200
+      status `shouldBe` "OK"
       -- check body
       -- Lazy.putStr (getLBinaryString body)
       -- seem to be non-breaking latin-1 encoded spaces in what is supposed to

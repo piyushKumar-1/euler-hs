@@ -176,7 +176,7 @@ kvdbToNative (Redis _ conn) = NativeKVDB conn
 -- | Transforms 'NativeKVDBConn' to 'KVDBConn'
 nativeToKVDB :: Text -> NativeKVDBConn -> KVDBConn
 nativeToKVDB connTag NativeKVDBMockedConn = Mocked connTag
-nativeToKVDB connTag (NativeKVDB conn)   = Redis connTag conn
+nativeToKVDB connTag (NativeKVDB conn)    = Redis connTag conn
 
 
 data KVDBConfig

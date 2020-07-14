@@ -1,8 +1,8 @@
-{-# Language OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module EulerHS.Extra.Test where
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
 import EulerHS.Interpreters
 import EulerHS.Runtime (FlowRuntime)
@@ -12,7 +12,14 @@ import           EulerHS.Language
 import           System.Process
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.Beam.Postgres as BP
+import           Database.MySQL.Base
 import           Database.PostgreSQL.Simple (execute_)
+import           EulerHS.Interpreters
+import           EulerHS.Language
+import           EulerHS.Runtime (FlowRuntime)
+import           EulerHS.Types
+import qualified EulerHS.Types as T
+import           System.Process
 
 
 mwhen :: Monoid m => Bool -> m -> m
@@ -145,6 +152,3 @@ preparePostgresDB filePath pgRootCfg pgCfg@T.PostgresConfig{..} pgCfgToDbCfg wit
           <> connectUser <> ":" <> connectPassword  <> "@"
           <> connectHost <> ":" <> show connectPort <> "/"
           <> connectDatabase
-
-
-

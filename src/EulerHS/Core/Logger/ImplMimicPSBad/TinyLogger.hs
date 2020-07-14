@@ -14,27 +14,27 @@ module EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
 
 import           EulerHS.Prelude
 
-import           Control.Concurrent            (forkOn, getNumCapabilities)
-import           Control.Concurrent.STM.TQueue
-import qualified System.Logger                 as Log
-import qualified System.Logger.Message         as LogMsg
+import           Control.Concurrent (forkOn, getNumCapabilities)
+import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
+import qualified System.Logger as Log
+import qualified System.Logger.Message as LogMsg
 
-import qualified EulerHS.Core.Types            as D
+import qualified EulerHS.Core.Types as D
 
 
-import qualified Data.Aeson                    as Json
-import qualified Data.Binary.Builder           as BinaryBuilder
-import qualified Data.ByteString.Builder       as ByteStringBuilder
-import qualified Data.ByteString.Lazy          as BSL
-import           Data.Text                     (Text)
-import qualified Data.Text.Lazy                as TL
-import qualified Data.Text.Lazy.Encoding       as TL
+import qualified Data.Aeson as Json
+import qualified Data.Binary.Builder as BinaryBuilder
+import qualified Data.ByteString.Builder as ByteStringBuilder
+import qualified Data.ByteString.Lazy as BSL
+import           Data.Text (Text)
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 
 -- TODO: remove this along with the whole impl
-import qualified Data.Map                      as Map
-import           System.Environment            (getEnvironment)
+import qualified Data.Map as Map
+import           System.Environment (getEnvironment)
 
-type LogQueue = TQueue D.PendingMsg
+type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)
 
 type Loggers = [Log.Logger]
 
@@ -50,7 +50,7 @@ dispatchLogLevel D.Error   = Log.Error
 
 -- TODO: extract formatting from this module.
 -- Make it configurable.
-strMsg :: String -> LogMsg.Msg -> LogMsg.Msg
+strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
 strMsg = Log.msg
 
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
@@ -63,15 +63,15 @@ logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsgSync loggers pendingMsg = do
   logPendingMsg loggers pendingMsg
 
-loggerWorker :: LogQueue -> Loggers -> IO ()
-loggerWorker queue loggers = do
-  pendingMsg <- atomically $ readTQueue queue
+loggerWorker :: Chan.OutChan D.PendingMsg -> Loggers -> IO ()
+loggerWorker outChan loggers = do
+  pendingMsg <- Chan.readChan outChan
   logPendingMsg loggers pendingMsg
 
 sendPendingMsg :: LoggerHandle -> D.PendingMsg -> IO ()
-sendPendingMsg VoidLoggerHandle              = const (pure ())
-sendPendingMsg (SyncLoggerHandle loggers)    = logPendingMsgSync loggers
-sendPendingMsg (AsyncLoggerHandle _ queue _) = atomically . writeTQueue queue
+sendPendingMsg VoidLoggerHandle                    = const (pure ())
+sendPendingMsg (SyncLoggerHandle loggers)          = logPendingMsgSync loggers
+sendPendingMsg (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan
 
 createVoidLogger :: IO LoggerHandle
 createVoidLogger = pure VoidLoggerHandle
@@ -140,7 +140,7 @@ mimicEulerPSSettings hostname env = Log.setFormat (Just dateFormat) . Log.setRen
 
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
-createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = do
+createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize) = do
     -- This is a temporary hack for euler-api-order deployment
     envVars <- Map.fromList <$> getEnvironment
     let hostname = maybe "hostname" id $ Map.lookup "HOSTNAME" envVars
@@ -169,9 +169,9 @@ createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog) = d
     startLogger False loggers = pure $ SyncLoggerHandle loggers
     startLogger True  loggers = do
       caps <- getNumCapabilities
-      queue <- newTQueueIO
-      threadIds <- traverse ((flip forkOn) (forever $ loggerWorker queue loggers)) [1..caps]
-      pure $ AsyncLoggerHandle threadIds queue loggers
+      chan@(_, outChan) <- Chan.newChan (fromIntegral maxQueueSize)
+      threadIds <- traverse ((flip forkOn) (forever $ loggerWorker outChan loggers)) [1..caps]
+      pure $ AsyncLoggerHandle threadIds chan loggers
 createLogger cfg = error $ "Unknown logger config: " <> show cfg
 
 disposeLogger :: LoggerHandle -> IO ()
@@ -180,21 +180,12 @@ disposeLogger (SyncLoggerHandle loggers) = do
   putStrLn @String "Disposing sync logger..."
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
-disposeLogger (AsyncLoggerHandle threadIds queue loggers) = do
+disposeLogger (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
   putStrLn @String "Disposing async logger..."
-  traverse killThread threadIds
-  flushRest
+  traverse_ killThread threadIds
+  Chan.getChanContents outChan >>= mapM_ (logPendingMsg loggers)
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
-  where
-    flushRest = do
-      mbPendingMsg <- atomically $ tryReadTQueue queue
-      case mbPendingMsg of
-        Nothing -> pure ()
-        Just pendingMsg -> do
-          logPendingMsg loggers pendingMsg
-          flushRest
-
 
 withLogger :: D.LoggerConfig -> (LoggerHandle -> IO a) -> IO a
 withLogger config = bracket (createLogger config) disposeLogger

@@ -3,10 +3,10 @@
 module EulerHS.Core.PubSub.Entries where
 
 
-import EulerHS.Prelude
+import           EulerHS.Prelude
 
-import qualified EulerHS.Types                 as T
-import qualified Data.Aeson                    as A
+import qualified Data.Aeson as A
+import qualified EulerHS.Types as T
 
 ----------------------------------------------------------------------
 

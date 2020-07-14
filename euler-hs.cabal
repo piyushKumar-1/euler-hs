@@ -223,7 +223,7 @@ test-suite db
     , bytestring
     , euler-hs
     , hspec
-    , mysql
+    , mysql-haskell
     , postgresql-simple
     , process
     , servant

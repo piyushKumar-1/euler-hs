@@ -19,6 +19,7 @@ module EulerHS.Core.SqlDB.Language
   , deleteRows
   , deleteRowsReturningListPG
   , updateRowsReturningListPG
+  , insertRowReturningMySQL
   ) where
 
 import qualified Database.Beam as B
@@ -108,3 +109,11 @@ updateRowsReturningListPG
   => B.SqlUpdate BP.Postgres table
   -> SqlDB BP.Pg [table Identity]
 updateRowsReturningListPG = sqlDBMethod . T.updateReturningListPG
+
+-- MySQL only extra methods
+-- NOTE: This should be run inside a SQL transaction!
+insertRowReturningMySQL :: (B.FromBackendRow BM.MySQL (table Identity))
+                        => B.SqlInsert BM.MySQL table
+                        -> SqlDB BM.MySQLM (Maybe (table Identity))
+insertRowReturningMySQL =
+    sqlDBMethod . BM.runInsertRowReturning

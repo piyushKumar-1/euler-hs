@@ -8,7 +8,7 @@ extra-deps:
   - git: https://github.com/juspay/hedis
     commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql
-    commit: fde4386029463750a872aeb7a823f52fcf036a56
+    commit: 1937070924b39f3f9f911986ec1117db72619927
   - git: https://github.com/juspay/mysql-haskell
     commit: 788022d65538db422b02ecc0be138b862d2e5cee
   - git: https://github.com/juspay/beam

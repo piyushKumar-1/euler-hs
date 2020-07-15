@@ -35,15 +35,15 @@ Interface is the same as presto-backend, modulo minor changes to the Sequelize
 query language and modulo explicit cache keys:
 
 ```haskell
-create :: (ToJSON a, FromJSON a) => Model a -> Text -> a -> Flow a
+create :: (ToJSON a, FromJSON a) => Model a -> Maybe Text -> a -> Flow a
 
-updateOne :: (ToJSON a, FromJSON a) => Model a -> Text -> a -> WhereClause -> Flow (Maybe a)
+updateOne :: (ToJSON a, FromJSON a) => Model a -> Maybe Text -> a -> WhereClause -> Flow (Maybe a)
 updateOne dbTable cacheKey value whereClause = ...
 
-findOne :: (ToJSON a, FromJSON a) => Model a -> Text -> WhereClause -> Flow (Maybe a)
+findOne :: (ToJSON a, FromJSON a) => Model a -> Maybe Text -> WhereClause -> Flow (Maybe a)
 findOne dbTable cacheKey whereClause = ...
 
-findAll :: (ToJSON a, FromJSON a) => Model a -> Text -> WhereClause -> Flow [a]
+findAll :: (ToJSON a, FromJSON a) => Model a -> Maybe Text -> WhereClause -> Flow [a]
 findAll dbTable cacheKey whereClause = ...
 ```
 

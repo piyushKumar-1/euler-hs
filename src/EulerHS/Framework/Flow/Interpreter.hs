@@ -70,9 +70,6 @@ disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
 
-forkAndInitMySQL :: IO () -> IO ThreadId
-forkAndInitMySQL = forkIO
-
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
 
@@ -168,7 +165,7 @@ translateResponseHeaders httpLibHeaders = do
 
 translateResponseStatusMessage :: Strict.ByteString -> Either Text Text
 translateResponseStatusMessage = displayEitherException "Error decoding HTTP response status message: " . Encoding.decodeUtf8'
-  
+
 displayEitherException :: Exception e => Text -> Either e a -> Either Text a
 displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
@@ -274,7 +271,7 @@ interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
 interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   case R._runMode rt of
-    T.RegularMode -> void $ forkAndInitMySQL (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+    T.RegularMode -> void $ forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
 
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
@@ -300,7 +297,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
-      void $ forkAndInitMySQL $ do
+      void $ forkIO $ do
         suppressErrors $ (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalSafeRecordingVar    =<< readMVar forkSafeRecordingVar
@@ -356,7 +353,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
             Map.insert newFlowGUID finalReplayErrors forkedFlowErrs
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
-          void $ forkAndInitMySQL $ do
+          void $ forkIO $ do
             suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
             putMVar finalSafeFlowErrorVar   =<< readMVar forkSafeFlowErrorVar

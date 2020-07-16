@@ -18,7 +18,7 @@ let
     owner = "juspay";
     repo = "beam-mysql";
     rev = "ca7888c2573368fd691b327890f116881891ac4d";
-    sha256 = "1114gnpyrlmrhk4csra4yd14rgmz105r3hv421mp96g9j0kfxkds";
+    sha256 = "1wl8503ig1hl6pfa65wip62c16izv8dn3bdbd6v4kqq8xh5fdqr3";
   };
 
   beam-mysql-path = beam-mysql-repo;

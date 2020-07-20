@@ -5,8 +5,8 @@ let
   beam-repo = fetchFromGitHub {
     owner = "juspay";
     repo = "beam";
-    rev = "f6a35d5361e96c766ae977e9a07fa40c6622808e";
-    sha256 = "09ajx46v8cnrfbdq3npkjspr9bjj72h8mmvg0hdfnlpnw9x3ykw9";
+    rev = "47f62de4cbfafe13891846ef795609b6f8050729";
+    sha256 = "1w3iahns22ylccs0ka064ipajxkq52s2vcwsbw56zfrp0qnq0kn2";
   };
 
   beam-core-path = "${beam-repo}/beam-core";

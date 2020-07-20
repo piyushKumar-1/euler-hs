@@ -109,7 +109,7 @@ decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
 -- FIXME Could throw 'Data.Data.dataTypeConstrs is not supported for Prelude.Double' for primitive types!
-  _      -> Left [ validationError { error_message = Just ("Can't decode value" <> v <> ", should be one of " <> showConstructors @t)
+  _      -> Left [ validationError { error_message = Just ("Can't decode value" <> vs)
                        , error_field = Just ctx}])
 
 -- | Trying to decode 'Text' into a target type, use custom error

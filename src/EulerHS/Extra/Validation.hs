@@ -63,7 +63,8 @@ guarded err pred | pred      = ReaderT (\_   -> pure ())
 decode :: forall t . (Data t, Read t) => Transformer Text t
 decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
-  _      -> Left ["Can't decode " <> v <> " from field " <> ctx <> ", should be one of " <> showConstructors @t])
+--  _      -> Left ["Can't decode " <> v <> " from field " <> ctx <> ", should be one of " <> showConstructors @t])
+  _      -> Left ["Can't decode " <> v <> " from field " <> ctx])
 
 insideJust :: Transformer a b -> Transformer (Maybe a) (Maybe b)
 insideJust _ Nothing    = pure Nothing

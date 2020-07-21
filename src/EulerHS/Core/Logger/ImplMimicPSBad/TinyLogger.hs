@@ -85,10 +85,11 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- TODO: this is terrible quick version
 -- would use Aeson.Value in the end
 -- rewrite all this with katip or forked tinylog
-jsonRenderer :: String -> String -> Log.Renderer
-jsonRenderer hostname env separator dateFormat logLevel fields =
+jsonRenderer :: String -> String -> String -> Log.Renderer
+jsonRenderer hostname env sourceCommit separator dateFormat logLevel fields =
   BinaryBuilder.fromByteString "{ timestamp = " <> quote <> timestamp <> quote <> commaSep <>
   BinaryBuilder.fromByteString "hostname = " <> quote <> fromString hostname <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "source_commit = " <> quote <> fromString sourceCommit <> quote <> commaSep <>
   BinaryBuilder.fromByteString invariant <>
   BinaryBuilder.fromByteString "message = " <> quote <> message <> quote <> commaSep <>
   BinaryBuilder.fromByteString "message_type = \"string\" }"
@@ -134,8 +135,8 @@ jsonRenderer hostname env separator dateFormat logLevel fields =
     elementToBS (LogMsg.Field keyB valB) = convBS keyB
 -}
 
-mimicEulerPSSettings :: String -> String -> Log.Settings -> Log.Settings
-mimicEulerPSSettings hostname env = Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env)
+mimicEulerPSSettings :: String -> String -> String -> Log.Settings -> Log.Settings
+mimicEulerPSSettings hostname env sourceCommit= Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env sourceCommit)
   where dateFormat = "%0d-%0m-%Y %0H:%0M:%0S.000"
 
 -- TODO: errors -> stderr
@@ -143,14 +144,16 @@ createLogger :: D.LoggerConfig -> IO LoggerHandle
 createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize) = do
     -- This is a temporary hack for euler-api-order deployment
     envVars <- Map.fromList <$> getEnvironment
-    let hostname = maybe "hostname" id $ Map.lookup "HOSTNAME" envVars
-    let env = maybe "env" id $ Map.lookup "NODE_ENV" envVars
+    let hostname = maybe "NA" id $ Map.lookup "HOSTNAME" envVars
+    let env = maybe "NA" id $ Map.lookup "NODE_ENV" envVars
+    let sourceCommit = maybe "NA" id $ Map.lookup "SOURCE_COMMIT" envVars
 
     let consoleSettings =
-          (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $ Log.setOutput Log.StdOut Log.defSettings
+          (mimicEulerPSSettings hostname env sourceCommit) . Log.setBufSize 4096 $
+          Log.setOutput Log.StdOut Log.defSettings
 
     let fileSettings    =
-          (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $
+          (mimicEulerPSSettings hostname env sourceCommit) . Log.setBufSize 4096 $
           Log.setOutput (Log.Path logFileName) Log.defSettings
 
     let fileH           = [Log.new fileSettings    | isFileLog]

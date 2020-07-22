@@ -38,6 +38,7 @@ common common-lang
     MultiParamTypeClasses
     MultiWayIf
     NamedFieldPuns
+    OverloadedLabels
     OverloadedStrings
     PatternSynonyms
     RankNTypes
@@ -66,6 +67,7 @@ library
   other-modules:
     EulerHS.Core.Api
     EulerHS.Core.Interpreters
+    EulerHS.Core.Caching.DB
     EulerHS.Core.KVDB.Entries
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
@@ -131,10 +133,12 @@ library
     , http-types
     , lens
     , mysql
+    , named
     , newtype-generics
     , postgresql-simple
     , process
     , resource-pool
+    , sequelize
     , servant-client
     , servant-client-core
     , sqlite-simple

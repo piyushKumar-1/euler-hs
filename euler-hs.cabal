@@ -55,6 +55,7 @@ common common-lang
 library
   import:          common-lang
   exposed-modules:
+    EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
     EulerHS.Extra.Test
     EulerHS.Extra.Validation
@@ -67,7 +68,6 @@ library
   other-modules:
     EulerHS.Core.Api
     EulerHS.Core.Interpreters
-    EulerHS.Core.Caching.DB
     EulerHS.Core.KVDB.Entries
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
@@ -168,7 +168,9 @@ test-suite language
     EulerHS.Testing.Flow.Interpreter
     EulerHS.Testing.Types
     EulerHS.Tests.Framework.ArtSpec
+    EulerHS.Tests.Framework.CachedDBSpec
     EulerHS.Tests.Framework.Common
+    EulerHS.Tests.Framework.DBSetup
     EulerHS.Tests.Framework.FlowSpec
     EulerHS.Tests.Framework.KVDBArtSpec
     EulerHS.Tests.Framework.PubSubSpec
@@ -188,7 +190,9 @@ test-suite language
     , http-client
     , http-client-tls
     , lens
+    , named
     , QuickCheck
+    , sequelize
     , servant
     , servant-client
     , servant-mock

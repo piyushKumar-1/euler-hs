@@ -12,15 +12,15 @@ module EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
   ,
   ) where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding ((.=))
 
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
+import           System.Logger ((.=), (~~))
 import qualified System.Logger as Log
 import qualified System.Logger.Message as LogMsg
 
 import qualified EulerHS.Core.Types as D
-
 
 import qualified Data.Aeson as Json
 import qualified Data.Binary.Builder as BinaryBuilder
@@ -54,10 +54,12 @@ strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
 strMsg = Log.msg
 
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
-logPendingMsg loggers (D.PendingMsg lvl tag msg) = do
+logPendingMsg loggers (D.PendingMsg lvl tag msg ctx) = do
   let lvl' = dispatchLogLevel lvl
-  let msg' = strMsg $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
-  mapM_ (\logger -> Log.log logger lvl' msg') loggers
+  let eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+  let ctxVal = fromMaybe "null" ctx
+  let msg'' = (Log.field @ByteString "message" eulerMsg) ~~ ("x-request-id" .= ctxVal)
+  mapM_ (\logger -> Log.log logger lvl' msg'') loggers
 
 logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsgSync loggers pendingMsg = do
@@ -85,24 +87,27 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- TODO: this is terrible quick version
 -- would use Aeson.Value in the end
 -- rewrite all this with katip or forked tinylog
-jsonRenderer :: String -> String -> Log.Renderer
-jsonRenderer hostname env separator dateFormat logLevel fields =
-  BinaryBuilder.fromByteString "{ timestamp = " <> quote <> timestamp <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "hostname = " <> quote <> fromString hostname <> quote <> commaSep <>
+jsonRenderer :: String -> String -> String -> Log.Renderer
+jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFields =
+  BinaryBuilder.fromByteString "{\"timestamp\": " <> quote <> timestamp <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"app_framework\": " <> quote <> "euler-hs-application" <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"hostname\": " <> quote <> fromString hostname <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"source_commit\": " <> quote <> fromString sourceCommit <> quote <> commaSep <>
   BinaryBuilder.fromByteString invariant <>
-  BinaryBuilder.fromByteString "message = " <> quote <> message <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "message_type = \"string\" }"
+  mconcat (map elementToBS fields) <>
+  -- BinaryBuilder.fromByteString "\"message\" = " <> quote <> message <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"message_type\": \"string\"}"
   where
     quote = BinaryBuilder.fromByteString "\""
-    (timestamp, message) = case fields of
-      [ts, _, t]    -> (elementToBS ts, elementToBS t)
-      [ts, _, _, m] -> (elementToBS ts, elementToBS m)
-      _             -> error "Malformed log fields."
+    jsonField k v = quote <> k <> quote <> ": " <> quote <> v <> quote <> commaSep
+    (timestamp, fields) = case loggerFields of
+      (ts:_lvl:rest) -> (elementToBS ts, rest)
+      _              -> error "Malformed log fields."
     commaSep = BinaryBuilder.fromByteString ", "
-    invariant = "level = \"info\", txn_uuid = \"null\", order_id = \"null\", x-request-id = \"null\", "
-    elementToBS = LogMsg.builderBytes . \case
-      LogMsg.Bytes b -> b
-      LogMsg.Field k _ -> k
+    invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", " -- x-request-id = \"null\", "
+    elementToBS = \case
+      LogMsg.Bytes b -> LogMsg.builderBytes b
+      LogMsg.Field k v -> jsonField (LogMsg.builderBytes k) (LogMsg.builderBytes v)
 {-
 jsonRenderer hostname env separator dateFormat logLevel fields =
   Json.fromEncoding $
@@ -134,23 +139,25 @@ jsonRenderer hostname env separator dateFormat logLevel fields =
     elementToBS (LogMsg.Field keyB valB) = convBS keyB
 -}
 
-mimicEulerPSSettings :: String -> String -> Log.Settings -> Log.Settings
-mimicEulerPSSettings hostname env = Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env)
+mimicEulerPSSettings :: String -> String -> String -> Log.Settings -> Log.Settings
+mimicEulerPSSettings hostname env sourceCommit = Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env sourceCommit)
   where dateFormat = "%0d-%0m-%Y %0H:%0M:%0S.000"
 
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
-createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize) = do
+createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
     -- This is a temporary hack for euler-api-order deployment
     envVars <- Map.fromList <$> getEnvironment
-    let hostname = maybe "hostname" id $ Map.lookup "HOSTNAME" envVars
-    let env = maybe "env" id $ Map.lookup "NODE_ENV" envVars
+    let hostname = maybe "NA" id $ Map.lookup "HOSTNAME" envVars
+    let env = maybe "NA" id $ Map.lookup "NODE_ENV" envVars
+    let sourceCommit = maybe "NA" id $ Map.lookup "SOURCE_COMMIT" envVars
 
     let consoleSettings =
-          (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $ Log.setOutput Log.StdOut Log.defSettings
+          (mimicEulerPSSettings hostname env sourceCommit) . Log.setBufSize 4096 $
+          Log.setOutput Log.StdOut Log.defSettings
 
     let fileSettings    =
-          (mimicEulerPSSettings hostname env) . Log.setBufSize 4096 $
+          (mimicEulerPSSettings hostname env sourceCommit) . Log.setBufSize 4096 $
           Log.setOutput (Log.Path logFileName) Log.defSettings
 
     let fileH           = [Log.new fileSettings    | isFileLog]

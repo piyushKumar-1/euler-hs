@@ -1,10 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE InstanceSigs          #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving    #-}
--- {-# LANGUAGE OverlappingInstances  #-}
 
 module EulerHS.Framework.Flow.Language
   (
@@ -60,17 +57,14 @@ module EulerHS.Framework.Flow.Language
   , unpackLanguagePubSub
   ) where
 
-import           EulerHS.Prelude hiding (getOption)
-
-import qualified Control.Monad.Catch as Monad
+import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
-import qualified Data.ByteString.Lazy as ByteString
 import qualified Data.Text as Text
 import           EulerHS.Core.Language (KVDB, Logger, logMessage')
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.PubSub.Language as PSL
 import qualified EulerHS.Core.Types as T
-import qualified Network.HTTP.Client as HTTP
+import           EulerHS.Prelude hiding (getOption)
 import           Servant.Client (BaseUrl, ClientError)
 
 -- | Flow language.
@@ -160,7 +154,7 @@ data FlowMethod next where
     :: (FromJSON a, ToJSON a)
     => T.SafeFlowGUID
     -> Flow a
-    -> ((Either Text a) -> next)
+    -> (Either Text a -> next)
     -> FlowMethod next
 
   -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
@@ -914,3 +908,32 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   publish channel = lift . publish channel
   subscribe channels = lift . subscribe channels
   psubscribe channels = lift . psubscribe channels
+
+instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  callHTTPWithCert url = lift . callHTTPWithCert url
+  evalLogger' = lift . evalLogger'
+  runIO' descr = lift . runIO' descr
+  runUntracedIO' descr = lift . runUntracedIO' descr
+  getOption = lift . getOption
+  setOption k = lift . setOption k
+  delOption = lift . delOption
+  generateGUID = lift generateGUID
+  runSysCmd = lift . runSysCmd
+  initSqlDBConnection = lift . initSqlDBConnection
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  getSqlDBConnection = lift . getSqlDBConnection
+  initKVDBConnection = lift . initKVDBConnection
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  getKVDBConnection = lift . getKVDBConnection
+  runDB conn = lift . runDB conn
+  runTransaction conn = lift . runTransaction conn
+  await mbMcs = lift . await mbMcs
+  throwException =  lift . throwException
+  runSafeFlow = lift . runSafeFlow
+  runKVDB cName = lift . runKVDB cName
+  runPubSub = lift . runPubSub
+  publish channel = lift . publish channel
+  subscribe channels = lift . subscribe channels
+  psubscribe channels = lift . psubscribe channels
+

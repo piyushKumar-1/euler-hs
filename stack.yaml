@@ -12,7 +12,7 @@ extra-deps:
   - git: https://github.com/juspay/mysql-haskell
     commit: 788022d65538db422b02ecc0be138b862d2e5cee
   - git: https://github.com/juspay/beam
-    commit: f6a35d5361e96c766ae977e9a07fa40c6622808e
+    commit: 47f62de4cbfafe13891846ef795609b6f8050729
     subdirs:
       - beam-core
       - beam-migrate

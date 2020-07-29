@@ -8,6 +8,7 @@ module EulerHS.Framework.Runtime
   , kvDisconnect
   , runPubSubWorker
   , setTransientLoggerContext
+  , shouldFlowLogRawSql
   ) where
 
 import           EulerHS.Prelude
@@ -95,6 +96,9 @@ setTransientLoggerContext ctx rt@FlowRuntime{_coreRuntime} =
   rt { _coreRuntime = _coreRuntime { R._loggerRuntime = loggerRuntimeWithCtx } }
   where loggerRuntimeWithCtx = R.setTransientContext ctx (R._loggerRuntime _coreRuntime)
 
+shouldFlowLogRawSql :: FlowRuntime -> Bool
+shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
+
 sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case
   T.NativePGPool connPool -> DP.destroyAllResources connPool
@@ -119,7 +123,6 @@ createLoggerRuntime' :: Maybe T.LoggerConfig -> IO R.LoggerRuntime
 createLoggerRuntime' mbLoggerCfg = case mbLoggerCfg of
   Nothing        -> R.createVoidLoggerRuntime
   Just loggerCfg -> R.createLoggerRuntime loggerCfg
-
 
 -- Use {-# NOINLINE foo #-} as a pragma on any function foo that calls unsafePerformIO.
 -- If the call is inlined, the I/O may be performed more than once.

@@ -7,6 +7,7 @@ module EulerHS.Framework.Runtime
   , withFlowRuntime
   , kvDisconnect
   , runPubSubWorker
+  , setTransientLoggerContext
   ) where
 
 import           EulerHS.Prelude
@@ -71,8 +72,6 @@ createFlowRuntime coreRt = do
     , _pubSubConnection         = Nothing
     }
 
-
-
 createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
 createFlowRuntime'  mbLoggerCfg =
   createLoggerRuntime' mbLoggerCfg >>= R.createCoreRuntime >>= createFlowRuntime
@@ -90,6 +89,11 @@ clearFlowRuntime FlowRuntime{..} = do
   traverse_ sqlDisconnect sqlConns
   -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
+
+setTransientLoggerContext :: R.TransientLoggerContext -> FlowRuntime -> FlowRuntime
+setTransientLoggerContext ctx rt@FlowRuntime{_coreRuntime} =
+  rt { _coreRuntime = _coreRuntime { R._loggerRuntime = loggerRuntimeWithCtx } }
+  where loggerRuntimeWithCtx = R.setTransientContext ctx (R._loggerRuntime _coreRuntime)
 
 sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case

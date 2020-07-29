@@ -16,9 +16,9 @@ import           EulerHS.Prelude hiding ((.=))
 
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
+import           System.Logger ((.=), (~~))
 import qualified System.Logger as Log
 import qualified System.Logger.Message as LogMsg
-import           System.Logger ((~~), (.=))
 
 import qualified EulerHS.Core.Types as D
 
@@ -102,7 +102,7 @@ jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFiel
     jsonField k v = quote <> k <> quote <> ": " <> quote <> v <> quote <> commaSep
     (timestamp, fields) = case loggerFields of
       (ts:_lvl:rest) -> (elementToBS ts, rest)
-      _             -> error "Malformed log fields."
+      _              -> error "Malformed log fields."
     commaSep = BinaryBuilder.fromByteString ", "
     invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", " -- x-request-id = \"null\", "
     elementToBS = \case
@@ -145,7 +145,7 @@ mimicEulerPSSettings hostname env sourceCommit = Log.setFormat (Just dateFormat)
 
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
-createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize) = do
+createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
     -- This is a temporary hack for euler-api-order deployment
     envVars <- Map.fromList <$> getEnvironment
     let hostname = maybe "NA" id $ Map.lookup "HOSTNAME" envVars

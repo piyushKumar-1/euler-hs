@@ -42,6 +42,7 @@ data LoggerConfig
   , _logToConsole :: Bool
   , _logToFile    :: Bool
   , _maxQueueSize :: Word
+  , _logRawSql    :: Bool
   } deriving (Generic, Show, Read)
 
 type Message = Text
@@ -61,6 +62,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToConsole = True
     , _logToFile = False
     , _maxQueueSize = 1000
+    , _logRawSql = True
     }
 
 mkMemoryLoggerConfig :: LogLevel -> LoggerConfig

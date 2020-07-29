@@ -88,6 +88,7 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 jsonRenderer :: String -> String -> String -> Log.Renderer
 jsonRenderer hostname env sourceCommit separator dateFormat logLevel fields =
   BinaryBuilder.fromByteString "{ timestamp = " <> quote <> timestamp <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "app_framework = " <> quote <> "euler-hs-application" <> quote <> commaSep <>
   BinaryBuilder.fromByteString "hostname = " <> quote <> fromString hostname <> quote <> commaSep <>
   BinaryBuilder.fromByteString "source_commit = " <> quote <> fromString sourceCommit <> quote <> commaSep <>
   BinaryBuilder.fromByteString invariant <>

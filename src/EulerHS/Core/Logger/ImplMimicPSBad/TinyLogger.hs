@@ -54,10 +54,12 @@ strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
 strMsg = Log.msg
 
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
-logPendingMsg loggers (D.PendingMsg lvl tag msg) = do
+logPendingMsg loggers (D.PendingMsg lvl tag msg ctx) = do
   let lvl' = dispatchLogLevel lvl
   let msg' = strMsg $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
-  mapM_ (\logger -> Log.log logger lvl' msg') loggers
+  let ctxVal = fromMaybe "null" ctx
+  let msg'' = msg' Log.~~ ("x-request-id" Log..= ctxVal)
+  mapM_ (\logger -> Log.log logger lvl' msg'') loggers
 
 logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsgSync loggers pendingMsg = do
@@ -88,6 +90,7 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 jsonRenderer :: String -> String -> String -> Log.Renderer
 jsonRenderer hostname env sourceCommit separator dateFormat logLevel fields =
   BinaryBuilder.fromByteString "{ timestamp = " <> quote <> timestamp <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "app_framework = " <> quote <> "euler-hs-application" <> quote <> commaSep <>
   BinaryBuilder.fromByteString "hostname = " <> quote <> fromString hostname <> quote <> commaSep <>
   BinaryBuilder.fromByteString "source_commit = " <> quote <> fromString sourceCommit <> quote <> commaSep <>
   BinaryBuilder.fromByteString invariant <>
@@ -100,7 +103,7 @@ jsonRenderer hostname env sourceCommit separator dateFormat logLevel fields =
       [ts, _, _, m] -> (elementToBS ts, elementToBS m)
       _             -> error "Malformed log fields."
     commaSep = BinaryBuilder.fromByteString ", "
-    invariant = "level = \"info\", txn_uuid = \"null\", order_id = \"null\", x-request-id = \"null\", "
+    invariant = "level = \"info\", txn_uuid = \"null\", order_id = \"null\", " -- x-request-id = \"null\", "
     elementToBS = LogMsg.builderBytes . \case
       LogMsg.Bytes b -> b
       LogMsg.Field k _ -> k

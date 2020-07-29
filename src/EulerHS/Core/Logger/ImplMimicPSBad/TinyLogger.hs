@@ -12,15 +12,15 @@ module EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
   ,
   ) where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding ((.=))
 
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
 import qualified System.Logger as Log
 import qualified System.Logger.Message as LogMsg
+import           System.Logger ((~~), (.=))
 
 import qualified EulerHS.Core.Types as D
-
 
 import qualified Data.Aeson as Json
 import qualified Data.Binary.Builder as BinaryBuilder
@@ -56,9 +56,9 @@ strMsg = Log.msg
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsg loggers (D.PendingMsg lvl tag msg ctx) = do
   let lvl' = dispatchLogLevel lvl
-  let msg' = strMsg $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+  let eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
   let ctxVal = fromMaybe "null" ctx
-  let msg'' = msg' Log.~~ ("x-request-id" Log..= ctxVal)
+  let msg'' = (Log.field @ByteString "message" eulerMsg) ~~ ("x-request-id" .= ctxVal)
   mapM_ (\logger -> Log.log logger lvl' msg'') loggers
 
 logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()
@@ -88,25 +88,26 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- would use Aeson.Value in the end
 -- rewrite all this with katip or forked tinylog
 jsonRenderer :: String -> String -> String -> Log.Renderer
-jsonRenderer hostname env sourceCommit separator dateFormat logLevel fields =
-  BinaryBuilder.fromByteString "{ timestamp = " <> quote <> timestamp <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "app_framework = " <> quote <> "euler-hs-application" <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "hostname = " <> quote <> fromString hostname <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "source_commit = " <> quote <> fromString sourceCommit <> quote <> commaSep <>
+jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFields =
+  BinaryBuilder.fromByteString "{\"timestamp\": " <> quote <> timestamp <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"app_framework\": " <> quote <> "euler-hs-application" <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"hostname\": " <> quote <> fromString hostname <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"source_commit\": " <> quote <> fromString sourceCommit <> quote <> commaSep <>
   BinaryBuilder.fromByteString invariant <>
-  BinaryBuilder.fromByteString "message = " <> quote <> message <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "message_type = \"string\" }"
+  mconcat (map elementToBS fields) <>
+  -- BinaryBuilder.fromByteString "\"message\" = " <> quote <> message <> quote <> commaSep <>
+  BinaryBuilder.fromByteString "\"message_type\": \"string\"}"
   where
     quote = BinaryBuilder.fromByteString "\""
-    (timestamp, message) = case fields of
-      [ts, _, t]    -> (elementToBS ts, elementToBS t)
-      [ts, _, _, m] -> (elementToBS ts, elementToBS m)
+    jsonField k v = quote <> k <> quote <> ": " <> quote <> v <> quote <> commaSep
+    (timestamp, fields) = case loggerFields of
+      (ts:_lvl:rest) -> (elementToBS ts, rest)
       _             -> error "Malformed log fields."
     commaSep = BinaryBuilder.fromByteString ", "
-    invariant = "level = \"info\", txn_uuid = \"null\", order_id = \"null\", " -- x-request-id = \"null\", "
-    elementToBS = LogMsg.builderBytes . \case
-      LogMsg.Bytes b -> b
-      LogMsg.Field k _ -> k
+    invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", " -- x-request-id = \"null\", "
+    elementToBS = \case
+      LogMsg.Bytes b -> LogMsg.builderBytes b
+      LogMsg.Field k v -> jsonField (LogMsg.builderBytes k) (LogMsg.builderBytes v)
 {-
 jsonRenderer hostname env separator dateFormat logLevel fields =
   Json.fromEncoding $
@@ -139,7 +140,7 @@ jsonRenderer hostname env separator dateFormat logLevel fields =
 -}
 
 mimicEulerPSSettings :: String -> String -> String -> Log.Settings -> Log.Settings
-mimicEulerPSSettings hostname env sourceCommit= Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env sourceCommit)
+mimicEulerPSSettings hostname env sourceCommit = Log.setFormat (Just dateFormat) . Log.setRenderer (jsonRenderer hostname env sourceCommit)
   where dateFormat = "%0d-%0m-%Y %0H:%0M:%0S.000"
 
 -- TODO: errors -> stderr

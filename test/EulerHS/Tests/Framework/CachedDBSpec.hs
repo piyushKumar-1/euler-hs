@@ -27,10 +27,8 @@ import EulerHS.Types as T
 
 redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
 
-testKey :: Text
-testKey = "testKey"
-
--- TODO: Start and clean up redis with each test
+-- NOTE: These tests require a running redis instance
+-- `$ redis-server`
 
 spec :: Spec
 spec = do
@@ -39,6 +37,7 @@ spec = do
     describe "Cached sequelize layer" $ do
 
       it "findOne returns Nothing for empty table" $ \rt -> do
+        let testKey = "key1"
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
@@ -46,6 +45,7 @@ spec = do
         (res :: Either DBError (Maybe User)) `shouldBe` Right Nothing
 
       it "findOne returns first row from table" $ \rt -> do
+        let testKey = "key2"
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
@@ -55,6 +55,7 @@ spec = do
         res `shouldBe` Right (Just (User 1 "Bill" "Gates"))
 
       it "findOne successfully reads `Nothing` from cache" $ \rt -> do
+        let testKey = "key3"
         -- Test with `Nothing`
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
@@ -68,6 +69,7 @@ spec = do
         -- Also test with a value (Just ...)
 
       it "findOne reads (Just result) from cache" $ \rt -> do
+        let testKey = "key4"
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
@@ -82,6 +84,7 @@ spec = do
         res `shouldBe` Right (Just (User 1 "Bill" "Gates"))
 
       it "findAll finds all values in the database" $ \rt -> do
+        let testKey = "key5"
         res <- runFlow rt $ do
           redisConn <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
@@ -98,8 +101,7 @@ spec = do
           Left _ -> False
 
       it "findAll successfully reads `[]` from cache" $ \rt -> do
-        -- Test with `Nothing`
-        -- TODO: Delete value from database to ensure the cache is used
+        let testKey = "key6"
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
@@ -112,6 +114,7 @@ spec = do
         -- Also test with a value (Just ...)
 
       it "findAll reads nonempty list from cache after writing to it" $ \rt -> do
+        let testKey = "key7"
         res <- runFlow rt $ do
           _ <- L.initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg

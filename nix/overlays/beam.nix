@@ -23,6 +23,15 @@ let
 
   beam-mysql-path = beam-mysql-repo;
 
+  bytestring-lexing-repo = fetchFromGitHub {
+    owner = "juspay";
+    repo = "bytestring-lexing";
+    rev = "e35ff137b0425c7b8abfe0eef235fa2bb6c819ce";
+    sha256 = "1ah4jzqhiwqx78zwyg5x41dnvhimpa2p97zgs3199dvc1iznn5yp";
+  };
+
+  bytestring-lexing-path = bytestring-lexing-repo;
+
   mysql-haskell-repo = fetchFromGitHub {
     owner = "juspay";
     repo = "mysql-haskell";
@@ -71,6 +80,20 @@ eulerBuild.mkEulerHaskellOverlay
       # dontCheck
       beam-postgres = eulerBuild.fastBuildExternal {
         drv = hself.callCabal2nix "beam-postgres" beam-postgres-path { };
+      };
+
+      # Needed for floating point fix in mysql-haskell
+      bytestring-lexing = eulerBuild.fastBuildExternal {
+        drv = hself.callCabal2nix "bytestring-lexing" bytestring-lexing-path { };
+      };
+
+      # Uses bytestring-lexing
+      binary-parsers = eulerBuild.fastBuildExternal {
+        drv = hsuper.binary-parsers;
+      };
+      # Uses binary-parsers
+      wire-streams = eulerBuild.fastBuildExternal {
+        drv = hsuper.wire-streams;
       };
 
       mysql-haskell = eulerBuild.fastBuildExternal {

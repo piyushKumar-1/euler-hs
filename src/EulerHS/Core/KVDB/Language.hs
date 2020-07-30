@@ -1,16 +1,20 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DerivingStrategies    #-}
+{-# LANGUAGE DeriveAnyClass        #-}
 
 module EulerHS.Core.KVDB.Language
   (
   -- * KVDB language
   -- ** Types
-    KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration, KVDBField, KVDBChannel, KVDBMessage
+    KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration
+  , KVDBSetTTLOption(..), KVDBSetConditionOption(..)
+  , KVDBField, KVDBChannel, KVDBMessage
   , KVDBF(..), KeyValueF(..), TransactionF(..)
   -- ** Methods
   -- *** Regular
   -- **** For simple values
-  , set, get, incr, setex
+  , set, get, incr, setex, setOpts
   -- **** For hash values
   , hset, hget
   -- **** For both
@@ -21,9 +25,24 @@ module EulerHS.Core.KVDB.Language
   , setTx, getTx, delTx, setexTx
   ) where
 
+import qualified Data.Aeson as A
 import qualified Database.Redis as R
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (get)
+
+data KVDBSetTTLOption
+  = NoTTL
+  | Seconds Integer
+  | Milliseconds Integer
+  deriving stock Generic
+  deriving anyclass A.ToJSON
+
+data KVDBSetConditionOption
+  = SetAlways
+  | SetIfExist
+  | SetIfNotExist
+  deriving stock Generic
+  deriving anyclass A.ToJSON
 
 type KVDBKey = ByteString
 type KVDBValue = ByteString
@@ -35,26 +54,28 @@ type KVDBMessage = ByteString
 ----------------------------------------------------------------------
 
 data KeyValueF f next where
-  Set    :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
-  SetEx  :: KVDBKey -> KVDBDuration -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
-  Get    :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
-  Exists :: KVDBKey -> (f Bool -> next) -> KeyValueF f next
-  Del    :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
-  Expire :: KVDBKey -> KVDBDuration -> (f Bool -> next) -> KeyValueF f next
-  Incr   :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
-  HSet   :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
-  HGet   :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
+  Set     :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
+  SetEx   :: KVDBKey -> KVDBDuration -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
+  SetOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> (f Bool -> next) -> KeyValueF f next
+  Get     :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
+  Exists  :: KVDBKey -> (f Bool -> next) -> KeyValueF f next
+  Del     :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
+  Expire  :: KVDBKey -> KVDBDuration -> (f Bool -> next) -> KeyValueF f next
+  Incr    :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
+  HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
+  HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
-  fmap f (Set k value next)        = Set k value (f . next)
-  fmap f (SetEx k ex value next)   = SetEx k ex value (f . next)
-  fmap f (Get k next)              = Get k (f . next)
-  fmap f (Exists k next)           = Exists k (f . next)
-  fmap f (Del ks next)             = Del ks (f . next)
-  fmap f (Expire k sec next)       = Expire k sec (f . next)
-  fmap f (Incr k next)             = Incr k (f . next)
-  fmap f (HSet k field value next) = HSet k field value (f . next)
-  fmap f (HGet k field next)       = HGet k field (f . next)
+  fmap f (Set k value next)              = Set k value (f . next)
+  fmap f (SetEx k ex value next)         = SetEx k ex value (f . next)
+  fmap f (SetOpts k value ttl cond next) = SetOpts k value ttl cond (f . next)
+  fmap f (Get k next)                    = Get k (f . next)
+  fmap f (Exists k next)                 = Exists k (f . next)
+  fmap f (Del ks next)                   = Del ks (f . next)
+  fmap f (Expire k sec next)             = Expire k sec (f . next)
+  fmap f (Incr k next)                   = Incr k (f . next)
+  fmap f (HSet k field value next)       = HSet k field value (f . next)
+  fmap f (HGet k field next)             = HGet k field (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
 
@@ -104,6 +125,9 @@ set key value = ExceptT $ liftFC $ KV $ Set key value id
 -- | Set the value and ttl of a key.
 setex :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDB T.KVDBStatus
 setex key ex value = ExceptT $ liftFC $ KV $ SetEx key ex value id
+
+setOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> KVDB Bool
+setOpts key value ttl cond = ExceptT $ liftFC $ KV $ SetOpts key value ttl cond id
 
 -- | Get the value of a key
 get :: KVDBKey -> KVDB (Maybe ByteString)

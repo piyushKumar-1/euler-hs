@@ -9,6 +9,7 @@ import qualified Data.Aeson as A
 import           EulerHS.Prelude
 import           EulerHS.Types (MockedResult (..), RRItem (..))
 import qualified EulerHS.Types as T
+import qualified EulerHS.Core.KVDB.Language as L
 
 data SetEntry = SetEntry
   { jsonKey    :: A.Value
@@ -50,6 +51,29 @@ mkSetExEntry k e v r = SetExEntry
   (T.jsonEncode v)
   (T.jsonEncode r)
 
+----------------------------------------------------------------------
+
+data SetOptsEntry = SetOptsEntry
+  { jsonKey    :: A.Value
+  , jsonValue  :: A.Value
+  , jsonTTL    :: A.Value
+  , jsonCond   :: A.Value
+  , jsonResult :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+instance RRItem SetOptsEntry where
+  getTag _ = "SetOptsEntry"
+
+instance MockedResult SetOptsEntry (Either T.KVDBReply Bool) where
+  getMock SetOptsEntry {jsonResult} = T.jsonDecode jsonResult
+
+mkSetOptsEntry :: ByteString -> ByteString -> L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> Either T.KVDBReply Bool -> SetOptsEntry
+mkSetOptsEntry k v ttl cond r = SetOptsEntry
+  (T.jsonEncode k)
+  (T.jsonEncode v)
+  (toJSON ttl)
+  (toJSON cond)
+  (T.jsonEncode r)
 
 ----------------------------------------------------------------------
 

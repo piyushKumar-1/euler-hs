@@ -12,6 +12,7 @@ module EulerHS.Core.Types.Logger
     , PendingMsg(..)
     , LogEntry (..)
     , Log
+    , TransientLoggerContext
     -- ** defaults
     , defaultLoggerConfig
     , mkMemoryLoggerConfig
@@ -27,6 +28,10 @@ data LogLevel = Debug | Info | Warning | Error
 -- | Logging format.
 type Format = String
 
+-- TODO: FIXME
+-- this currently only stores session id
+type TransientLoggerContext = Maybe Text
+
 data LoggerConfig
   = MemoryLoggerConfig LogLevel
   | LoggerConfig
@@ -37,11 +42,12 @@ data LoggerConfig
   , _logToConsole :: Bool
   , _logToFile    :: Bool
   , _maxQueueSize :: Word
+  , _logRawSql    :: Bool
   } deriving (Generic, Show, Read)
 
 type Message = Text
 type Tag = Text
-data PendingMsg = PendingMsg !LogLevel !Tag !Message
+data PendingMsg = PendingMsg !LogLevel !Tag !Message !TransientLoggerContext
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
@@ -56,6 +62,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToConsole = True
     , _logToFile = False
     , _maxQueueSize = 1000
+    , _logRawSql = True
     }
 
 mkMemoryLoggerConfig :: LogLevel -> LoggerConfig

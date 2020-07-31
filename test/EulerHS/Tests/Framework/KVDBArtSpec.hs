@@ -90,6 +90,37 @@ spec = do
           pure res
       result `shouldBe` Right Nothing
 
+    it "set only if not exist" $ do
+      result <- runWithRedisConn_ setIfNotExist $ L.runKVDB "redis" $ do
+        res1 <- L.setOpts "aaa" "bbb" L.NoTTL L.SetIfNotExist
+        res2 <- L.get "aaa"
+        res3 <- L.setOpts "aaa" "ccc" L.NoTTL L.SetIfNotExist
+        res4 <- L.get "aaa"
+        L.del ["aaa"]
+        pure (res1, res2, res3, res4)
+      result `shouldBe` Right (True, Just "bbb", False, Just "bbb")
+
+    it "set only if exist" $ do
+      result <- runWithRedisConn_ setIfExist $ L.runKVDB "redis" $ do
+        res1 <- L.setOpts "aaa" "bbb" L.NoTTL L.SetIfExist
+        res2 <- L.get "aaa"
+        L.set "aaa" "bbb"
+        res3 <- L.setOpts "aaa" "ccc" L.NoTTL L.SetIfExist
+        res4 <- L.get "aaa"
+        L.del ["aaa"]
+        pure (res1, res2, res3, res4)
+      result `shouldBe` Right (False, Nothing, True, Just "ccc")
+
+    it "set px ttl works" $ do
+      result <- runWithRedisConn_ setPxTtl $ do
+        L.runKVDB "redis" $ L.setOpts "aaapx" "bbbpx" (L.Milliseconds 500) L.SetAlways
+        res1 <- L.runKVDB "redis" $ L.get "aaapx"
+        L.runIO $ threadDelay (10 ^ 6)
+        res2 <- L.runKVDB "redis" $ L.get "aaapx"
+        L.runKVDB "redis" $ L.del ["aaapx"]
+        pure (res1, res2)
+      result `shouldBe` (Right (Just "bbbpx"), Right Nothing)
+
 
 getKey :: ResultRecording
 getKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"
@@ -117,3 +148,12 @@ setExGetKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",
 
 setExTtl :: ResultRecording
 setExTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetExEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTtl\":1,\"jsonValue\":{\"utf8\":\"bbbex\",\"b64\":\"YmJiZXg=\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":[],\"description\":\"\"},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[{\"utf8\":\"aaaex\",\"b64\":\"YWFhZXg=\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"
+
+setIfNotExist :: ResultRecording
+setIfNotExist = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetOptsEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTTL\":{\"tag\":\"NoTTL\"},\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonCond\":\"SetIfNotExist\",\"jsonResult\":{\"Right\":true},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"SetOptsEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonTTL\":{\"tag\":\"NoTTL\"},\"jsonValue\":{\"utf8\":\"ccc\",\"b64\":\"Y2Nj\"},\"jsonCond\":\"SetIfNotExist\",\"jsonResult\":{\"Right\":false},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":4,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"
+
+setIfExist :: ResultRecording
+setIfExist = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetOptsEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTTL\":{\"tag\":\"NoTTL\"},\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonCond\":\"SetIfExist\",\"jsonResult\":{\"Right\":false},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"SetEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"SetOptsEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonTTL\":{\"tag\":\"NoTTL\"},\"jsonValue\":{\"utf8\":\"ccc\",\"b64\":\"Y2Nj\"},\"jsonCond\":\"SetIfExist\",\"jsonResult\":{\"Right\":true},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":4,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"ccc\",\"b64\":\"Y2Nj\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":5,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"
+
+setPxTtl :: ResultRecording
+setPxTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetOptsEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTTL\":{\"tag\":\"Milliseconds\",\"contents\":500},\"jsonValue\":{\"utf8\":\"bbbpx\",\"b64\":\"YmJicHg=\"},\"jsonCond\":\"SetAlways\",\"jsonResult\":{\"Right\":true},\"jsonKey\":{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbbpx\",\"b64\":\"YmJicHg=\"}},\"jsonKey\":{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":[],\"description\":\"\"},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":4,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"

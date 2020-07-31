@@ -132,3 +132,52 @@ spec = do
           Right xs -> User 1 "Bill" "Gates" `elem` xs
                       && User 2 "Steve" "Jobs" `elem` xs
           Left _ -> False
+
+      it "create inserts into the DB" $ \rt -> do
+        let user = User 10 "Alonzo" "Church"
+        res <- runFlow rt $ do
+          _ <- initKVDBConnection redisCfg
+          conn <- connectOrFail sqliteCfg
+          create conn user Nothing
+          findOne conn Nothing []
+        res `shouldBe` Right (Just user)
+
+      it "create writes to the cache and findOne can read it" $ \rt -> do
+        let testKey = "key8"
+        let user = User 10 "Alan" "Turing"
+        res <- runFlow rt $ do
+          _ <- initKVDBConnection redisCfg
+          conn <- connectOrFail sqliteCfg
+          create conn user (Just testKey)
+          -- Delete from DB to ensure the cache is used
+          L.runDB conn $ L.deleteRows $
+            B.delete (users userDB) (\u -> _userGUID u B.==. 10)
+          findOne conn (Just testKey) []
+        res `shouldBe` Right (Just user)
+
+      it "updateOne updates the DB" $ \rt -> do
+        let user1 = User 10 "Alan" "Turing"
+        let user2 = User 11 "Kurt" "Goedel"
+        res <- runFlow rt $ do
+          _ <- initKVDBConnection redisCfg
+          conn <- connectOrFail sqliteCfg
+          create conn user1 Nothing
+          updateOne conn Nothing user2 [Is _userGUID (Eq 10)]
+          findOne conn Nothing []
+        res `shouldBe` Right (Just user2)
+
+      it "updateOne updates the cache" $ \rt -> do
+        let user1 = User 10 "Alan" "Turing"
+        let user2 = User 11 "Kurt" "Goedel"
+        let testKey = "key9"
+        res <- runFlow rt $ do
+          _ <- initKVDBConnection redisCfg
+          conn <- connectOrFail sqliteCfg
+          create conn user1 (Just testKey)
+          updateOne conn (Just testKey) user2 [Is _userGUID (Eq 10)]
+          -- Delete from DB to ensure the cache is used
+          L.runDB conn $ L.deleteRows $
+            B.delete (users userDB) (\u -> _userGUID u B.==. 10)
+          findOne conn (Just testKey) []
+        res `shouldBe` Right (Just user2)
+        -- 1 `shouldBe` 1

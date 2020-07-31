@@ -58,7 +58,8 @@ updateOne ::
     BeamRunner beM,
     Model be table,
     ModelToSets be table,
-    B.HasQBuilder be
+    B.HasQBuilder be,
+    ToJSON (table Identity)
   ) =>
   SqlConn beM ->
   Maybe Text ->
@@ -67,7 +68,7 @@ updateOne ::
   L.Flow (DBResult ())
 updateOne sqlConn (Just cacheKey) value whereClause = do
   val <- updateOneSql sqlConn value whereClause
-  whenRight val (cacheWithKey cacheKey)
+  whenRight val (\_ -> cacheWithKey cacheKey value)
   return val
 updateOne sqlConn Nothing value whereClause = updateOneSql sqlConn value whereClause
 

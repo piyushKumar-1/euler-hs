@@ -21,11 +21,11 @@ packages:
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
       size: 1044
-      sha256: ba5b9f070d96f92d994c4009b56dda84bcdf386a04c6b2b9eb83f4850c9ee6c1
-    commit: fde4386029463750a872aeb7a823f52fcf036a56
+      sha256: 65507c25ede5c0503a1a71ae8b2f523497d5242b893bb3841f1adf227ae78ea2
+    commit: 65bb65b51e290e34586a98b0fe195509fafeafd7
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: fde4386029463750a872aeb7a823f52fcf036a56
+    commit: 65bb65b51e290e34586a98b0fe195509fafeafd7
 - completed:
     name: mysql-haskell
     version: 0.8.4.2
@@ -37,6 +37,17 @@ packages:
   original:
     git: https://github.com/juspay/mysql-haskell
     commit: 788022d65538db422b02ecc0be138b862d2e5cee
+- completed:
+    name: bytestring-lexing
+    version: 0.5.0.6
+    git: https://github.com/juspay/bytestring-lexing
+    pantry-tree:
+      size: 2693
+      sha256: d2ffa359a9def33fd7fdef6c55341753e5390fa92173e29f9cb047647710d7ef
+    commit: 0a46db1139011736687cb50bbd3877d223bcb737
+  original:
+    git: https://github.com/juspay/bytestring-lexing
+    commit: 0a46db1139011736687cb50bbd3877d223bcb737
 - completed:
     subdir: beam-core
     name: beam-core

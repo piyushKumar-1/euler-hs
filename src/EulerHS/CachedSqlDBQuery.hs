@@ -20,16 +20,14 @@ import qualified Data.Text as T
 import Named ((!), defaults)
 import Sequelize
 
--- TODO: Documentation
--- findAll and findOne can't use the same cache key
--- (findAll writes a `[a]` and findOne `Maybe a`
-
 -- TODO: What KVDB should be used
 cacheName :: String
 cacheName = "eulerKVDB"
 
--- Core API
+--------------- Core API ---------------
 
+-- | Create a new database entry with the given value.
+--   Cache the value if the DB insert succeeds.
 create ::
   forall be beM table.
   ( BeamRuntime be beM,
@@ -50,9 +48,11 @@ create dbConn value mCacheKey = do
     Right [val] -> do
       whenJust mCacheKey (`cacheWithKey` val)
       return $ Right val
-    Right _ -> error "Should return single value after insertion" -- TODO
+    Right _ -> error "Should return single value after insertion" -- TODO: Throw an error?
     Left e -> return $ Left e
 
+-- | Update an element matching the query to the new value.
+--   Cache the value at the given key if the DB update succeeds.
 updateOne ::
   ( BeamRuntime be beM,
     BeamRunner beM,
@@ -87,7 +87,8 @@ updateOneSql sqlConn value whereClause = do
   L.runDB sqlConn $ DB.updateRows $
     sqlUpdate ! #set (modelToSets value) ! #where_ whereClause
 
--- Note: Caches `Nothing` if it doesn't find anything
+-- | Find an element matching the query. Only uses the DB if the cache is empty.
+--   Caches the result using the given key.
 findOne ::
   ( BeamRuntime be beM,
     BeamRunner beM,
@@ -125,6 +126,9 @@ findOneSql ::
 findOneSql sqlConn whereClause = L.runDB sqlConn findQuery
   where findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
 
+-- | Find all elements matching the query. Only uses the DB if the cache is empty.
+--   Caches the result using the given key.
+--   NOTE: Can't use the same key as findOne, updateOne or create since it's result is a list.
 findAll ::
   ( BeamRuntime be beM,
     BeamRunner beM,
@@ -164,7 +168,6 @@ findAllSql sqlConn whereClause = L.runDB sqlConn findQuery
 
 ------------ helper functions ------------
 
--- TODO: Maybe move this to sequelize?
 sqlCreate ::
   forall be table.
   (B.HasQBuilder be, Model be table) =>

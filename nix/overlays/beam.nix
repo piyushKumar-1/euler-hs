@@ -26,8 +26,8 @@ let
   bytestring-lexing-repo = fetchFromGitHub {
     owner = "juspay";
     repo = "bytestring-lexing";
-    rev = "e35ff137b0425c7b8abfe0eef235fa2bb6c819ce";
-    sha256 = "1ah4jzqhiwqx78zwyg5x41dnvhimpa2p97zgs3199dvc1iznn5yp";
+    rev = "0a46db1139011736687cb50bbd3877d223bcb737";
+    sha256 = "1jrwhlp8xs4m21xfr843278j3i7h4sxyjpq67l6lzc36pqan9zlz";
   };
 
   bytestring-lexing-path = bytestring-lexing-repo;

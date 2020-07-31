@@ -14,6 +14,7 @@ import qualified Database.Beam.Query as B
 import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
 import           Named
 import           Sequelize
+import           System.Process
 
 import EulerHS.CachedSqlDBQuery
 import EulerHS.Interpreters as I
@@ -26,9 +27,6 @@ import EulerHS.Types as T
 
 
 redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
-
--- NOTE: These tests require a running redis instance
--- `$ redis-server`
 
 spec :: Spec
 spec = do
@@ -180,4 +178,3 @@ spec = do
             B.delete (users userDB) (\u -> _userGUID u B.==. 10)
           findOne conn (Just testKey) []
         res `shouldBe` Right (Just user2)
-        -- 1 `shouldBe` 1

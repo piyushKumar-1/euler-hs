@@ -192,6 +192,7 @@ test-suite language
     , lens
     , named
     , QuickCheck
+    , process
     , sequelize
     , servant
     , servant-client

@@ -48,7 +48,10 @@ create dbConn value mCacheKey = do
     Right [val] -> do
       whenJust mCacheKey (`cacheWithKey` val)
       return $ Right val
-    Right _ -> error "Should return single value after insertion" -- TODO: Throw an error?
+    Right _ -> do
+      L.logError @Text "create" "cached DB create: DB should return a single value after insertion"
+      error "Should return single value after insertion"
+      -- TODO: Throw an exception?
     Left e -> return $ Left e
 
 -- | Update an element matching the query to the new value.

@@ -33,6 +33,15 @@ interpretKeyValueF runRedis runMode (L.SetEx k e v next) =
   fmap next $ P.withRunMode runMode (E.mkSetExEntry k e v) $
     fmap (second fromRdStatus) $ runRedis $ R.setex k e v
 
+interpretKeyValueF runRedis runMode (L.SetOpts k v ttl cond next) =
+  fmap next $ P.withRunMode runMode (E.mkSetOptsEntry k v ttl cond) $ do
+    result <- runRedis $ R.setOpts k v (makeSetOpts ttl cond)
+    pure $ case result of
+      Right _ -> Right True
+      -- (nil) is ok, app should not fail
+      Left (Bulk Nothing) -> Right False
+      Left reply -> Left reply
+
 interpretKeyValueF runRedis runMode (L.Get k next) =
   fmap next $ P.withRunMode runMode (E.mkGetEntry k) $
       runRedis $ R.get k
@@ -72,6 +81,12 @@ interpretKeyValueTxF (L.Set k v next) =
 
 interpretKeyValueTxF (L.SetEx k e v next) =
   fmap next $ fmap (fmap D.fromRdStatus) $ R.setex k e v
+
+interpretKeyValueTxF (L.SetOpts k v ttl cond next) =
+  fmap next $ fmap (fmap rdStatusToBool) $ R.setOpts k v (makeSetOpts ttl cond)
+    where
+      rdStatusToBool R.Ok = True
+      rdStatusToBool _ = False
 
 interpretKeyValueTxF (L.Get k next) =
   fmap next $ R.get k
@@ -132,3 +147,22 @@ runKVDB cName runMode kvdbConnMapMVar =
             NativeKVDB c         -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
             NativeKVDBMockedConn -> pure $ Right $
               error "Result of runRedis with mocked connection should not ever be evaluated"
+
+
+makeSetOpts :: L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts
+makeSetOpts ttl cond =
+  R.SetOpts
+    { setSeconds =
+        case ttl of
+          L.Seconds s -> Just s
+          _ -> Nothing
+    , setMilliseconds =
+        case ttl of
+          L.Milliseconds ms -> Just ms
+          _ -> Nothing
+    , setCondition =
+        case cond of
+          L.SetAlways -> Nothing
+          L.SetIfExist -> Just R.Xx
+          L.SetIfNotExist -> Just R.Nx
+    }

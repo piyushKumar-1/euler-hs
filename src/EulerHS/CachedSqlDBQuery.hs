@@ -36,7 +36,8 @@ create ::
     B.HasQBuilder be,
     Model be table,
     ToJSON (table Identity),
-    FromJSON (table Identity)
+    FromJSON (table Identity),
+    Show (table Identity)
   ) =>
   DBConfig beM ->
   table Identity ->
@@ -49,10 +50,10 @@ create dbConf value mCacheKey = do
     Right [val] -> do
       whenJust mCacheKey (`cacheWithKey` val)
       return $ Right val
-    Right _ -> do
-      L.logError @Text "create" "cached DB create: DB should return a single value after insertion"
-      error "Should return single value after insertion"
-      -- TODO: Throw an exception?
+    Right xs -> do
+      let message = "DB returned \"" <> show xs <> "\" after inserting \"" <> show value <> "\""
+      L.logError @Text "create" message
+      return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 
 -- | Update an element matching the query to the new value.

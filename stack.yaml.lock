@@ -80,15 +80,15 @@ packages:
     commit: 47f62de4cbfafe13891846ef795609b6f8050729
 - completed:
     name: sequelize
-    version: 1.0.0.0
+    version: 1.1.0.0
     git: https://bitbucket.org/juspay/haskell-sequelize.git
     pantry-tree:
       size: 597
-      sha256: bb1e601760dbb7c19ca8f4355cd7a95d54e3aa1ddea45dbad147e5f15d9d242a
-    commit: 84ba7a60cbafb90afb2334cbed7f99e2a487c776
+      sha256: 90e08e08c1a479a77a7b032e4d79dbe8fb4c8e2f5d1d759986568ff93859d2b2
+    commit: c80165809e79b3961717b66b90e533673c284866
   original:
     git: https://bitbucket.org/juspay/haskell-sequelize.git
-    commit: 84ba7a60cbafb90afb2334cbed7f99e2a487c776
+    commit: c80165809e79b3961717b66b90e533673c284866
 - completed:
     hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
     pantry-tree:

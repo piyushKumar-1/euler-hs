@@ -213,6 +213,46 @@ mkHGetEntry k f r = HGetEntry
 
 -- ----------------------------------------------------------------------
 
+data XAddEntry = XAddEntry
+  { jsonStream  :: A.Value
+  , jsonEntryId :: A.Value
+  , jsonItems   :: A.Value 
+  , jsonResult  :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+instance RRItem XAddEntry where
+  getTag _ = "XAddEntry"
+
+instance MockedResult XAddEntry (Either T.KVDBReply L.KVDBStreamEntryID) where
+  getMock XAddEntry {jsonResult} = T.jsonDecode jsonResult
+
+mkXAddEntry :: ByteString -> L.KVDBStreamEntryIDInput -> [L.KVDBStreamItem] -> Either T.KVDBReply L.KVDBStreamEntryID -> XAddEntry
+mkXAddEntry s e i r = XAddEntry
+  (T.jsonEncode s)
+  (toJSON e)
+  (T.jsonEncode i)
+  (T.jsonEncode r)
+
+-- ----------------------------------------------------------------------
+
+data XLenEntry = XLenEntry
+  { jsonStream  :: A.Value 
+  , jsonResult  :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+instance RRItem XLenEntry where
+  getTag _ = "XLenEntry"
+
+instance MockedResult XLenEntry (Either T.KVDBReply Integer) where
+  getMock XLenEntry {jsonResult} = T.jsonDecode jsonResult
+
+mkXLenEntry :: ByteString -> Either T.KVDBReply Integer -> XLenEntry
+mkXLenEntry s r = XLenEntry
+  (T.jsonEncode s)
+  (T.jsonEncode r)
+
+-- ----------------------------------------------------------------------
+
 jsonExDecode :: forall a . T.JSONEx a => A.Value -> Maybe a
 jsonExDecode = T.resolveJSONEx @a T.jsonDecode T.fromJSONMaybe
 

@@ -12,6 +12,9 @@ import           EulerHS.Prelude
 
 import qualified Data.Map as Map
 import qualified Database.Redis as R
+import qualified Data.ByteString as BS
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Core.Types.KVDB
 
@@ -44,35 +47,53 @@ interpretKeyValueF runRedis runMode (L.SetOpts k v ttl cond next) =
 
 interpretKeyValueF runRedis runMode (L.Get k next) =
   fmap next $ P.withRunMode runMode (E.mkGetEntry k) $
-      runRedis $ R.get k
+    runRedis $ R.get k
 
 interpretKeyValueF runRedis runMode (L.Exists k next) =
   fmap next $ P.withRunMode runMode (E.mkExistsEntry k) $
-      runRedis $ R.exists k
+    runRedis $ R.exists k
 
 interpretKeyValueF _ runMode (L.Del [] next) =
   fmap next $ P.withRunMode runMode (E.mkDelEntry []) $
-      pure $ pure 0
+    pure $ pure 0
 
 interpretKeyValueF runRedis runMode (L.Del ks next) =
   fmap next $ P.withRunMode runMode (E.mkDelEntry ks) $
-      runRedis $ R.del ks
+    runRedis $ R.del ks
 
 interpretKeyValueF runRedis runMode (L.Expire k sec next) =
   fmap next $ P.withRunMode runMode (E.mkExpireEntry k sec) $
-      runRedis $ R.expire k sec
+    runRedis $ R.expire k sec
 
 interpretKeyValueF runRedis runMode (L.Incr k next) =
   fmap next $ P.withRunMode runMode (E.mkIncrEntry k) $
-      runRedis $ R.incr k
+    runRedis $ R.incr k
 
 interpretKeyValueF runRedis runMode (L.HSet k field value next) =
   fmap next $ P.withRunMode runMode (E.mkHSetEntry k field value) $
-      runRedis $ R.hset k field value
+    runRedis $ R.hset k field value
 
 interpretKeyValueF runRedis runMode (L.HGet k field next) =
   fmap next $ P.withRunMode runMode (E.mkHGetEntry k field) $
-      runRedis $ R.hget k field
+    runRedis $ R.hget k field
+      
+interpretKeyValueF runRedis runMode (L.XAdd stream entryId items next) =
+  fmap next $ P.withRunMode runMode (E.mkXAddEntry stream entryId items) $
+    runRedis $ do
+      result <- R.xadd stream (makeStreamEntryId entryId) items
+      pure $ parseStreamEntryId <$> result
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms seq)) = show ms <> "-" <> show seq
+    makeStreamEntryId L.AutoID = "*"
+
+    parseStreamEntryId bs =
+      -- "number-number" is redis entry id invariant
+      let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
+      in L.KVDBStreamEntryID ms seq
+    
+interpretKeyValueF runRedis runMode (L.XLen stream next) =
+  fmap next $ P.withRunMode runMode (E.mkXLenEntry stream) $
+    runRedis $ R.xlen stream
 
 
 interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a

@@ -82,6 +82,14 @@ interpretKeyValueF runRedis runMode (L.XAdd stream entryId items next) =
     runRedis $ do
       result <- R.xadd stream (makeStreamEntryId entryId) items
       pure $ parseStreamEntryId <$> result
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms seq)) = show ms <> "-" <> show seq
+    makeStreamEntryId L.AutoID = "*"
+
+    parseStreamEntryId bs =
+      -- "number-number" is redis entry id invariant
+      let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
+      in L.KVDBStreamEntryID ms seq
     
 interpretKeyValueF runRedis runMode (L.XLen stream next) =
   fmap next $ P.withRunMode runMode (E.mkXLenEntry stream) $
@@ -179,12 +187,3 @@ makeSetOpts ttl cond =
           L.SetIfExist -> Just R.Xx
           L.SetIfNotExist -> Just R.Nx
     }
-
-makeStreamEntryId :: L.KVDBStreamEntryIDInput -> ByteString
-makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms seq)) = show ms <> "-" <> show seq
-makeStreamEntryId L.AutoID = "*"
-
-parseStreamEntryId :: ByteString -> L.KVDBStreamEntryID
-parseStreamEntryId bs =
-  let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
-   in L.KVDBStreamEntryID ms seq

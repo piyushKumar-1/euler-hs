@@ -16,7 +16,7 @@ extra-deps:
       - beam-migrate
       - beam-sqlite
       - beam-postgres
-  - git: https://bitbucket.org/juspay/haskell-sequelize.git
+  - git: git@bitbucket.org:juspay/haskell-sequelize.git
     commit: c80165809e79b3961717b66b90e533673c284866
 
   # Needed for sequelize

@@ -11,6 +11,7 @@ let
   };
 
   hedis-path = hedis-repo;
+
 in
 eulerBuild.mkEulerHaskellOverlay
   (self: super: hself: hsuper: {

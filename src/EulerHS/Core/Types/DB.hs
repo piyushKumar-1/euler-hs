@@ -453,6 +453,7 @@ data DBErrorType
   | ConnectionDoesNotExist
   | TransactionRollbacked
   | SQLError SQLError
+  | UnexpectedResult
   | UnrecognizedError
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 

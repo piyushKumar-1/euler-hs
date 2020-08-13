@@ -79,6 +79,24 @@ packages:
     git: https://github.com/juspay/beam
     commit: 47f62de4cbfafe13891846ef795609b6f8050729
 - completed:
+    name: sequelize
+    version: 1.1.0.0
+    git: git@bitbucket.org:juspay/haskell-sequelize.git
+    pantry-tree:
+      size: 597
+      sha256: 90e08e08c1a479a77a7b032e4d79dbe8fb4c8e2f5d1d759986568ff93859d2b2
+    commit: c80165809e79b3961717b66b90e533673c284866
+  original:
+    git: git@bitbucket.org:juspay/haskell-sequelize.git
+    commit: c80165809e79b3961717b66b90e533673c284866
+- completed:
+    hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
+    pantry-tree:
+      size: 426
+      sha256: e0df5f146ecd48ef129dd74f868e8d2d754f0a11b36c5d0e56bd4b1947433c9f
+  original:
+    hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
+- completed:
     hackage: dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
     pantry-tree:
       size: 551

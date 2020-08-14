@@ -4,15 +4,21 @@ module EulerHS.Extra.Test where
 
 import           EulerHS.Prelude
 
-import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import           Database.MySQL.Base
-import           Database.PostgreSQL.Simple (execute_)
+import qualified Database.MySQL.Base as MySQL
+import qualified Database.PostgreSQL.Simple as PG (execute_)
+import           EulerHS.Interpreters
 import           EulerHS.Interpreters
 import           EulerHS.Language
+import           EulerHS.Language
+import           EulerHS.Runtime (FlowRuntime)
 import           EulerHS.Runtime (FlowRuntime)
 import           EulerHS.Types
+import           EulerHS.Types
 import qualified EulerHS.Types as T
+import qualified EulerHS.Types as T
+import           System.Process
 import           System.Process
 
 
@@ -51,13 +57,13 @@ withMysqlDb dbName filePath msRootCfg next =
     dropTestDbIfExist :: IO ()
     dropTestDbIfExist =
       bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
-        query rootConn $ "drop database if exists " <> encodeUtf8 dbName
+        void . MySQL.execute_ rootConn . MySQL.Query $ "drop database if exists " <> encodeUtf8 dbName
 
     createTestDb :: IO ()
     createTestDb =
       bracket (T.createMySQLConn msRootCfg) T.closeMySQLConn $ \rootConn -> do
-        query rootConn $ "create database " <> encodeUtf8 dbName
-        query rootConn $ "grant all privileges on " <> encodeUtf8 dbName <> ".* to 'cloud'@'%'"
+        _ <- MySQL.execute_ rootConn . MySQL.Query $ "create database " <> encodeUtf8 dbName
+        void . MySQL.execute_ rootConn . MySQL.Query $ "grant all privileges on " <> encodeUtf8 dbName <> ".* to 'cloud'@'%'"
 
 
 -- prepareMysqlDB
@@ -120,11 +126,11 @@ preparePostgresDB filePath pgRootCfg pgCfg@T.PostgresConfig{..} pgCfgToDbCfg wit
         let
           dropTestDbIfExist :: IO ()
           dropTestDbIfExist = do
-            void $ execute_ rootConn "drop database if exists euler_test_db"
+            void $ PG.execute_ rootConn "drop database if exists euler_test_db"
 
           createTestDb :: IO ()
           createTestDb = do
-            void $ execute_ rootConn "create database euler_test_db"
+            void $ PG.execute_ rootConn "create database euler_test_db"
             -- void $ execute_ rootConn "grant all privileges on euler_test_db.* to 'cloud'@'%'"
 
         bracket_
@@ -146,6 +152,3 @@ preparePostgresDB filePath pgRootCfg pgCfg@T.PostgresConfig{..} pgCfgToDbCfg wit
           <> connectUser <> ":" <> connectPassword  <> "@"
           <> connectHost <> ":" <> show connectPort <> "/"
           <> connectDatabase
-
-
-

@@ -8,7 +8,11 @@ extra-deps:
   - git: https://github.com/juspay/hedis
     commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql
-    commit: 5d17599e02f30c220b679439ee0c1025e3086250
+    commit: 65bb65b51e290e34586a98b0fe195509fafeafd7
+  - git: https://github.com/juspay/mysql-haskell
+    commit: 788022d65538db422b02ecc0be138b862d2e5cee
+  - git: https://github.com/juspay/bytestring-lexing
+    commit: 0a46db1139011736687cb50bbd3877d223bcb737
   - git: https://github.com/juspay/beam
     commit: 47f62de4cbfafe13891846ef795609b6f8050729
     subdirs:
@@ -28,6 +32,9 @@ extra-deps:
   - sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
   - constraints-extras-0.3.0.2@sha256:bf6884be65958e9188ae3c9e5547abfd6d201df021bff8a4704c2c4fe1e1ae5b,1784
   - direct-sqlite-2.3.26@sha256:04e835402f1508abca383182023e4e2b9b86297b8533afbd4e57d1a5652e0c23,3718
+  # Needed for beam-mysql
+  - tcp-streams-1.0.1.1@sha256:35e9ecfa515797052f8c3c01834d2daebd5e93f3152c7fc98b32652bf6f0c052,2329
+  - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
 # MySQL
 # MacOS:
 # Problem: MacOS build failure

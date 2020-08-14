@@ -54,7 +54,6 @@ data FlowRuntime = FlowRuntime
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
-  MySQL.initLibrary
   defaultManagerVar <- newManager tlsManagerSettings
   optionsVar        <- newMVar mempty
   kvdbConnections   <- newMVar Map.empty

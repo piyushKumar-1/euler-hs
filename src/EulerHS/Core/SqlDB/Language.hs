@@ -112,9 +112,8 @@ updateRowsReturningListPG = sqlDBMethod . T.updateReturningListPG
 
 -- MySQL only extra methods
 -- NOTE: This should be run inside a SQL transaction!
-
 insertRowReturningMySQL :: (B.FromBackendRow BM.MySQL (table Identity))
                         => B.SqlInsert BM.MySQL table
                         -> SqlDB BM.MySQLM (Maybe (table Identity))
 insertRowReturningMySQL =
-  sqlDBMethod . BM.runInsertRowReturning
+    sqlDBMethod . BM.runInsertRowReturning

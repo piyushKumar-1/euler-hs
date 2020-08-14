@@ -1,7 +1,6 @@
+{-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE FunctionalDependencies     #-}
-{-# LANGUAGE GeneralisedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE RecordWildCards            #-}
 
 module EulerHS.Core.Types.DB
@@ -34,9 +33,8 @@ module EulerHS.Core.Types.DB
   , mkMySQLPoolConfig
   -- ** Helpers
   , withTransaction
-
-  , sqliteErrorToDbError
   , mysqlErrorToDbError
+  , sqliteErrorToDbError
   , postgresErrorToDbError
   , PostgresSqlError(..)
   , PostgresExecStatus(..)
@@ -50,7 +48,6 @@ import           EulerHS.Prelude
 
 import           Data.Kind (Type)
 import qualified Data.Pool as DP
-import qualified Data.Text as T
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
@@ -113,7 +110,7 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtSelectReturningList = B.runSelectReturningList
   rtSelectReturningOne = B.runSelectReturningOne
   rtInsert = B.runInsert
-  rtInsertReturningList = B.runInsertReturningList
+  rtInsertReturningList = error "Not implemented"
   rtUpdate = B.runUpdate
   rtDelete = B.runDelete
 
@@ -126,17 +123,6 @@ instance BeamRunner BS.SqliteM where
     \logger -> SQLite.runBeamSqliteDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
 
-beginTransactionSQLite :: SQLite.Connection -> IO ()
-beginTransactionSQLite conn = do
-  SQLite.execute_ conn "PRAGMA busy_timeout = 60000"
-  SQLite.execute_ conn "BEGIN TRANSACTION"
-
-commitTransactionSQLite :: SQLite.Connection -> IO ()
-commitTransactionSQLite conn = SQLite.execute_ conn "COMMIT TRANSACTION"
-
-rollbackTransactionSQLite :: SQLite.Connection -> IO ()
-rollbackTransactionSQLite conn = SQLite.execute_ conn "ROLLBACK TRANSACTION"
-
 
 instance BeamRunner BP.Pg where
   getBeamDebugRunner (NativePGConn conn) beM =
@@ -148,32 +134,21 @@ instance BeamRunner BM.MySQLM where
     \logger -> BM.runBeamMySQLDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
 
-withTransaction :: SqlConn beM -> (NativeSqlConn -> IO a) -> IO (Either SomeException a)
-withTransaction p actF =
-  withNativeConnection p $ \nativeConn -> do
-    try @_ @SomeException $ bracketOnError (begin nativeConn) (const (rollback nativeConn)) $ const $ do
-      res <- actF nativeConn
-      commit nativeConn
-      return res
+withTransaction :: forall beM a . 
+  SqlConn beM -> (NativeSqlConn -> IO a) -> IO (Either SomeException a)
+withTransaction conn f = case conn of
+  MockedPool _ -> error "Mocked pool connections are not supported."
+  PostgresPool _ pool -> DP.withResource pool (go PGS.withTransaction NativePGConn)
+  MySQLPool _ pool -> DP.withResource pool (go MySQL.withTransaction NativeMySQLConn)
+  SQLitePool _ pool -> DP.withResource pool (go SQLite.withTransaction NativeSQLiteConn)
   where
-    withNativeConnection (PostgresPool _ pool) f = DP.withResource pool $ \conn -> f (NativePGConn conn)
-    withNativeConnection (MySQLPool _ pool)    f = DP.withResource pool $ \conn -> f (NativeMySQLConn conn)
-    withNativeConnection (SQLitePool _ pool)   f = DP.withResource pool $ \conn -> f (NativeSQLiteConn conn)
-    withNativeConnection _                     _ = error "Connection is not supported."
-    begin     (NativePGConn conn)     = PGS.begin conn
-    begin     (NativeMySQLConn conn)  = MySQL.query conn "START TRANSACTION;"
-    begin     (NativeSQLiteConn conn) = beginTransactionSQLite conn
-    commit    (NativePGConn conn)     = PGS.commit conn
-    commit    (NativeMySQLConn conn)  = MySQL.commit conn
-    commit    (NativeSQLiteConn conn) = commitTransactionSQLite conn
-    rollback  (NativePGConn conn)     = PGS.rollback conn
-    rollback  (NativeMySQLConn conn)  = MySQL.rollback conn
-    rollback  (NativeSQLiteConn conn) = rollbackTransactionSQLite conn
+    go :: forall b . (b -> IO a -> IO a) -> (b -> NativeSqlConn) -> b -> IO (Either SomeException a)
+    go hof wrap conn' = tryAny (hof conn' (f . wrap $ conn')) 
 
 -- | Representation of native DB pools that we store in FlowRuntime
 data NativeSqlPool
   = NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
-  | NativeMySQLPool (DP.Pool MySQL.Connection)   -- ^ 'Pool' with MySQL connections
+  | NativeMySQLPool (DP.Pool MySQL.MySQLConn)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
   | NativeMockedPool
   deriving Show
@@ -181,7 +156,7 @@ data NativeSqlPool
 -- | Representation of native DB connections that we use in implementation.
 data NativeSqlConn
   = NativePGConn BP.Connection
-  | NativeMySQLConn MySQL.Connection
+  | NativeMySQLConn MySQL.MySQLConn
   | NativeSQLiteConn SQLite.Connection
 
 -- | Transform 'SqlConn' to 'NativeSqlPool'
@@ -217,7 +192,7 @@ data SqlConn (beM :: Type -> Type)
   = MockedPool ConnTag
   | PostgresPool ConnTag (DP.Pool BP.Connection)
   -- ^ 'Pool' with Postgres connections
-  | MySQLPool ConnTag (DP.Pool MySQL.Connection)
+  | MySQLPool ConnTag (DP.Pool MySQL.MySQLConn)
   -- ^ 'Pool' with MySQL connections
   | SQLitePool ConnTag (DP.Pool SQLite.Connection)
   -- ^ 'Pool' with SQLite connections
@@ -372,23 +347,21 @@ data SQLError
 
 ----------------------------------------------------------------------
 
-data MysqlSqlError =
-  MysqlSqlError
-    { errFunction :: Text
-    , errNumber   :: Int
-    , errMessage  :: Text
-    }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+data MysqlSqlError = 
+  MysqlSqlError 
+  { errCode :: {-# UNPACK #-} !Word16,
+    errMsg :: {-# UNPACK #-} !Text
+  }
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
-toMysqlSqlError :: MySQL.MySQLError -> MysqlSqlError
-toMysqlSqlError e = MysqlSqlError
-    { errFunction = T.pack $ MySQL.errFunction e
-    , errNumber = MySQL.errNumber e
-    , errMessage = T.pack $ MySQL.errMessage e
-    }
+toMysqlSqlError :: MySQL.ERR -> MysqlSqlError
+toMysqlSqlError err = MysqlSqlError { errCode = MySQL.errCode err, 
+                                      errMsg = decodeUtf8 . MySQL.errMsg $ err }
 
-mysqlErrorToDbError :: Text -> MySQL.MySQLError -> DBError
-mysqlErrorToDbError descr e = DBError (SQLError $ MysqlError $ toMysqlSqlError e) descr
+mysqlErrorToDbError :: Text -> MySQL.ERRException -> DBError
+mysqlErrorToDbError desc (MySQL.ERRException e) = 
+  DBError (SQLError . MysqlError . toMysqlSqlError $ e) desc
 
 ----------------------------------------------------------------------
 
@@ -406,6 +379,7 @@ data PostgresExecStatus
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
+toPostgresExecStatus :: PGS.ExecStatus -> PostgresExecStatus
 toPostgresExecStatus PGS.EmptyQuery    = PostgresEmptyQuery
 toPostgresExecStatus PGS.CommandOk     = PostgresCommandOk
 toPostgresExecStatus PGS.TuplesOk      = PostgresTuplesOk

@@ -21,6 +21,16 @@ let
 
   beam-overlay = eulerBuild.importOverlay ./nix/overlays/beam.nix { };
 
+  sequelize-repo = fetchGit {
+    url = "git@bitbucket.org:juspay/haskell-sequelize.git";
+    ref = "eulerBuild";
+    # use last commit fom ref
+    # rev = "";
+  };
+  sequelize-path = sequelize-repo;
+  sequelize-drv = import sequelize-path { };
+
+
   euler-hs-src = eulerBuild.allowedPaths {
     root =  ./.;
     paths = [
@@ -43,6 +53,7 @@ let
     code-tools-overlay
     beam-overlay
     euler-hs-overlay
+    sequelize-drv.overlay
   ];
 
   pkgs = import nixpkgs {

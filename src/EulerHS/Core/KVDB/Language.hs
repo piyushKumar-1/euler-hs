@@ -10,6 +10,7 @@ module EulerHS.Core.KVDB.Language
     KVDB, KVDBTx, KVDBKey, KVDBValue, KVDBDuration
   , KVDBSetTTLOption(..), KVDBSetConditionOption(..)
   , KVDBField, KVDBChannel, KVDBMessage
+  , KVDBStream, KVDBStreamItem, KVDBStreamEntryID (..), KVDBStreamEntryIDInput (..)
   , KVDBF(..), KeyValueF(..), TransactionF(..)
   -- ** Methods
   -- *** Regular
@@ -17,12 +18,15 @@ module EulerHS.Core.KVDB.Language
   , set, get, incr, setex, setOpts
   -- **** For hash values
   , hset, hget
+  -- **** For streams
+  , xadd, xlen
   -- **** For both
   , exists, del, expire
   -- *** Transactional
   -- | Used inside multiExec instead of regular
   , multiExec
   , setTx, getTx, delTx, setexTx
+  , xaddTx, xlenTx
   ) where
 
 import qualified Data.Aeson as A
@@ -51,6 +55,20 @@ type KVDBField = ByteString
 type KVDBChannel = ByteString
 type KVDBMessage = ByteString
 
+type KVDBStream = ByteString
+
+data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
+  deriving stock Generic
+  deriving anyclass (A.ToJSON, A.FromJSON)
+
+data KVDBStreamEntryIDInput
+  = EntryID KVDBStreamEntryID
+  | AutoID
+  deriving stock Generic
+  deriving anyclass A.ToJSON
+
+type KVDBStreamItem = (ByteString, ByteString)
+
 ----------------------------------------------------------------------
 
 data KeyValueF f next where
@@ -64,6 +82,8 @@ data KeyValueF f next where
   Incr    :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
   HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
+  XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
+  XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
   fmap f (Set k value next)              = Set k value (f . next)
@@ -76,6 +96,8 @@ instance Functor (KeyValueF f) where
   fmap f (Incr k next)                   = Incr k (f . next)
   fmap f (HSet k field value next)       = HSet k field value (f . next)
   fmap f (HGet k field next)             = HGet k field (f . next)
+  fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
+  fmap f (XLen s next)                   = XLen s (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
 
@@ -117,6 +139,12 @@ getTx key = liftFC $ Get key id
 delTx :: [KVDBKey] -> KVDBTx (R.Queued Integer)
 delTx ks = liftFC $ Del ks id
 
+xaddTx :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDBTx (R.Queued KVDBStreamEntryID)
+xaddTx stream entryId items = liftFC $ XAdd stream entryId items id
+
+xlenTx :: KVDBStream -> KVDBTx (R.Queued Integer)
+xlenTx stream = liftFC $ XLen stream id
+
 ---
 -- | Set the value of a key
 set :: KVDBKey -> KVDBValue -> KVDB T.KVDBStatus
@@ -156,6 +184,12 @@ hset key field value = ExceptT $ liftFC $ KV $ HSet key field value id
 -- | Get the value of a hash field
 hget :: KVDBKey -> KVDBField -> KVDB (Maybe ByteString)
 hget key field = ExceptT $ liftFC $ KV $ HGet key field id
+
+xadd :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDB KVDBStreamEntryID
+xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
+
+xlen :: KVDBStream -> KVDB Integer
+xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 
 -- | Run commands inside a transaction.
 multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)

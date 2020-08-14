@@ -121,6 +121,17 @@ spec = do
         pure (res1, res2)
       result `shouldBe` (Right (Just "bbbpx"), Right Nothing)
 
+    it "xadd create and update stream" $ do
+      result <- runWithRedisConn_ xaddXlen $ L.runKVDB "redis" $ do
+        L.xadd "aaas" L.AutoID [("a", "1"), ("b", "2")]
+        res1 <- L.xlen "aaas"
+        L.xadd "aaas" L.AutoID [("c", "3")]
+        res2 <- L.xlen "aaas"
+        L.del ["aaas"]
+        res3 <- L.xlen "aaas"
+        pure (res1, res2, res3)
+      result `shouldBe` Right (1, 2, 0)
+
 
 getKey :: ResultRecording
 getKey = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonValue\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"},\"jsonResult\":{\"Right\":{\"tag\":\"Ok\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbb\",\"b64\":\"YmJi\"}},\"jsonKey\":{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaa\",\"b64\":\"YWFh\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"
@@ -157,3 +168,6 @@ setIfExist = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetOptsEntry\"
 
 setPxTtl :: ResultRecording
 setPxTtl = fromJust $ decode "{\"recording\":[{\"_entryName\":\"SetOptsEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonTTL\":{\"tag\":\"Milliseconds\",\"contents\":500},\"jsonValue\":{\"utf8\":\"bbbpx\",\"b64\":\"YmJicHg=\"},\"jsonCond\":\"SetAlways\",\"jsonResult\":{\"Right\":true},\"jsonKey\":{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonResult\":{\"Right\":{\"utf8\":\"bbbpx\",\"b64\":\"YmJicHg=\"}},\"jsonKey\":{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"RunIOEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonResult\":[],\"description\":\"\"},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"GetEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonResult\":{\"Right\":null},\"jsonKey\":{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":4,\"_entryPayload\":{\"jsonResult\":{\"Right\":0},\"jsonKeys\":[{\"utf8\":\"aaapx\",\"b64\":\"YWFhcHg=\"}]},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"
+
+xaddXlen :: ResultRecording
+xaddXlen = fromJust $ decode "{\"recording\":[{\"_entryName\":\"XAddEntry\",\"_entryIndex\":0,\"_entryPayload\":{\"jsonStream\":{\"utf8\":\"aaas\",\"b64\":\"YWFhcw==\"},\"jsonItems\":[[{\"utf8\":\"a\",\"b64\":\"YQ==\"},{\"utf8\":\"1\",\"b64\":\"MQ==\"}],[{\"utf8\":\"b\",\"b64\":\"Yg==\"},{\"utf8\":\"2\",\"b64\":\"Mg==\"}]],\"jsonResult\":{\"Right\":[1596654345484,0]},\"jsonEntryId\":{\"tag\":\"AutoID\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"XLenEntry\",\"_entryIndex\":1,\"_entryPayload\":{\"jsonStream\":{\"utf8\":\"aaas\",\"b64\":\"YWFhcw==\"},\"jsonResult\":{\"Right\":1}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"XAddEntry\",\"_entryIndex\":2,\"_entryPayload\":{\"jsonStream\":{\"utf8\":\"aaas\",\"b64\":\"YWFhcw==\"},\"jsonItems\":[[{\"utf8\":\"c\",\"b64\":\"Yw==\"},{\"utf8\":\"3\",\"b64\":\"Mw==\"}]],\"jsonResult\":{\"Right\":[1596654345485,0]},\"jsonEntryId\":{\"tag\":\"AutoID\"}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"XLenEntry\",\"_entryIndex\":3,\"_entryPayload\":{\"jsonStream\":{\"utf8\":\"aaas\",\"b64\":\"YWFhcw==\"},\"jsonResult\":{\"Right\":2}},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"DelEntry\",\"_entryIndex\":4,\"_entryPayload\":{\"jsonResult\":{\"Right\":1},\"jsonKeys\":[{\"utf8\":\"aaas\",\"b64\":\"YWFhcw==\"}]},\"_entryReplayMode\":\"Normal\"},{\"_entryName\":\"XLenEntry\",\"_entryIndex\":5,\"_entryPayload\":{\"jsonStream\":{\"utf8\":\"aaas\",\"b64\":\"YWFhcw==\"},\"jsonResult\":{\"Right\":0}},\"_entryReplayMode\":\"Normal\"}],\"forkedRecordings\":{},\"safeRecordings\":{}}"

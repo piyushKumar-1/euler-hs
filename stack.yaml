@@ -20,6 +20,11 @@ extra-deps:
       - beam-migrate
       - beam-sqlite
       - beam-postgres
+  - git: git@bitbucket.org:juspay/haskell-sequelize.git
+    commit: c80165809e79b3961717b66b90e533673c284866
+
+  # Needed for sequelize
+  - named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
   # Needed for beam
   - dependent-map-0.4.0.0@sha256:ca2b131046f4340a1c35d138c5a003fe4a5be96b14efc26291ed35fd08c62221,1657
   - dependent-sum-0.7.1.0@sha256:5599aa89637db434431b1dd3fa7c34bc3d565ee44f0519bfbc877be1927c2531,2068

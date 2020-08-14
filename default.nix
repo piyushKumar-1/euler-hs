@@ -1,11 +1,14 @@
 {
-  haskellCompiler ? "ghc883"
+  remoteDeps ? false
+, haskellCompiler ? "ghc883"
 }:
 let
   inherit (builtins) fromJSON readFile;
 
   # Date:   Mon May 18 19:30:42 2020 -0500
   nixpkgs = fetchTarball (fromJSON (readFile ./nix/nixpkgs.json));
+
+  sources = fromJSON (readFile ./nix/sources.json);
 
   # To avoid importing nixpkgs here
   makeOverridable = f: origArgs:
@@ -21,15 +24,12 @@ let
 
   beam-overlay = eulerBuild.importOverlay ./nix/overlays/beam.nix { };
 
-  sequelize-repo = fetchGit {
-    url = "git@bitbucket.org:juspay/haskell-sequelize.git";
-    ref = "eulerBuild";
-    # use last commit fom ref
-    # rev = "";
-  };
-  sequelize-path = sequelize-repo;
+  sequelize-repo = fetchGit sources.sequelize;
+  sequelize-path =
+    if remoteDeps
+    then sequelize-repo
+    else ../haskell-sequelize;
   sequelize-drv = import sequelize-path { };
-
 
   euler-hs-src = eulerBuild.allowedPaths {
     root =  ./.;
@@ -52,8 +52,8 @@ let
   allUsedOverlays = [
     code-tools-overlay
     beam-overlay
+    sequelize-drv.sequelize-overlay
     euler-hs-overlay
-    sequelize-drv.overlay
   ];
 
   pkgs = import nixpkgs {

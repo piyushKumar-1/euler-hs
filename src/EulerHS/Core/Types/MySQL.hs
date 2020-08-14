@@ -1,5 +1,5 @@
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 
 module EulerHS.Core.Types.MySQL
   (
@@ -100,7 +100,7 @@ defaultMySQLConfig = MySQLConfig {
 -- | Connect with the given config to the database.
 createMySQLConn :: MySQLConfig -> IO MySQLConn
 createMySQLConn conf = do
-  let dbConf = ConnectInfo { 
+  let dbConf = ConnectInfo {
     ciHost = connectHost conf,
     ciPort = fromIntegral . connectPort $ conf,
     ciDatabase = fromString . connectDatabase $ conf,

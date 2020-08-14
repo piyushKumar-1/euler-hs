@@ -133,7 +133,6 @@ library
     , http-types
     , lens
     , mysql-haskell           ^>=0.8.4.2
-    , mysql
     , named
     , newtype-generics
     , postgresql-simple

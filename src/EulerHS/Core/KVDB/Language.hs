@@ -26,7 +26,9 @@ module EulerHS.Core.KVDB.Language
   -- | Used inside multiExec instead of regular
   , multiExec
   , setTx, getTx, delTx, setexTx
+  , hsetTx, hgetTx
   , xaddTx, xlenTx
+  , expireTx
   ) where
 
 import qualified Data.Aeson as A
@@ -131,13 +133,25 @@ setTx key value = liftFC $ Set key value id
 setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
 setexTx key ex value = liftFC $ SetEx key ex value id
 
+-- | Set the value of a hash field. Transaction version.
+hsetTx :: KVDBKey -> KVDBField -> KVDBValue -> KVDBTx (R.Queued Bool)
+hsetTx key field value = liftFC $ HSet key field value id
+
 -- | Get the value of a key. Transaction version.
 getTx :: KVDBKey -> KVDBTx (R.Queued (Maybe ByteString))
 getTx key = liftFC $ Get key id
 
+-- | Get the value of a hash field. Transaction version.
+hgetTx :: KVDBKey -> KVDBField -> KVDBTx (R.Queued (Maybe ByteString))
+hgetTx key field = liftFC $ HGet key field id
+
 -- | Delete a keys. Transaction version.
 delTx :: [KVDBKey] -> KVDBTx (R.Queued Integer)
 delTx ks = liftFC $ Del ks id
+
+-- | Set a key's time to live in seconds. Transaction version.
+expireTx :: KVDBKey -> KVDBDuration -> KVDBTx (R.Queued Bool)
+expireTx key sec = liftFC $ Expire key sec id
 
 xaddTx :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDBTx (R.Queued KVDBStreamEntryID)
 xaddTx stream entryId items = liftFC $ XAdd stream entryId items id

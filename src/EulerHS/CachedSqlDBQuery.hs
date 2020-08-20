@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module EulerHS.CachedSqlDBQuery
   ( create
   , updateOne
@@ -7,19 +8,18 @@ module EulerHS.CachedSqlDBQuery
   )
 where
 
-import EulerHS.Core.Types.DB
-import qualified EulerHS.Core.SqlDB.Language as DB
-import EulerHS.Core.Types.Serializable
-import EulerHS.Extra.Language (rGetT, rSetB, getOrInitSqlConn)
-import qualified EulerHS.Framework.Language as L
-import EulerHS.Prelude
-
-import Data.Aeson (encode)
+import           Data.Aeson (encode)
 import qualified Data.ByteString.Lazy as BSL
-import qualified Database.Beam as B
 import qualified Data.Text as T
-import Named ((!), defaults)
-import Sequelize
+import qualified Database.Beam as B
+import qualified EulerHS.Core.SqlDB.Language as DB
+import           EulerHS.Core.Types.DB
+import           EulerHS.Core.Types.Serializable
+import           EulerHS.Extra.Language (getOrInitSqlConn, rGetT, rSetB)
+import qualified EulerHS.Framework.Language as L
+import           EulerHS.Prelude
+import           Named (defaults, (!))
+import           Sequelize
 
 -- TODO: What KVDB should be used
 cacheName :: String
@@ -30,19 +30,23 @@ cacheName = "eulerKVDB"
 -- | Create a new database entry with the given value.
 --   Cache the value if the DB insert succeeds.
 create ::
-  forall be beM table.
+  forall (be :: Type)
+         (beM :: Type -> Type)
+         (table :: (Type -> Type) -> Type)
+         (m :: Type -> Type) .
   ( BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
     Model be table,
     ToJSON (table Identity),
     FromJSON (table Identity),
-    Show (table Identity)
+    Show (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   table Identity ->
   Maybe Text ->
-  L.Flow (DBResult (table Identity))
+  m (Either DBError (table Identity))
 create dbConf value mCacheKey = do
   res <- runQuery dbConf $
     DB.insertRowsReturningList $ sqlCreate value
@@ -64,13 +68,14 @@ updateOne ::
     Model be table,
     ModelToSets be table,
     B.HasQBuilder be,
-    ToJSON (table Identity)
+    ToJSON (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   Maybe Text ->
   table Identity ->
   Where be table ->
-  L.Flow (DBResult ())
+  m (Either DBError ())
 updateOne dbConf (Just cacheKey) value whereClause = do
   val <- updateOneSql dbConf value whereClause
   whenRight val (\_ -> cacheWithKey cacheKey value)
@@ -82,12 +87,13 @@ updateOneSql ::
     BeamRunner beM,
     Model be table,
     ModelToSets be table,
-    B.HasQBuilder be
+    B.HasQBuilder be,
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   table Identity ->
   Where be table ->
-  L.Flow (DBResult ())
+  m (Either DBError ())
 updateOneSql dbConf value whereClause = runQuery dbConf query
     where
       query = DB.updateRows
@@ -103,12 +109,13 @@ findOne ::
     Model be table,
     B.HasQBuilder be,
     ToJSON (table Identity),
-    FromJSON (table Identity)
+    FromJSON (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   Maybe Text ->
   Where be table ->
-  L.Flow (DBResult (Maybe (table Identity)))
+  m (Either DBError (Maybe (table Identity)))
 findOne dbConf (Just cacheKey) whereClause = do
   mRes <- rGetT (T.pack cacheName) cacheKey
   case join mRes of
@@ -125,11 +132,12 @@ findOneSql ::
     Model be table,
     B.HasQBuilder be,
     ToJSON (table Identity),
-    FromJSON (table Identity)
-  ) => 
+    FromJSON (table Identity),
+    L.MonadFlow m
+  ) =>
   DBConfig beM ->
   Where be table ->
-  L.Flow (DBResult (Maybe (table Identity)))
+  m (Either DBError (Maybe (table Identity)))
 findOneSql dbConf whereClause = runQuery dbConf findQuery
   where findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
 
@@ -142,12 +150,13 @@ findAll ::
     Model be table,
     B.HasQBuilder be,
     ToJSON (table Identity),
-    FromJSON (table Identity)
+    FromJSON (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   Maybe Text ->
   Where be table ->
-  L.Flow (DBResult [table Identity])
+  m (Either DBError [table Identity])
 findAll dbConf (Just cacheKey) whereClause = do
   mRes <- rGetT (T.pack cacheName) cacheKey
   case mRes of
@@ -163,22 +172,25 @@ findAllSql ::
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
-    JSONEx (table Identity)
-  ) => 
+    JSONEx (table Identity),
+    L.MonadFlow m
+  ) =>
   DBConfig beM ->
   Where be table ->
-  L.Flow (DBResult [table Identity])
+  m (Either DBError [table Identity])
 findAllSql dbConf whereClause = do
   let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
   sqlConn <- getOrInitSqlConn dbConf
   join <$> mapM (`L.runDB` findQuery) sqlConn
 
------------- helper functions ------------
+------------ Helper functions ------------
+
 runQuery ::
   ( BeamRuntime be beM, BeamRunner beM,
-    JSONEx a
+    JSONEx a,
+    L.MonadFlow m
   ) =>
-  DBConfig beM -> DB.SqlDB beM a -> L.Flow (DBResult a)
+  DBConfig beM -> DB.SqlDB beM a -> m (Either DBError a)
 runQuery dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
@@ -192,7 +204,7 @@ sqlCreate ::
   B.SqlInsert be table
 sqlCreate value = B.insert modelTableEntity (B.insertValues [value])
 
-cacheWithKey :: (ToJSON table) => Text -> table -> L.Flow ()
+cacheWithKey :: (ToJSON table, L.MonadFlow m) => Text -> table -> m ()
 cacheWithKey key row = do
-  -- TODO: Should we log errors here? 
+  -- TODO: Should we log errors here?
   void $ rSetB (T.pack cacheName) (encodeUtf8 key) (BSL.toStrict $ encode row)

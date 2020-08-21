@@ -16,6 +16,7 @@ module EulerHS.Core.SqlDB.Language
   , insertRows
   , insertRowsReturningList
   , updateRows
+  , updateRowsReturningList
   , deleteRows
   , deleteRowsReturningListPG
   , updateRowsReturningListPG
@@ -87,6 +88,14 @@ updateRows
   => B.SqlUpdate be table
   -> SqlDB beM ()
 updateRows = sqlDBMethod . T.rtUpdate
+
+-- | Update returning list
+updateRowsReturningList
+  :: (T.BeamRunner beM, T.BeamRuntime be beM,
+      B.Beamable table, B.FromBackendRow be (table Identity))
+  => B.SqlUpdate be table
+  -> SqlDB beM [table Identity]
+updateRowsReturningList = sqlDBMethod . T.rtUpdateReturningList
 
 -- | Delete
 deleteRows

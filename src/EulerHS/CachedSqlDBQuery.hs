@@ -23,6 +23,7 @@ import EulerHS.Prelude
 import Data.Aeson (encode)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Database.Beam as B
+import Database.Beam.Backend.SQL.BeamExtensions (MonadBeamUpdateReturning(..))
 import qualified Data.Text as T
 import Named ((!), defaults)
 import Sequelize
@@ -86,38 +87,48 @@ updateOne ::
   ( BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
-    ModelToSets be table,
     B.HasQBuilder be,
-    ToJSON (table Identity)
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    Show (table Identity)
   ) =>
   DBConfig beM ->
   Maybe Text ->
-  table Identity ->
+  [Set be table] ->
   Where be table ->
-  L.Flow (DBResult ())
-updateOne dbConf (Just cacheKey) value whereClause = do
-  val <- updateOneSQL dbConf value whereClause
-  whenRight val (\_ -> cacheWithKey cacheKey value)
+  L.Flow (DBResult (table Identity))
+updateOne dbConf (Just cacheKey) newVals whereClause = do
+  val <- updateOneSQL dbConf newVals whereClause
+  whenRight val (\_ -> cacheWithKey cacheKey val)
   return val
 updateOne dbConf Nothing value whereClause = updateOneSQL dbConf value whereClause
 
 updateOneSQL ::
+  forall be beM table.
   ( BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
-    ModelToSets be table,
-    B.HasQBuilder be
+    B.HasQBuilder be,
+    FromJSON (table Identity),
+    ToJSON (table Identity),
+    Show (table Identity)
   ) =>
   DBConfig beM ->
-  table Identity ->
+  [Set be table] ->
   Where be table ->
-  L.Flow (DBResult ())
-updateOneSQL dbConf value whereClause = runQuery dbConf query
-    where
-      query = DB.updateRows
-        $ sqlUpdate
-        ! #set (modelToSets value)
+  L.Flow (DBResult (table Identity))
+updateOneSQL dbConf newVals whereClause = do
+  let updateQuery = DB.updateRowsReturningList $ sqlUpdate
+        ! #set newVals
         ! #where_ whereClause
+  res <- runQuery dbConf updateQuery
+  case res of
+    Right [x] -> return $ Right x
+    Right xs -> do
+      let message = "DB returned \"" <> show xs <> "\" after update"
+      L.logError @Text "create" message
+      return $ Left $ DBError UnexpectedResult message
+    Left e -> return $ Left e
 
 -- | Find an element matching the query. Only uses the DB if the cache is empty.
 --   Caches the result using the given key.

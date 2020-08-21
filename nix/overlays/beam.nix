@@ -17,7 +17,7 @@ let
   beam-mysql-repo = fetchFromGitHub {
     owner = "juspay";
     repo = "beam-mysql";
-    rev = "65bb65b51e290e34586a98b0fe195509fafeafd7";
+    rev = "7b96997cf752e90d2f2528bfbffc2ed406be2c01";
     sha256 = "15jjpc5y48cs7v80ghfnr21195i01qf1h6r6fqvjxsgw5mdb2gr0";
   };
 

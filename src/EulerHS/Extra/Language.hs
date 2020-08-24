@@ -19,6 +19,7 @@ module EulerHS.Extra.Language
   , rSetex
   , rSetexB
   , rSetexT
+  , keyToSlot
   ) where
 
 import           EulerHS.Prelude hiding (get, id)
@@ -26,6 +27,7 @@ import           EulerHS.Prelude hiding (get, id)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as TE
+import           Database.Redis (keyToSlot)
 import qualified EulerHS.Core.KVDB.Language as L
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L

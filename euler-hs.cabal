@@ -1,6 +1,6 @@
 cabal-version: 2.2
 name:          euler-hs
-version:       2.0.0.0
+version:       2.0.1.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -149,9 +149,9 @@ library
     , tinylog
     , tls
     , transformers
+    , unagi-chan
     , universum
     , utf8-string
-    , unagi-chan
     , uuid
     , validation
     , vector
@@ -192,8 +192,8 @@ test-suite language
     , http-client-tls
     , lens
     , named
-    , QuickCheck
     , process
+    , QuickCheck
     , sequelize
     , servant
     , servant-client

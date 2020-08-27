@@ -54,11 +54,14 @@ strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
 strMsg = Log.msg
 
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
-logPendingMsg loggers (D.PendingMsg lvl tag msg ctx) = do
+logPendingMsg loggers (D.PendingMsg lvl tag msg msgNum ctx) = do
   let lvl' = dispatchLogLevel lvl
   let eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
   let ctxVal = fromMaybe "null" ctx
-  let msg'' = (Log.field @ByteString "message" eulerMsg) ~~ ("x-request-id" .= ctxVal)
+  let msg'' =
+        (Log.field @ByteString "message" eulerMsg)
+        ~~ (Log.field @Int "message_number" msgNum)
+        ~~ ("x-request-id" .= ctxVal)
   mapM_ (\logger -> Log.log logger lvl' msg'') loggers
 
 logPendingMsgSync :: Loggers -> D.PendingMsg -> IO ()

@@ -13,6 +13,7 @@ module EulerHS.Core.Types.Logger
     , LogEntry (..)
     , Log
     , TransientLoggerContext
+    , LogCounter
     -- ** defaults
     , defaultLoggerConfig
     , mkMemoryLoggerConfig
@@ -32,6 +33,8 @@ type Format = String
 -- this currently only stores session id
 type TransientLoggerContext = Maybe Text
 
+type LogCounter = IORef Int
+
 data LoggerConfig
   = MemoryLoggerConfig LogLevel
   | LoggerConfig
@@ -47,7 +50,8 @@ data LoggerConfig
 
 type Message = Text
 type Tag = Text
-data PendingMsg = PendingMsg !LogLevel !Tag !Message !TransientLoggerContext
+type MessageNumber = Int
+data PendingMsg = PendingMsg !LogLevel !Tag !Message !MessageNumber !TransientLoggerContext
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]

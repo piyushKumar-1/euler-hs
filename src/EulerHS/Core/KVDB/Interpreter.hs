@@ -76,7 +76,7 @@ interpretKeyValueF runRedis runMode (L.HSet k field value next) =
 interpretKeyValueF runRedis runMode (L.HGet k field next) =
   fmap next $ P.withRunMode runMode (E.mkHGetEntry k field) $
     runRedis $ R.hget k field
-      
+
 interpretKeyValueF runRedis runMode (L.XAdd stream entryId items next) =
   fmap next $ P.withRunMode runMode (E.mkXAddEntry stream entryId items) $
     runRedis $ do
@@ -90,7 +90,7 @@ interpretKeyValueF runRedis runMode (L.XAdd stream entryId items next) =
       -- "number-number" is redis entry id invariant
       let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
       in L.KVDBStreamEntryID ms seq
-    
+
 interpretKeyValueF runRedis runMode (L.XLen stream next) =
   fmap next $ P.withRunMode runMode (E.mkXLenEntry stream) $
     runRedis $ R.xlen stream
@@ -133,6 +133,21 @@ interpretKeyValueTxF (L.HSet k field value next) =
 interpretKeyValueTxF (L.HGet k field next) =
   fmap next $ R.hget k field
 
+interpretKeyValueTxF (L.XLen stream next) =
+  fmap next $ R.xlen stream
+
+interpretKeyValueTxF (L.XAdd stream entryId items next) =
+  fmap next $ fmap (fmap parseStreamEntryId) $ R.xadd stream (makeStreamEntryId entryId) items
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms seq)) = show ms <> "-" <> show seq
+    makeStreamEntryId L.AutoID = "*"
+
+    parseStreamEntryId bs =
+      -- "number-number" is redis entry id invariant
+      let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
+      in L.KVDBStreamEntryID ms seq
+
+
 
 interpretTransactionF
   :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
@@ -142,6 +157,10 @@ interpretTransactionF
 interpretTransactionF runRedis runMode (L.MultiExec dsl next) =
   fmap next $ P.withRunMode runMode E.mkMultiExecEntry $
     runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
+
+interpretTransactionF runRedis runMode (L.MultiExecWithHash h dsl next) =
+  fmap next $ P.withRunMode runMode (E.mkMultiExecWithHashEntry h) $
+    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExecWithHash h $ foldF interpretKeyValueTxF dsl
 
 
 interpretDbF

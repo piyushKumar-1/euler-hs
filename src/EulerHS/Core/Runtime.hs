@@ -7,6 +7,7 @@ module EulerHS.Core.Runtime
   , setTransientContext
   , shouldLogRawSql
   , clearTransientContext
+  , incLogCounter
   , createCoreRuntime
   , createVoidLoggerRuntime
   , createLoggerRuntime
@@ -18,13 +19,13 @@ module EulerHS.Core.Runtime
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
-import           EulerHS.Core.Types (LogLevel (..), LoggerConfig (..),
-                                     TransientLoggerContext)
+import           EulerHS.Core.Types (LogCounter, LogLevel (..),
+                                     LoggerConfig (..), TransientLoggerContext)
 import           EulerHS.Core.Types.DB as X (withTransaction)
 
 -- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
 data LoggerRuntime
-  = LoggerRuntime !LogLevel !Bool TransientLoggerContext Impl.LoggerHandle
+  = LoggerRuntime !LogLevel !Bool !LogCounter TransientLoggerContext Impl.LoggerHandle
   | MemoryLoggerRuntime !LogLevel !(MVar [Text])
 
 data CoreRuntime = CoreRuntime
@@ -34,15 +35,18 @@ data CoreRuntime = CoreRuntime
 createLoggerRuntime :: LoggerConfig -> IO LoggerRuntime
 createLoggerRuntime (MemoryLoggerConfig cfgLogLevel) =
   MemoryLoggerRuntime cfgLogLevel <$> newMVar []
-createLoggerRuntime cfg =
-  LoggerRuntime (_level cfg) (_logRawSql cfg) Nothing <$> Impl.createLogger cfg
+createLoggerRuntime cfg = do
+  counter <- initLogCounter
+  LoggerRuntime (_level cfg) (_logRawSql cfg) counter Nothing <$> Impl.createLogger cfg
 
 createVoidLoggerRuntime :: IO LoggerRuntime
-createVoidLoggerRuntime = LoggerRuntime Debug True Nothing <$> Impl.createVoidLogger
+createVoidLoggerRuntime = do
+  counter <- initLogCounter
+  LoggerRuntime Debug True counter Nothing <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
-clearLoggerRuntime (LoggerRuntime _ _ _ handle) = Impl.disposeLogger handle
-clearLoggerRuntime _                            = pure ()
+clearLoggerRuntime (LoggerRuntime _ _ _ _ handle) = Impl.disposeLogger handle
+clearLoggerRuntime _                              = pure ()
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
 createCoreRuntime = pure . CoreRuntime
@@ -53,15 +57,21 @@ clearCoreRuntime _ = pure ()
 -- TODO: change Maybe Text to some type
 setTransientContext :: TransientLoggerContext -> LoggerRuntime -> LoggerRuntime
 setTransientContext ctx = \case
-  LoggerRuntime logLvl logRawSql _ handle -> LoggerRuntime logLvl logRawSql ctx handle
+  LoggerRuntime logLvl logRawSql counter _ handle -> LoggerRuntime logLvl logRawSql counter ctx handle
   rt -> rt
 
 clearTransientContext :: LoggerRuntime -> LoggerRuntime
-clearTransientContext (LoggerRuntime logLvl logRawSql _ handle) =
-  LoggerRuntime logLvl logRawSql Nothing handle
+clearTransientContext (LoggerRuntime logLvl logRawSql counter _ handle) =
+  LoggerRuntime logLvl logRawSql counter Nothing handle
 clearTransientContext rt = rt
 
 shouldLogRawSql :: LoggerRuntime -> Bool
 shouldLogRawSql = \case
-  (LoggerRuntime _ logRawSql _ _) -> logRawSql
+  (LoggerRuntime _ logRawSql _ _ _) -> logRawSql
   _ -> True
+
+initLogCounter :: IO LogCounter
+initLogCounter = newIORef 0
+
+incLogCounter :: LogCounter -> IO Int
+incLogCounter = flip atomicModifyIORef' (\cnt -> (cnt + 1, cnt))

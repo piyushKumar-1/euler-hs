@@ -24,7 +24,7 @@ module EulerHS.Core.KVDB.Language
   , exists, del, expire
   -- *** Transactional
   -- | Used inside multiExec instead of regular
-  , multiExec
+  , multiExec, multiExecWithHash
   , setTx, getTx, delTx, setexTx
   , hsetTx, hgetTx
   , xaddTx, xlenTx
@@ -111,9 +111,16 @@ data TransactionF next where
     => KVDBTx (R.Queued a)
     -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
+  MultiExecWithHash
+    :: T.JSONEx a
+    => ByteString
+    -> KVDBTx (R.Queued a)
+    -> (T.KVDBAnswer (T.TxResult a) -> next)
+    -> TransactionF next
 
 instance Functor TransactionF where
   fmap f (MultiExec dsl next) = MultiExec dsl (f . next)
+  fmap f (MultiExecWithHash h dsl next) = MultiExecWithHash h dsl (f . next)
 
 ----------------------------------------------------------------------
 
@@ -205,6 +212,10 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 
--- | Run commands inside a transaction.
+-- | Run commands inside a transaction(suited only for standalone redis setup).
 multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
+
+-- | Run commands inside a transaction(suited only for cluster redis setup).
+multiExecWithHash :: T.JSONEx a => ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id

@@ -6,8 +6,8 @@ let
   hedis-repo = eulerBuild.fetchFromGitHub {
     owner = "juspay";
     repo = "hedis";
-    rev = "4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e";
-    sha256 = "094r4pxkc3h6w2vy4lha1zfdz29qihvkx2wi3mb7g1m3a6c7xp4h";
+    rev = "46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80";
+    sha256 = "1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595";
   };
 
   hedis-path = hedis-repo;

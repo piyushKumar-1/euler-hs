@@ -1,7 +1,7 @@
 {
   "sequelize": {
     "ref": "master",
-    "rev": "b8c1e9e10399f4ceef39bebe4e180648aadd159a",
+    "rev": "6cb5fbbac3c123dbb23244adf8a00ab0be588674",
     "url": "git@bitbucket.com:juspay/haskell-sequelize.git"
   }
 }

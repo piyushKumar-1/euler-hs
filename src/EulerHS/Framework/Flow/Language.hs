@@ -9,6 +9,7 @@ module EulerHS.Framework.Flow.Language
     Flow
   , FlowMethod(..)
   , MonadFlow(..)
+  , ReaderFlow
   -- ** Methods
   -- *** SQLDB
   , initSqlDBConnection
@@ -256,6 +257,8 @@ instance Functor FlowMethod where
   fmap f (RunPubSub act next)                 = RunPubSub act (f . next)
 
 type Flow = F FlowMethod
+
+type ReaderFlow r = ReaderT r Flow
 
 newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
 

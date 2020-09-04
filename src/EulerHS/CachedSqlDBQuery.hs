@@ -263,7 +263,7 @@ runQuery ::
 runQuery dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
-    Right c -> L.runDB c query
+    Right c -> L.runTransaction c query
     Left  e -> return $ Left e
 
 runQueryMySQL ::

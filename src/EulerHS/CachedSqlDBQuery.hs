@@ -11,12 +11,16 @@ module EulerHS.CachedSqlDBQuery
   , findAll
   , findAllSql
   , findAllExtended
+  , SqlReturning(..)
   )
 where
 
 import           Data.Aeson (encode)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Database.Beam as B
+import qualified Database.Beam.MySQL as BM
+import qualified Database.Beam.Postgres as BP
+import qualified Database.Beam.Sqlite as BS
 import qualified Data.Text as T
 import qualified EulerHS.Core.SqlDB.Language as DB
 import           EulerHS.Core.Types.DB
@@ -35,6 +39,35 @@ cacheName = "eulerKVDB"
 
 -- | Create a new database entry with the given value.
 --   Cache the value if the DB insert succeeds.
+
+class SqlReturning (beM :: Type -> Type) (be :: Type) where
+  createReturning ::
+    forall (table :: (Type -> Type) -> Type)
+           (m :: Type -> Type) .
+    ( BeamRuntime be beM,
+      BeamRunner beM,
+      B.HasQBuilder be,
+      Model be table,
+      ToJSON (table Identity),
+      FromJSON (table Identity),
+      Show (table Identity),
+      L.MonadFlow m
+    ) =>
+    DBConfig beM ->
+    table Identity ->
+    Maybe Text ->
+    m (Either DBError (table Identity))
+
+instance SqlReturning BM.MySQLM BM.MySQL where
+  createReturning = createMySQL
+
+instance SqlReturning BP.Pg BP.Postgres where
+  createReturning = create
+
+instance SqlReturning BS.SqliteM BS.Sqlite where
+  createReturning = create
+
+
 create ::
   forall (be :: Type)
          (beM :: Type -> Type)
@@ -54,7 +87,28 @@ create ::
   Maybe Text ->
   m (Either DBError (table Identity))
 create dbConf value mCacheKey = do
-  res <- createSql dbConf value 
+  res <- createSql dbConf value
+  case res of
+    Right val -> do
+      whenJust mCacheKey (`cacheWithKey` val)
+      return $ Right val
+    Left e -> return $ Left e
+
+createMySQL ::
+  forall (table :: (Type -> Type) -> Type)
+         (m :: Type -> Type) .
+  ( Model BM.MySQL table,
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    Show (table Identity),
+    L.MonadFlow m
+  ) =>
+  DBConfig BM.MySQLM ->
+  table Identity ->
+  Maybe Text ->
+  m (Either DBError (table Identity))
+createMySQL dbConf value mCacheKey = do
+  res <- createSqlMySQL dbConf value
   case res of
     Right val -> do
       whenJust mCacheKey (`cacheWithKey` val)
@@ -212,6 +266,17 @@ runQuery dbConf query = do
     Right c -> L.runDB c query
     Left  e -> return $ Left e
 
+runQueryMySQL ::
+  ( JSONEx a,
+    L.MonadFlow m
+  ) =>
+  DBConfig BM.MySQLM -> DB.SqlDB BM.MySQLM a -> m (Either DBError a)
+runQueryMySQL dbConf query = do
+  conn <- getOrInitSqlConn dbConf
+  case conn of
+    Right c -> L.runDB c query
+    Left  e -> return $ Left e
+
 sqlCreate ::
   forall be table.
   (B.HasQBuilder be, Model be table) =>
@@ -240,6 +305,27 @@ createSql dbConf value = do
     Right xs -> do
       let message = "DB returned \"" <> show xs <> "\" after inserting \"" <> show value <> "\""
       L.logError @Text "create" message
+      return $ Left $ DBError UnexpectedResult message
+    Left e -> return $ Left e
+
+createSqlMySQL ::
+  forall m  table.
+  ( Model BM.MySQL table,
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    Show (table Identity),
+    L.MonadFlow m
+  ) =>
+  DBConfig BM.MySQLM ->
+  table Identity ->
+  m (Either DBError (table Identity))
+createSqlMySQL dbConf value = do
+  res <- runQueryMySQL dbConf $ DB.insertRowReturningMySQL $ sqlCreate value
+  case res of
+    Right (Just val) -> return $ Right val
+    Right Nothing -> do
+      let message = "DB returned \"" <> "Nothing" <> "\" after inserting \"" <> show value <> "\""
+      L.logError @Text "createSqlMySQL" message
       return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 

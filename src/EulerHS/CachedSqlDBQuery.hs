@@ -4,7 +4,9 @@ module EulerHS.CachedSqlDBQuery
   ( create
   , createSql
   , updateOne
+  , updateOneWoReturning
   , updateOneSql
+  , updateOneSqlWoReturning
   , updateExtended
   , findOne
   , findOneSql
@@ -137,6 +139,55 @@ updateOne dbConf (Just cacheKey) newVals whereClause = do
   whenRight val (\_ -> cacheWithKey cacheKey val)
   return val
 updateOne dbConf Nothing value whereClause = updateOneSql dbConf value whereClause
+
+updateOneWoReturning ::
+  ( BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    Show (table Identity),
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Maybe Text ->
+  [Set be table] ->
+  Where be table ->
+  m (Either DBError ())
+updateOneWoReturning dbConf (Just cacheKey) newVals whereClause = do
+  val <- updateOneSqlWoReturning dbConf newVals whereClause
+ -- whenRight val (\_ -> cacheWithKey cacheKey val)
+  return val
+updateOneWoReturning dbConf Nothing value whereClause = updateOneSqlWoReturning dbConf value whereClause
+
+updateOneSqlWoReturning ::
+  forall m be beM table.
+  ( BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    FromJSON (table Identity),
+    ToJSON (table Identity),
+    Show (table Identity),
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [Set be table] ->
+  Where be table ->
+  m (DBResult ())
+updateOneSqlWoReturning dbConf newVals whereClause = do
+  let updateQuery = DB.updateRows $ sqlUpdate
+        ! #set newVals
+        ! #where_ whereClause
+  res <- runQuery dbConf updateQuery
+  case res of
+    Right x -> return $ Right x
+   -- Right xs -> do
+   --   let message = "DB returned \"" <> show xs <> "\" after update"
+   --   L.logError @Text "create" message
+   --   return $ Left $ DBError UnexpectedResult message
+    Left e -> return $ Left e
 
 updateOneSql ::
   forall m be beM table.

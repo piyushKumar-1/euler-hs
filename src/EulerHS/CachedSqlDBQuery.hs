@@ -333,7 +333,7 @@ sqlCreate ::
   (B.HasQBuilder be, Model be table) =>
   table Identity ->
   B.SqlInsert be table
-sqlCreate value = B.insert modelTableEntity (B.insertValues [value])
+sqlCreate value = B.insert modelTableEntity (mkExprWithDefault value)
 
 createSql ::
   forall m be beM table.

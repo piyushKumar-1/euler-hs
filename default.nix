@@ -1,6 +1,7 @@
 {
   remoteDeps ? false
 , haskellCompiler ? "ghc883"
+, withHoogle ? true
 }:
 let
   inherit (builtins) fromJSON readFile;
@@ -70,27 +71,27 @@ let
     ];
   tools = [];
 
-  mkShell = eulerBuild.mkShell {
-    drvPath = ./default.nix;
-    drvName = "euler-hs";
-    inherit haskellPackagesTools;
-    inherit tools;
+  shell = pkgs.eulerHaskellPackages.shellFor {
+    inherit withHoogle;
+    packages = p: [ p.euler-hs ];
+    buildInputs = haskellPackagesTools ++ tools;
   };
-in {
-  inherit pkgs;
-  euler-hs = pkgs.eulerHaskellPackages.euler-hs;
+  drv = {
+    inherit pkgs;
+    euler-hs = pkgs.eulerHaskellPackages.euler-hs;
 
-  inherit beam-overlay;
-  inherit euler-hs-overlay;
-  overlay = eulerBuild.composeOverlays allUsedOverlays;
+    inherit beam-overlay;
+    inherit euler-hs-overlay;
+    overlay = eulerBuild.composeOverlays allUsedOverlays;
 
-  inherit code-tools-overlay;
-  inherit devtools-overlay;
-  inherit mkShell;
+    inherit code-tools-overlay;
+    inherit devtools-overlay;
 
-  # TODO: (?) put in a separate repo together with ./nix/euler-build
-  inherit eulerBuild;
+    # TODO: (?) put in a separate repo together with ./nix/euler-build
+    inherit eulerBuild;
 
-  # TODO: (?) move inside eulerBuild
-  inherit nixpkgs;
-}
+    # TODO: (?) move inside eulerBuild
+    inherit nixpkgs;
+  };
+in 
+  if pkgs.lib.trivial.inNixShell then shell else drv

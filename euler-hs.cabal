@@ -110,7 +110,7 @@ library
     , base64-bytestring
     , base64-bytestring-type
     , beam-core               ^>=0.9.0.0
-    , beam-mysql              ^>=1.0.0.0
+    , beam-mysql              ^>=1.1.0.0
     , beam-postgres           ^>=0.5.0.0
     , beam-sqlite             ^>=0.5.0.0
     , binary
@@ -226,7 +226,7 @@ test-suite db
   build-depends:
     , aeson
     , beam-core
-    , beam-mysql
+    , beam-mysql ^>= 1.1.0.0
     , beam-postgres
     , beam-sqlite
     , bytestring

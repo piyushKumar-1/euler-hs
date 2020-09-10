@@ -15,6 +15,7 @@ import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
 import qualified EulerHS.Core.Playback.Machine as P
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as D
+import qualified Control.Concurrent.MVar as MVar
 
 
 interpretLogger :: D.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
@@ -22,10 +23,12 @@ interpretLogger runMode (R.MemoryLoggerRuntime cfgLogLvl mvar) (L.LogMessage msg
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
     case compare cfgLogLvl msgLogLvl of
       GT -> pure ()
-      _  -> do
-        !lgs <- takeMVar mvar
+      -- _  -> do
+        -- !lgs <- takeMVar mvar
+        -- putMVar mvar (m : lgs)
+      _  -> MVar.modifyMVar mvar $ \(!lgs) -> do
         let m = "" +|| msgLogLvl ||+ " " +| tag |+ " " +| msg |+ ""
-        putMVar mvar (m : lgs)
+        pure (m : lgs, ())
 
 interpretLogger runMode (R.LoggerRuntime cfgLogLvl _ cnt ctx handle) (L.LogMessage msgLogLvl tag msg next) =
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $

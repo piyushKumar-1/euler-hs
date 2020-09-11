@@ -3,6 +3,7 @@
 module EulerHS.Tests.Framework.FlowSpec where
 
 import qualified Control.Exception as E
+import           Control.Monad (void)
 import           Data.Aeson (encode)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.UUID as UUID (fromText)
@@ -165,8 +166,8 @@ spec = do
                   then countTo100
                   else return count
 
-            forkFlow "counter1" $ runUntracedIO countTo100
-            forkFlow "counter2" $ runUntracedIO countTo100
+            forkFlow "counter1" $ runUntracedIO $ void countTo100
+            forkFlow "counter2" $ runUntracedIO $ void countTo100
             count <- runUntracedIO $ atomically $ readTVar countVar
             return count
 

@@ -4,6 +4,7 @@
 
 module EulerHS.Tests.Framework.ArtSpec where
 
+import           Control.Monad (void)
 import           Data.Aeson as A
 import           Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Lazy as Lazy
@@ -276,22 +277,22 @@ mainScript = do
   guid2 <- generateGUID
   -- This should re-execute each time and not break replay
   runUntracedIO (UUID.toText <$> UUID.nextRandom)
-  forkFlow guid1 forkScript
-  forkFlow guid2 forkScript
+  forkFlow guid1 (void forkScript)
+  forkFlow guid2 (void forkScript)
   runSysCmd "echo hello"
 
 mainScriptWrong :: Flow String
 mainScriptWrong = do
   guid1 <- generateGUID
-  forkFlow guid1 forkScript
+  forkFlow guid1 (void forkScript)
   runSysCmd "echo hello"
 
 mainScriptWrongFork :: Flow String
 mainScriptWrongFork = do
   guid1 <- generateGUID
   guid2 <- generateGUID
-  forkFlow guid1 forkScript
-  forkFlow guid2 forkScriptWrong
+  forkFlow guid1 (void forkScript)
+  forkFlow guid2 (void forkScriptWrong)
   runSysCmd "echo hello"
 
 forkScript :: Flow String

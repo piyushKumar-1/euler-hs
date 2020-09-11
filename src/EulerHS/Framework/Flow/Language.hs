@@ -292,8 +292,12 @@ type PMessageCallback
 -- >   res <- runIO someAction
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure res
-forkFlow :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow ()
-forkFlow description flow = void $ forkFlow' description flow
+forkFlow :: T.Description -> Flow () -> Flow ()
+forkFlow description flow = void $ forkFlow' description $ do
+  eitherResult <- runSafeFlow flow
+  case eitherResult of
+    Left msg -> logError "forkFlow" msg
+    Right x  -> pure ()
 
 -- | Same as fork a flow but returns an Awaitable value which can be used
 -- to await for the results from the flow.

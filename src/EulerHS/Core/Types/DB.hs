@@ -31,6 +31,7 @@ module EulerHS.Core.Types.DB
   , mkPostgresPoolConfig
   , mkMySQLConfig
   , mkMySQLPoolConfig
+  , getDBName
   -- ** Helpers
   , withTransaction
   , mysqlErrorToDbError
@@ -46,7 +47,6 @@ module EulerHS.Core.Types.DB
 
 import           EulerHS.Prelude
 
-import           Data.Kind (Type)
 import qualified Data.Pool as DP
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Database.Beam as B
@@ -60,8 +60,8 @@ import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PGS
 import qualified Database.SQLite.Simple as SQLite
 
-import           EulerHS.Core.Types.MySQL (MySQLConfig, createMySQLConn)
-import           EulerHS.Core.Types.Postgres (PostgresConfig,
+import           EulerHS.Core.Types.MySQL (MySQLConfig(..), createMySQLConn)
+import           EulerHS.Core.Types.Postgres (PostgresConfig(..),
                                               createPostgresConn)
 
 
@@ -73,6 +73,7 @@ class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   rtInsert              :: B.SqlInsert be table -> beM ()
   rtInsertReturningList :: forall table . (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlInsert be table -> beM [table Identity]
   rtUpdate              :: B.SqlUpdate be table -> beM ()
+  rtUpdateReturningList :: forall table. (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlUpdate be table -> beM [table Identity]
   rtDelete              :: B.SqlDelete be table -> beM ()
 
 -- TODO: move somewhere (it's implementation)
@@ -82,6 +83,7 @@ instance BeamRuntime BS.Sqlite BS.SqliteM where
   rtInsert = B.runInsert
   rtInsertReturningList = B.runInsertReturningList
   rtUpdate = B.runUpdate
+  rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
 
 -- TODO: move somewhere (it's implementation)
@@ -91,6 +93,7 @@ instance BeamRuntime BP.Postgres BP.Pg where
   rtInsert = B.runInsert
   rtInsertReturningList = B.runInsertReturningList
   rtUpdate = B.runUpdate
+  rtUpdateReturningList = updateReturningListPG
   rtDelete = B.runDelete
 
 deleteReturningListPG
@@ -112,6 +115,7 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtInsert = B.runInsert
   rtInsertReturningList = error "Not implemented"
   rtUpdate = B.runUpdate
+  rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
 
 class BeamRunner beM where
@@ -251,6 +255,12 @@ mkMySQLConfig connTag dbName = MySQLPoolConf connTag dbName defaultPoolConfig
 -- | Create MySQL 'Pool' 'DBConfig'
 mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM
 mkMySQLPoolConfig = MySQLPoolConf
+
+getDBName :: DBConfig beM -> String
+getDBName (PostgresPoolConf _ (PostgresConfig{..}) _) = connectDatabase
+getDBName (MySQLPoolConf _ (MySQLConfig{..}) _) = connectDatabase
+getDBName (SQLitePoolConf _ dbName _) = dbName
+getDBName (MockConfig _) = error "Can't get DB name of MockConfig"
 
 ----------------------------------------------------------------------
 

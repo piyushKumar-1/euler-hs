@@ -23,6 +23,7 @@ import EulerHS.Prelude
 import EulerHS.Runtime
 import EulerHS.Tests.Framework.Common
 import EulerHS.Tests.Framework.DBSetup
+import EulerHS.Tests.Framework.DBSetup as DBS
 import EulerHS.Types as T
 
 
@@ -31,7 +32,7 @@ redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
 spec :: Spec
 spec = do
   around (withEmptyDB) $
-    
+
     describe "Cached sequelize layer" $ do
 
       it "findOne returns Nothing for empty table" $ \rt -> do
@@ -150,26 +151,26 @@ spec = do
         res `shouldBe` Right (Just user)
 
       it "updateOne updates the DB" $ \rt -> do
-        let user1 = User 10 "Alan" "Turing"
-        let user2 = User 11 "Kurt" "Goedel"
+        let user1 :: User = User 10 "Alan" "Turing"
+        let user2 :: User = User 11 "Kurt" "Goedel"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
           create sqliteCfg user1 Nothing
-          updateOne sqliteCfg Nothing user2 [Is _userGUID (Eq 10)]
+          updateOne sqliteCfg Nothing [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
           findOne sqliteCfg Nothing []
-        res `shouldBe` Right (Just user2)
+        res `shouldBe` Right (Just user1 {DBS._firstName = "Kurt"})
 
       it "updateOne updates the cache" $ \rt -> do
-        let user1 = User 10 "Alan" "Turing"
-        let user2 = User 11 "Kurt" "Goedel"
+        let user1 :: User = User 10 "Alan" "Turing"
+        let user2 :: User = User 11 "Kurt" "Goedel"
         let testKey = "key9"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
           create sqliteCfg user1 (Just testKey)
-          updateOne sqliteCfg (Just testKey) user2 [Is _userGUID (Eq 10)]
+          updateOne sqliteCfg (Just testKey) [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
           -- Delete from DB to ensure the cache is used
           L.runDB conn $ L.deleteRows $
             B.delete (users userDB) (\u -> _userGUID u B.==. 10)
           findOne sqliteCfg (Just testKey) []
-        res `shouldBe` Right (Just user2)
+        res `shouldBe` Right (Just user1 {DBS._firstName = "Kurt"})

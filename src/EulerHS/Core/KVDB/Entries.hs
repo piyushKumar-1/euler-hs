@@ -216,7 +216,7 @@ mkHGetEntry k f r = HGetEntry
 data XAddEntry = XAddEntry
   { jsonStream  :: A.Value
   , jsonEntryId :: A.Value
-  , jsonItems   :: A.Value 
+  , jsonItems   :: A.Value
   , jsonResult  :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
@@ -236,7 +236,7 @@ mkXAddEntry s e i r = XAddEntry
 -- ----------------------------------------------------------------------
 
 data XLenEntry = XLenEntry
-  { jsonStream  :: A.Value 
+  { jsonStream  :: A.Value
   , jsonResult  :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
@@ -281,3 +281,31 @@ mkMultiExecEntry :: forall a . T.JSONEx a => Either T.KVDBReply (T.TxResult a) -
 mkMultiExecEntry r = MultiExecEntry $
     A.toJSON $ fmap (A.toJSON1 . fmap (T.resolveJSONEx @a T.jsonEncode toJSON)) r
 
+
+-- MultiExecWithHash
+
+data MultiExecWithHashEntry = MultiExecWithHashEntry
+  { hashValue :: A.Value
+  , jsonResult :: A.Value
+  } deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+instance RRItem MultiExecWithHashEntry where
+  getTag _ = "MultiExecWithHashEntry"
+
+instance T.JSONEx a => MockedResult MultiExecWithHashEntry (Either T.KVDBReply (T.TxResult a)) where
+  getMock MultiExecWithHashEntry {jsonResult} =
+    case temp of
+      Nothing                             -> Nothing
+      Just (Left e)                       -> Just $ Left e
+      Just (Right (T.TxSuccess Nothing )) -> Nothing
+      Just (Right (T.TxSuccess (Just a))) -> Just $ Right $ T.TxSuccess a
+      Just (Right (T.TxAborted         )) -> Just $ Right $ T.TxAborted
+      Just (Right (T.TxError s         )) -> Just $ Right $ T.TxError s
+    where
+      temp :: Maybe (Either T.KVDBReply (T.TxResult (Maybe a)))
+      temp = fmap (fmap (fmap jsonExDecode)) $ jsonExDecode jsonResult
+
+
+mkMultiExecWithHashEntry :: forall a . T.JSONEx a => ByteString -> Either T.KVDBReply (T.TxResult a) -> MultiExecWithHashEntry
+mkMultiExecWithHashEntry h r = MultiExecWithHashEntry (T.jsonEncode h) $
+    A.toJSON $ fmap (A.toJSON1 . fmap (T.resolveJSONEx @a T.jsonEncode toJSON)) r

@@ -6,6 +6,7 @@ module EulerHS.Extra.Language
   , rDel
   , rDelB
   , rExists
+  , rExistsT
   , rHget
   , rHgetB
   , rHset
@@ -19,6 +20,7 @@ module EulerHS.Extra.Language
   , rSetex
   , rSetexB
   , rSetexT
+  , keyToSlot
   ) where
 
 import           EulerHS.Prelude hiding (get, id)
@@ -26,6 +28,7 @@ import           EulerHS.Prelude hiding (get, id)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text.Encoding as TE
+import           Database.Redis (keyToSlot)
 import qualified EulerHS.Core.KVDB.Language as L
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
@@ -101,6 +104,18 @@ rExists :: (ToJSON k, L.MonadFlow m) =>
   Text -> k -> m (Either T.KVDBReply Bool)
 rExists cName k = do
   res <- L.runKVDB cName $ L.exists (BSL.toStrict $ A.encode k)
+  case res of
+    Right _ -> do
+      -- L.logInfo @Text "Redis exists" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis exists" $ show err
+      pure res
+
+rExistsT :: (L.MonadFlow m) =>
+  Text -> Text -> m (Either T.KVDBReply Bool)
+rExistsT cName k = do
+  res <- L.runKVDB cName $ L.exists (TE.encodeUtf8 k)
   case res of
     Right _ -> do
       -- L.logInfo @Text "Redis exists" $ show r

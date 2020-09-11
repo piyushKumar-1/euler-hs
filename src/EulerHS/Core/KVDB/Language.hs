@@ -24,9 +24,11 @@ module EulerHS.Core.KVDB.Language
   , exists, del, expire
   -- *** Transactional
   -- | Used inside multiExec instead of regular
-  , multiExec
+  , multiExec, multiExecWithHash
   , setTx, getTx, delTx, setexTx
+  , hsetTx, hgetTx
   , xaddTx, xlenTx
+  , expireTx
   ) where
 
 import qualified Data.Aeson as A
@@ -109,9 +111,16 @@ data TransactionF next where
     => KVDBTx (R.Queued a)
     -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
+  MultiExecWithHash
+    :: T.JSONEx a
+    => ByteString
+    -> KVDBTx (R.Queued a)
+    -> (T.KVDBAnswer (T.TxResult a) -> next)
+    -> TransactionF next
 
 instance Functor TransactionF where
   fmap f (MultiExec dsl next) = MultiExec dsl (f . next)
+  fmap f (MultiExecWithHash h dsl next) = MultiExecWithHash h dsl (f . next)
 
 ----------------------------------------------------------------------
 
@@ -131,13 +140,25 @@ setTx key value = liftFC $ Set key value id
 setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
 setexTx key ex value = liftFC $ SetEx key ex value id
 
+-- | Set the value of a hash field. Transaction version.
+hsetTx :: KVDBKey -> KVDBField -> KVDBValue -> KVDBTx (R.Queued Bool)
+hsetTx key field value = liftFC $ HSet key field value id
+
 -- | Get the value of a key. Transaction version.
 getTx :: KVDBKey -> KVDBTx (R.Queued (Maybe ByteString))
 getTx key = liftFC $ Get key id
 
+-- | Get the value of a hash field. Transaction version.
+hgetTx :: KVDBKey -> KVDBField -> KVDBTx (R.Queued (Maybe ByteString))
+hgetTx key field = liftFC $ HGet key field id
+
 -- | Delete a keys. Transaction version.
 delTx :: [KVDBKey] -> KVDBTx (R.Queued Integer)
 delTx ks = liftFC $ Del ks id
+
+-- | Set a key's time to live in seconds. Transaction version.
+expireTx :: KVDBKey -> KVDBDuration -> KVDBTx (R.Queued Bool)
+expireTx key sec = liftFC $ Expire key sec id
 
 xaddTx :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDBTx (R.Queued KVDBStreamEntryID)
 xaddTx stream entryId items = liftFC $ XAdd stream entryId items id
@@ -191,6 +212,10 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 
--- | Run commands inside a transaction.
+-- | Run commands inside a transaction(suited only for standalone redis setup).
 multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
+
+-- | Run commands inside a transaction(suited only for cluster redis setup).
+multiExecWithHash :: T.JSONEx a => ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id

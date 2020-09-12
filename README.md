@@ -284,8 +284,8 @@ For example:
 ```haskell
 countStuff :: Flow Int
   countVar <- runUntracedIO $ newTVarIO (0 :: Int)
-  forkFlow "counter1" $ runUntracedIO $ countTo100 countVar
-  forkFlow "counter2" $ runUntracedIO $ countTo100 countVar
+  forkFlow "counter1" $ void $ runUntracedIO $ countTo100 countVar
+  forkFlow "counter2" $ void $ runUntracedIO $ countTo100 countVar
   count <- runUntracedIO $ atomically $ readTVar countVar
   return count
 

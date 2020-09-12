@@ -274,13 +274,15 @@ type PMessageCallback
 -- instance Monad.MonadThrow Flow where
 --   throwM = throwException
 
--- | Fork a flow.
+-- | Fork a unit-returning flow.
 --
--- Warning. With forked flows, race coniditions and dead / live blocking become possible.
+-- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
+-- 
+-- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
 -- All the rules applied to forked threads in Haskell can be applied to forked flows.
 --
 -- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
--- There is no possibility to kill a thread on the moment.
+-- There is no possibility to kill a thread at the moment.
 --
 -- Thread safe, exception free.
 --
@@ -289,9 +291,10 @@ type PMessageCallback
 -- >   someAction
 -- >
 -- > myFlow2 = do
--- >   res <- runIO someAction
+-- >   _ <- runIO someAction
 -- >   forkFlow "myFlow1 fork" myFlow1
--- >   pure res
+-- >   pure ()
+--
 forkFlow :: T.Description -> Flow () -> Flow ()
 forkFlow description flow = void $ forkFlow' description $ do
   eitherResult <- runSafeFlow flow
@@ -299,8 +302,8 @@ forkFlow description flow = void $ forkFlow' description $ do
     Left msg -> logError "forkFlow" msg
     Right x  -> pure ()
 
--- | Same as fork a flow but returns an Awaitable value which can be used
--- to await for the results from the flow.
+-- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
+-- to reap results from the flow being forked.
 --
 -- > myFlow1 = do
 -- >   logInfoT "myflow1" "logFromMyFlow1"
@@ -309,6 +312,7 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- > myFlow2 = do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
+--
 forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
     flowGUID <- generateGUID

@@ -124,6 +124,7 @@ replayRecording rec flow = do
   flattenErrors errors `shouldBe` []
   pure result
 
+-- TODO: This should not take a dummy argument!
 -- prints replay in JSON format to console
 runWithRedisConn :: ConnectInfo -> a -> Flow b -> IO b
 runWithRedisConn connectInfo _ flow = do

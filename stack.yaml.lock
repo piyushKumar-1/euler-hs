@@ -10,11 +10,11 @@ packages:
     git: https://github.com/juspay/hedis
     pantry-tree:
       size: 2570
-      sha256: 11c0fb0068a34b685bbd0b5d8daa90bf7dbaaae84a6094fd04d9c6697bb1952e
-    commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
+      sha256: efe83ea607d47d7d8200c61a0dddabc5e7f292a2f451a98dec1326eb0903ef71
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
   original:
     git: https://github.com/juspay/hedis
-    commit: 4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
 - completed:
     name: beam-mysql
     version: 1.1.0.0
@@ -105,12 +105,12 @@ packages:
     version: 1.1.0.0
     git: git@bitbucket.org:juspay/haskell-sequelize.git
     pantry-tree:
-      size: 597
-      sha256: 90e08e08c1a479a77a7b032e4d79dbe8fb4c8e2f5d1d759986568ff93859d2b2
-    commit: c80165809e79b3961717b66b90e533673c284866
+      size: 719
+      sha256: d3f8956a4c8e471a14912a5b62c542ae42bdf34305ab518b3f72a0ef42c41c1f
+    commit: bcbf4481372d77491896a5d2051ddb2eb90640ca
   original:
     git: git@bitbucket.org:juspay/haskell-sequelize.git
-    commit: c80165809e79b3961717b66b90e533673c284866
+    commit: bcbf4481372d77491896a5d2051ddb2eb90640ca
 - completed:
     hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
     pantry-tree:

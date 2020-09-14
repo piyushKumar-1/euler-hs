@@ -15,6 +15,17 @@ let
 in
 eulerBuild.mkEulerHaskellOverlay
   (self: super: hself: hsuper: {
+    # this is needed for euler-db and euler-types currently
+    # TODO: remove after updating nixpkgs
+    record-dot-preprocessor =
+      eulerBuild.fastBuildExternal {
+        drv = hself.callHackageDirect {
+          pkg = "record-dot-preprocessor";
+          ver = "0.2.6";
+          sha256 = "1mp2bcb3rkg33z2030267pjvbbzadbh8cmrsax25ygk9bxmx8bbf";
+        } { };
+      };
+
     hedis =
       eulerBuild.fastBuildExternal {
         drv = hself.callCabal2nix "hedis" hedis-path { };

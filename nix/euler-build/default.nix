@@ -59,8 +59,6 @@ let
 
   fastBuildExternal = fastBuild;
 
-  mkShell = import ./mk-shell.nix;
-
   eulerBuild = {
     inherit (pkgs) fetchFromGitHub;
     inherit importOverlay;
@@ -71,8 +69,6 @@ let
 
     inherit fastBuild;
     inherit fastBuildExternal;
-
-    inherit mkShell;
   };
 
 in eulerBuild

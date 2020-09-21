@@ -7,6 +7,7 @@ module EulerHS.Extra.AltValidation
     Transform(..)
   , mkValidator
   , mkCustomValidator
+  , mkTransformer
   , withCustomError
   , Transformer
   , Validator
@@ -119,6 +120,11 @@ decodeCustom err v = ReaderT (\ctx -> case (readMaybe $ toString v) of
 -- Could throw 'Data.Data.dataTypeConstrs is not supported for Prelude.Double' for primitive types!
 --  _      -> Left [ err { error_message = Just ("Can't decode value" <> v <> ", should be one of " <> showConstructors @t)
 --                       , error_field = Just ctx}])
+
+mkTransformer :: Show a => VErrorPayload -> (a -> Maybe b) -> Transformer a b
+mkTransformer err f v = ReaderT (\_ -> case f v of
+  Just x  -> Right x
+  Nothing -> Left [ err ])
 
 insideJust :: Transformer a b -> Transformer (Maybe a) (Maybe b)
 insideJust _ Nothing    = pure Nothing

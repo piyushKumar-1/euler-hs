@@ -194,16 +194,23 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
             Nothing       -> Right _defaultHttpClientManager
             Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
       case mbClientMngr of
-        Right mngr -> catchAny
-         (S.runClientM (T.runEulerClient dbgLogger bUrl clientAct) (S.mkClientEnv mngr bUrl))
-         (pure . Left . S.ConnectionError)
-        Left name ->
-          pure $ Left
-               $ S.ConnectionError $ toException $ T.HttpManagerNotFound name
+        Right mngr -> do 
+          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) (S.mkClientEnv mngr bUrl)
+          case eitherResult of
+            Left err -> do
+              dbgLogger T.Error $ show err
+              pure $ Left $ S.ConnectionError $ toException err
+            Right response ->
+              pure $ Right response
+        Left name -> do
+          let err = S.ConnectionError $ toException $ T.HttpManagerNotFound name
+          dbgLogger T.Error (show err)
+          pure $ Left err
   where
-    dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-              . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
-              . show
+    dbgLogger debugLevel =
+      R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+        . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
+        . show
 
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do

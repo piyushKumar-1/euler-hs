@@ -49,6 +49,7 @@ module EulerHS.Framework.Flow.Language
   , forkFlow'
   , await
   , throwException
+  , throwExceptionWithoutCallStack
   , runSafeFlow
 
   -- *** PublishSubscribe
@@ -712,6 +713,16 @@ class Monad m => MonadFlow m where
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
   throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
+  throwException ex = do
+    -- Doubt: Should we just print the exception details without the
+    -- contextual details that logError prints. As finding the message inside logError is a bit
+    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
+    -- contextual details.
+    logError "Exception" $ Text.pack $ displayException ex
+    throwExceptionWithoutCallStack ex
+
+
+  throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
 
   -- | Run a flow safely with catching all the exceptions from it.
   -- Returns either a result or the exception turned into a text message.
@@ -812,13 +823,8 @@ instance MonadFlow Flow where
   runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
 
   await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
-  throwException ex = do
-    -- Doubt: Should we just print the exception details without the
-    -- contextual details that logError prints. As finding the message inside logError is a bit
-    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
-    -- contextual details.
-    logError "Exception" $ Text.pack $ displayException ex
-    liftFC $ ThrowException ex id
+
+  throwExceptionWithoutCallStack ex = liftFC $ ThrowException ex id
 
   runSafeFlow flow = do
     safeFlowGUID <- generateGUID
@@ -858,7 +864,7 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -886,7 +892,7 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -914,7 +920,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -942,7 +948,7 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -970,7 +976,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub

@@ -1,8 +1,12 @@
 {-# OPTIONS -fno-warn-orphans #-}
 
 module EulerHS.Prelude
+  -- TODO: This entire export lists needs to be explicit
   ( module X
   , liftFC
+  , catchAny
+  , encodeJSON
+  , decodeJSON
   ) where
 
 import           Control.Concurrent as X (ThreadId, forkIO, killThread,
@@ -28,6 +32,9 @@ import           Control.Newtype.Generics as X (Newtype, O, pack, unpack)
 import           Data.Aeson as X (FromJSON, FromJSONKey, ToJSON, ToJSONKey,
                                   genericParseJSON, genericToJSON, parseJSON,
                                   toJSON)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Text as Aeson
+import qualified Data.ByteString.Lazy as LazyByteString
 import           Data.Function as X ((&))
 import           Data.Kind as X (Type)
 import           Data.Maybe as X (fromJust, fromMaybe)
@@ -35,11 +42,16 @@ import           Data.Serialize as X (Serialize)
 import           Fmt as X ((+|), (+||), (|+), (||+))
 import           GHC.Base as X (until)
 import           GHC.Generics as X (Generic)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy as LazyText
+-- import qualified Data.Text.Lazy.Encoding as LazyText
 import           Text.Read as X (read, readsPrec)
 
 -- includes Data.IORef
 import           Universum as X hiding (All, Option, Set, Type, head, init,
-                                 last, set, tail, trace)
+                                 last, set, tail, trace, catchAny)
+import           Universum (catchAny)
 import           Universum.Functor.Fmap as X ((<<$>>))
 import           Universum.Unsafe as X (head, init, last, tail, (!!))
 
@@ -54,3 +66,10 @@ import qualified Control.Monad.Free.Class as MF
 -- Lift for Church encoded Free
 liftFC :: (Functor f, MF.MonadFree f m) => f a -> m a
 liftFC = CF.liftF
+
+-- Aeson is the worst JSON library I've seen in my life... what to do
+encodeJSON :: ToJSON a => a -> Text
+encodeJSON = LazyText.toStrict . Aeson.encodeToLazyText
+
+decodeJSON :: FromJSON a => Text -> Maybe a
+decodeJSON = Aeson.decode . LazyByteString.fromStrict . Text.encodeUtf8

@@ -35,5 +35,10 @@ logMessage' lvl tag msg = liftFC $ LogMessage lvl (show tag) msg id
 --        logMessage' lvl tag msg = liftFC $ LogMessage lvl (toText tag) msg id
 -- #-}
 
+-- Doubts:
+-- Is it the right place to put it?
+-- Is using putStrLn okay?
+-- Should the type be something other that IO ()?
+-- The output will be multiple lines. Is it better to put it in a single line? Will it be okay till it reaches kibana if it is multiline?
 logCallStack :: HasCallStack => IO ()
 logCallStack = putStrLn . prettyCallStack $ callStack

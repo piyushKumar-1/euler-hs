@@ -791,6 +791,10 @@ instance MonadFlow Flow where
 
   await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
   throwException ex = do
+    -- Doubt: Should we just print the exception details without the
+    -- contextual details that logError prints. As finding the message inside logError is a bit
+    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
+    -- contextual details.
     logError "Exception" $ Text.pack $ displayException ex
     liftFC $ ThrowException ex id
 

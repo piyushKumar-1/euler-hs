@@ -41,6 +41,8 @@ jsonSetField fieldName fieldValue obj = case obj of
     error $ "This should be an object... got " <> show obj
 
 -- | Encode a value to JSON Text
+--
+-- Note: the name `jsonEncode` is already taken by Aeson
 encodeJSON :: ToJSON a => a -> Text
 encodeJSON = LazyText.toStrict . Aeson.encodeToLazyText
 

@@ -8,6 +8,8 @@ module EulerHS.Core.Types.HttpAPI
     , HTTPResponse(..)
     , HTTPMethod(..)
     , HTTPCert(..)
+    , HTTPRequestResponse(HTTPRequestResponse)
+    , HTTPIOException(HTTPIOException)
     , httpGet
     , httpPut
     , httpPost
@@ -17,9 +19,14 @@ module EulerHS.Core.Types.HttpAPI
 
 import           EulerHS.Prelude
 
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy as LazyText
+import qualified Data.Text.Lazy.Encoding as LazyText
 
 import qualified EulerHS.Core.Types.BinaryString as T
 
@@ -61,6 +68,37 @@ data HTTPMethod
 
 type HeaderName = Text.Text
 type HeaderValue = Text.Text
+
+data HTTPRequestResponse
+  = HTTPRequestResponse
+    { request  :: HTTPRequest
+    , response :: HTTPResponse
+    }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- | Used when some IO (or other) exception ocurred during a request
+data HTTPIOException
+  = HTTPIOException
+    { errorMessage :: Text
+    , request      :: HTTPRequest
+    }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- showRequest :: HTTPRequest -> Text
+-- showRequest request
+--   = jsonSetField "getRequestBody" requestBody $ Aeson.toJSON request
+--   where
+--     requestBody :: Aeson.Value
+--     requestBody = maybe mempty convertBody requestBodyBS
+
+--     convertBody :: LB.ByteString -> HashMap.HashMap Text Aeson.Value
+--     convertBody body = case LazyText.decodeUtf8' body of
+--       Left e -> mempty
+--       Right body -> HashMap.singleton [ "getRequestBody" Aeson..= body ]
+
+--     requestBodyBS :: Maybe LB.ByteString
+--     requestBodyBS = T.getLBinaryString <$> getRequestBody request
+
 
 --------------------------------------------------------------------------
 -- Convenience functions

@@ -5,6 +5,10 @@ module EulerHS.Prelude
   ( module X
   , liftFC
   , catchAny
+  -- JSON
+  , stripLensPrefixOptions
+  , stripAllLensPrefixOptions
+  , jsonSetField
   , encodeJSON
   , decodeJSON
   ) where
@@ -48,7 +52,8 @@ import           Universum (catchAny)
 import           Universum.Functor.Fmap as X ((<<$>>))
 import           Universum.Unsafe as X (head, init, last, tail, (!!))
 
-import           EulerHS.Extra.Aeson as X
+import           EulerHS.Extra.Aeson (
+  stripLensPrefixOptions, stripAllLensPrefixOptions, jsonSetField, encodeJSON, decodeJSON)
 
 import qualified Control.Monad.Free.Church as CF
 import qualified Control.Monad.Free.Class as MF

@@ -151,6 +151,7 @@ library
     , transformers
     , unagi-chan
     , universum
+    , unordered-containers
     , utf8-string
     , uuid
     , validation

@@ -33,9 +33,9 @@ import           EulerHS.Prelude
 type SqlDB beM = F (SqlDBMethodF beM)
 
 data SqlDBMethodF (beM :: Type -> Type) next where
-  SqlDBMethod :: (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
+  SqlDBMethod :: HasCallStack => (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
 
-  SqlThrowException :: (Exception e)
+  SqlThrowException :: (HasCallStack, Exception e)
     => e -> (a -> next) -> SqlDBMethodF beM next
 
 instance Functor (SqlDBMethodF beM) where
@@ -43,55 +43,55 @@ instance Functor (SqlDBMethodF beM) where
   fmap f (SqlThrowException message next) = SqlThrowException message (f . next)
 
 sqlDBMethod
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
   => beM a
   -> SqlDB beM a
 sqlDBMethod act = liftFC $ SqlDBMethod (flip T.getBeamDebugRunner act) id
 
 -- For testing purposes
-sqlThrowException :: forall a e beM be . (Exception e, T.BeamRunner beM, T.BeamRuntime be beM) => e -> SqlDB beM a
+sqlThrowException :: forall a e beM be . (HasCallStack, Exception e, T.BeamRunner beM, T.BeamRuntime be beM) => e -> SqlDB beM a
 sqlThrowException ex = liftFC $ SqlThrowException ex id
 
 -- Convenience interface
 
 -- | Select many
 findRows
-  :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => B.SqlSelect be a
   -> SqlDB beM [a]
 findRows = sqlDBMethod . T.rtSelectReturningList
 
 -- | Select one
 findRow
-  :: (T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be a)
   => B.SqlSelect be a
   -> SqlDB beM (Maybe a)
 findRow = sqlDBMethod . T.rtSelectReturningOne
 
 -- | Insert
 insertRows
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlInsert be table
   -> SqlDB beM ()
 insertRows = sqlDBMethod . T.rtInsert
 
 -- | Insert returning list
 insertRowsReturningList
-  :: (B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
+  :: (HasCallStack, B.Beamable table, B.FromBackendRow be (table Identity), T.BeamRuntime be beM, T.BeamRunner beM)
   => B.SqlInsert be table
   -> SqlDB beM [table Identity]
 insertRowsReturningList = sqlDBMethod . T.rtInsertReturningList
 
 -- | Update
 updateRows
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlUpdate be table
   -> SqlDB beM ()
 updateRows = sqlDBMethod . T.rtUpdate
 
 -- | Update returning list
 updateRowsReturningList
-  :: (T.BeamRunner beM, T.BeamRuntime be beM,
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM,
       B.Beamable table, B.FromBackendRow be (table Identity))
   => B.SqlUpdate be table
   -> SqlDB beM [table Identity]
@@ -99,7 +99,7 @@ updateRowsReturningList = sqlDBMethod . T.rtUpdateReturningList
 
 -- | Delete
 deleteRows
-  :: (T.BeamRunner beM, T.BeamRuntime be beM)
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
   => B.SqlDelete be table
   -> SqlDB beM ()
 deleteRows = sqlDBMethod . T.rtDelete
@@ -108,20 +108,20 @@ deleteRows = sqlDBMethod . T.rtDelete
 -- Postgres only extra methods
 
 deleteRowsReturningListPG
-  :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
+  :: (HasCallStack, B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
   => B.SqlDelete BP.Postgres table
   -> SqlDB BP.Pg [table Identity]
 deleteRowsReturningListPG = sqlDBMethod . T.deleteReturningListPG
 
 updateRowsReturningListPG
-  :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
+  :: (HasCallStack, B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
   => B.SqlUpdate BP.Postgres table
   -> SqlDB BP.Pg [table Identity]
 updateRowsReturningListPG = sqlDBMethod . T.updateReturningListPG
 
 -- MySQL only extra methods
 -- NOTE: This should be run inside a SQL transaction!
-insertRowReturningMySQL :: (B.FromBackendRow BM.MySQL (table Identity))
+insertRowReturningMySQL :: (HasCallStack, B.FromBackendRow BM.MySQL (table Identity))
                         => B.SqlInsert BM.MySQL table
                         -> SqlDB BM.MySQLM (Maybe (table Identity))
 insertRowReturningMySQL =

@@ -619,5 +619,5 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnec
       (L.unpackLanguagePubSub act $ runFlow $ rt { R._runMode = T.RegularMode })
 
 
-runFlow :: R.FlowRuntime -> L.Flow a -> IO a
+runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)

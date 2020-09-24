@@ -6,6 +6,7 @@ module EulerHS.Core.Logger.Language
     Logger
   , LoggerMethod(..)
   , logMessage'
+  , logCallStack
   ) where
 
 import           EulerHS.Prelude
@@ -33,3 +34,6 @@ logMessage' lvl tag msg = liftFC $ LogMessage lvl (show tag) msg id
 --     "Specialise String Tag logMessage'" forall (tag :: String) (lvl :: T.LogLevel) (msg :: T.Message) .
 --        logMessage' lvl tag msg = liftFC $ LogMessage lvl (toText tag) msg id
 -- #-}
+
+logCallStack :: HasCallStack => IO ()
+logCallStack = putStrLn . prettyCallStack $ callStack

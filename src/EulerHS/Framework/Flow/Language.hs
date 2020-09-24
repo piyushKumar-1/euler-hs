@@ -277,7 +277,7 @@ type PMessageCallback
 -- | Fork a unit-returning flow.
 --
 -- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
--- 
+--
 -- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
 -- All the rules applied to forked threads in Haskell can be applied to forked flows.
 --
@@ -373,8 +373,10 @@ logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 -- | Log message with Error level.
 --
 -- Thread safe.
-logError :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
-logError tag msg = evalLogger' $ logMessage' T.Error tag msg
+logError :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logError tag msg = do
+  runIO L.logCallStack  -- it will be multiline, will that be a problem?
+  evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
 --
@@ -397,7 +399,7 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   content <- runIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runIO :: (MonadFlow m, T.JSONEx a) => IO a -> m a
+runIO :: (MonadFlow m, T.JSONEx a, HasCallStack) => IO a -> m a
 runIO = runIO' ""
 
 -- | The same as runIO, but do not record IO outputs in the ART recordings.
@@ -495,7 +497,7 @@ class Monad m => MonadFlow m where
   -- >   content <- runIO' "reading from file" $ readFromFile file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runIO' :: T.JSONEx a => Text -> IO a -> m a
+  runIO' :: (HasCallStack, T.JSONEx a) => Text -> IO a -> m a
 
   -- | The same as runUntracedIO, but accepts a description which will be written into
   -- the ART recordings for better clarity.
@@ -692,7 +694,7 @@ class Monad m => MonadFlow m where
   -- >   case res of
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
-  throwException :: forall a e. Exception e => e -> m a
+  throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
 
   -- | Run a flow safely with catching all the exceptions from it.
   -- Returns either a result or the exception turned into a text message.
@@ -788,7 +790,9 @@ instance MonadFlow Flow where
   runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
 
   await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
-  throwException ex = liftFC $ ThrowException ex id
+  throwException ex = do
+    logError "Exception" $ Text.pack $ displayException ex
+    liftFC $ ThrowException ex id
 
   runSafeFlow flow = do
     safeFlowGUID <- generateGUID

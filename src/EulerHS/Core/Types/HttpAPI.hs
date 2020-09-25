@@ -39,7 +39,7 @@ data HTTPRequest
     , getRequestTimeout :: Maybe Int
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord, Generic, FromJSON)
+    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- instance ToJSON HTTPRequest where
 --   toJSON request =
@@ -60,7 +60,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text.Text
     }
-    deriving (Show, Eq, Ord, Generic, FromJSON)
+    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 -- instance ToJSON HTTPResponse where
 --   toJSON response =

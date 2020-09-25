@@ -59,10 +59,9 @@ withServer action = do
   readMVar serverStartupLock
   finally action (killThread threadId)
 
-
-spec :: Spec
-spec = do
-  around (withFlowRuntime Nothing) $ do
+spec :: Maybe T.LoggerConfig -> Spec
+spec loggerCfg = do
+  around (withFlowRuntime loggerCfg) $ do
 
     describe "EulerHS flow language tests" $ do
 
@@ -107,6 +106,31 @@ spec = do
               Left e  -> displayException e `shouldBe` error
               Right x -> fail "Success result not expected"
 
+          it "Untyped HTTP API Calls" $ \rt -> do
+            -- rt <- initRTWithManagers
+            let url = "https://google.com"
+            (statusCode, status, body, headers) <- runFlow rt $ do
+              eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
+              response <- case eResponse of
+                Left err -> throwException err403 {errBody = "Expected a response"}
+                Right response -> pure response
+              return
+                ( T.getResponseCode    response
+                , T.getResponseStatus  response
+                , T.getResponseBody    response
+                , T.getResponseHeaders response
+                )
+            -- check status code
+            statusCode `shouldBe` 200
+            status `shouldBe` "OK"
+
+          it "Untyped HTTP API Calls" $ \rt -> do
+            -- rt <- initRTWithManagers
+            let url = "https://127.0.0.1:666/fourohhhfour"
+            result <- runFlow rt $ do
+              L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)
+
+            pure ()
 
 
       describe "CallServantAPI tests without server" $ do

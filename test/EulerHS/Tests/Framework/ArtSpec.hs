@@ -275,7 +275,7 @@ spec = do
         L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)
 
       err <- extractLeft result
-      putStrLn $ "ERROR" <> err
+      -- putStrLn $ "ERROR" <> err
       pure ()
 
 

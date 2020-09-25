@@ -244,7 +244,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     logJson :: ToJSON a => T.LogLevel -> a -> IO ()
     logJson debugLevel =
       R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-        . L.logMessage' debugLevel ("CallHttpAPI failure" :: String)
+        . L.logMessage' debugLevel ("callHTTP failure" :: String)
         . encodeJSON
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =

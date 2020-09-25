@@ -17,7 +17,7 @@ module EulerHS.Core.Types.HttpAPI
     , httpHead
     ) where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding ((.=))
 
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as B
@@ -39,7 +39,19 @@ data HTTPRequest
     , getRequestTimeout :: Maybe Int
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+    deriving (Show, Eq, Ord, Generic, FromJSON)
+
+-- instance ToJSON HTTPRequest where
+--   toJSON request =
+--     Aeson.object
+--       [ "getRequestMethod"    Aeson..= getRequestMethod request
+--       , "getRequestHeaders"   Aeson..= getRequestHeaders request
+--       , "getRequestBody"      Aeson..= getRequestBody request
+--       , "getRequestURL"       Aeson..= getRequestURL request
+--       , "getRequestTimeout"   Aeson..= getRequestTimeout request
+--       , "getRequestRedirects" Aeson..= getRequestRedirects request
+--       , "utf8Body"            Aeson..= (getMaybeUtf8 <$> getRequestBody request)
+--       ]
 
 data HTTPResponse
   = HTTPResponse
@@ -48,7 +60,17 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text.Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+    deriving (Show, Eq, Ord, Generic, FromJSON)
+
+-- instance ToJSON HTTPResponse where
+--   toJSON response =
+--     Aeson.object
+--       [ "getResponseBody"    Aeson..= getResponseBody response
+--       , "getResponseCode"    Aeson..= getResponseCode response
+--       , "getResponseHeaders" Aeson..= getResponseHeaders response
+--       , "getResponseStatus"  Aeson..= getResponseStatus response
+--       , "utf8Body"           Aeson..= getMaybeUtf8 (getResponseBody response)
+--       ]
 
 data HTTPCert
   = HTTPCert
@@ -84,20 +106,28 @@ data HTTPIOException
     }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+
 -- showRequest :: HTTPRequest -> Text
 -- showRequest request
 --   = jsonSetField "getRequestBody" requestBody $ Aeson.toJSON request
 --   where
---     requestBody :: Aeson.Value
---     requestBody = maybe mempty convertBody requestBodyBS
-
---     convertBody :: LB.ByteString -> HashMap.HashMap Text Aeson.Value
---     convertBody body = case LazyText.decodeUtf8' body of
---       Left e -> mempty
---       Right body -> HashMap.singleton [ "getRequestBody" Aeson..= body ]
+--     requestBody :: ToJSON a => LB.ByteString -> a
+--     requestBody = case LazyText.decodeUtf8' requestBodyBS of
+--       -- return request body as base64-encoded text (not valid UTF-8)
+--       Left e -> getRequestBody request
+--       -- return request body as UTF-8 decoded text
+--       Right body -> body
 
 --     requestBodyBS :: Maybe LB.ByteString
 --     requestBodyBS = T.getLBinaryString <$> getRequestBody request
+
+getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
+getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
+  -- return request body as base64-encoded text (not valid UTF-8)
+  Left e -> Nothing
+  -- return request body as UTF-8 decoded text
+  Right utf8Body -> Just utf8Body
+
 
 
 --------------------------------------------------------------------------

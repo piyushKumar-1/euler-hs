@@ -1,3 +1,5 @@
+-- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module EulerHS.Core.Types.BinaryString
 ( BinaryString(..)
 , LBinaryString(..)
@@ -8,6 +10,7 @@ module EulerHS.Core.Types.BinaryString
 import           EulerHS.Prelude
 
 import qualified Control.Monad.Fail as MonadFail
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as Lazy
@@ -27,10 +30,12 @@ newtype BinaryString
     deriving (Show, Eq, Ord)
 
 instance ToJSON BinaryString where
-  toJSON = toJSON . base64Encode . getBinaryString
+  toJSON val = toJSON ((show $ getBinaryString val) :: Text)
 
 instance FromJSON BinaryString where
-  parseJSON val = pure . BinaryString =<< base64Decode =<< parseJSON val
+  parseJSON val = do
+    bs <- parseJSON val
+    pure $ BinaryString $ read bs
 
 instance Conversions.ConvertibleStrings Strict.ByteString BinaryString where
   convertString = BinaryString
@@ -54,11 +59,12 @@ newtype LBinaryString
     deriving (Show, Eq, Ord)
 
 instance ToJSON LBinaryString where
-  toJSON = toJSON . base64Encode . Lazy.toStrict . getLBinaryString
+  toJSON val = toJSON (show (getLBinaryString val) :: Text)
 
 instance FromJSON LBinaryString where
-  parseJSON val =
-    pure . LBinaryString . Lazy.fromStrict =<< base64Decode =<< parseJSON val
+  parseJSON val = do
+    lbs <- parseJSON val
+    pure $ LBinaryString $ read lbs
 
 instance Conversions.ConvertibleStrings Lazy.ByteString LBinaryString where
   convertString = LBinaryString

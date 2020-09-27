@@ -23,6 +23,8 @@ module EulerHS.Framework.Flow.Language
   , getKVDBConnection
   , runKVDB
   -- *** Logging
+  , logCallStack
+  , logExceptionCallStack
   , logInfo
   , logError
   , logDebug
@@ -68,6 +70,9 @@ import qualified EulerHS.Core.PubSub.Language as PSL
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (getOption)
 import           Servant.Client (BaseUrl, ClientError)
+import           GHC.Exception (prettyCallStackLines)
+import           Data.List.Extra (takeEnd)
+
 
 -- | Flow language.
 data FlowMethod next where
@@ -390,7 +395,7 @@ logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 -- Thread safe.
 logError :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logError tag msg = do
-  runIO L.logCallStack  -- it will be multiline, will that be a problem?
+  runIO logCallStack
   evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
@@ -718,7 +723,7 @@ class Monad m => MonadFlow m where
     -- contextual details that logError prints. As finding the message inside logError is a bit
     -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
     -- contextual details.
-    logError "Exception" $ Text.pack $ displayException ex
+    logExceptionCallStack ex
     throwExceptionWithoutCallStack ex
 
 
@@ -983,4 +988,21 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   publish channel = lift . publish channel
   subscribe channels = lift . subscribe channels
   psubscribe channels = lift . psubscribe channels
+
+-- TODO: save a builder in some state for using `hPutBuilder`?
+--
+-- Doubts:
+-- Is it the right place to put it?
+-- Should the type be more generic than IO ()?
+logCallStack :: HasCallStack => IO ()
+logCallStack = putStrLn . customPrettyCallStack 1 $ callStack
+
+customPrettyCallStack :: Int -> CallStack -> String
+customPrettyCallStack numLines stack =
+  let stackLines = prettyCallStackLines stack
+      lastNumLines = takeEnd numLines stackLines
+   in "CallStack: " ++ intercalate "; " lastNumLines
+
+logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
+logExceptionCallStack ex = logError "Exception" $ Text.pack $ displayException ex
 

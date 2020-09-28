@@ -107,20 +107,6 @@ data HTTPIOException
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
 
--- showRequest :: HTTPRequest -> Text
--- showRequest request
---   = jsonSetField "getRequestBody" requestBody $ Aeson.toJSON request
---   where
---     requestBody :: ToJSON a => LB.ByteString -> a
---     requestBody = case LazyText.decodeUtf8' requestBodyBS of
---       -- return request body as base64-encoded text (not valid UTF-8)
---       Left e -> getRequestBody request
---       -- return request body as UTF-8 decoded text
---       Right body -> body
-
---     requestBodyBS :: Maybe LB.ByteString
---     requestBodyBS = T.getLBinaryString <$> getRequestBody request
-
 getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
 getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
   -- return request body as base64-encoded text (not valid UTF-8)

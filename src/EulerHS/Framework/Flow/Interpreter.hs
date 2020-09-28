@@ -8,6 +8,7 @@ module EulerHS.Framework.Flow.Interpreter
     runFlow
   ) where
 
+import qualified Data.Aeson as Aeson
 import           Control.Exception (IOException, throwIO)
 import qualified Control.Exception as Exception
 import qualified Data.ByteString as Strict
@@ -193,37 +194,58 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
             Nothing       -> Right _defaultHttpClientManager
             Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
       case mbClientMngr of
-        Right mngr -> catchAny
-         (S.runClientM (T.runEulerClient dbgLogger bUrl clientAct) (S.mkClientEnv mngr bUrl))
-         (pure . Left . S.ConnectionError)
-        Left name ->
-          pure $ Left
-               $ S.ConnectionError $ toException $ T.HttpManagerNotFound name
+        Right mngr -> do 
+          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) (S.mkClientEnv mngr bUrl)
+          case eitherResult of
+            Left err -> do
+              dbgLogger T.Error $ show err
+              pure $ Left $ S.ConnectionError $ toException err
+            Right response ->
+              pure $ Right response
+        Left name -> do
+          let err = S.ConnectionError $ toException $ T.HttpManagerNotFound name
+          dbgLogger T.Error (show err)
+          pure $ Left err
   where
-    dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-              . L.logMessage' T.Debug ("CallServantAPI impl" :: String)
-              . show
+    dbgLogger debugLevel =
+      R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+        . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
+        . show
 
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
       httpLibRequest <- getHttpLibRequest request
       _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
+      -- TODO: Refactor
       case _manager of
         Left err -> do
-          dbgLogger (T.getRequestURL request)
-          pure $ Left $ ("Certificate failure: " <> Text.pack err)
+          let errMsg = "Certificate failure: " <> Text.pack err
+          logJsonError errMsg request
+          pure $ Left errMsg
         Right manager -> do
           eResponse <- try $ HTTP.httpLbs httpLibRequest manager
           case eResponse of
-            Left (err :: IOException) -> do
-              dbgLogger (T.getRequestURL request)
-              pure $ Left $ Text.pack $ displayException err
-            Right response ->
-              pure $ translateHttpResponse response
+            Left (err :: SomeException) -> do
+              let errMsg = Text.pack $ displayException err
+              logJsonError errMsg request
+              pure $ Left errMsg
+            Right httpResponse -> do
+              case translateHttpResponse httpResponse of
+                Left errMsg -> do
+                  logJsonError errMsg request
+                  pure $ Left errMsg
+                Right response -> do
+                  logJson T.Debug $ T.HTTPRequestResponse request response
+                  pure $ Right response
   where
-    dbgLogger = R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
-              . L.logMessage' T.Debug ("CallHttpAPI failure" :: String)
-              . show
+    logJsonError :: Text -> T.HTTPRequest -> IO ()
+    logJsonError err = logJson T.Error . T.HTTPIOException err
+
+    logJson :: ToJSON a => T.LogLevel -> a -> IO ()
+    logJson debugLevel =
+      R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+        . L.logMessage' debugLevel ("callHTTP failure" :: String)
+        . encodeJSON
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   fmap next $

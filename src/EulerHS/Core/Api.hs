@@ -22,18 +22,10 @@ client api = SCC.clientIn api $ Proxy @EulerClient
 interpretClientF :: (String -> IO()) -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
 interpretClientF _   _    (SCF.Throw e)             = throwM e
 interpretClientF log bUrl (SCF.RunRequest req next) = do
-    res <- SCC.runRequest req
-
     liftIO . log $ show (SCIHC.requestToClientRequest bUrl req)
+    res <- SCC.runRequest req
     liftIO . log $ show (res)
-
     pure $ next res
 
 runEulerClient :: (String -> IO()) -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
 runEulerClient log bUrl (EulerClient f) = foldFree (interpretClientF log bUrl) f
-
-
-
-
-
-

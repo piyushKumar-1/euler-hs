@@ -1,8 +1,16 @@
 {-# OPTIONS -fno-warn-orphans #-}
 
 module EulerHS.Prelude
+  -- TODO: This entire export lists needs to be explicit
   ( module X
   , liftFC
+  , catchAny
+  -- JSON
+  , stripLensPrefixOptions
+  , stripAllLensPrefixOptions
+  , jsonSetField
+  , encodeJSON
+  , decodeJSON
   ) where
 
 import           Control.Concurrent as X (ThreadId, forkIO, killThread,
@@ -39,11 +47,13 @@ import           Text.Read as X (read, readsPrec)
 
 -- includes Data.IORef
 import           Universum as X hiding (All, Option, Set, Type, head, init,
-                                 last, set, tail, trace)
+                                 last, set, tail, trace, catchAny)
+import           Universum (catchAny)
 import           Universum.Functor.Fmap as X ((<<$>>))
 import           Universum.Unsafe as X (head, init, last, tail, (!!))
 
-import           EulerHS.Extra.Aeson as X
+import           EulerHS.Extra.Aeson (
+  stripLensPrefixOptions, stripAllLensPrefixOptions, jsonSetField, encodeJSON, decodeJSON)
 
 import qualified Control.Monad.Free.Church as CF
 import qualified Control.Monad.Free.Class as MF

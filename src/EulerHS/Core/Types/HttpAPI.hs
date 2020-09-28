@@ -8,6 +8,8 @@ module EulerHS.Core.Types.HttpAPI
     , HTTPResponse(..)
     , HTTPMethod(..)
     , HTTPCert(..)
+    , HTTPRequestResponse(HTTPRequestResponse)
+    , HTTPIOException(HTTPIOException)
     , httpGet
     , httpPut
     , httpPost
@@ -15,11 +17,16 @@ module EulerHS.Core.Types.HttpAPI
     , httpHead
     ) where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding ((.=))
 
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Lazy as LazyText
+import qualified Data.Text.Lazy.Encoding as LazyText
 
 import qualified EulerHS.Core.Types.BinaryString as T
 
@@ -34,6 +41,18 @@ data HTTPRequest
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
+-- instance ToJSON HTTPRequest where
+--   toJSON request =
+--     Aeson.object
+--       [ "getRequestMethod"    Aeson..= getRequestMethod request
+--       , "getRequestHeaders"   Aeson..= getRequestHeaders request
+--       , "getRequestBody"      Aeson..= getRequestBody request
+--       , "getRequestURL"       Aeson..= getRequestURL request
+--       , "getRequestTimeout"   Aeson..= getRequestTimeout request
+--       , "getRequestRedirects" Aeson..= getRequestRedirects request
+--       , "utf8Body"            Aeson..= (getMaybeUtf8 <$> getRequestBody request)
+--       ]
+
 data HTTPResponse
   = HTTPResponse
     { getResponseBody    :: T.LBinaryString
@@ -42,6 +61,16 @@ data HTTPResponse
     , getResponseStatus  :: Text.Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- instance ToJSON HTTPResponse where
+--   toJSON response =
+--     Aeson.object
+--       [ "getResponseBody"    Aeson..= getResponseBody response
+--       , "getResponseCode"    Aeson..= getResponseCode response
+--       , "getResponseHeaders" Aeson..= getResponseHeaders response
+--       , "getResponseStatus"  Aeson..= getResponseStatus response
+--       , "utf8Body"           Aeson..= getMaybeUtf8 (getResponseBody response)
+--       ]
 
 data HTTPCert
   = HTTPCert
@@ -61,6 +90,31 @@ data HTTPMethod
 
 type HeaderName = Text.Text
 type HeaderValue = Text.Text
+
+data HTTPRequestResponse
+  = HTTPRequestResponse
+    { request  :: HTTPRequest
+    , response :: HTTPResponse
+    }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+-- | Used when some IO (or other) exception ocurred during a request
+data HTTPIOException
+  = HTTPIOException
+    { errorMessage :: Text
+    , request      :: HTTPRequest
+    }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
+getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
+  -- return request body as base64-encoded text (not valid UTF-8)
+  Left e -> Nothing
+  -- return request body as UTF-8 decoded text
+  Right utf8Body -> Just utf8Body
+
+
 
 --------------------------------------------------------------------------
 -- Convenience functions

@@ -393,7 +393,7 @@ logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 -- Thread safe.
 logError :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logError tag msg = do
-  runIO logCallStack
+  logCallStack
   evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
@@ -417,7 +417,7 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   content <- runIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runIO :: (HasCallStack, MonadFlow m, T.JSONEx a, HasCallStack) => IO a -> m a
+runIO :: (HasCallStack, MonadFlow m, T.JSONEx a) => IO a -> m a
 runIO = runIO' ""
 
 -- | The same as runIO, but do not record IO outputs in the ART recordings.
@@ -992,8 +992,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
 -- Doubts:
 -- Is it the right place to put it?
 -- Should the type be more generic than IO ()?
-logCallStack :: HasCallStack => IO ()
-logCallStack = putStrLn . prettyCallStack $ callStack
+logCallStack :: (HasCallStack, MonadFlow m) => m ()
+logCallStack = logDebug  "CALLSTACK" $ Text.pack $ prettyCallStack callStack
 
 -- customPrettyCallStack :: Int -> CallStack -> String
 -- customPrettyCallStack numLines stack =
@@ -1002,5 +1002,5 @@ logCallStack = putStrLn . prettyCallStack $ callStack
 --    in "CallStack: " ++ intercalate "; " lastNumLines
 
 logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
-logExceptionCallStack ex = logError "Exception" $ Text.pack $ displayException ex
+logExceptionCallStack ex = logError "EXCEPTION" $ Text.pack $ displayException ex
 

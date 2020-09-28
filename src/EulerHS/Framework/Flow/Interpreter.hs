@@ -595,7 +595,8 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
 
       wrapException :: HasCallStack => SomeException -> IO T.DBError
       wrapException exception = do
-        L.logCallStack
+        R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+               . L.logMessage' T.Debug ("CALLSTACK" :: String) $ Text.pack $ prettyCallStack callStack
         pure (wrapException' exception)
 
       wrapException' :: SomeException -> T.DBError

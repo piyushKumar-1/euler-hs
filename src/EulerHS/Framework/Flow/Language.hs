@@ -23,6 +23,8 @@ module EulerHS.Framework.Flow.Language
   , getKVDBConnection
   , runKVDB
   -- *** Logging
+  , logCallStack
+  , logExceptionCallStack
   , logInfo
   , logError
   , logDebug
@@ -49,6 +51,7 @@ module EulerHS.Framework.Flow.Language
   , forkFlow'
   , await
   , throwException
+  , throwExceptionWithoutCallStack
   , runSafeFlow
 
   -- *** PublishSubscribe
@@ -68,10 +71,11 @@ import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (getOption)
 import           Servant.Client (BaseUrl, ClientError)
 
+
 -- | Flow language.
 data FlowMethod next where
   CallServantAPI
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => Maybe T.ManagerSelector
     -> BaseUrl
     -> T.EulerClient a
@@ -79,58 +83,64 @@ data FlowMethod next where
     -> FlowMethod next
 
   CallHTTP
-    :: T.HTTPRequest
+    :: HasCallStack
+    => T.HTTPRequest
     -> Maybe T.HTTPCert
     -> (Either Text T.HTTPResponse -> next)
     -> FlowMethod next
 
   EvalLogger
-    :: Logger a
+    :: HasCallStack
+    => Logger a
     -> (a -> next)
     -> FlowMethod next
 
   RunIO
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => Text
     -> IO a
     -> (a -> next)
     -> FlowMethod next
 
   RunUntracedIO
-    :: Text
+    :: HasCallStack
+    => Text
     -> IO a
     -> (a -> next)
     -> FlowMethod next
 
   GetOption
-    :: (ToJSON a, FromJSON a)
+    :: (HasCallStack, ToJSON a, FromJSON a)
     => T.KVDBKey
     -> (Maybe a -> next)
     -> FlowMethod next
 
   SetOption
-    :: (ToJSON a, FromJSON a)
+    :: (HasCallStack, ToJSON a, FromJSON a)
     => T.KVDBKey
     -> a
     -> (() -> next)
     -> FlowMethod next
 
   DelOption
-    :: T.KVDBKey
+    :: HasCallStack
+    => T.KVDBKey
     -> (() -> next)
     -> FlowMethod next
 
   GenerateGUID
-    :: (Text -> next)
+    ::  HasCallStack
+    => (Text -> next)
     -> FlowMethod next
 
   RunSysCmd
-    :: String
+    :: HasCallStack
+    => String
     -> (String -> next)
     -> FlowMethod next
 
   Fork
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => T.Description
     -> T.ForkGUID
     -> Flow a
@@ -138,7 +148,7 @@ data FlowMethod next where
     -> FlowMethod next
 
   Await
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> (Either T.AwaitingError a -> next)
@@ -146,13 +156,13 @@ data FlowMethod next where
 
   ThrowException
     :: forall a e next
-     . Exception e
+     . (HasCallStack, Exception e)
     => e
     -> (a -> next)
     -> FlowMethod next
 
   RunSafeFlow
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => T.SafeFlowGUID
     -> Flow a
     -> (Either Text a -> next)
@@ -161,37 +171,43 @@ data FlowMethod next where
   -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
 
   InitSqlDBConnection
-    :: T.DBConfig beM
+    :: HasCallStack
+    => T.DBConfig beM
     -> (T.DBResult (T.SqlConn beM) -> next)
     -> FlowMethod next
 
   DeInitSqlDBConnection
-    :: T.SqlConn beM
+    :: HasCallStack
+    => T.SqlConn beM
     -> (() -> next)
     -> FlowMethod next
 
   GetSqlDBConnection
-    :: T.DBConfig beM
+    :: HasCallStack
+    => T.DBConfig beM
     -> (T.DBResult (T.SqlConn beM) -> next)
     -> FlowMethod next
 
   InitKVDBConnection
-    :: T.KVDBConfig
+    :: HasCallStack
+    => T.KVDBConfig
     -> (T.KVDBAnswer T.KVDBConn -> next)
     -> FlowMethod next
 
   DeInitKVDBConnection
-    :: T.KVDBConn
+    :: HasCallStack
+    => T.KVDBConn
     -> (() -> next)
     -> FlowMethod next
 
   GetKVDBConnection
-    :: T.KVDBConfig
+    :: HasCallStack
+    => T.KVDBConfig
     -> (T.KVDBAnswer T.KVDBConn -> next)
     -> FlowMethod next
 
   RunDB
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => T.SqlConn beM
     -> L.SqlDB beM a
     -> Bool
@@ -199,13 +215,15 @@ data FlowMethod next where
     -> FlowMethod next
 
   RunKVDB
-    :: Text
+    :: HasCallStack
+    => Text
     -> KVDB a
     -> (T.KVDBAnswer a -> next)
     -> FlowMethod next
 
   RunPubSub
-    :: PubSub a
+    :: HasCallStack
+    => PubSub a
     -> (a -> next)
     -> FlowMethod next
 
@@ -260,7 +278,7 @@ type Flow = F FlowMethod
 
 type ReaderFlow r = ReaderT r Flow
 
-newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
+newtype PubSub a = PubSub { unpackLanguagePubSub :: HasCallStack => (forall b . Flow b -> IO b) -> PSL.PubSub a }
 
 type MessageCallback
     =  ByteString  -- ^ Message payload
@@ -277,7 +295,7 @@ type PMessageCallback
 -- | Fork a unit-returning flow.
 --
 -- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
--- 
+--
 -- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
 -- All the rules applied to forked threads in Haskell can be applied to forked flows.
 --
@@ -295,7 +313,7 @@ type PMessageCallback
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: T.Description -> Flow () -> Flow ()
+forkFlow :: HasCallStack => T.Description -> Flow () -> Flow ()
 forkFlow description flow = void $ forkFlow' description $ do
   eitherResult <- runSafeFlow flow
   case eitherResult of
@@ -313,14 +331,14 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
-forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
+forkFlow' :: (HasCallStack, FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
     flowGUID <- generateGUID
     unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
     when   (null description) $ logInfo tag $ "Flow forked. GUID: " <> flowGUID
     liftFC $ Fork description flowGUID flow id
     where
-      tag :: Text
+      tag :: HasCallStack => Text
       tag = "ForkFlow"
 
 
@@ -344,11 +362,11 @@ forkFlow' description flow = do
 -- > type API = "user" :> Get '[JSON] User
 -- >       :<|> "book" :> Get '[JSON] Book
 -- >
--- > api :: Proxy API
+-- > api :: HasCallStack => Proxy API
 -- > api = Proxy
 -- >
--- > getUser :: EulerClient User
--- > getBook :: EulerClient Book
+-- > getUser :: HasCallStack => EulerClient User
+-- > getBook :: HasCallStack => EulerClient Book
 -- > (getUser :<|> getBook) = client api
 -- >
 -- > url = BaseUrl Http "localhost" port ""
@@ -357,35 +375,37 @@ forkFlow' description flow = do
 -- > myFlow = do
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
-callAPI' :: (T.JSONEx a, MonadFlow m) => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
+callAPI' :: (HasCallStack, T.JSONEx a, MonadFlow m) => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI' = callServantAPI
 
 -- | The same as `callAPI'` but with default manager to be used.
-callAPI :: (T.JSONEx a, MonadFlow m) => BaseUrl -> T.EulerClient a -> m (Either ClientError a)
+callAPI :: (HasCallStack, T.JSONEx a, MonadFlow m) => BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI = callServantAPI Nothing
 
 -- | Log message with Info level.
 --
 -- Thread safe
-logInfo :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logInfo :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
 -- | Log message with Error level.
 --
 -- Thread safe.
-logError :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
-logError tag msg = evalLogger' $ logMessage' T.Error tag msg
+logError :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logError tag msg = do
+  logCallStack
+  evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
 --
 -- Thread safe.
-logDebug :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logDebug :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 
 -- | Log message with Warning level.
 --
 -- Thread safe.
-logWarning :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logWarning :: forall tag m . (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
@@ -397,7 +417,7 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   content <- runIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runIO :: (MonadFlow m, T.JSONEx a) => IO a -> m a
+runIO :: (HasCallStack, MonadFlow m, T.JSONEx a) => IO a -> m a
 runIO = runIO' ""
 
 -- | The same as runIO, but do not record IO outputs in the ART recordings.
@@ -410,7 +430,7 @@ runIO = runIO' ""
 -- >   content <- runUntracedIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runUntracedIO :: MonadFlow m => IO a -> m a
+runUntracedIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runUntracedIO = runUntracedIO' ""
 
 -- | The same as callHTTPWithCert but does not need certificate data.
@@ -421,7 +441,7 @@ runUntracedIO = runUntracedIO' ""
 --
 -- > myFlow = do
 -- >   book <- callHTTP url
-callHTTP :: MonadFlow m => T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
+callHTTP :: (HasCallStack, MonadFlow m) => T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
 callHTTP url = callHTTPWithCert url Nothing
 
 
@@ -450,11 +470,11 @@ class Monad m => MonadFlow m where
   -- > type API = "user" :> Get '[JSON] User
   -- >       :<|> "book" :> Get '[JSON] Book
   -- >
-  -- > api :: Proxy API
+  -- > api :: HasCallStack => Proxy API
   -- > api = Proxy
   -- >
-  -- > getUser :: EulerClient User
-  -- > getBook :: EulerClient Book
+  -- > getUser :: HasCallStack => EulerClient User
+  -- > getBook :: HasCallStack => EulerClient Book
   -- > (getUser :<|> getBook) = client api
   -- >
   -- > url = BaseUrl Http "localhost" port ""
@@ -464,7 +484,7 @@ class Monad m => MonadFlow m where
   -- >   book <- callServantAPI url getBook
   -- >   user <- callServantAPI url getUser
   callServantAPI
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => Maybe T.ManagerSelector     -- ^ name of the connection manager to be used
     -> BaseUrl                     -- ^ remote url 'BaseUrl'
     -> T.EulerClient a             -- ^ servant client 'EulerClient'
@@ -479,12 +499,13 @@ class Monad m => MonadFlow m where
   -- > myFlow = do
   -- >   book <- callHTTPWithCert url cert
   callHTTPWithCert
-    :: T.HTTPRequest                        -- ^ remote url 'Text'
+    :: HasCallStack
+    => T.HTTPRequest                        -- ^ remote url 'Text'
     -> Maybe T.HTTPCert                     -- ^ TLS certificate data
     -> m (Either Text.Text T.HTTPResponse)  -- ^ result
 
   -- | Evaluates a logging action.
-  evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> m a
+  evalLogger' :: (HasCallStack, ToJSON a, FromJSON a) => Logger a -> m a
 
   -- | The same as runIO, but accepts a description which will be written into the ART recordings
   -- for better clarity.
@@ -495,7 +516,7 @@ class Monad m => MonadFlow m where
   -- >   content <- runIO' "reading from file" $ readFromFile file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runIO' :: T.JSONEx a => Text -> IO a -> m a
+  runIO' :: (HasCallStack, T.JSONEx a) => Text -> IO a -> m a
 
   -- | The same as runUntracedIO, but accepts a description which will be written into
   -- the ART recordings for better clarity.
@@ -506,12 +527,12 @@ class Monad m => MonadFlow m where
   -- >   content <- runUntracedIO' "reading secret data" $ readFromFile secret_file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runUntracedIO' :: Text -> IO a -> m a
+  runUntracedIO' :: HasCallStack => Text -> IO a -> m a
 
   -- | Gets stored a typed option by a typed key.
   --
   -- Thread safe, exception free.
-  getOption :: forall k v. T.OptionEntity k v => k -> m (Maybe v)
+  getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m (Maybe v)
 
   -- Sets a typed option using a typed key (a mutable destructive operation)
   --
@@ -532,19 +553,19 @@ class Monad m => MonadFlow m where
   -- >    mKey <- getOption MerchantIdKey
   -- >    runIO $ putTextLn mKey
   -- >    delOption MerchantIdKey
-  setOption :: forall k v. T.OptionEntity k v => k -> v -> m ()
+  setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> m ()
 
   -- Deletes a typed option using a typed key.
   --
 
-  delOption :: forall k v. T.OptionEntity k v => k -> m ()
+  delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m ()
 
 
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
   --
   -- Thread safe, exception free.
-  generateGUID :: m Text
+  generateGUID :: HasCallStack => m Text
 
   -- | Runs system command and returns its output.
   --
@@ -554,7 +575,7 @@ class Monad m => MonadFlow m where
   -- >   currentDir <- runSysCmd "pwd"
   -- >   logInfoT "currentDir" $ toText currentDir
   -- >   ...
-  runSysCmd :: String -> m String
+  runSysCmd :: HasCallStack => String -> m String
 
   -- | Inits an SQL connection using a config.
   --
@@ -562,13 +583,13 @@ class Monad m => MonadFlow m where
   -- if the connection already exists for this config.
   --
   -- Thread safe, exception free.
-  initSqlDBConnection :: T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
+  initSqlDBConnection :: HasCallStack => T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
 
   -- | Deinits an SQL connection.
   -- Does nothing if the connection is not found (might have been closed earlier).
   --
   -- Thread safe, exception free.
-  deinitSqlDBConnection :: T.SqlConn beM -> m ()
+  deinitSqlDBConnection :: HasCallStack => T.SqlConn beM -> m ()
 
   -- | Gets the existing connection.
   --
@@ -576,7 +597,7 @@ class Monad m => MonadFlow m where
   -- if the connection does not exist.
   --
   -- Thread safe, exception free.
-  getSqlDBConnection ::T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
+  getSqlDBConnection :: HasCallStack => T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
 
   -- | Inits a KV DB connection using a config.
   --
@@ -584,13 +605,13 @@ class Monad m => MonadFlow m where
   -- if the connection already exists.
   --
   -- Thread safe, exception free.
-  initKVDBConnection :: T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
+  initKVDBConnection :: HasCallStack => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
 
   -- | Deinits the given KV DB connection.
   -- Does nothing if the connection is not found (might have been closed earlier).
   --
   -- Thread safe, exception free.
-  deinitKVDBConnection :: T.KVDBConn  -> m ()
+  deinitKVDBConnection :: HasCallStack => T.KVDBConn  -> m ()
 
   -- | Get the existing connection.
 
@@ -598,7 +619,7 @@ class Monad m => MonadFlow m where
   -- if the connection does not exits for this config.
   --
   -- Thread safe, exception free.
-  getKVDBConnection :: T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
+  getKVDBConnection :: HasCallStack => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
 
   -- | Evaluates SQL DB operations outside of any transaction.
   -- It's possible to have a chain of SQL DB calls (within the SqlDB language).
@@ -609,7 +630,7 @@ class Monad m => MonadFlow m where
   -- The underlying library is beam which allows to access 3 different SQL backends.
   -- See TUTORIAL.md, README.md and QueryExamplesSpec.hs for more info.
   --
-  -- > myFlow :: L.Flow (T.DBResult (Maybe User))
+  -- > myFlow :: HasCallStack => L.Flow (T.DBResult (Maybe User))
   -- > myFlow = do
   -- >   connection <- L.initSqlDBConnection postgresCfg
   -- >
@@ -635,7 +656,8 @@ class Monad m => MonadFlow m where
   -- >   pure res
   runDB
     ::
-      ( T.JSONEx a
+      ( HasCallStack
+      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -646,7 +668,8 @@ class Monad m => MonadFlow m where
   -- | Like `runDB` but runs inside a SQL transaction.
   runTransaction
     ::
-      ( T.JSONEx a
+      ( HasCallStack
+      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -676,7 +699,7 @@ class Monad m => MonadFlow m where
   -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
   -- >   await Nothing awaitable
   await
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> m (Either T.AwaitingError a)
@@ -692,7 +715,17 @@ class Monad m => MonadFlow m where
   -- >   case res of
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
-  throwException :: forall a e. Exception e => e -> m a
+  throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
+  throwException ex = do
+    -- Doubt: Should we just print the exception details without the
+    -- contextual details that logError prints. As finding the message inside logError is a bit
+    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
+    -- contextual details.
+    logExceptionCallStack ex
+    throwExceptionWithoutCallStack ex
+
+
+  throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
 
   -- | Run a flow safely with catching all the exceptions from it.
   -- Returns either a result or the exception turned into a text message.
@@ -709,7 +742,7 @@ class Monad m => MonadFlow m where
   -- >   case eitherContent of
   -- >     Left err -> ...
   -- >     Right content -> ...
-  runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
+  runSafeFlow :: (HasCallStack, FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
 
   -- | Execute kvdb actions.
   --
@@ -722,19 +755,22 @@ class Monad m => MonadFlow m where
   -- >     del ["aaa"]
   -- >     pure res
   runKVDB
-    :: Text
+    :: HasCallStack
+    => Text
     -> KVDB a -- ^ KVDB action
     -> m (T.KVDBAnswer a)
 
   ---- Experimental Pub Sub implementation using Redis Pub Sub.
 
   runPubSub
-    :: PubSub a
+    :: HasCallStack
+    => PubSub a
     -> m a
 
   -- | Publish payload to channel.
   publish
-    :: PSL.Channel                        -- ^ Channel in which payload will be send
+    :: HasCallStack
+    => PSL.Channel                        -- ^ Channel in which payload will be send
     -> PSL.Payload                        -- ^ Payload
     -> m (Either T.KVDBReply Integer)  -- ^ Number of subscribers received payload
 
@@ -742,7 +778,8 @@ class Monad m => MonadFlow m where
   -- Note: Subscription won't be unsubscribed automatically on thread end.
   -- Use canceller explicitly to cancel subscription
   subscribe
-    :: [PSL.Channel]    -- ^ List of channels to subscribe
+    :: HasCallStack
+    => [PSL.Channel]    -- ^ List of channels to subscribe
     -> MessageCallback  -- ^ Callback function.
     -> m (Flow ())   -- ^ Inner flow is a canceller of current subscription
 
@@ -750,7 +787,8 @@ class Monad m => MonadFlow m where
   -- Note: Subscription won't be unsubscribed automatically on thread end.
   -- Use canceller explicitly to cancel subscription
   psubscribe
-    :: [PSL.ChannelPattern] -- ^ List of channels to subscribe (wit respect to patterns supported by redis)
+    :: HasCallStack
+    => [PSL.ChannelPattern] -- ^ List of channels to subscribe (wit respect to patterns supported by redis)
     -> PMessageCallback     -- ^ Callback function
     -> m (Flow ())       -- ^ Inner flow is a canceller of current subscription
 
@@ -763,13 +801,13 @@ instance MonadFlow Flow where
   runIO' descr ioAct = liftFC $ RunIO descr ioAct id
   runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
 
-  getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
+  getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow (Maybe v)
   getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
 
-  setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
+  setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
 
-  delOption :: forall k v. T.OptionEntity k v => k -> Flow ()
+  delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (T.mkOptionKey @k @v k) id
 
   generateGUID = liftFC $ GenerateGUID id
@@ -788,7 +826,8 @@ instance MonadFlow Flow where
   runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
 
   await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
-  throwException ex = liftFC $ ThrowException ex id
+
+  throwExceptionWithoutCallStack ex = liftFC $ ThrowException ex id
 
   runSafeFlow flow = do
     safeFlowGUID <- generateGUID
@@ -828,7 +867,7 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -856,7 +895,7 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -884,7 +923,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -912,7 +951,7 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
@@ -940,11 +979,28 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   runDB conn = lift . runDB conn
   runTransaction conn = lift . runTransaction conn
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  throwExceptionWithoutCallStack =  lift . throwExceptionWithoutCallStack
   runSafeFlow = lift . runSafeFlow
   runKVDB cName = lift . runKVDB cName
   runPubSub = lift . runPubSub
   publish channel = lift . publish channel
   subscribe channels = lift . subscribe channels
   psubscribe channels = lift . psubscribe channels
+
+-- TODO: save a builder in some state for using `hPutBuilder`?
+--
+-- Doubts:
+-- Is it the right place to put it?
+-- Should the type be more generic than IO ()?
+logCallStack :: (HasCallStack, MonadFlow m) => m ()
+logCallStack = logDebug  "CALLSTACK" $ Text.pack $ prettyCallStack callStack
+
+-- customPrettyCallStack :: Int -> CallStack -> String
+-- customPrettyCallStack numLines stack =
+--   let stackLines = prettyCallStackLines stack
+--       lastNumLines = takeEnd numLines stackLines
+--    in "CallStack: " ++ intercalate "; " lastNumLines
+
+logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
+logExceptionCallStack ex = logError "EXCEPTION" $ Text.pack $ displayException ex
 

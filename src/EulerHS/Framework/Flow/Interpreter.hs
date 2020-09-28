@@ -187,7 +187,7 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod :: HasCallStack => R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
       let mbClientMngr = case mbMgrSel of
@@ -566,10 +566,13 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
         case conn of
           (T.MockedPool _) -> error "Mocked Pool not implemented"
           _ -> do
-            eRes <- fmap (first wrapException) $ R.withTransaction conn $ \nativeConn ->
+            eRes <- R.withTransaction conn $ \nativeConn ->
               R.runSqlDB nativeConn dbgLogAction sqlDbMethod
+            eRes' <- case eRes of
+                       Left exception -> Left <$> wrapException exception
+                       Right x -> pure $ Right x
             rawSql <- DL.toList <$> readTVarIO rawSqlTVar
-            pure (eRes, rawSql)
+            pure (eRes', rawSql)
       False ->
         case conn of
           (T.MockedPool _)        -> error "Mocked Pool not implemented"
@@ -583,16 +586,24 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
             eRes <- try @_ @SomeException . R.runSqlDB (T.NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
   where
-      wrapAndSend rawSqlLoc result = do
+      wrapAndSend rawSqlLoc eResult = do
         rawSql <- DL.toList <$> readTVarIO rawSqlLoc
-        let wrapped = first wrapException result
-        pure (wrapped, rawSql)
+        eResult' <- case eResult of
+          Left exception -> Left <$> wrapException exception
+          Right x -> pure $ Right x
+        pure (eResult', rawSql)
 
-      wrapException :: SomeException -> T.DBError
-      wrapException e = fromMaybe (T.DBError T.UnrecognizedError $ show e)
+      wrapException :: HasCallStack => SomeException -> IO T.DBError
+      wrapException exception = do
+        R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+               . L.logMessage' T.Debug ("CALLSTACK" :: String) $ Text.pack $ prettyCallStack callStack
+        pure (wrapException' exception)
+
+      wrapException' :: SomeException -> T.DBError
+      wrapException' e = fromMaybe (T.DBError T.UnrecognizedError $ show e)
         (T.sqliteErrorToDbError   (show e) <$> fromException e <|>
-        T.mysqlErrorToDbError    (show e) <$> fromException e <|>
-        T.postgresErrorToDbError (show e) <$> fromException e)
+          T.mysqlErrorToDbError    (show e) <$> fromException e <|>
+            T.postgresErrorToDbError (show e) <$> fromException e)
 
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB cName act next) =
@@ -609,5 +620,5 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnec
       (L.unpackLanguagePubSub act $ runFlow $ rt { R._runMode = T.RegularMode })
 
 
-runFlow :: R.FlowRuntime -> L.Flow a -> IO a
+runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt = foldF (interpretFlowMethod flowRt)

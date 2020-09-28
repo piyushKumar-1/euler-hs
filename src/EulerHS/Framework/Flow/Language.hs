@@ -70,8 +70,6 @@ import qualified EulerHS.Core.PubSub.Language as PSL
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (getOption)
 import           Servant.Client (BaseUrl, ClientError)
-import           GHC.Exception (prettyCallStackLines)
-import           Data.List.Extra (takeEnd)
 
 
 -- | Flow language.
@@ -995,13 +993,13 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
 -- Is it the right place to put it?
 -- Should the type be more generic than IO ()?
 logCallStack :: HasCallStack => IO ()
-logCallStack = putStrLn . customPrettyCallStack 1 $ callStack
+logCallStack = putStrLn . prettyCallStack $ callStack
 
-customPrettyCallStack :: Int -> CallStack -> String
-customPrettyCallStack numLines stack =
-  let stackLines = prettyCallStackLines stack
-      lastNumLines = takeEnd numLines stackLines
-   in "CallStack: " ++ intercalate "; " lastNumLines
+-- customPrettyCallStack :: Int -> CallStack -> String
+-- customPrettyCallStack numLines stack =
+--   let stackLines = prettyCallStackLines stack
+--       lastNumLines = takeEnd numLines stackLines
+--    in "CallStack: " ++ intercalate "; " lastNumLines
 
 logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
 logExceptionCallStack ex = logError "Exception" $ Text.pack $ displayException ex

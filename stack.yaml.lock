@@ -21,11 +21,11 @@ packages:
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
       size: 2683
-      sha256: 5803db256889d040e2f4925c02658d55ceaf86de6adb4855df0d55841cf77c44
-    commit: 838ad4b500aeb6a3c748743e500af409c844433f
+      sha256: dba55e2762aa5936396dde9c3786db63afacae1bf286f03f7b08dc6165dcd15a
+    commit: a924ac3094672ab6d3772838b3e89c2734331c30
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: 838ad4b500aeb6a3c748743e500af409c844433f
+    commit: a924ac3094672ab6d3772838b3e89c2734331c30
 - completed:
     name: mysql-haskell
     version: 0.8.4.2

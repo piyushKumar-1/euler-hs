@@ -138,7 +138,7 @@ library
     , postgresql-simple
     , process
     , resource-pool
-    , sequelize
+    , sequelize               ^>=1.1.0.0
     , servant-client
     , servant-client-core
     , sqlite-simple

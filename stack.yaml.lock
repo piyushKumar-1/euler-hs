@@ -21,11 +21,11 @@ packages:
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
       size: 2683
-      sha256: dba55e2762aa5936396dde9c3786db63afacae1bf286f03f7b08dc6165dcd15a
-    commit: a924ac3094672ab6d3772838b3e89c2734331c30
+      sha256: 04a54665c45bdb7b3e8ad4e94908d4e90231831deee1127c22b3c1d36d4b74f0
+    commit: c1fe205aa411d9d73cbc2037710399649a2f5c77
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: a924ac3094672ab6d3772838b3e89c2734331c30
+    commit: c1fe205aa411d9d73cbc2037710399649a2f5c77
 - completed:
     name: mysql-haskell
     version: 0.8.4.2
@@ -182,16 +182,12 @@ packages:
   original:
     hackage: mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
 - completed:
-    name: record-dot-preprocessor
-    version: 0.2.6
-    git: git@bitbucket.org:juspay/record-dot-preprocessor.git
+    hackage: record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
     pantry-tree:
-      size: 1570
-      sha256: 9f77c495f56a153cdfa0c3453bae0e0ec2734909b91af9679b937d5b70a4fd5e
-    commit: 7d19ba38a05016ee55eb8dacd868a95ff0c27846
+      size: 1003
+      sha256: 8e86a73101e570ce238522f45ffb906811116c752d1f08418a2abd078697488e
   original:
-    git: git@bitbucket.org:juspay/record-dot-preprocessor.git
-    commit: 7d19ba38a05016ee55eb8dacd868a95ff0c27846
+    hackage: record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
 snapshots:
 - completed:
     size: 496112

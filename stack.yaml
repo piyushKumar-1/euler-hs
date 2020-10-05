@@ -8,7 +8,7 @@ extra-deps:
   - git: https://github.com/juspay/hedis
     commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql
-    commit: a924ac3094672ab6d3772838b3e89c2734331c30
+    commit: c1fe205aa411d9d73cbc2037710399649a2f5c77 
   - git: https://github.com/juspay/mysql-haskell
     commit: 788022d65538db422b02ecc0be138b862d2e5cee
   - git: https://github.com/juspay/bytestring-lexing
@@ -36,9 +36,7 @@ extra-deps:
   - tcp-streams-1.0.1.1@sha256:35e9ecfa515797052f8c3c01834d2daebd5e93f3152c7fc98b32652bf6f0c052,2329
   - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
   - mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
-  - git: git@bitbucket.org:juspay/record-dot-preprocessor.git
-    commit: 7d19ba38a05016ee55eb8dacd868a95ff0c27846
- 
+  - record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440 
 # MySQL
 # MacOS:
 # Problem: MacOS build failure

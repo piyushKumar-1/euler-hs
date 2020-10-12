@@ -160,12 +160,12 @@ defaultRequest method url = HTTPRequest method Map.empty Nothing url Nothing Not
 --  > httpGet "https://google.com"
 --  >   & withHeader "Content-Type" "application/json"
 --
-withHeader :: Text -> Text -> HTTPRequest -> HTTPRequest
+withHeader :: HeaderName -> HeaderValue -> HTTPRequest -> HTTPRequest
 withHeader headerName headerValue (request@HTTPRequest {getRequestHeaders}) =
   let headers = Map.insert headerName headerValue getRequestHeaders
   in  request { getRequestHeaders = headers }
 
-withOptionalHeader :: Text -> Maybe Text -> HTTPRequest -> HTTPRequest
+withOptionalHeader :: HeaderName -> Maybe HeaderValue -> HTTPRequest -> HTTPRequest
 withOptionalHeader headerName (Just headerValue) = withHeader headerName headerValue
 withOptionalHeader _ Nothing = id
 

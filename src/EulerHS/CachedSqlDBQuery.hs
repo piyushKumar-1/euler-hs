@@ -188,7 +188,9 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
         ! #where_ whereClause
   res <- runQuery dbConf updateQuery
   case res of
-    Right x -> return $ Right x
+    Right x -> do
+      L.logDebug @Text "updateOneSqlWoReturning" "query executed"
+      return $ Right x
    -- Right xs -> do
    --   let message = "DB returned \"" <> show xs <> "\" after update"
    --   L.logError @Text "create" message

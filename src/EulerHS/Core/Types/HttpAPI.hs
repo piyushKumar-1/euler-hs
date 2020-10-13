@@ -15,28 +15,42 @@ module EulerHS.Core.Types.HttpAPI
     , httpPost
     , httpDelete
     , httpHead
+    , withHeader
+    , withOptionalHeader
+    , withBody
+    , withTimeout
+    , withRedirects
+    , extractBody
     ) where
 
-import           EulerHS.Prelude hiding ((.=))
-
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LazyText
-import qualified Data.Text.Lazy.Encoding as LazyText
-
+import           EulerHS.Prelude                 hiding ((.=), ord)
 import qualified EulerHS.Core.Types.BinaryString as T
+
+import qualified Data.Aeson                      as Aeson
+import qualified Data.ByteString                 as B
+import qualified Data.ByteString.Char8           as B8
+import qualified Data.ByteString.Lazy            as LB
+import           Data.ByteString.Lazy.Builder    (Builder)
+import qualified Data.ByteString.Lazy.Builder    as Builder
+import           Data.Char                       hiding (ord)
+import qualified Data.Char                       as Char
+import qualified Data.Map                        as Map
+import           Data.String.Conversions         (convertString)
+import           Data.Text                       (Text)
+import qualified Data.Text                       as Text
+import qualified Data.Text.Encoding              as Text
+import           Data.Text.Encoding              (decodeUtf8With)
+import           Data.Text.Encoding.Error        (lenientDecode)
+import qualified Data.Text.Lazy                  as LazyText
+import qualified Data.Text.Lazy.Encoding         as LazyText
 
 data HTTPRequest
   = HTTPRequest
-    { getRequestMethod  :: HTTPMethod
-    , getRequestHeaders :: Map.Map HeaderName HeaderValue
-    , getRequestBody    :: Maybe T.LBinaryString
-    , getRequestURL     :: Text.Text
-    , getRequestTimeout :: Maybe Int
+    { getRequestMethod    :: HTTPMethod
+    , getRequestHeaders   :: Map.Map HeaderName HeaderValue
+    , getRequestBody      :: Maybe T.LBinaryString
+    , getRequestURL       :: Text
+    , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
@@ -58,7 +72,7 @@ data HTTPResponse
     { getResponseBody    :: T.LBinaryString
     , getResponseCode    :: Int
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
-    , getResponseStatus  :: Text.Text
+    , getResponseStatus  :: Text
     }
     deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
@@ -88,8 +102,8 @@ data HTTPMethod
   | Head
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-type HeaderName = Text.Text
-type HeaderValue = Text.Text
+type HeaderName = Text
+type HeaderValue = Text
 
 data HTTPRequestResponse
   = HTTPRequestResponse
@@ -123,22 +137,22 @@ getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
 -- | HTTP GET request.
 --
 -- > httpGet "https://google.com"
-httpGet :: Text.Text -> HTTPRequest
+httpGet :: Text -> HTTPRequest
 httpGet = defaultRequest Get
 
-httpPut :: Text.Text -> HTTPRequest
+httpPut :: Text -> HTTPRequest
 httpPut = defaultRequest Put
 
-httpPost :: Text.Text -> HTTPRequest
+httpPost :: Text -> HTTPRequest
 httpPost = defaultRequest Post
 
-httpDelete :: Text.Text -> HTTPRequest
+httpDelete :: Text -> HTTPRequest
 httpDelete = defaultRequest Delete
 
-httpHead :: Text.Text -> HTTPRequest
+httpHead :: Text -> HTTPRequest
 httpHead = defaultRequest Head
 
-defaultRequest :: HTTPMethod -> Text.Text -> HTTPRequest
+defaultRequest :: HTTPMethod -> Text -> HTTPRequest
 defaultRequest method url = HTTPRequest method Map.empty Nothing url Nothing Nothing
 
 -- | Add a header to an HTTPRequest
@@ -146,7 +160,76 @@ defaultRequest method url = HTTPRequest method Map.empty Nothing url Nothing Not
 --  > httpGet "https://google.com"
 --  >   & withHeader "Content-Type" "application/json"
 --
-withHeader :: Text.Text -> Text.Text -> HTTPRequest -> HTTPRequest
+withHeader :: HeaderName -> HeaderValue -> HTTPRequest -> HTTPRequest
 withHeader headerName headerValue (request@HTTPRequest {getRequestHeaders}) =
   let headers = Map.insert headerName headerValue getRequestHeaders
   in  request { getRequestHeaders = headers }
+
+withOptionalHeader :: HeaderName -> Maybe HeaderValue -> HTTPRequest -> HTTPRequest
+withOptionalHeader headerName (Just headerValue) = withHeader headerName headerValue
+withOptionalHeader _ Nothing = id
+
+-- | Sets timeout, in microseconds
+withTimeout :: Int -> HTTPRequest -> HTTPRequest
+withTimeout timeout (request@HTTPRequest {getRequestTimeout}) =
+  request {getRequestTimeout = Just timeout}
+
+withRedirects :: Int -> HTTPRequest -> HTTPRequest
+withRedirects redirects (request@HTTPRequest {getRequestRedirects}) =
+  request {getRequestRedirects = Just redirects}
+
+withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
+withBody pairs (request@HTTPRequest {getRequestBody}) = request {getRequestBody = Just body}
+  where
+    body = T.LBinaryString $ formUrlEncode pairs
+
+extractBody :: HTTPResponse -> Text
+extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
+
+formUrlEncode :: [(Text, Text)] -> LB.ByteString
+formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encodePair
+  where
+    equals = Builder.word8 (ord '=')
+    amp = Builder.word8 (ord '&')
+    percent = Builder.word8 (ord '%')
+    plus = Builder.word8 (ord '+')
+
+    encodePair :: (Text, Text) -> Builder
+    encodePair (key, value) = encode key <> equals <> encode value
+
+    encode :: Text -> Builder
+    encode = escape . Text.encodeUtf8
+
+    escape :: ByteString -> Builder
+    escape = mconcat . map f . B.unpack
+      where
+        f :: Word8 -> Builder
+        f c
+          | p c = Builder.word8 c
+          | c == ord ' ' = plus
+          | otherwise = percentEncode c
+
+        p :: Word8 -> Bool
+        p c =
+             ord 'a' <= c && c <= ord 'z'
+          || c == ord '_'
+          || c == ord '*'
+          || c == ord '-'
+          || c == ord '.'
+          || ord '0' <= c && c <= ord '9'
+          || ord 'A' <= c && c <= ord 'Z'
+
+    ord :: Char -> Word8
+    ord = fromIntegral . Char.ord
+
+    percentEncode :: Word8 -> Builder
+    percentEncode n = percent <> hex hi <> hex lo
+      where
+        (hi, lo) = n `divMod` 16
+
+    hex :: Word8 -> Builder
+    hex n = Builder.word8 (offset + n)
+      where
+        offset
+          | n < 10    = 48
+          | otherwise = 55

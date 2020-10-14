@@ -1,25 +1,35 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module EulerHS.Framework.Flow.Interpreter
   (
     -- * Flow Interpreter
     runFlow
   ) where
 
-import qualified Data.Aeson as Aeson
-import           Control.Exception (IOException, throwIO)
+import           Control.Exception (throwIO)
 import qualified Control.Exception as Exception
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
-import           Data.Default (def)
 import qualified Data.DList as DL
+import           Data.Default (def)
 import           Data.Either.Extra (mapLeft)
+import           Data.Generics.Product.Positions (getPosition)
 import qualified Data.Map as Map
+import qualified Data.Pool as DP
+import           Data.Profunctor (dimap)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Encoding
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
+import qualified Data.Vector as V
+import qualified EulerHS.Core.Interpreters as R
+import qualified EulerHS.Core.Logger.Language as L
+import qualified EulerHS.Core.Playback.Entries as P
+import qualified EulerHS.Core.Playback.Machine as P
+import qualified EulerHS.Core.Runtime as R
+import qualified EulerHS.Core.Types as T
+import           EulerHS.Core.Types.KVDB
+import qualified EulerHS.Framework.Language as L
+import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.Prelude
 import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
@@ -29,26 +39,6 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
-
-import qualified Data.Pool as DP
-import qualified Database.MySQL.Base as MySQL
-import qualified EulerHS.Core.Interpreters as R
-import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Framework.Language as L
-import qualified EulerHS.Framework.Runtime as R
-
--- TODO: no explicit dependencies from languages.
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Encoding
-import qualified Data.Vector as V
-import qualified EulerHS.Core.Logger.Language as L
-import qualified EulerHS.Core.Playback.Entries as P
-import qualified EulerHS.Core.Playback.Machine as P
-
-
-import           Data.Generics.Product.Positions (getPosition)
 import           Unsafe.Coerce (unsafeCoerce)
 
 connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
@@ -89,8 +79,8 @@ awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
       | otherwise = do
           tryReadMVar mvar >>= \case
             Just (Right val) -> pure $ Right val
-            Just (Left err) -> pure $ Left $ T.ForkedFlowError err
-            Nothing  -> threadDelay portion >> go (rest - portion)
+            Just (Left err)  -> pure $ Left $ T.ForkedFlowError err
+            Nothing          -> threadDelay portion >> go (rest - portion)
 
 -- | Utility function to convert HttpApi HTTPRequests to http-client HTTP
 -- requests
@@ -187,7 +177,7 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: HasCallStack => R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
       let mbClientMngr = case mbMgrSel of
@@ -248,8 +238,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
         . encodeJSON
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
-  fmap next $
-    R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct
+  next <$> R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct
 
 interpretFlowMethod R.FlowRuntime {..} (L.RunIO descr ioAct next) =
   next <$> P.withRunMode _runMode (P.mkRunIOEntry descr) ioAct
@@ -320,7 +309,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
       void $ forkIO $ do
-        suppressErrors $ (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
+        suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalSafeRecordingVar    =<< readMVar forkSafeRecordingVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
@@ -397,11 +386,24 @@ interpretFlowMethod R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar
             Left err  -> pure $ Left $ T.ForkedFlowError err
             Right res -> pure $ Right res
         Just (T.Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
-  fmap next $ P.withRunMode _runMode (P.mkAwaitEntry mbMcs) act
+  next <$> P.withRunMode _runMode (P.mkAwaitEntry mbMcs) act
 
 interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())
   throwIO ex
+
+interpretFlowMethod rt (L.CatchException comp handler cont) =
+  cont <$> catch (runFlow rt comp) (runFlow rt . handler)
+
+-- Lack of impredicative polymorphism in GHC makes me sad. - Koz
+interpretFlowMethod rt (L.Mask cb cont) =
+  cont <$> mask (\cb' -> runFlow rt (cb (dimap (runFlow rt) (L.runUntracedIO' "Mask") cb')))
+
+interpretFlowMethod rt (L.UninterruptibleMask cb cont) =
+  cont <$> uninterruptibleMask (\cb' -> runFlow rt (cb (dimap (runFlow rt) (L.runUntracedIO' "UninterruptibleMask") cb')))
+
+interpretFlowMethod rt (L.GeneralBracket acquire release use' cont) =
+  cont <$> generalBracket (runFlow rt acquire) (\x -> runFlow rt . release x) (runFlow rt . use')
 
 interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow next) = fmap next $ do
   fl <- case R._runMode rt of
@@ -493,7 +495,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connMap <- takeMVar _sqldbConnections
-    res <- case (Map.lookup connTag connMap) of
+    res <- case Map.lookup connTag connMap of
       Just _ -> pure $ Left $ T.DBError T.ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
       Nothing -> connect cfg
     case res of
@@ -546,7 +548,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkGetKVDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connMap <- readMVar _kvdbConnections
-    pure $ case (Map.lookup connTag connMap) of
+    pure $ case Map.lookup connTag connMap of
       Just conn -> Right $ T.nativeToKVDB connTag conn
       Nothing   -> Left $ KVDBError KVDBConnectionDoesNotExist $ "Connection for " +|| connTag ||+ " does not exists."
 
@@ -570,7 +572,7 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
               R.runSqlDB nativeConn dbgLogAction sqlDbMethod
             eRes' <- case eRes of
                        Left exception -> Left <$> wrapException exception
-                       Right x -> pure $ Right x
+                       Right x        -> pure $ Right x
             rawSql <- DL.toList <$> readTVarIO rawSqlTVar
             pure (eRes', rawSql)
       False ->
@@ -590,7 +592,7 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
         rawSql <- DL.toList <$> readTVarIO rawSqlLoc
         eResult' <- case eResult of
           Left exception -> Left <$> wrapException exception
-          Right x -> pure $ Right x
+          Right x        -> pure $ Right x
         pure (eResult', rawSql)
 
       wrapException :: HasCallStack => SomeException -> IO T.DBError
@@ -616,9 +618,8 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnec
       (Just cn, _                ) -> go cn
       _                            -> error "RunPubSub method called, while proper Redis connection has not been provided"
   where
-    go conn = fmap next $ R.runPubSub _runMode _pubSubController conn
+    go conn = next <$> R.runPubSub _runMode _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow $ rt { R._runMode = T.RegularMode })
 
-
-runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
-runFlow flowRt = foldF (interpretFlowMethod flowRt)
+runFlow :: R.FlowRuntime -> L.Flow a -> IO a
+runFlow flowRt (L.Flow comp) = foldF (interpretFlowMethod flowRt) comp

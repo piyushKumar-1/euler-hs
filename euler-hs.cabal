@@ -1,6 +1,6 @@
-cabal-version: 2.2
+cabal-version: 3.0
 name:          euler-hs
-version:       2.0.1.1
+version:       2.0.2.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -137,6 +137,7 @@ library
     , newtype-generics
     , postgresql-simple
     , process
+    , profunctors
     , resource-pool
     , sequelize               ^>=1.1.0.0
     , servant-client
@@ -227,7 +228,7 @@ test-suite db
   build-depends:
     , aeson
     , beam-core
-    , beam-mysql         ^>=1.2.0.0
+    , beam-mysql
     , beam-postgres
     , beam-sqlite
     , bytestring

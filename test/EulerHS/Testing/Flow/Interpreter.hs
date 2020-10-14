@@ -1,32 +1,20 @@
 {-# LANGUAGE AllowAmbiguousTypes       #-}
-{-# LANGUAGE DataKinds                 #-}
-{-# LANGUAGE DeriveGeneric             #-}
-{-# LANGUAGE DuplicateRecordFields     #-}
-{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
-{-# LANGUAGE TypeApplications          #-}
-
 
 module EulerHS.Testing.Flow.Interpreter where
 
-import           Data.Aeson (decode, encode)
-import qualified EulerHS.Interpreters as R
+import           Data.Aeson (decode)
+import           Data.Generics.Product.Fields
 import qualified EulerHS.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.Runtime as R
-import           Servant.Client (ClientError (..))
-
 import           EulerHS.Testing.Types
-import           Unsafe.Coerce
-
-import           Control.Lens
-import           Data.Generics.Product.Fields
-import           GHC.Generics
 import           GHC.TypeLits
 import           Type.Reflection (typeRep)
+import           Unsafe.Coerce
 
 runFlowWithTestInterpreter :: FlowMockedValues -> R.FlowRuntime -> L.Flow a -> IO a
-runFlowWithTestInterpreter mv flowRt = foldF (interpretFlowMethod mv flowRt)
+runFlowWithTestInterpreter mv flowRt (L.Flow comp) = foldF (interpretFlowMethod mv flowRt) comp
 
 interpretFlowMethod :: FlowMockedValues -> R.FlowRuntime -> L.FlowMethod a -> IO a
 

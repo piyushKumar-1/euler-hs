@@ -6,20 +6,23 @@ module EulerHS.Extra.Language
   , rDel
   , rDelB
   , rExists
-  , rExistsT
+  , rExistsB
+  , rExistsT -- alias for rExists (back compat)
   , rHget
   , rHgetB
   , rHset
+  , rHsetB
   , rIncr
+  , rIncrB
   , rSet
-  , rSetT
+  , rSetT  -- alias for rSet (back compat)
   , rSetB
   , rGet
   , rGetB
-  , rGetT
+  , rGetT  -- alias for rGet (back compat)
   , rSetex
   , rSetexB
-  , rSetexT
+  , rSetexT  -- alias for rSetex (back compat)
   , keyToSlot
   ) where
 
@@ -32,6 +35,13 @@ import           Database.Redis (keyToSlot)
 import qualified EulerHS.Core.KVDB.Language as L
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
+
+type RedisName = Text
+type TextKey = Text
+type TextField = Text
+type ByteKey = ByteString
+type ByteField = ByteString
+type ByteValue = ByteString
 
 -- | Get existing SQL connection, or init a new connection.
 getOrInitSqlConn :: (HasCallStack, L.MonadFlow m) =>
@@ -50,24 +60,18 @@ getOrInitKVDBConn cfg = do
     Left (T.KVDBError T.KVDBConnectionDoesNotExist _) -> L.initKVDBConnection cfg
     res -> pure res
 
--- KVDB helpers
+-- KVDB convenient functions
 
-rExpire :: (HasCallStack, ToJSON k, Integral t, L.MonadFlow m) =>
-  Text -> k -> t -> m (Either T.KVDBReply Bool)
-rExpire cName k t = do
-  res <- L.runKVDB cName $ L.expire (BSL.toStrict $ A.encode k) (toInteger t)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis expire" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis expire" $ show err
-      pure res
+-- ----------------------------------------------------------------------------
 
-rExpireB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> ByteString -> Integer -> m (Either T.KVDBReply Bool)
+rExpire :: (HasCallStack, Integral t, L.MonadFlow m) =>
+  RedisName -> TextKey -> t -> m (Either T.KVDBReply Bool)
+rExpire cName k t = rExpireB cName (TE.encodeUtf8 k) t
+
+rExpireB :: (HasCallStack, Integral t, L.MonadFlow m) =>
+  RedisName -> ByteKey -> t -> m (Either T.KVDBReply Bool)
 rExpireB cName k t = do
-  res <- L.runKVDB cName $ L.expire k t
+  res <- L.runKVDB cName $ L.expire k $ toInteger t
   case res of
     Right _ -> do
       -- L.logInfo @Text "Redis expire" $ show r
@@ -76,20 +80,14 @@ rExpireB cName k t = do
       L.logError @Text "Redis expire" $ show err
       pure res
 
-rDel :: (HasCallStack, ToJSON k, L.MonadFlow m) =>
-  Text -> [k] -> m (Either T.KVDBReply Integer)
-rDel cName ks = do
-  res <- L.runKVDB cName $ L.del (BSL.toStrict . A.encode <$> ks)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis del" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis del" $ show err
-      pure res
+-- ----------------------------------------------------------------------------
+
+rDel :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> [TextKey] -> m (Either T.KVDBReply Integer)
+rDel cName ks = rDelB cName (TE.encodeUtf8 <$> ks)
 
 rDelB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> [ByteString] -> m (Either T.KVDBReply Integer)
+  RedisName -> [ByteKey] -> m (Either T.KVDBReply Integer)
 rDelB cName ks = do
   res <- L.runKVDB cName $ L.del ks
   case res of
@@ -100,10 +98,16 @@ rDelB cName ks = do
       L.logError @Text "Redis del" $ show err
       pure res
 
-rExists :: (HasCallStack, ToJSON k, L.MonadFlow m) =>
-  Text -> k -> m (Either T.KVDBReply Bool)
-rExists cName k = do
-  res <- L.runKVDB cName $ L.exists (BSL.toStrict $ A.encode k)
+-- ----------------------------------------------------------------------------
+
+rExists :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> TextKey -> m (Either T.KVDBReply Bool)
+rExists cName k = rExistsB cName $ TE.encodeUtf8 k
+
+rExistsB :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> ByteKey -> m (Either T.KVDBReply Bool)
+rExistsB cName k = do
+  res <- L.runKVDB cName $ L.exists k
   case res of
     Right _ -> do
       -- L.logInfo @Text "Redis exists" $ show r
@@ -113,110 +117,18 @@ rExists cName k = do
       pure res
 
 rExistsT :: (HasCallStack, L.MonadFlow m) =>
-  Text -> Text -> m (Either T.KVDBReply Bool)
-rExistsT cName k = do
-  res <- L.runKVDB cName $ L.exists (TE.encodeUtf8 k)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis exists" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis exists" $ show err
-      pure res
+  RedisName -> TextKey -> m (Either T.KVDBReply Bool)
+rExistsT = rExists
 
-rHget :: (HasCallStack, ToJSON k, ToJSON f, FromJSON v, L.MonadFlow m)
-  => Text -> k -> f -> m (Maybe v)
+-- ----------------------------------------------------------------------------
+
+rHget :: (HasCallStack, FromJSON v, L.MonadFlow m)
+  => RedisName -> TextKey -> TextField -> m (Maybe v)
 rHget cName k f = do
-  res <- L.runKVDB cName $
-    L.hget (BSL.toStrict $ A.encode k)
-           (BSL.toStrict $ A.encode f)
-  case res of
-    Right (Just val) -> pure $ A.decode $ BSL.fromStrict val
-    Right Nothing -> pure Nothing
-    Left err -> do
-      L.logError @Text "Redis hget" $ show err
-      pure Nothing
-
-rHgetB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> ByteString -> ByteString -> m (Maybe ByteString)
-rHgetB cName k f = do
-  res <- L.runKVDB cName $ L.hget k f
-  case res of
-    Right (Just val) -> pure $ Just val
-    Right Nothing -> pure Nothing
-    Left err -> do
-      L.logError @Text "Redis hget" $ show err
-      pure Nothing
-
-rHset :: (HasCallStack, ToJSON k, ToJSON f, ToJSON v, L.MonadFlow m)
-  => Text -> k -> f -> v -> m (Either T.KVDBReply Bool)
-rHset cName k f v = do
-  res <- L.runKVDB cName $
-    L.hset (BSL.toStrict $ A.encode k)
-           (BSL.toStrict $ A.encode f)
-           (BSL.toStrict $ A.encode v)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis hset" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis hset" $ show err
-      pure res
-
-rIncr :: (HasCallStack, ToJSON k, L.MonadFlow m) =>
-  Text -> k -> m (Either T.KVDBReply Integer)
-rIncr cName k = do
-  res <- L.runKVDB cName $ L.incr (BSL.toStrict $ A.encode k)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis incr" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis incr" $ show err
-      pure res
-
-rSetT :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
-  Text -> Text -> v -> m (Either T.KVDBReply T.KVDBStatus)
-rSetT cName k v = do
-  res <- L.runKVDB cName $ L.set (TE.encodeUtf8 k) (BSL.toStrict $ A.encode v)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis set" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis set" $ show err
-      pure res
-
-rSet :: (HasCallStack, ToJSON k, ToJSON v, L.MonadFlow m) =>
-  Text -> k -> v -> m (Either T.KVDBReply T.KVDBStatus)
-rSet cName k v = do
-  res <- L.runKVDB cName $ L.set (BSL.toStrict $ A.encode k) (BSL.toStrict $ A.encode v)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis set" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis set" $ show err
-      pure res
-
-rSetB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> ByteString -> ByteString -> m (Either T.KVDBReply T.KVDBStatus)
-rSetB cName k v = do
-  res <- L.runKVDB cName $ L.set k v
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis set" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis set" $ show err
-      pure res
-
-rGetT :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
-  Text -> Text -> m (Maybe v)
-rGetT cName k = do
-  mv <- L.runKVDB cName $ L.get (TE.encodeUtf8 k)
-  -- L.logDebug @Text "Raw value" $ show mv
-  case mv of
+  let k' = TE.encodeUtf8 k
+  let f' = TE.encodeUtf8 f
+  r <- L.runKVDB cName $ L.hget k' f'
+  case r of
     Right (Just val) -> do
       let v = A.eitherDecode $ BSL.fromStrict val
       case v of
@@ -228,13 +140,92 @@ rGetT cName k = do
           pure $ Just v'
     Right Nothing -> pure Nothing
     Left err -> do
-      L.logError @Text "Redis get" $ show err
+      L.logError @Text "Redis rHget" $ show err
       pure Nothing
 
-rGet :: (HasCallStack, ToJSON k, FromJSON v, L.MonadFlow m) =>
-  Text -> k -> m (Maybe v)
+rHgetB :: (HasCallStack, L.MonadFlow m) =>
+  Text -> ByteKey -> ByteField -> m (Maybe ByteValue)
+rHgetB cName k f = do
+  res <- L.runKVDB cName $ L.hget k f
+  case res of
+    Right (Just val) -> pure $ Just val
+    Right Nothing -> pure Nothing
+    Left err -> do
+      L.logError @Text "Redis hget" $ show err
+      pure Nothing
+
+-- ----------------------------------------------------------------------------
+
+rHset :: (HasCallStack, ToJSON v, L.MonadFlow m)
+  => RedisName -> TextKey -> TextField -> v -> m (Either T.KVDBReply Bool)
+rHset cName k f v = rHsetB cName k' f' v'
+  where
+    k' = TE.encodeUtf8 k
+    f' = TE.encodeUtf8 f
+    v' = BSL.toStrict $ A.encode v
+
+rHsetB :: (HasCallStack, L.MonadFlow m)
+  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either T.KVDBReply Bool)
+rHsetB cName k f v = do
+  res <- L.runKVDB cName $
+    L.hset k f v
+  case res of
+    Right _ -> do
+      -- L.logInfo @Text "Redis hset" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis hset" $ show err
+      pure res
+
+-- ----------------------------------------------------------------------------
+
+rIncr :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> TextKey -> m (Either T.KVDBReply Integer)
+rIncr cName k = rIncrB cName (TE.encodeUtf8 k)
+
+rIncrB :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> ByteKey -> m (Either T.KVDBReply Integer)
+rIncrB cName k = do
+  res <- L.runKVDB cName $ L.incr k
+  case res of
+    Right _ -> do
+      -- L.logInfo @Text "Redis incr" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis incr" $ show err
+      pure res
+
+-- ----------------------------------------------------------------------------
+
+rSet :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
+  RedisName -> TextKey -> v -> m (Either T.KVDBReply T.KVDBStatus)
+rSet cName k v = rSetB cName k' v'
+  where
+    k' = TE.encodeUtf8 k
+    v' = BSL.toStrict $ A.encode v
+
+rSetB :: (HasCallStack, L.MonadFlow m) =>
+  Text -> ByteKey -> ByteValue -> m (Either T.KVDBReply T.KVDBStatus)
+rSetB cName k v = do
+  res <- L.runKVDB cName $ L.set k v
+  case res of
+    Right _ -> do
+      -- L.logInfo @Text "Redis set" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis set" $ show err
+      pure res
+
+rSetT :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
+  RedisName -> TextKey -> v -> m (Either T.KVDBReply T.KVDBStatus)
+rSetT = rSet
+
+-- ----------------------------------------------------------------------------
+
+rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
+  RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
-  mv <- L.runKVDB cName $ L.get (BSL.toStrict $ A.encode k)
+  mv <- L.runKVDB cName $ L.get (TE.encodeUtf8 k)
   case mv of
     Right (Just val) -> pure $ A.decode $ BSL.fromStrict val
     Right Nothing -> pure Nothing
@@ -243,7 +234,7 @@ rGet cName k = do
       pure Nothing
 
 rGetB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> ByteString -> m (Maybe ByteString) -- Binary.decode?
+  RedisName -> ByteKey -> m (Maybe ByteValue) -- Binary.decode?
 rGetB cName k = do
   mv <- L.runKVDB cName $ L.get k
   case mv of
@@ -252,23 +243,23 @@ rGetB cName k = do
       L.logError @Text "Redis get" $ show err
       pure Nothing
 
-rSetex :: (HasCallStack, ToJSON k, ToJSON v, Integral t, L.MonadFlow m) =>
-  Text -> k -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
-rSetex cName k v t = do
-  res <- L.runKVDB cName $
-    L.setex (BSL.toStrict $ A.encode k) (toInteger t) (BSL.toStrict $ A.encode v)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis setex" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis setex" $ show err
-      pure res
+rGetT :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
+  Text -> Text -> m (Maybe v)
+rGetT = rGet
 
-rSetexB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> ByteString -> ByteString -> Integer -> m (Either T.KVDBReply T.KVDBStatus)
+-- ----------------------------------------------------------------------------
+
+rSetex :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
+  RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
+rSetex cName k v t = rSetexB cName k' v' t
+  where
+    k' = TE.encodeUtf8 k
+    v' = BSL.toStrict $ A.encode v
+
+rSetexB :: (HasCallStack, Integral t, L.MonadFlow m) =>
+  RedisName -> ByteKey -> ByteValue -> t -> m (Either T.KVDBReply T.KVDBStatus)
 rSetexB cName k v t = do
-  res <- L.runKVDB cName $ L.setex k t v
+  res <- L.runKVDB cName $ L.setex k (toInteger t) v
   case res of
     Right _ -> do
       -- L.logInfo @Text "Redis setex" $ show r
@@ -278,14 +269,5 @@ rSetexB cName k v t = do
       pure res
 
 rSetexT :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
-  Text -> Text -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
-rSetexT cName k v t = do
-  res <- L.runKVDB cName $
-    L.setex (TE.encodeUtf8 k) (toInteger t) (BSL.toStrict $ A.encode v)
-  case res of
-    Right _ -> do
-      -- L.logInfo @Text "Redis setex" $ show r
-      pure res
-    Left err -> do
-      L.logError @Text "Redis setex" $ show err
-      pure res
+  RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
+rSetexT = rSetex

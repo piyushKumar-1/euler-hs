@@ -194,12 +194,12 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
             Nothing       -> Right _defaultHttpClientManager
             Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
       case mbClientMngr of
-        Right mngr -> do 
+        Right mngr -> do
           eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) (S.mkClientEnv mngr bUrl)
           case eitherResult of
             Left err -> do
               dbgLogger T.Error $ show err
-              pure $ Left $ S.ConnectionError $ toException err
+              pure $ Left err
             Right response ->
               pure $ Right response
         Left name -> do

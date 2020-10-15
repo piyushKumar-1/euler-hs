@@ -26,15 +26,6 @@ eulerBuild.mkEulerHaskellOverlay
         } { };
       };
 
-    mason =
-      eulerBuild.fastBuildExternal {
-        drv = hself.callHackageDirect {
-          pkg = "mason";
-          ver = "0.2.3";
-          sha256 = "1dcd3n1lxlpjsz92lmr1nsx29mwwglim0gask04668sdiarr3x1v";
-        } { };
-      };
-
     hedis =
       eulerBuild.fastBuildExternal {
         drv = hself.callCabal2nix "hedis" hedis-path { };

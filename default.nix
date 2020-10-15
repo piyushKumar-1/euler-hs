@@ -1,5 +1,5 @@
 {
-  remoteDeps ? false
+  remoteDeps ? true
 , haskellCompiler ? "ghc883"
 , withHoogle ? true
 }:

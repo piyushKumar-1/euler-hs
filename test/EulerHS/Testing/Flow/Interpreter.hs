@@ -5,7 +5,7 @@ module EulerHS.Testing.Flow.Interpreter where
 
 import           Data.Aeson (decode)
 import           Data.Generics.Product.Fields
-import qualified EulerHS.Language as L
+import qualified EulerHS.Framework.Flow.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.Runtime as R
 import           EulerHS.Testing.Types

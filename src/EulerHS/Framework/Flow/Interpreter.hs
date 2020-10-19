@@ -28,7 +28,7 @@ import qualified EulerHS.Core.Playback.Machine as P
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Framework.Language as L
+import qualified EulerHS.Framework.Flow.Language as L
 import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.Prelude
 import qualified Network.Connection as Conn

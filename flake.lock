@@ -91,7 +91,7 @@
       "locked": {
         "lastModified": 1602797540,
         "narHash": "sha256-yOwExL8rUcA/BkHkcvVm1AvtFt99alcLjD9WuDN3Mdg=",
-        "ref": "build-wip",
+        "ref": "euler-tools",
         "rev": "3371f2f9e5a0300404d485116867e8da2b7f3f7a",
         "revCount": 60,
         "type": "git",

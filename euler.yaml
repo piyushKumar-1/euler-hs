@@ -17,7 +17,7 @@ dependencies:
     branch: build-wip
     revision: 14f3c695efdda109f6c7a0f40a52d365bcdf26bf
   haskell-sequelize:
-    branch: build-wip
+    branch: euler-tools
     revision: 3371f2f9e5a0300404d485116867e8da2b7f3f7a
 
 overrides:

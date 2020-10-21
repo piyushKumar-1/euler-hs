@@ -8,17 +8,17 @@ allowed-paths:
 
 dependencies:
   euler-build:
-    branch: wip
-    revision: a086c401bb812c73fabfc561d746fcf582a17799
+    branch: master
+    revision: 70b36cdbc73caf5c1b008ab2453a0dbc81228f9c
   beam:
-    branch: build-wip
-    revision: cb9edb37ec7d629e1ad1b31eaa661762a0df3732
+    branch: euler-tools
+    revision: b369dfb2077bc31221130379cc0e705c66f5bdcf
   beam-mysql:
-    branch: build-wip
-    revision: 14f3c695efdda109f6c7a0f40a52d365bcdf26bf
+    branch: euler-tools
+    revision: 62dd00618b5c016e3acda9a6e6ecef1d4a48b4a0
   haskell-sequelize:
     branch: euler-tools
-    revision: 3371f2f9e5a0300404d485116867e8da2b7f3f7a
+    revision: ed8ccff3e8dbf4b9a8dd733ffe4f6af862fe89b3
 
 overrides:
   hedis:

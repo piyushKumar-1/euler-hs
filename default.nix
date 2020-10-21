@@ -1,5 +1,5 @@
 {
-  remoteDeps ? false
+  remoteDeps ? true
 , haskellCompiler ? "ghc883"
 , withHoogle ? true
 }:
@@ -75,7 +75,7 @@ let
     inherit withHoogle;
     packages = p: [ p.euler-hs ];
     buildInputs = haskellPackagesTools ++ tools;
-  };
+  } // drv;
   drv = {
     inherit pkgs;
     euler-hs = pkgs.eulerHaskellPackages.euler-hs;

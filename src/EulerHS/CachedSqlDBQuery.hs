@@ -46,7 +46,8 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
   createReturning ::
     forall (table :: (Type -> Type) -> Type)
            (m :: Type -> Type) .
-    ( BeamRuntime be beM,
+    ( HasCallStack,
+      BeamRuntime be beM,
       BeamRunner beM,
       B.HasQBuilder be,
       Model be table,
@@ -75,7 +76,8 @@ create ::
          (beM :: Type -> Type)
          (table :: (Type -> Type) -> Type)
          (m :: Type -> Type) .
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
     Model be table,
@@ -99,7 +101,8 @@ create dbConf value mCacheKey = do
 createMySQL ::
   forall (table :: (Type -> Type) -> Type)
          (m :: Type -> Type) .
-  ( Model BM.MySQL table,
+  ( HasCallStack, 
+    Model BM.MySQL table,
     ToJSON (table Identity),
     FromJSON (table Identity),
     Show (table Identity),
@@ -120,7 +123,8 @@ createMySQL dbConf value mCacheKey = do
 -- | Update an element matching the query to the new value.
 --   Cache the value at the given key if the DB update succeeds.
 updateOne ::
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -141,7 +145,8 @@ updateOne dbConf (Just cacheKey) newVals whereClause = do
 updateOne dbConf Nothing value whereClause = updateOneSql dbConf value whereClause
 
 updateOneWoReturning ::
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -163,7 +168,8 @@ updateOneWoReturning dbConf Nothing value whereClause = updateOneSqlWoReturning 
 
 updateOneSqlWoReturning ::
   forall m be beM table.
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -182,7 +188,9 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
         ! #where_ whereClause
   res <- runQuery dbConf updateQuery
   case res of
-    Right x -> return $ Right x
+    Right x -> do
+      L.logDebug @Text "updateOneSqlWoReturning" "query executed"
+      return $ Right x
    -- Right xs -> do
    --   let message = "DB returned \"" <> show xs <> "\" after update"
    --   L.logError @Text "create" message
@@ -191,7 +199,8 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
 
 updateOneSql ::
   forall m be beM table.
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -218,7 +227,7 @@ updateOneSql dbConf newVals whereClause = do
     Left e -> return $ Left e
 
 -- | Perform an arbitrary 'SqlUpdate'. This will cache if successful.
-updateExtended :: (L.MonadFlow m, BeamRunner beM, BeamRuntime be beM) =>
+updateExtended :: (HasCallStack, L.MonadFlow m, BeamRunner beM, BeamRuntime be beM) =>
   DBConfig beM -> Maybe Text -> B.SqlUpdate be table -> m (Either DBError ())
 updateExtended dbConf mKey upd = do
   res <- runQuery dbConf . DB.updateRows $ upd
@@ -228,7 +237,8 @@ updateExtended dbConf mKey upd = do
 -- | Find an element matching the query. Only uses the DB if the cache is empty.
 --   Caches the result using the given key.
 findOne ::
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -254,7 +264,8 @@ findOne dbConf Nothing whereClause = findOneSql dbConf whereClause
 --   Caches the result using the given key.
 --   NOTE: Can't use the same key as findOne, updateOne or create since it's result is a list.
 findAll ::
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -278,7 +289,8 @@ findAll dbConf Nothing whereClause = findAllSql dbConf whereClause
 
 -- | Like 'findAll', but takes an explicit 'SqlSelect'.
 findAllExtended :: forall beM be table m .
-  (L.MonadFlow m,
+  (HasCallStack, 
+   L.MonadFlow m,
    B.FromBackendRow be (table Identity),
    BeamRunner beM,
    BeamRuntime be beM,
@@ -306,7 +318,8 @@ findAllExtended dbConf mKey sel = case mKey of
 
 ------------ Helper functions ------------
 runQuery ::
-  ( BeamRuntime be beM, BeamRunner beM,
+  ( HasCallStack, 
+    BeamRuntime be beM, BeamRunner beM,
     JSONEx a,
     L.MonadFlow m
   ) =>
@@ -318,7 +331,8 @@ runQuery dbConf query = do
     Left  e -> return $ Left e
 
 runQueryMySQL ::
-  ( JSONEx a,
+  ( HasCallStack, 
+    JSONEx a,
     L.MonadFlow m
   ) =>
   DBConfig BM.MySQLM -> DB.SqlDB BM.MySQLM a -> m (Either DBError a)
@@ -330,14 +344,15 @@ runQueryMySQL dbConf query = do
 
 sqlCreate ::
   forall be table.
-  (B.HasQBuilder be, Model be table) =>
+  (HasCallStack, B.HasQBuilder be, Model be table) =>
   table Identity ->
   B.SqlInsert be table
 sqlCreate value = B.insert modelTableEntity (mkExprWithDefault value)
 
 createSql ::
   forall m be beM table.
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
     Model be table,
@@ -361,7 +376,8 @@ createSql dbConf value = do
 
 createSqlMySQL ::
   forall m  table.
-  ( Model BM.MySQL table,
+  ( HasCallStack, 
+    Model BM.MySQL table,
     ToJSON (table Identity),
     FromJSON (table Identity),
     Show (table Identity),
@@ -381,7 +397,8 @@ createSqlMySQL dbConf value = do
     Left e -> return $ Left e
 
 findOneSql ::
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -396,7 +413,8 @@ findOneSql dbConf whereClause = runQuery dbConf findQuery
   where findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
 
 findAllSql ::
-  ( BeamRuntime be beM,
+  ( HasCallStack, 
+    BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
@@ -411,7 +429,7 @@ findAllSql dbConf whereClause = do
   sqlConn <- getOrInitSqlConn dbConf
   join <$> mapM (`L.runDB` findQuery) sqlConn
 
-cacheWithKey :: (ToJSON table, L.MonadFlow m) => Text -> table -> m ()
+cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> m ()
 cacheWithKey key row = do
   -- TODO: Should we log errors here?
   void $ rSetB (T.pack cacheName) (encodeUtf8 key) (BSL.toStrict $ encode row)

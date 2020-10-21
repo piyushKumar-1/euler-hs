@@ -1,63 +1,38 @@
-{-# LANGUAGE AllowAmbiguousTypes   #-}
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE InstanceSigs          #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
 
 module EulerHS.Framework.Flow.Language
   (
   -- * Flow language
-    Flow
+    Flow(..)
   , FlowMethod(..)
   , MonadFlow(..)
   , ReaderFlow
-  -- ** Methods
-  -- *** SQLDB
-  , initSqlDBConnection
-  , deinitSqlDBConnection
-  , getSqlDBConnection
-  , runDB
-  , runTransaction
-  -- *** KVDB
-  , initKVDBConnection
-  , deinitKVDBConnection
-  , getKVDBConnection
-  , runKVDB
+  -- ** Extra methods
   -- *** Logging
+  , logCallStack
+  , logExceptionCallStack
   , logInfo
   , logError
   , logDebug
   , logWarning
-    -- *** Typed options
-  -- | Store given key/option pair in the storage
-  -- getOption and setOption are provides interface for runtime typed key-value storage.
-  -- You can create special types for some options and use it as keys for stored data.
-  -- It's safer than using strings as keys, because the compiler will let you know if you made typo.
-  , getOption
-  , setOption
-  , delOption
   -- *** Other
-  , callServantAPI
   , callAPI
   , callAPI'
   , callHTTP
   , runIO
-  , runIO'
   , runUntracedIO
-  , generateGUID
-  , runSysCmd
   , forkFlow
   , forkFlow'
-  , await
-  , throwException
-  , runSafeFlow
-
   -- *** PublishSubscribe
-  , publish
-  , subscribe
-  , psubscribe
   , unpackLanguagePubSub
   ) where
 
+import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
+                                      MonadThrow (throwM))
+import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
 import qualified Data.Text as Text
@@ -65,13 +40,13 @@ import           EulerHS.Core.Language (KVDB, Logger, logMessage')
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.PubSub.Language as PSL
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Prelude hiding (getOption)
+import           EulerHS.Prelude hiding (getOption, throwM)
 import           Servant.Client (BaseUrl, ClientError)
 
 -- | Flow language.
-data FlowMethod next where
+data FlowMethod (next :: Type) where
   CallServantAPI
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => Maybe T.ManagerSelector
     -> BaseUrl
     -> T.EulerClient a
@@ -79,58 +54,64 @@ data FlowMethod next where
     -> FlowMethod next
 
   CallHTTP
-    :: T.HTTPRequest
+    :: HasCallStack
+    => T.HTTPRequest
     -> Maybe T.HTTPCert
     -> (Either Text T.HTTPResponse -> next)
     -> FlowMethod next
 
   EvalLogger
-    :: Logger a
+    :: HasCallStack
+    => Logger a
     -> (a -> next)
     -> FlowMethod next
 
   RunIO
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => Text
     -> IO a
     -> (a -> next)
     -> FlowMethod next
 
   RunUntracedIO
-    :: Text
+    :: HasCallStack
+    => Text
     -> IO a
     -> (a -> next)
     -> FlowMethod next
 
   GetOption
-    :: (ToJSON a, FromJSON a)
+    :: (HasCallStack, ToJSON a, FromJSON a)
     => T.KVDBKey
     -> (Maybe a -> next)
     -> FlowMethod next
 
   SetOption
-    :: (ToJSON a, FromJSON a)
+    :: (HasCallStack, ToJSON a, FromJSON a)
     => T.KVDBKey
     -> a
     -> (() -> next)
     -> FlowMethod next
 
   DelOption
-    :: T.KVDBKey
+    :: HasCallStack
+    => T.KVDBKey
     -> (() -> next)
     -> FlowMethod next
 
   GenerateGUID
-    :: (Text -> next)
+    ::  HasCallStack
+    => (Text -> next)
     -> FlowMethod next
 
   RunSysCmd
-    :: String
+    :: HasCallStack
+    => String
     -> (String -> next)
     -> FlowMethod next
 
   Fork
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => T.Description
     -> T.ForkGUID
     -> Flow a
@@ -138,7 +119,7 @@ data FlowMethod next where
     -> FlowMethod next
 
   Await
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> (Either T.AwaitingError a -> next)
@@ -146,52 +127,89 @@ data FlowMethod next where
 
   ThrowException
     :: forall a e next
-     . Exception e
+     . (HasCallStack, Exception e)
     => e
     -> (a -> next)
     -> FlowMethod next
 
+  CatchException
+    :: forall a e next
+     . (HasCallStack, Exception e)
+    => Flow a
+    -> (e -> Flow a)
+    -> (a -> next)
+    -> FlowMethod next
+
+  Mask
+    :: forall b next
+     . HasCallStack
+    => ((forall a . Flow a -> Flow a) -> Flow b)
+    -> (b -> next)
+    -> FlowMethod next
+
+  UninterruptibleMask
+    :: forall b next
+     . HasCallStack
+    => ((forall a . Flow a -> Flow a) -> Flow b)
+    -> (b -> next)
+    -> FlowMethod next
+
+  GeneralBracket
+    :: forall a b c next
+     . HasCallStack
+    => Flow a
+    -> (a -> ExitCase b -> Flow c)
+    -> (a -> Flow b)
+    -> ((b, c) -> next)
+    -> FlowMethod next
+
+  -- This is technically redundant - we can implement this using something like
+  -- bracket, but better. - Koz
   RunSafeFlow
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => T.SafeFlowGUID
     -> Flow a
     -> (Either Text a -> next)
     -> FlowMethod next
 
-  -- TODO: DeInitSqlDBConnection :: _ -> FlowMethod next
-
   InitSqlDBConnection
-    :: T.DBConfig beM
+    :: HasCallStack
+    => T.DBConfig beM
     -> (T.DBResult (T.SqlConn beM) -> next)
     -> FlowMethod next
 
   DeInitSqlDBConnection
-    :: T.SqlConn beM
+    :: HasCallStack
+    => T.SqlConn beM
     -> (() -> next)
     -> FlowMethod next
 
   GetSqlDBConnection
-    :: T.DBConfig beM
+    :: HasCallStack
+    => T.DBConfig beM
     -> (T.DBResult (T.SqlConn beM) -> next)
     -> FlowMethod next
 
   InitKVDBConnection
-    :: T.KVDBConfig
+    :: HasCallStack
+    => T.KVDBConfig
     -> (T.KVDBAnswer T.KVDBConn -> next)
     -> FlowMethod next
 
   DeInitKVDBConnection
-    :: T.KVDBConn
+    :: HasCallStack
+    => T.KVDBConn
     -> (() -> next)
     -> FlowMethod next
 
   GetKVDBConnection
-    :: T.KVDBConfig
+    :: HasCallStack
+    => T.KVDBConfig
     -> (T.KVDBAnswer T.KVDBConn -> next)
     -> FlowMethod next
 
   RunDB
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => T.SqlConn beM
     -> L.SqlDB beM a
     -> Bool
@@ -199,68 +217,78 @@ data FlowMethod next where
     -> FlowMethod next
 
   RunKVDB
-    :: Text
+    :: HasCallStack
+    => Text
     -> KVDB a
     -> (T.KVDBAnswer a -> next)
     -> FlowMethod next
 
   RunPubSub
-    :: PubSub a
+    :: HasCallStack
+    => PubSub a
     -> (a -> next)
     -> FlowMethod next
 
+-- Needed due to lack of impredicative instantiation (for stuff like Mask). -
+-- Koz
 instance Functor FlowMethod where
-  fmap f (CallServantAPI mngSlc bUrl clientAct next) = CallServantAPI mngSlc bUrl clientAct (f . next)
+  {-# INLINEABLE fmap #-}
+  fmap f = \case
+    CallServantAPI mSel url client cont ->
+      CallServantAPI mSel url client (f . cont)
+    CallHTTP req cert cont -> CallHTTP req cert (f . cont)
+    EvalLogger logger cont -> EvalLogger logger (f . cont)
+    RunIO t act cont -> RunIO t act (f . cont)
+    RunUntracedIO t act cont -> RunUntracedIO t act (f . cont)
+    GetOption k cont -> GetOption k (f . cont)
+    SetOption k v cont -> SetOption k v (f . cont)
+    DelOption k cont -> DelOption k (f . cont)
+    GenerateGUID cont -> GenerateGUID (f . cont)
+    RunSysCmd cmd cont -> RunSysCmd cmd (f . cont)
+    Fork desc guid flow cont -> Fork desc guid flow (f . cont)
+    Await time awaitable cont -> Await time awaitable (f . cont)
+    ThrowException e cont -> ThrowException e (f . cont)
+    CatchException flow handler cont -> CatchException flow handler (f . cont)
+    Mask cb cont -> Mask cb (f . cont)
+    UninterruptibleMask cb cont -> UninterruptibleMask cb (f . cont)
+    GeneralBracket acquire release act cont ->
+      GeneralBracket acquire release act (f . cont)
+    RunSafeFlow guid flow cont -> RunSafeFlow guid flow (f . cont)
+    InitSqlDBConnection conf cont -> InitSqlDBConnection conf (f . cont)
+    DeInitSqlDBConnection conn cont -> DeInitSqlDBConnection conn (f . cont)
+    GetSqlDBConnection conf cont -> GetSqlDBConnection conf (f . cont)
+    InitKVDBConnection conf cont -> InitKVDBConnection conf (f . cont)
+    DeInitKVDBConnection conn cont -> DeInitKVDBConnection conn (f . cont)
+    GetKVDBConnection conf cont -> GetKVDBConnection conf (f . cont)
+    RunDB conn db b cont -> RunDB conn db b (f . cont)
+    RunKVDB t db cont -> RunKVDB t db (f . cont)
+    RunPubSub pubSub cont -> RunPubSub pubSub (f . cont)
 
-  fmap f (CallHTTP req cert next)               = CallHTTP req cert (f . next)
+newtype Flow (a :: Type) = Flow (F FlowMethod a)
+  deriving newtype (Functor, Applicative, Monad, MonadFree FlowMethod)
 
-  fmap f (EvalLogger logAct next)             = EvalLogger logAct (f . next)
+instance MonadThrow Flow where
+  {-# INLINEABLE throwM #-}
+  throwM e = liftFC . ThrowException e $ id
 
-  fmap f (GenerateGUID next)                  = GenerateGUID (f . next)
+instance MonadCatch Flow where
+  {-# INLINEABLE catch #-}
+  catch comp handler = liftFC . CatchException comp handler $ id
 
-  fmap f (RunSysCmd cmd next)                 = RunSysCmd cmd (f . next)
-
-  fmap f (Fork desc guid fflow next)          = Fork desc guid fflow (f . next)
-
-  fmap f (Await timeout avaitable next)       = Await timeout avaitable (f . next)
-
-  fmap f (ThrowException message next)        = ThrowException message (f . next)
-
-  fmap f (RunSafeFlow guid flow next)         = RunSafeFlow guid flow (f . next)
-
-  fmap f (RunIO descr ioAct next)             = RunIO descr ioAct (f . next)
-
-  fmap f (RunUntracedIO descr ioAct next)     = RunUntracedIO descr ioAct (f . next)
-
-  fmap f (GetOption k next)                   = GetOption k (f . next)
-
-  fmap f (SetOption k v next)                 = SetOption k v (f . next)
-
-  fmap f (DelOption k next)                   = DelOption k (f . next)
-
-  fmap f (InitSqlDBConnection cfg next)       = InitSqlDBConnection cfg (f . next)
-
-  fmap f (DeInitSqlDBConnection conn next)    = DeInitSqlDBConnection conn (f.next)
-
-  fmap f (GetSqlDBConnection cfg next)        = GetSqlDBConnection cfg (f . next)
-
-  fmap f (InitKVDBConnection cfg next)        = InitKVDBConnection cfg (f . next)
-
-  fmap f (DeInitKVDBConnection conn next)     = DeInitKVDBConnection conn (f.next)
-
-  fmap f (GetKVDBConnection cfg next)         = GetKVDBConnection cfg (f . next)
-
-  fmap f (RunDB conn sqlDbAct runInTransaction next) = RunDB conn sqlDbAct runInTransaction (f . next)
-
-  fmap f (RunKVDB cName act next)             = RunKVDB cName act (f . next)
-
-  fmap f (RunPubSub act next)                 = RunPubSub act (f . next)
-
-type Flow = F FlowMethod
+instance MonadMask Flow where
+  {-# INLINEABLE mask #-}
+  mask cb = liftFC . Mask cb $ id
+  {-# INLINEABLE uninterruptibleMask #-}
+  uninterruptibleMask cb = liftFC . UninterruptibleMask cb $ id
+  {-# INLINEABLE generalBracket #-}
+  generalBracket acquire release act =
+    liftFC . GeneralBracket acquire release act $ id
 
 type ReaderFlow r = ReaderT r Flow
 
-newtype PubSub a = PubSub { unpackLanguagePubSub :: (forall b . Flow b -> IO b) -> PSL.PubSub a }
+newtype PubSub a = PubSub {
+  unpackLanguagePubSub :: HasCallStack => (forall b . Flow b -> IO b) -> PSL.PubSub a
+  }
 
 type MessageCallback
     =  ByteString  -- ^ Message payload
@@ -271,13 +299,10 @@ type PMessageCallback
     -> ByteString  -- ^ Message payload
     -> Flow ()
 
--- instance Monad.MonadThrow Flow where
---   throwM = throwException
-
 -- | Fork a unit-returning flow.
 --
 -- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
--- 
+--
 -- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
 -- All the rules applied to forked threads in Haskell can be applied to forked flows.
 --
@@ -295,12 +320,12 @@ type PMessageCallback
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: T.Description -> Flow () -> Flow ()
+forkFlow :: HasCallStack => T.Description -> Flow () -> Flow ()
 forkFlow description flow = void $ forkFlow' description $ do
   eitherResult <- runSafeFlow flow
   case eitherResult of
-    Left msg -> logError "forkFlow" msg
-    Right x  -> pure ()
+    Left msg -> logError ("forkFlow" :: Text) msg
+    Right _  -> pure ()
 
 -- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
 -- to reap results from the flow being forked.
@@ -313,16 +338,15 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
-forkFlow' :: (FromJSON a, ToJSON a) => T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
+forkFlow' :: (HasCallStack, FromJSON a, ToJSON a) =>
+  T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
     flowGUID <- generateGUID
-    unless (null description) $ logInfo tag $ "Flow forked. Description: " <> description <> " GUID: " <> flowGUID
-    when   (null description) $ logInfo tag $ "Flow forked. GUID: " <> flowGUID
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
     liftFC $ Fork description flowGUID flow id
-    where
-      tag :: Text
-      tag = "ForkFlow"
-
 
 -- | Method for calling external HTTP APIs using the facilities of servant-client.
 -- Allows to specify what manager should be used. If no manager found,
@@ -344,11 +368,11 @@ forkFlow' description flow = do
 -- > type API = "user" :> Get '[JSON] User
 -- >       :<|> "book" :> Get '[JSON] Book
 -- >
--- > api :: Proxy API
+-- > api :: HasCallStack => Proxy API
 -- > api = Proxy
 -- >
--- > getUser :: EulerClient User
--- > getBook :: EulerClient Book
+-- > getUser :: HasCallStack => EulerClient User
+-- > getBook :: HasCallStack => EulerClient Book
 -- > (getUser :<|> getBook) = client api
 -- >
 -- > url = BaseUrl Http "localhost" port ""
@@ -357,35 +381,43 @@ forkFlow' description flow = do
 -- > myFlow = do
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
-callAPI' :: (T.JSONEx a, MonadFlow m) => Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
+callAPI' :: (HasCallStack, T.JSONEx a, MonadFlow m) =>
+  Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI' = callServantAPI
 
 -- | The same as `callAPI'` but with default manager to be used.
-callAPI :: (T.JSONEx a, MonadFlow m) => BaseUrl -> T.EulerClient a -> m (Either ClientError a)
+callAPI :: (HasCallStack, T.JSONEx a, MonadFlow m) =>
+  BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI = callServantAPI Nothing
 
 -- | Log message with Info level.
 --
--- Thread safe
-logInfo :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+-- Thread safe.
+logInfo :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
 -- | Log message with Error level.
 --
 -- Thread safe.
-logError :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
-logError tag msg = evalLogger' $ logMessage' T.Error tag msg
+logError :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logError tag msg = do
+  logCallStack
+  evalLogger' $ logMessage' T.Error tag msg
 
 -- | Log message with Debug level.
 --
 -- Thread safe.
-logDebug :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logDebug :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 
 -- | Log message with Warning level.
 --
 -- Thread safe.
-logWarning :: forall tag m . (MonadFlow m, Show tag) => tag -> T.Message -> m ()
+logWarning :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
@@ -397,7 +429,7 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   content <- runIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runIO :: (MonadFlow m, T.JSONEx a) => IO a -> m a
+runIO :: (HasCallStack, MonadFlow m, T.JSONEx a) => IO a -> m a
 runIO = runIO' ""
 
 -- | The same as runIO, but do not record IO outputs in the ART recordings.
@@ -410,7 +442,7 @@ runIO = runIO' ""
 -- >   content <- runUntracedIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runUntracedIO :: MonadFlow m => IO a -> m a
+runUntracedIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runUntracedIO = runUntracedIO' ""
 
 -- | The same as callHTTPWithCert but does not need certificate data.
@@ -421,16 +453,16 @@ runUntracedIO = runUntracedIO' ""
 --
 -- > myFlow = do
 -- >   book <- callHTTP url
-callHTTP :: MonadFlow m => T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
+callHTTP :: (HasCallStack, MonadFlow m) =>
+  T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
 callHTTP url = callHTTPWithCert url Nothing
-
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
 -- `ReaderT` and other monad transformers.
 --
 -- Omit `forkFlow` as this will break some monads like StateT (you can lift this manually if you
 -- know what you're doing)
-class Monad m => MonadFlow m where
+class (MonadMask m) => MonadFlow m where
 
   -- | Method for calling external HTTP APIs using the facilities of servant-client.
   -- Allows to specify what manager should be used. If no manager found,
@@ -450,11 +482,11 @@ class Monad m => MonadFlow m where
   -- > type API = "user" :> Get '[JSON] User
   -- >       :<|> "book" :> Get '[JSON] Book
   -- >
-  -- > api :: Proxy API
+  -- > api :: HasCallStack => Proxy API
   -- > api = Proxy
   -- >
-  -- > getUser :: EulerClient User
-  -- > getBook :: EulerClient Book
+  -- > getUser :: HasCallStack => EulerClient User
+  -- > getBook :: HasCallStack => EulerClient Book
   -- > (getUser :<|> getBook) = client api
   -- >
   -- > url = BaseUrl Http "localhost" port ""
@@ -464,7 +496,7 @@ class Monad m => MonadFlow m where
   -- >   book <- callServantAPI url getBook
   -- >   user <- callServantAPI url getUser
   callServantAPI
-    :: T.JSONEx a
+    :: (HasCallStack, T.JSONEx a)
     => Maybe T.ManagerSelector     -- ^ name of the connection manager to be used
     -> BaseUrl                     -- ^ remote url 'BaseUrl'
     -> T.EulerClient a             -- ^ servant client 'EulerClient'
@@ -479,12 +511,13 @@ class Monad m => MonadFlow m where
   -- > myFlow = do
   -- >   book <- callHTTPWithCert url cert
   callHTTPWithCert
-    :: T.HTTPRequest                        -- ^ remote url 'Text'
+    :: HasCallStack
+    => T.HTTPRequest                        -- ^ remote url 'Text'
     -> Maybe T.HTTPCert                     -- ^ TLS certificate data
     -> m (Either Text.Text T.HTTPResponse)  -- ^ result
 
   -- | Evaluates a logging action.
-  evalLogger' :: (ToJSON a, FromJSON a) => Logger a -> m a
+  evalLogger' :: (HasCallStack, ToJSON a, FromJSON a) => Logger a -> m a
 
   -- | The same as runIO, but accepts a description which will be written into the ART recordings
   -- for better clarity.
@@ -495,7 +528,7 @@ class Monad m => MonadFlow m where
   -- >   content <- runIO' "reading from file" $ readFromFile file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runIO' :: T.JSONEx a => Text -> IO a -> m a
+  runIO' :: (HasCallStack, T.JSONEx a) => Text -> IO a -> m a
 
   -- | The same as runUntracedIO, but accepts a description which will be written into
   -- the ART recordings for better clarity.
@@ -506,12 +539,12 @@ class Monad m => MonadFlow m where
   -- >   content <- runUntracedIO' "reading secret data" $ readFromFile secret_file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runUntracedIO' :: Text -> IO a -> m a
+  runUntracedIO' :: HasCallStack => Text -> IO a -> m a
 
   -- | Gets stored a typed option by a typed key.
   --
   -- Thread safe, exception free.
-  getOption :: forall k v. T.OptionEntity k v => k -> m (Maybe v)
+  getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m (Maybe v)
 
   -- Sets a typed option using a typed key (a mutable destructive operation)
   --
@@ -532,19 +565,16 @@ class Monad m => MonadFlow m where
   -- >    mKey <- getOption MerchantIdKey
   -- >    runIO $ putTextLn mKey
   -- >    delOption MerchantIdKey
-  setOption :: forall k v. T.OptionEntity k v => k -> v -> m ()
+  setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> m ()
 
-  -- Deletes a typed option using a typed key.
-  --
-
-  delOption :: forall k v. T.OptionEntity k v => k -> m ()
-
+  -- | Deletes a typed option using a typed key.
+  delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m ()
 
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
   --
   -- Thread safe, exception free.
-  generateGUID :: m Text
+  generateGUID :: HasCallStack => m Text
 
   -- | Runs system command and returns its output.
   --
@@ -554,7 +584,7 @@ class Monad m => MonadFlow m where
   -- >   currentDir <- runSysCmd "pwd"
   -- >   logInfoT "currentDir" $ toText currentDir
   -- >   ...
-  runSysCmd :: String -> m String
+  runSysCmd :: HasCallStack => String -> m String
 
   -- | Inits an SQL connection using a config.
   --
@@ -562,13 +592,13 @@ class Monad m => MonadFlow m where
   -- if the connection already exists for this config.
   --
   -- Thread safe, exception free.
-  initSqlDBConnection :: T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
+  initSqlDBConnection :: HasCallStack => T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
 
   -- | Deinits an SQL connection.
   -- Does nothing if the connection is not found (might have been closed earlier).
   --
   -- Thread safe, exception free.
-  deinitSqlDBConnection :: T.SqlConn beM -> m ()
+  deinitSqlDBConnection :: HasCallStack => T.SqlConn beM -> m ()
 
   -- | Gets the existing connection.
   --
@@ -576,7 +606,7 @@ class Monad m => MonadFlow m where
   -- if the connection does not exist.
   --
   -- Thread safe, exception free.
-  getSqlDBConnection ::T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
+  getSqlDBConnection :: HasCallStack => T.DBConfig beM -> m (T.DBResult (T.SqlConn beM))
 
   -- | Inits a KV DB connection using a config.
   --
@@ -584,13 +614,13 @@ class Monad m => MonadFlow m where
   -- if the connection already exists.
   --
   -- Thread safe, exception free.
-  initKVDBConnection :: T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
+  initKVDBConnection :: HasCallStack => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
 
   -- | Deinits the given KV DB connection.
   -- Does nothing if the connection is not found (might have been closed earlier).
   --
   -- Thread safe, exception free.
-  deinitKVDBConnection :: T.KVDBConn  -> m ()
+  deinitKVDBConnection :: HasCallStack => T.KVDBConn  -> m ()
 
   -- | Get the existing connection.
 
@@ -598,7 +628,7 @@ class Monad m => MonadFlow m where
   -- if the connection does not exits for this config.
   --
   -- Thread safe, exception free.
-  getKVDBConnection :: T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
+  getKVDBConnection :: HasCallStack => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
 
   -- | Evaluates SQL DB operations outside of any transaction.
   -- It's possible to have a chain of SQL DB calls (within the SqlDB language).
@@ -609,7 +639,7 @@ class Monad m => MonadFlow m where
   -- The underlying library is beam which allows to access 3 different SQL backends.
   -- See TUTORIAL.md, README.md and QueryExamplesSpec.hs for more info.
   --
-  -- > myFlow :: L.Flow (T.DBResult (Maybe User))
+  -- > myFlow :: HasCallStack => L.Flow (T.DBResult (Maybe User))
   -- > myFlow = do
   -- >   connection <- L.initSqlDBConnection postgresCfg
   -- >
@@ -635,7 +665,8 @@ class Monad m => MonadFlow m where
   -- >   pure res
   runDB
     ::
-      ( T.JSONEx a
+      ( HasCallStack
+      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -646,7 +677,8 @@ class Monad m => MonadFlow m where
   -- | Like `runDB` but runs inside a SQL transaction.
   runTransaction
     ::
-      ( T.JSONEx a
+      ( HasCallStack
+      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -676,7 +708,7 @@ class Monad m => MonadFlow m where
   -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
   -- >   await Nothing awaitable
   await
-    :: (FromJSON a, ToJSON a)
+    :: (HasCallStack, FromJSON a, ToJSON a)
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> m (Either T.AwaitingError a)
@@ -692,7 +724,17 @@ class Monad m => MonadFlow m where
   -- >   case res of
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
-  throwException :: forall a e. Exception e => e -> m a
+  throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
+  throwException ex = do
+    -- Doubt: Should we just print the exception details without the
+    -- contextual details that logError prints. As finding the message inside logError is a bit
+    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
+    -- contextual details.
+    logExceptionCallStack ex
+    throwExceptionWithoutCallStack ex
+
+  throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
+  throwExceptionWithoutCallStack = throwM
 
   -- | Run a flow safely with catching all the exceptions from it.
   -- Returns either a result or the exception turned into a text message.
@@ -709,7 +751,7 @@ class Monad m => MonadFlow m where
   -- >   case eitherContent of
   -- >     Left err -> ...
   -- >     Right content -> ...
-  runSafeFlow :: (FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
+  runSafeFlow :: (HasCallStack, FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
 
   -- | Execute kvdb actions.
   --
@@ -722,19 +764,22 @@ class Monad m => MonadFlow m where
   -- >     del ["aaa"]
   -- >     pure res
   runKVDB
-    :: Text
+    :: HasCallStack
+    => Text
     -> KVDB a -- ^ KVDB action
     -> m (T.KVDBAnswer a)
 
   ---- Experimental Pub Sub implementation using Redis Pub Sub.
 
   runPubSub
-    :: PubSub a
+    :: HasCallStack
+    => PubSub a
     -> m a
 
   -- | Publish payload to channel.
   publish
-    :: PSL.Channel                        -- ^ Channel in which payload will be send
+    :: HasCallStack
+    => PSL.Channel                        -- ^ Channel in which payload will be send
     -> PSL.Payload                        -- ^ Payload
     -> m (Either T.KVDBReply Integer)  -- ^ Number of subscribers received payload
 
@@ -742,7 +787,8 @@ class Monad m => MonadFlow m where
   -- Note: Subscription won't be unsubscribed automatically on thread end.
   -- Use canceller explicitly to cancel subscription
   subscribe
-    :: [PSL.Channel]    -- ^ List of channels to subscribe
+    :: HasCallStack
+    => [PSL.Channel]    -- ^ List of channels to subscribe
     -> MessageCallback  -- ^ Callback function.
     -> m (Flow ())   -- ^ Inner flow is a canceller of current subscription
 
@@ -750,201 +796,344 @@ class Monad m => MonadFlow m where
   -- Note: Subscription won't be unsubscribed automatically on thread end.
   -- Use canceller explicitly to cancel subscription
   psubscribe
-    :: [PSL.ChannelPattern] -- ^ List of channels to subscribe (wit respect to patterns supported by redis)
+    :: HasCallStack
+    => [PSL.ChannelPattern] -- ^ List of channels to subscribe (wit respect to patterns supported by redis)
     -> PMessageCallback     -- ^ Callback function
     -> m (Flow ())       -- ^ Inner flow is a canceller of current subscription
 
-
 instance MonadFlow Flow where
+  {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
+  {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url cert = liftFC $ CallHTTP url cert id
+  {-# INLINEABLE evalLogger' #-}
   evalLogger' logAct = liftFC $ EvalLogger logAct id
-
+  {-# INLINEABLE runIO' #-}
   runIO' descr ioAct = liftFC $ RunIO descr ioAct id
+  {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
-
-  getOption :: forall k v. T.OptionEntity k v => k -> Flow (Maybe v)
+  {-# INLINEABLE getOption #-}
+  getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow (Maybe v)
   getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
-
-  setOption :: forall k v. T.OptionEntity k v => k -> v -> Flow ()
+  {-# INLINEABLE setOption #-}
+  setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
-
-  delOption :: forall k v. T.OptionEntity k v => k -> Flow ()
+  {-# INLINEABLE delOption #-}
+  delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (T.mkOptionKey @k @v k) id
-
+  {-# INLINEABLE generateGUID #-}
   generateGUID = liftFC $ GenerateGUID id
-
+  {-# INLINEABLE runSysCmd #-}
   runSysCmd cmd = liftFC $ RunSysCmd cmd id
-
+  {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
+  {-# INLINEABLE deinitSqlDBConnection #-}
   deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
+  {-# INLINEABLE getSqlDBConnection #-}
   getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id
-
+  {-# INLINEABLE initKVDBConnection #-}
   initKVDBConnection cfg = liftFC $ InitKVDBConnection cfg id
+  {-# INLINEABLE deinitKVDBConnection #-}
   deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
+  {-# INLINEABLE getKVDBConnection #-}
   getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
-
+  {-# INLINEABLE runDB #-}
   runDB conn dbAct = liftFC $ RunDB conn dbAct False id
+  {-# INLINEABLE runTransaction #-}
   runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
-
+  {-# INLINEABLE await #-}
   await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
-  throwException ex = liftFC $ ThrowException ex id
-
+  {-# INLINEABLE runSafeFlow #-}
   runSafeFlow flow = do
     safeFlowGUID <- generateGUID
     liftFC $ RunSafeFlow safeFlowGUID flow id
-
+  {-# INLINEABLE runKVDB #-}
   runKVDB cName act = liftFC $ RunKVDB cName act id
-
+  {-# INLINEABLE runPubSub #-}
   runPubSub act = liftFC $ RunPubSub act id
-
+  {-# INLINEABLE publish #-}
   publish channel payload = runPubSub $ PubSub $ const $ PSL.publish channel payload
-
+  {-# INLINEABLE subscribe #-}
   subscribe channels cb = fmap (runIO' "subscribe") $
     runPubSub $ PubSub $ \runFlow -> PSL.subscribe channels (runFlow . cb)
-
+  {-# INLINEABLE psubscribe #-}
   psubscribe channels cb = fmap (runIO' "psubscribe") $
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
 
-
--- instance (MonadTrans t, MonadFlow m, Monad m, Monad (t m)) => MonadFlow (t m) where
 instance MonadFlow m => MonadFlow (ReaderT r m) where
+  {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
+  {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr = lift . runUntracedIO' descr
+  {-# INLINEABLE getOption #-}
   getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
   deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
   getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
   initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
   deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
   getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
   runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  {-# INLINEABLE runSafeFlow #-}
   runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
   runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
   runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
   publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
   subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
 
 instance MonadFlow m => MonadFlow (StateT s m) where
+  {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
+  {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr = lift . runUntracedIO' descr
+  {-# INLINEABLE getOption #-}
   getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
   deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
   getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
   initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
   deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
   getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
   runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  {-# INLINEABLE runSafeFlow #-}
   runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
   runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
   runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
   publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
   subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
+  {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
+  {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr = lift . runUntracedIO' descr
+  {-# INLINEABLE getOption #-}
   getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
   deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
   getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
   initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
   deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
   getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
   runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  {-# INLINEABLE runSafeFlow #-}
   runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
   runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
   runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
   publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
   subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
+  {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
+  {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr = lift . runUntracedIO' descr
+  {-# INLINEABLE getOption #-}
   getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
   deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
   getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
   initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
   deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
   getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
   runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  {-# INLINEABLE runSafeFlow #-}
   runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
   runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
   runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
   publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
   subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
+  {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
+  {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr = lift . runUntracedIO' descr
+  {-# INLINEABLE getOption #-}
   getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
   runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
   initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
   deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
   getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
   initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
   deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
   getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
   runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
   runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
   await mbMcs = lift . await mbMcs
-  throwException =  lift . throwException
+  {-# INLINEABLE runSafeFlow #-}
   runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
   runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
   runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
   publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
   subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
+
+-- TODO: save a builder in some state for using `hPutBuilder`?
+--
+-- Doubts:
+-- Is it the right place to put it?
+-- Should the type be more generic than IO ()?
+logCallStack :: (HasCallStack, MonadFlow m) => m ()
+logCallStack = logDebug ("CALLSTACK" :: Text) $ Text.pack $ prettyCallStack callStack
+
+-- customPrettyCallStack :: Int -> CallStack -> String
+-- customPrettyCallStack numLines stack =
+--   let stackLines = prettyCallStackLines stack
+--       lastNumLines = takeEnd numLines stackLines
+--    in "CallStack: " ++ intercalate "; " lastNumLines
+
+logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
+logExceptionCallStack ex = logError ("EXCEPTION" :: Text) $ Text.pack $ displayException ex
 

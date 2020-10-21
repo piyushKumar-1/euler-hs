@@ -6,6 +6,7 @@ module EulerHS.Extra.Validation
     -- * Extra Validation
     Transform(..)
   , mkValidator
+  , mkTransformer
   , Transformer
   , Validator
   , V
@@ -65,6 +66,11 @@ decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
   Just x -> Right x
 --  _      -> Left ["Can't decode " <> v <> " from field " <> ctx <> ", should be one of " <> showConstructors @t])
   _      -> Left ["Can't decode " <> v <> " from field " <> ctx])
+
+mkTransformer :: Text -> (a -> Maybe b) -> Transformer a b
+mkTransformer err f v = ReaderT (\ctx -> case f v of
+  Just x  -> Right x
+  Nothing -> Left [ctx <> " " <> err])
 
 insideJust :: Transformer a b -> Transformer (Maybe a) (Maybe b)
 insideJust _ Nothing    = pure Nothing

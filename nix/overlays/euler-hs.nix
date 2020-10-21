@@ -21,8 +21,8 @@ eulerBuild.mkEulerHaskellOverlay
       eulerBuild.fastBuildExternal {
         drv = hself.callHackageDirect {
           pkg = "record-dot-preprocessor";
-          ver = "0.2.6";
-          sha256 = "1mp2bcb3rkg33z2030267pjvbbzadbh8cmrsax25ygk9bxmx8bbf";
+          ver = "0.2.7";
+          sha256 = "0dyn5wpn0p4sc1yw4zq9awrl2aa3gd3jamllfxrg31v3i3l6jvbw";
         } { };
       };
 

@@ -17,15 +17,15 @@ packages:
     commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
 - completed:
     name: beam-mysql
-    version: 1.1.0.0
+    version: 1.2.0.0
     git: https://github.com/juspay/beam-mysql
     pantry-tree:
-      size: 1235
-      sha256: 10d6ddf2c479b83073b8392f897049b72f4bddb9ac037e0da8de91ad162eaa2e
-    commit: a2b9285423cded455698e08f5ef5adeb652fce7f
+      size: 2683
+      sha256: 04a54665c45bdb7b3e8ad4e94908d4e90231831deee1127c22b3c1d36d4b74f0
+    commit: c1fe205aa411d9d73cbc2037710399649a2f5c77
   original:
     git: https://github.com/juspay/beam-mysql
-    commit: a2b9285423cded455698e08f5ef5adeb652fce7f
+    commit: c1fe205aa411d9d73cbc2037710399649a2f5c77
 - completed:
     name: mysql-haskell
     version: 0.8.4.2
@@ -174,6 +174,20 @@ packages:
       sha256: c99a12bfcbeacc5da8f166fbed1eb105a45f08be1a3a071fe9f903b386b14e1d
   original:
     hackage: wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
+- completed:
+    hackage: mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
+    pantry-tree:
+      size: 574
+      sha256: 4147c0fd201f849d018f9408e82b75b0313294bb9fff290673dd30729eedf948
+  original:
+    hackage: mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
+- completed:
+    hackage: record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
+    pantry-tree:
+      size: 1003
+      sha256: 8e86a73101e570ce238522f45ffb906811116c752d1f08418a2abd078697488e
+  original:
+    hackage: record-dot-preprocessor-0.2.7@sha256:bf7e83b2a01675577f81536fc3246e3b54e9d2dd28bb645599813dc5c486fbee,2440
 snapshots:
 - completed:
     size: 496112

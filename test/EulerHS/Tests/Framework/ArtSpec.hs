@@ -269,7 +269,23 @@ spec = do
         Just headerValue -> do
           Text.isInfixOf "text/html" headerValue `shouldBe` True
 
+    it "Untyped HTTP API Calls" $ do
+      let url = "https://127.0.0.1:666/fourohhhfour"
+      result <- runFlowWithArt $ do
+        L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)
 
+      err <- extractLeft result
+      -- putStrLn $ "ERROR" <> err
+      pure ()
+
+
+extractLeft :: Either a b -> IO a
+extractLeft eitherVal =
+  case eitherVal of
+    Left val ->
+      pure val
+    Right res ->
+      throwM $ Error.userError "Expected Left from erroneous call!"
 
 mainScript :: Flow String
 mainScript = do

@@ -28,6 +28,8 @@ module EulerHS.Framework.Flow.Language
   , forkFlow'
   -- *** PublishSubscribe
   , unpackLanguagePubSub
+  -- ** Interpretation
+  , foldFlow
   ) where
 
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
@@ -283,6 +285,9 @@ instance MonadMask Flow where
   {-# INLINEABLE generalBracket #-}
   generalBracket acquire release act =
     liftFC . GeneralBracket acquire release act $ id
+
+foldFlow :: (Monad m) => (forall b . FlowMethod b -> m b) -> Flow a -> m a
+foldFlow f (Flow comp) = foldF f comp
 
 type ReaderFlow r = ReaderT r Flow
 

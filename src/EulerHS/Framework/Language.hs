@@ -16,7 +16,8 @@ module EulerHS.Framework.Language
     X.runUntracedIO,
     X.forkFlow,
     X.forkFlow',
-    X.unpackLanguagePubSub
+    X.unpackLanguagePubSub,
+    X.foldFlow
   ) where
 
 import qualified EulerHS.Framework.Flow.Language as X

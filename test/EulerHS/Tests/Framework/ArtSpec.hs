@@ -269,7 +269,7 @@ spec = do
         Just headerValue -> do
           Text.isInfixOf "text/html" headerValue `shouldBe` True
 
-    it "Untyped HTTP API Calls" $ do
+    xit "Untyped HTTP API Calls" $ do
       let url = "https://127.0.0.1:666/fourohhhfour"
       result <- runFlowWithArt $ do
         L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)

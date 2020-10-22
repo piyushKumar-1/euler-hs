@@ -1,6 +1,6 @@
-cabal-version: 2.2
+cabal-version: 3.0
 name:          euler-hs
-version:       2.0.1.0
+version:       2.0.2.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -9,7 +9,7 @@ maintainer:    koz.ross@juspay.in
 copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
 category:      Euler
 build-type:    Simple
-tested-with:   GHC ==8.6.5
+tested-with:   GHC ==8.8.3
 
 source-repository head
   type:     git
@@ -110,7 +110,7 @@ library
     , base64-bytestring
     , base64-bytestring-type
     , beam-core               ^>=0.9.0.0
-    , beam-mysql              ^>=1.1.0.0
+    , beam-mysql              ^>=1.2.0.0
     , beam-postgres           ^>=0.5.0.0
     , beam-sqlite             ^>=0.5.0.0
     , binary
@@ -137,8 +137,9 @@ library
     , newtype-generics
     , postgresql-simple
     , process
+    , profunctors
     , resource-pool
-    , sequelize
+    , sequelize               ^>=1.1.0.0
     , servant-client
     , servant-client-core
     , sqlite-simple
@@ -164,6 +165,49 @@ test-suite language
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
   other-modules:
+    EulerHS.CachedSqlDBQuery
+    EulerHS.Core.Api
+    EulerHS.Core.Interpreters
+    EulerHS.Core.KVDB.Entries
+    EulerHS.Core.KVDB.Interpreter
+    EulerHS.Core.KVDB.Language
+    EulerHS.Core.Language
+    EulerHS.Core.Logger.Entries
+    EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
+    EulerHS.Core.Logger.Interpreter
+    EulerHS.Core.Logger.Language
+    EulerHS.Core.Playback.Entries
+    EulerHS.Core.Playback.Machine
+    EulerHS.Core.PubSub.Entries
+    EulerHS.Core.PubSub.Interpreter
+    EulerHS.Core.PubSub.Language
+    EulerHS.Core.Runtime
+    EulerHS.Core.SqlDB.Interpreter
+    EulerHS.Core.SqlDB.Language
+    EulerHS.Core.Types
+    EulerHS.Core.Types.BinaryString
+    EulerHS.Core.Types.Common
+    EulerHS.Core.Types.DB
+    EulerHS.Core.Types.Exceptions
+    EulerHS.Core.Types.HttpAPI
+    EulerHS.Core.Types.KVDB
+    EulerHS.Core.Types.Logger
+    EulerHS.Core.Types.MySQL
+    EulerHS.Core.Types.Options
+    EulerHS.Core.Types.Playback
+    EulerHS.Core.Types.Postgres
+    EulerHS.Core.Types.Serializable
+    EulerHS.Extra.Aeson
+    EulerHS.Extra.Language
+    EulerHS.Framework.Flow.Interpreter
+    EulerHS.Framework.Flow.Language
+    EulerHS.Framework.Interpreters
+    EulerHS.Framework.Language
+    EulerHS.Framework.Runtime
+    EulerHS.Interpreters
+    EulerHS.Language
+    EulerHS.Prelude
+    EulerHS.Runtime
     EulerHS.TestData.API.Client
     EulerHS.TestData.Scenarios.Scenario1
     EulerHS.TestData.Types
@@ -177,36 +221,69 @@ test-suite language
     EulerHS.Tests.Framework.KVDBArtSpec
     EulerHS.Tests.Framework.PubSubSpec
     EulerHS.Tests.Framework.SQLArtSpec
+    EulerHS.Types
 
   build-depends:
     , aeson
     , aeson-pretty
+    , base64-bytestring
+    , base64-bytestring-type
     , beam-core
+    , beam-mysql
+    , beam-postgres
     , beam-sqlite
+    , binary
     , bytestring
+    , case-insensitive
+    , cereal
+    , connection
     , containers
+    , data-default
+    , dlist
     , euler-hs
+    , exceptions
+    , extra
+    , fmt
+    , free
     , generic-lens
     , hedis
     , hspec
     , http-client
     , http-client-tls
+    , http-media
+    , http-types
     , lens
+    , mysql-haskell
     , named
+    , newtype-generics
+    , postgresql-simple
     , process
+    , profunctors
     , QuickCheck
+    , resource-pool
     , sequelize
     , servant
     , servant-client
+    , servant-client-core
     , servant-mock
     , servant-server
+    , sqlite-simple
+    , stm
     , string-conversions
     , text
+    , time
+    , tinylog
+    , tls
+    , transformers
+    , unagi-chan
+    , universum
+    , unordered-containers
+    , utf8-string
     , uuid
     , vector
     , warp
 
-  hs-source-dirs: test
+  hs-source-dirs: test src
 
 test-suite db
   import:         common-lang
@@ -227,7 +304,7 @@ test-suite db
   build-depends:
     , aeson
     , beam-core
-    , beam-mysql ^>= 1.1.0.0
+    , beam-mysql
     , beam-postgres
     , beam-sqlite
     , bytestring

@@ -17,8 +17,8 @@ let
   beam-mysql-repo = fetchFromGitHub {
     owner = "juspay";
     repo = "beam-mysql";
-    rev = "a2b9285423cded455698e08f5ef5adeb652fce7f";
-    sha256 = "1y1cd15ds3l7jwg5d818jg0i7lzp7czqjgkv4hxlwpardi7h43ka";
+    rev = "c1fe205aa411d9d73cbc2037710399649a2f5c77";
+    sha256 = "0mgzz79dlp2ybcxb3wfcbykf48030482ic0640wqaff5yj6bj777";
   };
 
   beam-mysql-path = beam-mysql-repo;
@@ -68,6 +68,25 @@ eulerBuild.mkEulerHaskellOverlay
           drv = hsuper.haskell-src-meta.override {
             haskell-src-exts = haskell-src-exts_1_21_1;
           };
+        };
+
+
+      mason =
+        eulerBuild.fastBuildExternal {
+          drv = hself.callHackageDirect {
+            pkg = "mason";
+            ver = "0.2.3";
+            sha256 = "1dcd3n1lxlpjsz92lmr1nsx29mwwglim0gask04668sdiarr3x1v";
+          } { };
+        };
+
+      record-dot-preprocessor =
+        eulerBuild.fastBuildExternal {
+          drv = hself.callHackageDirect {
+            pkg = "record-dot-preprocessor";
+            ver = "0.2.7";
+            sha256 = "0dyn5wpn0p4sc1yw4zq9awrl2aa3gd3jamllfxrg31v3i3l6jvbw";
+          } { };
         };
 
       beam-core = eulerBuild.fastBuildExternal {

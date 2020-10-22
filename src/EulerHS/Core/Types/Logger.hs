@@ -51,7 +51,7 @@ data LoggerConfig
 type Message = Text
 type Tag = Text
 type MessageNumber = Int
-data PendingMsg = PendingMsg !LogLevel !Tag !Message !MessageNumber !TransientLoggerContext
+data PendingMsg = PendingMsg !LogLevel !Tag !Message !MessageNumber !TransientLoggerContext !TransientLoggerContext
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]

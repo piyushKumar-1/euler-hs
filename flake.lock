@@ -29,11 +29,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1603287714,
-        "narHash": "sha256-pakNNGdLzl2xbNS+nUDK3QSWGzxenAOs+S7HST5g9Kk=",
+        "lastModified": 1603365352,
+        "narHash": "sha256-hEh0WYIavl4Rja9NHOqN5jPCdnMxzUES8i/JsiuEqrc=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "62dd00618b5c016e3acda9a6e6ecef1d4a48b4a0",
+        "rev": "b9c3d60df464e127217424b6b45195ec46636d4f",
         "type": "github"
       },
       "original": {
@@ -89,11 +89,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1603295474,
-        "narHash": "sha256-MDTQh+lHrLDu8BJ3J/pyyNJzK7KNyJdshhRKYTxqREM=",
+        "lastModified": 1603299037,
+        "narHash": "sha256-S3QEiahMn+QKqRTCwtF8vLQFF1PK+bp4HQReg+sRgas=",
         "ref": "euler-tools",
-        "rev": "ed8ccff3e8dbf4b9a8dd733ffe4f6af862fe89b3",
-        "revCount": 51,
+        "rev": "1486126a92c6087c7a018f25797fc5f9d45fa1d9",
+        "revCount": 67,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/haskell-sequelize"
       },

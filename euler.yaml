@@ -15,10 +15,10 @@ dependencies:
     revision: b369dfb2077bc31221130379cc0e705c66f5bdcf
   beam-mysql:
     branch: euler-tools
-    revision: 62dd00618b5c016e3acda9a6e6ecef1d4a48b4a0
+    revision: b9c3d60df464e127217424b6b45195ec46636d4f
   haskell-sequelize:
     branch: euler-tools
-    revision: ed8ccff3e8dbf4b9a8dd733ffe4f6af862fe89b3
+    revision: 1486126a92c6087c7a018f25797fc5f9d45fa1d9
 
 overrides:
   hedis:

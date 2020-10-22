@@ -64,7 +64,6 @@ library
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
-    EulerHS.Framework.Flow.Language
 
   other-modules:
     EulerHS.Core.Api
@@ -101,7 +100,7 @@ library
     EulerHS.Extra.Aeson
     EulerHS.Extra.Language
     EulerHS.Framework.Flow.Interpreter
-    -- EulerHS.Framework.Flow.Language
+    EulerHS.Framework.Flow.Language
     EulerHS.Framework.Interpreters
     EulerHS.Framework.Language
     EulerHS.Framework.Runtime

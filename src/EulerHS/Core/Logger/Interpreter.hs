@@ -30,13 +30,13 @@ interpretLogger runMode (R.MemoryLoggerRuntime cfgLogLvl mvar) (L.LogMessage msg
         let m = "" +|| msgLogLvl ||+ " " +| tag |+ " " +| msg |+ ""
         pure (m : lgs, ())
 
-interpretLogger runMode (R.LoggerRuntime cfgLogLvl _ cnt ctx handle) (L.LogMessage msgLogLvl tag msg next) =
+interpretLogger runMode (R.LoggerRuntime cfgLogLvl _ cnt ctx1 ctx2  handle) (L.LogMessage msgLogLvl tag msg next) =
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
     case compare cfgLogLvl msgLogLvl of
       GT -> pure ()
       _  -> do
         msgNum <- R.incLogCounter cnt
-        Impl.sendPendingMsg handle $ D.PendingMsg msgLogLvl tag msg msgNum ctx
+        Impl.sendPendingMsg handle $ D.PendingMsg msgLogLvl tag msg msgNum ctx1 ctx2 
 
 runLogger :: D.RunMode -> R.LoggerRuntime -> L.Logger a -> IO a
 runLogger runMode loggerRt = foldF (interpretLogger runMode loggerRt)

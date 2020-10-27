@@ -90,10 +90,10 @@ clearFlowRuntime FlowRuntime{..} = do
   -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
 
-setTransientLoggerContext :: R.TransientLoggerContext -> FlowRuntime -> FlowRuntime
-setTransientLoggerContext ctx rt@FlowRuntime{_coreRuntime} =
+setTransientLoggerContext :: R.TransientLoggerContext -> R.TransientLoggerContext -> FlowRuntime -> FlowRuntime
+setTransientLoggerContext ctx1 ctx2 rt@FlowRuntime{_coreRuntime} =
   rt { _coreRuntime = _coreRuntime { R._loggerRuntime = loggerRuntimeWithCtx } }
-  where loggerRuntimeWithCtx = R.setTransientContext ctx (R._loggerRuntime _coreRuntime)
+  where loggerRuntimeWithCtx = R.setTransientContext ctx1 ctx2 (R._loggerRuntime _coreRuntime)
 
 shouldFlowLogRawSql :: FlowRuntime -> Bool
 shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime

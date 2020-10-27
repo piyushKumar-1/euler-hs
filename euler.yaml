@@ -22,7 +22,8 @@ dependencies:
 
 overrides:
   hedis:
-    git: https://github.com/juspay/hedis
+    owner: juspay
+    repo: hedis
     commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
     sha256: 1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595
     source: github

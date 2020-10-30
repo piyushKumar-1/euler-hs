@@ -18,7 +18,7 @@ dependencies:
     revision: 4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace
   haskell-sequelize:
     branch: master
-    revision: eafd5477d9fb15b78cde5329f64a378c728f7bbd
+    revision: 506c64b3d11079d2e1f625b612b14b4e44a4e2b7
 
 overrides:
   hedis:

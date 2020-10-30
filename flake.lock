@@ -1,0 +1,166 @@
+{
+  "nodes": {
+    "beam": {
+      "inputs": {
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1604096164,
+        "narHash": "sha256-Pkpc/4/UuC6q7WM9Bx7THg0HyRZWU53SDdLsYzB7WQY=",
+        "owner": "juspay",
+        "repo": "beam",
+        "rev": "185ff060e63ab0b8a72775ee2742621dd6fefeb1",
+        "type": "github"
+      },
+      "original": {
+        "id": "beam",
+        "type": "indirect"
+      }
+    },
+    "beam-mysql": {
+      "inputs": {
+        "beam": [
+          "beam"
+        ],
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1604096494,
+        "narHash": "sha256-+mCbshr1YSJzLrEb+JpSQaH5EODAZ0Sm8sstztKAZq0=",
+        "owner": "juspay",
+        "repo": "beam-mysql",
+        "rev": "4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace",
+        "type": "github"
+      },
+      "original": {
+        "id": "beam-mysql",
+        "type": "indirect"
+      }
+    },
+    "euler-build": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "nix-inclusive": "nix-inclusive",
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1604090709,
+        "narHash": "sha256-6rbkQE+r8HwgnV3nPuA8VyfA1eOJUl+BbejH8QHtYC0=",
+        "ref": "master",
+        "rev": "a5ce0b6f56f900f962a5a3ac9f00d0bdfc3fa5f9",
+        "revCount": 5,
+        "type": "git",
+        "url": "ssh://git@bitbucket.org/juspay/euler-build"
+      },
+      "original": {
+        "id": "euler-build",
+        "type": "indirect"
+      }
+    },
+    "flake-utils": {
+      "locked": {
+        "lastModified": 1600209923,
+        "narHash": "sha256-zoOWauTliFEjI++esk6Jzk7QO5EKpddWXQm9yQK24iM=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "3cd06d3c1df6879c9e41cb2c33113df10566c760",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "haskell-sequelize": {
+      "inputs": {
+        "beam": [
+          "beam"
+        ],
+        "beam-mysql": [
+          "beam-mysql"
+        ],
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1604098972,
+        "narHash": "sha256-s6kWaQcWRdsivtbSgD04aQAg5Jr1R5XWsHTVlPno78E=",
+        "ref": "master",
+        "rev": "506c64b3d11079d2e1f625b612b14b4e44a4e2b7",
+        "revCount": 73,
+        "type": "git",
+        "url": "ssh://git@bitbucket.org/juspay/haskell-sequelize"
+      },
+      "original": {
+        "id": "haskell-sequelize",
+        "type": "indirect"
+      }
+    },
+    "nix-inclusive": {
+      "inputs": {
+        "stdlib": "stdlib"
+      },
+      "locked": {
+        "lastModified": 1592950149,
+        "narHash": "sha256-tZSz9/WkOrtNbW7U2re4WoFPQ2tQX0I0GpCeoF3fY1M=",
+        "owner": "manveru",
+        "repo": "nix-inclusive",
+        "rev": "dd80ddcc6850d130b591fbc9b0aacacfbb3cf47c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "manveru",
+        "repo": "nix-inclusive",
+        "rev": "dd80ddcc6850d130b591fbc9b0aacacfbb3cf47c",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1589844680,
+        "narHash": "sha256-I4OYatIJsEZvEUkAGdTlJjAuUuAq7A1GA/kepUQic1o=",
+        "owner": "NixOS",
+        "repo": "nixpkgs-channels",
+        "rev": "0f5ce2fac0c726036ca69a5524c59a49e2973dd4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs-channels",
+        "rev": "0f5ce2fac0c726036ca69a5524c59a49e2973dd4",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "beam": "beam",
+        "beam-mysql": "beam-mysql",
+        "euler-build": "euler-build",
+        "haskell-sequelize": "haskell-sequelize"
+      }
+    },
+    "stdlib": {
+      "locked": {
+        "lastModified": 1590026685,
+        "narHash": "sha256-E5INrVvYX/P/UpcoUFDAsuHem+lsqT+/teBs9O7oc9Q=",
+        "owner": "manveru",
+        "repo": "nix-lib",
+        "rev": "99088cf7febcdb21afd375a335dcafa959bef3ed",
+        "type": "github"
+      },
+      "original": {
+        "owner": "manveru",
+        "repo": "nix-lib",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

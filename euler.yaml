@@ -1,0 +1,32 @@
+name: euler-hs
+allowed-paths:
+- src
+- test
+- euler-hs.cabal
+
+# disable-tests: true
+
+dependencies:
+  euler-build:
+    branch: master
+    revision: a5ce0b6f56f900f962a5a3ac9f00d0bdfc3fa5f9
+  beam:
+    branch: master
+    revision: 185ff060e63ab0b8a72775ee2742621dd6fefeb1
+  beam-mysql:
+    branch: master
+    revision: 4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace
+  haskell-sequelize:
+    branch: master
+    revision: 506c64b3d11079d2e1f625b612b14b4e44a4e2b7
+
+overrides:
+  hedis:
+    owner: juspay
+    repo: hedis
+    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
+    sha256: 1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595
+    source: github
+
+# nix-shell-tools:
+#   - haskellPackages.cabal-fmt

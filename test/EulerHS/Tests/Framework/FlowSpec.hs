@@ -106,7 +106,7 @@ spec loggerCfg = do
               Left e  -> displayException e `shouldBe` error
               Right x -> fail "Success result not expected"
 
-          it "Untyped HTTP API Calls" $ \rt -> do
+          xit "Untyped HTTP API Calls" $ \rt -> do
             -- rt <- initRTWithManagers
             let url = "https://google.com"
             (statusCode, status, body, headers) <- runFlow rt $ do
@@ -124,7 +124,7 @@ spec loggerCfg = do
             statusCode `shouldBe` 200
             status `shouldBe` "OK"
 
-          it "Untyped HTTP API Calls" $ \rt -> do
+          xit "Untyped HTTP API Calls" $ \rt -> do
             -- rt <- initRTWithManagers
             let url = "https://127.0.0.1:666/fourohhhfour"
             result <- runFlow rt $ do

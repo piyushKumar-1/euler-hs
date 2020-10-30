@@ -235,7 +235,7 @@ spec = do
           userEither <- runFlowWithArt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isRight
 
-    it "Untyped HTTP API Calls" $ do
+    xit "Untyped HTTP API Calls" $ do
       let url = "https://google.com"
       (statusCode, status, body, headers) <- runFlowWithArt $ do
         eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
@@ -269,7 +269,7 @@ spec = do
         Just headerValue -> do
           Text.isInfixOf "text/html" headerValue `shouldBe` True
 
-    it "Untyped HTTP API Calls" $ do
+    xit "Untyped HTTP API Calls" $ do
       let url = "https://127.0.0.1:666/fourohhhfour"
       result <- runFlowWithArt $ do
         L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)

@@ -6,7 +6,7 @@ pipeline {
   stages {
     stage('Build and Test') {
       steps {
-        sh 'nix-build -A pkgs.eulerHaskellPackages.euler-hs-with-tests --option sandbox false --arg remoteDeps true'
+        sh "nix run nixpkgs.nixFlakes -I nixpkgs=channel:nixos-20.09 --option sandbox false -c nix --experimental-features 'nix-command flakes' build --print-build-logs --no-registries --no-update-lock-file -f build.nix"
       }
 
       options {

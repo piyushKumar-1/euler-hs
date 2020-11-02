@@ -1,6 +1,6 @@
 { devShell ? false }:
 let
-  nix-inclusive = builtins.fetchTarball "https://github.com/manveru/nix-inclusive/archive/dd80ddcc6850d130b591fbc9b0aacacfbb3cf47c.tar.gz";
+  nix-inclusive = builtins.fetchTarball "https://github.com/juspay/nix-inclusive/archive/6d7062921b2ea3911d2f95a8bd7afdf723d01b9a.tar.gz";
   filter = import "${nix-inclusive}/inclusive.nix" { lib = (import <nixpkgs> {}).lib; };
   path =
     filter ./. [
@@ -13,4 +13,4 @@ let
     ];
   attr = if devShell then "devShell" else "defaultPackage";
 in
-(builtins.getFlake (toString (builtins.unsafeDiscardStringContext path))).${attr}.x86_64-linux
+(builtins.getFlake (toString (builtins.unsafeDiscardStringContext path))).${attr}.${builtins.currentSystem}

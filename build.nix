@@ -1,6 +1,6 @@
 { devShell ? false }:
 let
-  nix-inclusive = builtins.fetchTarball "https://github.com/juspay/nix-inclusive/archive/6d7062921b2ea3911d2f95a8bd7afdf723d01b9a.tar.gz";
+  nix-inclusive = builtins.fetchTarball "https://github.com/juspay/nix-inclusive/archive/2ca1706029bfcf4bb7eaf17b4f32e49f436a148e.tar.gz";
   filter = import "${nix-inclusive}/inclusive.nix" { lib = (import <nixpkgs> {}).lib; };
   path =
     filter ./. [

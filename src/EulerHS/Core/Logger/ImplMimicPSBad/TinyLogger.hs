@@ -27,6 +27,8 @@ import qualified Data.Binary.Builder as BinaryBuilder
 import qualified Data.ByteString.Builder as ByteStringBuilder
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
@@ -56,11 +58,12 @@ strMsg = Log.msg
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsg loggers (D.PendingMsg lvl tag msg msgNum ctx1 ctx2 ) = do
   let lvl' = dispatchLogLevel lvl
-  let eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+  let eulerMsg = ("[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""); eulerMsg :: Text
   let ctxVal1 = fromMaybe "null" ctx1
   let ctxVal2 = fromMaybe "null" ctx2
+  let escapedMsg = T.tail . T.init $ show eulerMsg
   let msg'' =
-        (Log.field @ByteString "message" eulerMsg)
+        (Log.field @ByteString "message" (T.encodeUtf8 escapedMsg))
         ~~ (Log.field @Int "message_number" msgNum)
         ~~ ("x-request-id" .= ctxVal1)
         ~~ ("x-global-request-id" .= ctxVal2)
@@ -109,7 +112,7 @@ jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFiel
       (ts:_lvl:rest) -> (elementToBS ts, rest)
       _              -> error "Malformed log fields."
     commaSep = BinaryBuilder.fromByteString ", "
-    invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", " -- x-request-id = \"null\", "
+    invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", \"refund_id\": \"null\", \"refund_unique_request_id\": \"null\", \"merchant_id\": \"null\", " -- x-request-id = \"null\", "
     elementToBS = \case
       LogMsg.Bytes b -> LogMsg.builderBytes b
       LogMsg.Field k v -> jsonField (LogMsg.builderBytes k) (LogMsg.builderBytes v)

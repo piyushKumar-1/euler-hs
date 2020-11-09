@@ -32,10 +32,10 @@ let
   mkEulerHaskellOverlay = mkHaskellOverlayWith "eulerHaskellPackages";
 
   nix-inclusive = fetchFromGitHub {
-    owner = "manveru";
+    owner = "juspay";
     repo = "nix-inclusive";
-    rev = "bb435b7dce2b8a27d174543f0d768646d0d48fa3";
-    sha256 = "0fg4dbk7x62z86ah3qw4dlaiippgd0ckcqgm89zz5sapna1v4d56";
+    rev = "2ca1706029bfcf4bb7eaf17b4f32e49f436a148e";
+    sha256 = "1y3vhqnbh5kg906fpw22h670ppl8238xwv0dx7zdcp22212zdjnx";
   };
   inclusive = import "${nix-inclusive}/inclusive.nix" { inherit lib; };
 

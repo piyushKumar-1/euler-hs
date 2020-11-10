@@ -153,7 +153,15 @@ httpHead :: Text -> HTTPRequest
 httpHead = defaultRequest Head
 
 defaultRequest :: HTTPMethod -> Text -> HTTPRequest
-defaultRequest method url = HTTPRequest method Map.empty Nothing url Nothing Nothing
+defaultRequest method url
+  = HTTPRequest
+    { getRequestMethod = method
+    , getRequestHeaders = Map.empty
+    , getRequestBody = Nothing
+    , getRequestURL = url
+    , getRequestTimeout = Just 9000000
+    , getRequestRedirects = Just 10
+    }
 
 -- | Add a header to an HTTPRequest
 --

@@ -111,7 +111,7 @@ getHttpLibRequest request = do
   let
     setTimeout = case T.getRequestTimeout request of
       Just x  -> setRequestTimeout x
-      Nothing -> id
+      Nothing -> setRequestTimeout 9000000
 
   let
     setRedirects = case T.getRequestRedirects request of

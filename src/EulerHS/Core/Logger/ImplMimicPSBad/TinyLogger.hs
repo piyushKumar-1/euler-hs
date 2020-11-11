@@ -34,6 +34,7 @@ import qualified Data.Text.Lazy.Encoding as TL
 
 -- TODO: remove this along with the whole impl
 import qualified Data.Map as Map
+import           Mason.Builder as Mason
 import           System.Environment (getEnvironment)
 
 type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)
@@ -95,27 +96,35 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- TODO: this is terrible quick version
 -- would use Aeson.Value in the end
 -- rewrite all this with katip or forked tinylog
+
+-- type Renderer = ByteString -> DateFormat -> Level -> [Element] -> Builder
+-- we've rewritten this to use mason, hopefully it's a performance boost
 jsonRenderer :: String -> String -> String -> Log.Renderer
-jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFields =
-  BinaryBuilder.fromByteString "{\"timestamp\": " <> quote <> timestamp <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "\"app_framework\": " <> quote <> "euler-hs-application" <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "\"hostname\": " <> quote <> fromString hostname <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "\"source_commit\": " <> quote <> fromString sourceCommit <> quote <> commaSep <>
-  BinaryBuilder.fromByteString invariant <>
-  mconcat (map elementToBS fields) <>
-  -- BinaryBuilder.fromByteString "\"message\" = " <> quote <> message <> quote <> commaSep <>
-  BinaryBuilder.fromByteString "\"message_type\": \"string\"}"
+jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFields 
+  = mbuilder
   where
-    quote = BinaryBuilder.fromByteString "\""
-    jsonField k v = quote <> k <> quote <> ": " <> quote <> v <> quote <> commaSep
+    mbuilder :: BinaryBuilder.Builder
+    mbuilder = 
+      BinaryBuilder.fromLazyByteString "{\"timestamp\": " <> quote <> timestamp <> quote <> commaSep <>
+      BinaryBuilder.fromLazyByteString "\"app_framework\": " <> quote <> "euler-hs-application" <> quote <> commaSep <>
+      BinaryBuilder.fromLazyByteString "\"hostname\": " <> quote <> fromString hostname <> quote <> commaSep <>
+      BinaryBuilder.fromLazyByteString "\"source_commit\": " <> quote <> fromString sourceCommit <> quote <> commaSep <>
+      BinaryBuilder.fromLazyByteString invariant <>
+      mconcat (map elementToBS fields) <>
+      -- BinaryBuilder.fromByteString "\"message\" = " <> quote <> message <> quote <> commaSep <>
+      BinaryBuilder.fromLazyByteString "\"message_type\": \"string\"}"
+    colon = BinaryBuilder.fromLazyByteString ": "
+    quote = BinaryBuilder.fromLazyByteString "\""
+    commaSep = BinaryBuilder.fromLazyByteString ", "
+    jsonField k v = quote <> k <> quote <> colon <> quote <> v <> quote <> commaSep
     (timestamp, fields) = case loggerFields of
       (ts:_lvl:rest) -> (elementToBS ts, rest)
       _              -> error "Malformed log fields."
-    commaSep = BinaryBuilder.fromByteString ", "
     invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", \"refund_id\": \"null\", \"refund_unique_request_id\": \"null\", \"merchant_id\": \"null\", " -- x-request-id = \"null\", "
     elementToBS = \case
       LogMsg.Bytes b -> LogMsg.builderBytes b
       LogMsg.Field k v -> jsonField (LogMsg.builderBytes k) (LogMsg.builderBytes v)
+
 {-
 jsonRenderer hostname env separator dateFormat logLevel fields =
   Json.fromEncoding $
@@ -168,9 +177,7 @@ createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQ
           (mimicEulerPSSettings hostname env sourceCommit) . Log.setBufSize 4096 $
           Log.setOutput (Log.Path logFileName) Log.defSettings
 
-    let fileH           = [Log.new fileSettings    | isFileLog]
-    let consoleH        = [Log.new consoleSettings | isConsoleLog]
-    let loggersH        = fileH ++ consoleH
+    let loggersH           = [Log.new fileSettings    | isFileLog, Log.new consoleSettings | isConsoleLog]
     when (not $ null loggersH) $
       if isAsync then putStrLn @String "Creating async loggers..."
                  else putStrLn @String "Creating sync loggers..."

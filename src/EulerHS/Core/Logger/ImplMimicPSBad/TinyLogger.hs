@@ -177,7 +177,10 @@ createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQ
           (mimicEulerPSSettings hostname env sourceCommit) . Log.setBufSize 4096 $
           Log.setOutput (Log.Path logFileName) Log.defSettings
 
-    let loggersH           = [Log.new fileSettings    | isFileLog, Log.new consoleSettings | isConsoleLog]
+    let fileH           = [Log.new fileSettings    | isFileLog]
+    let consoleH        = [Log.new consoleSettings | isConsoleLog]
+    let loggersH        = fileH ++ consoleH
+
     when (not $ null loggersH) $
       if isAsync then putStrLn @String "Creating async loggers..."
                  else putStrLn @String "Creating sync loggers..."

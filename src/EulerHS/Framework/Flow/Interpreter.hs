@@ -110,8 +110,8 @@ getHttpLibRequest request = do
 
   let
     setTimeout = case T.getRequestTimeout request of
-      Just x  -> \req -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro x}
-      Nothing -> id
+      Just x  -> setRequestTimeout x
+      Nothing -> setRequestTimeout 9000000
 
   let
     setRedirects = case T.getRequestRedirects request of
@@ -123,6 +123,11 @@ getHttpLibRequest request = do
         { HTTP.method         = requestMethod
         , HTTP.requestHeaders = headers
         }
+
+-- | Set timeout in microseconds
+setRequestTimeout :: Int -> HTTP.Request -> HTTP.Request
+setRequestTimeout x req = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro x}
+
 
 -- | Utility function to translate http-client HTTP responses back to HttpAPI
 -- responses
@@ -185,7 +190,9 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
             Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
       case mbClientMngr of
         Right mngr -> do
-          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) (S.mkClientEnv mngr bUrl)
+          let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
+          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) $
+            S.ClientEnv manager baseUrl cookieJar (\url -> setRequestTimeout 9000000 . makeClientRequest url)
           case eitherResult of
             Left err -> do
               dbgLogger T.Error $ show err

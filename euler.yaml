@@ -28,5 +28,30 @@ overrides:
     sha256: 1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595
     source: github
 
+  servant:
+    version: 0.18.1
+    source: hackage
+    sha256: 106ps21r2dcxfzhn72inlncfslbbkvbzn76zd4l5a8z64yh8c8jv
+
+  servant-server:
+    version: 0.18.1
+    source: hackage
+    sha256: 1kqy8kxpxssdmdirmnjq496ak38vc68amqjf5kpgz4bj05kaga20
+
+  servant-mock:
+    version: 0.8.7
+    source: hackage
+    sha256: 1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0
+
+  servant-client:
+    version: 0.18.1
+    source: hackage
+    sha256: 1h84k617j26dfhzyrx95v08a8rzh4y6mzlpxr4lr0l799bsv00hj
+
+  servant-client-core:
+    version: 0.18.1
+    source: hackage
+    sha256: 0zkx2xm49n5m315niz640h06nhxfmgx8c1jlxkh4gx0h6m7zdr57
+
 # nix-shell-tools:
 #   - haskellPackages.cabal-fmt

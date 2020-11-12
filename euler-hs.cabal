@@ -141,8 +141,8 @@ library
     , profunctors
     , resource-pool
     , sequelize               ^>=1.1.0.0
-    , servant-client
-    , servant-client-core
+    , servant-client          ^>=0.18.1
+    , servant-client-core     ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions
@@ -263,11 +263,11 @@ test-suite language
     , QuickCheck
     , resource-pool
     , sequelize
-    , servant
-    , servant-client
-    , servant-client-core
-    , servant-mock
-    , servant-server
+    , servant               ^>=0.18.1
+    , servant-client        ^>=0.18.1
+    , servant-client-core   ^>=0.18.1
+    , servant-mock          ^>=0.8.7
+    , servant-server        ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions

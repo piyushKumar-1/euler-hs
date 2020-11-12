@@ -23,6 +23,41 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     hedis = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callCabal2nix "hedis" hedis-path { });
     };
+    servant = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "servant";
+        ver = "0.18.1";
+        sha256 = "106ps21r2dcxfzhn72inlncfslbbkvbzn76zd4l5a8z64yh8c8jv";
+      } { });
+    };
+    servant-server = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "servant-server";
+        ver = "0.18.1";
+        sha256 = "1kqy8kxpxssdmdirmnjq496ak38vc68amqjf5kpgz4bj05kaga20";
+      } { });
+    };
+    servant-mock = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "servant-mock";
+        ver = "0.8.7";
+        sha256 = "1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0";
+      } { });
+    };
+    servant-client = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "servant-client";
+        ver = "0.18.1";
+        sha256 = "1h84k617j26dfhzyrx95v08a8rzh4y6mzlpxr4lr0l799bsv00hj";
+      } { });
+    };
+    servant-client-core = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "servant-client-core";
+        ver = "0.18.1";
+        sha256 = "0zkx2xm49n5m315niz640h06nhxfmgx8c1jlxkh4gx0h6m7zdr57";
+      } { });
+    };
     
     euler-hs = self.eulerBuild.fastBuild {
       drv = hself.callCabal2nix "euler-hs" euler-hs-src { };

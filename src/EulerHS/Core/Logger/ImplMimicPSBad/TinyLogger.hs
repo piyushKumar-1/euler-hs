@@ -34,7 +34,6 @@ import qualified Data.Text.Lazy.Encoding as TL
 
 -- TODO: remove this along with the whole impl
 import qualified Data.Map as Map
-import           Mason.Builder as Mason
 import           System.Environment (getEnvironment)
 
 type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)

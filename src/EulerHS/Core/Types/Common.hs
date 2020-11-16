@@ -21,4 +21,4 @@ type SafeFlowGUID = Text
 type ManagerSelector = String
 type Description = Text
 data Awaitable s = Awaitable (MVar s)
-data Microseconds = Microseconds W.Word32 -- Max timeout 71 seconds with Word32
+data Microseconds = Microseconds W.Word32 -- Max timeout ~71 minutes with Word32

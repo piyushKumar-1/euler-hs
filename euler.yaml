@@ -9,7 +9,7 @@ allowed-paths:
 dependencies:
   euler-build:
     branch: master
-    revision: 811c9d69895f956a2fb281e1f9cd031548bd5867
+    revision: f9492cfd444eb3cb507118f81c7e94076d99a035
   beam:
     branch: master
     revision: 185ff060e63ab0b8a72775ee2742621dd6fefeb1
@@ -18,7 +18,7 @@ dependencies:
     revision: 4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace
   haskell-sequelize:
     branch: master
-    revision: 506c64b3d11079d2e1f625b612b14b4e44a4e2b7
+    revision: 1d1d4556a5da9fba090c8836aa47a8797af81f29
 
 overrides:
   hedis:
@@ -29,4 +29,6 @@ overrides:
     source: github
 
 # nix-shell-tools:
-#   - haskellPackages.cabal-fmt
+# - haskellPackages.cabal-fmt
+# - ghcide
+# - ghcide-ghc883

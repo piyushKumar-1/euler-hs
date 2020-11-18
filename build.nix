@@ -4,12 +4,12 @@ let
   filter = import "${nix-inclusive}/inclusive.nix" { lib = (import <nixpkgs> {}).lib; };
   path =
     filter ./. [
-      ./src
-      ./test
-      ./euler-hs.cabal
       ./flake.nix
       ./flake.lock
       ./nix/overlay.nix
+      ./src
+      ./test
+      ./euler-hs.cabal
     ];
   attr = if devShell then "devShell" else "defaultPackage";
 in

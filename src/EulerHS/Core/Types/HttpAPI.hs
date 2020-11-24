@@ -15,6 +15,7 @@ module EulerHS.Core.Types.HttpAPI
     , httpPost
     , httpDelete
     , httpHead
+    , defaultRequest
     , withHeader
     , withOptionalHeader
     , withBody

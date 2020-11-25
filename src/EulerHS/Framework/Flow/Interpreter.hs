@@ -111,7 +111,7 @@ getHttpLibRequest request = do
   let
     setTimeout = case T.getRequestTimeout request of
       Just x  -> setRequestTimeout x
-      Nothing -> setRequestTimeout 9000000
+      Nothing -> setRequestTimeout T.defaultTimeout
 
   let
     setRedirects = case T.getRequestRedirects request of
@@ -192,7 +192,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
         Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
           eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) $
-            S.ClientEnv manager baseUrl cookieJar (\url -> setRequestTimeout 9000000 . makeClientRequest url)
+            S.ClientEnv manager baseUrl cookieJar (\url -> setRequestTimeout T.defaultTimeout . makeClientRequest url)
           case eitherResult of
             Left err -> do
               dbgLogger T.Error $ show err

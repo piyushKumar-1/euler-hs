@@ -10,9 +10,20 @@ import qualified Servant.Client.Core as SCC
 import           Servant.Client.Core.RunClient (RunClient)
 import qualified Servant.Client.Free as SCF
 import qualified Servant.Client.Internal.HttpClient as SCIHC
+import qualified Network.HTTP.Types as HTTP
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)
+
+data LogServantRequest
+  = LogServantRequest
+    { url :: SCF.BaseUrl
+    , method :: HTTP.Method
+    , body :: String
+    , headers :: Seq HTTP.Header
+    , queryString :: Seq HTTP.QueryItem
+    }
+    deriving (Show)
 
 -- newtype EulerBaseUrl = EulerBaseUrl SCC.BaseUrl
 
@@ -28,13 +39,14 @@ interpretClientF log bUrl (SCF.RunRequest req next) = do
   pure $ next res
 
 logServantRequest :: (String -> IO ()) -> SCC.BaseUrl -> SCC.Request -> IO ()
-logServantRequest log url req =
-  do
-    log $ "url: " <> show url <>
-          "method: " <> show method <>
-          "body: " <> body <>
-          "headers: " <> show headers <>
-          "query string: " <> show queryString -- included in url?
+logServantRequest log url req = do
+  log $ show $ LogServantRequest
+    { url = url
+    , method = method
+    , body = body
+    , headers = headers
+    , queryString = queryString
+    }
 
   where
     body = case SCC.requestBody req of

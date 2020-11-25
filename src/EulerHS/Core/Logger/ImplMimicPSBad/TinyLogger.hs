@@ -40,9 +40,10 @@ type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)
 
 type Loggers = [Log.Logger]
 
-data LoggerHandle = AsyncLoggerHandle [ThreadId] LogQueue Loggers
-    | SyncLoggerHandle Loggers
-    | VoidLoggerHandle
+data LoggerHandle
+  = AsyncLoggerHandle Formatter [ThreadId] LogQueue Loggers
+  | SyncLoggerHandle Formatter Loggers
+  | VoidLoggerHandle
 
 dispatchLogLevel :: D.LogLevel -> Log.Level
 dispatchLogLevel D.Debug   = Log.Debug
@@ -78,7 +79,7 @@ loggerWorker outChan loggers = do
   pendingMsg <- Chan.readChan outChan
   logPendingMsg loggers pendingMsg
 
-sendPendingMsg :: LoggerHandle -> D.PendingMsg -> IO ()
+sendPendingMsg :: Formatter -> LoggerHandle -> D.PendingMsg -> IO ()
 sendPendingMsg VoidLoggerHandle                    = const (pure ())
 sendPendingMsg (SyncLoggerHandle loggers)          = logPendingMsgSync loggers
 sendPendingMsg (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan

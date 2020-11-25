@@ -29,37 +29,47 @@ data LogLevel = Debug | Info | Warning | Error
 -- | Logging format.
 type Format = String
 
--- TODO: FIXME
--- this currently only stores session id
-type TransientLoggerContext = Maybe Text
-
-type LogCounter = IORef Int
+type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
 
 data LoggerConfig
   = MemoryLoggerConfig LogLevel
   | LoggerConfig
-  { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
-  , _isAsync      :: Bool
-  , _level        :: LogLevel
-  , _logFilePath  :: FilePath
-  , _logToConsole :: Bool
-  , _logToFile    :: Bool
-  , _maxQueueSize :: Word
-  , _logRawSql    :: Bool
-  } deriving (Generic, Show, Read)
+    { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
+    , _formatter    :: Formatter
+    , _isAsync      :: Bool
+    , _level        :: LogLevel
+    , _logFilePath  :: FilePath
+    , _logToConsole :: Bool
+    , _logToFile    :: Bool
+    , _maxQueueSize :: Word
+    , _logRawSql    :: Bool
+    } deriving (Generic, Show, Read)
 
 type Message = Text
 type Tag = Text
 type MessageNumber = Int
-data PendingMsg = PendingMsg !LogLevel !Tag !Message !MessageNumber !TransientLoggerContext !TransientLoggerContext
+type Formatter = LogLevel -> Tag -> Message -> MessageNumber -> String
+
+
+data PendingMsg = PendingMsg
+  !LogLevel
+  !Tag
+  !Message
+  !MessageNumber
+  deriving (Show)
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
+
+defaultLoggerFormatter :: Formatter
+defaultLoggerFormatter lvl tag msg _ _ _ =
+  "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
 
 
 defaultLoggerConfig :: LoggerConfig
 defaultLoggerConfig = LoggerConfig
     { _format = ""
+    , _formatter = defaultLoggerFormatter
     , _isAsync = False
     , _level = Debug
     , _logFilePath = ""

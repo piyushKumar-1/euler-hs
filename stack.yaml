@@ -8,13 +8,13 @@ extra-deps:
   - git: https://github.com/juspay/hedis
     commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql
-    commit: c1fe205aa411d9d73cbc2037710399649a2f5c77 
+    commit: 4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace
   - git: https://github.com/juspay/mysql-haskell
     commit: 788022d65538db422b02ecc0be138b862d2e5cee
   - git: https://github.com/juspay/bytestring-lexing
     commit: 0a46db1139011736687cb50bbd3877d223bcb737
   - git: https://github.com/juspay/beam
-    commit: 47f62de4cbfafe13891846ef795609b6f8050729
+    commit: 185ff060e63ab0b8a72775ee2742621dd6fefeb1
     subdirs:
       - beam-core
       - beam-migrate

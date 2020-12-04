@@ -15,6 +15,7 @@ module EulerHS.Core.Types.HttpAPI
     , httpPost
     , httpDelete
     , httpHead
+    , defaultRequest
     , withHeader
     , withOptionalHeader
     , withBody
@@ -178,6 +179,7 @@ withRedirects :: Int -> HTTPRequest -> HTTPRequest
 withRedirects redirects (request@HTTPRequest {getRequestRedirects}) =
   request {getRequestRedirects = Just redirects}
 
+-- TODO: Rename to `withFormData` or some such?
 withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
 withBody pairs (request@HTTPRequest {getRequestBody}) = request {getRequestBody = Just body}
   where

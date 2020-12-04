@@ -132,6 +132,7 @@ library
     , http-media
     , http-types
     , lens
+    , mason
     , mysql-haskell           ^>=0.8.4.2
     , named
     , newtype-generics

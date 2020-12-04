@@ -21,9 +21,12 @@ port = 8081
 api :: Proxy API
 api = Proxy
 
+context :: Proxy '[]
+context = Proxy
+
 getUser :: EulerClient User
 getBook :: EulerClient Book
 (getUser :<|> getBook) = client api
 
 server :: Server API
-server = mock api Proxy
+server = mock api context

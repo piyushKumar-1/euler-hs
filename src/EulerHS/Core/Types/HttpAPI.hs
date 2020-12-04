@@ -10,6 +10,8 @@ module EulerHS.Core.Types.HttpAPI
     , HTTPCert(..)
     , HTTPRequestResponse(HTTPRequestResponse)
     , HTTPIOException(HTTPIOException)
+    , defaultTimeout
+    , extractBody
     , httpGet
     , httpPut
     , httpPost
@@ -21,7 +23,6 @@ module EulerHS.Core.Types.HttpAPI
     , withBody
     , withTimeout
     , withRedirects
-    , extractBody
     ) where
 
 import           EulerHS.Prelude                 hiding ((.=), ord)
@@ -154,7 +155,18 @@ httpHead :: Text -> HTTPRequest
 httpHead = defaultRequest Head
 
 defaultRequest :: HTTPMethod -> Text -> HTTPRequest
-defaultRequest method url = HTTPRequest method Map.empty Nothing url Nothing Nothing
+defaultRequest method url
+  = HTTPRequest
+    { getRequestMethod = method
+    , getRequestHeaders = Map.empty
+    , getRequestBody = Nothing
+    , getRequestURL = url
+    , getRequestTimeout = Just defaultTimeout
+    , getRequestRedirects = Just 10
+    }
+
+defaultTimeout :: Int
+defaultTimeout = 9000000
 
 -- | Add a header to an HTTPRequest
 --

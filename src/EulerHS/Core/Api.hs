@@ -10,25 +10,54 @@ import qualified Servant.Client.Core as SCC
 import           Servant.Client.Core.RunClient (RunClient)
 import qualified Servant.Client.Free as SCF
 import qualified Servant.Client.Internal.HttpClient as SCIHC
+import qualified Network.HTTP.Types as HTTP
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)
+
+data LogServantRequest
+  = LogServantRequest
+    { url :: SCF.BaseUrl
+    , method :: HTTP.Method
+    , body :: String
+    , headers :: Seq HTTP.Header
+    , queryString :: Seq HTTP.QueryItem
+    }
+    deriving (Show)
 
 -- newtype EulerBaseUrl = EulerBaseUrl SCC.BaseUrl
 
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
 
-interpretClientF :: (String -> IO()) -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
+interpretClientF :: (String -> IO ()) -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
 interpretClientF _   _    (SCF.Throw e)             = throwM e
 interpretClientF log bUrl (SCF.RunRequest req next) = do
-  case SCC.requestBody req of
-    Just (body, mediaType) -> liftIO . log $ show body
-    Nothing -> pure ()
-  liftIO . log $ show (SCIHC.requestToClientRequest bUrl req)
-  res <- SCC.runRequest req
-  liftIO . log $ show (res)
+  liftIO $ logServantRequest log bUrl req
+  res <- SCC.runRequestAcceptStatus Nothing req
+  liftIO . log $ show res
   pure $ next res
+
+logServantRequest :: (String -> IO ()) -> SCC.BaseUrl -> SCC.Request -> IO ()
+logServantRequest log url req = do
+  log $ show $ LogServantRequest
+    { url = url
+    , method = method
+    , body = body
+    , headers = headers
+    , queryString = queryString
+    }
+
+  where
+    body = case SCC.requestBody req of
+      Just (body, mediaType) -> show body
+      Nothing -> "body = (empty)"
+
+    method = SCC.requestMethod req
+    headers = SCC.requestHeaders req
+    queryString = SCC.requestQueryString req
+
+  -- liftIO . log $ show (SCIHC.requestToClientRequest bUrl req)
 
 runEulerClient :: (String -> IO()) -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
 runEulerClient log bUrl (EulerClient f) = foldFree (interpretClientF log bUrl) f

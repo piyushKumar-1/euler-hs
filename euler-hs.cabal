@@ -263,11 +263,11 @@ test-suite language
     , QuickCheck
     , resource-pool
     , sequelize
-    , servant               ^>=0.18.1
-    , servant-client        ^>=0.18.1
-    , servant-client-core   ^>=0.18.1
-    , servant-mock          ^>=0.8.7
-    , servant-server        ^>=0.18.1
+    , servant                 ^>=0.18.1
+    , servant-client          ^>=0.18.1
+    , servant-client-core     ^>=0.18.1
+    , servant-mock            ^>=0.8.7
+    , servant-server          ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions

@@ -1,41 +1,21 @@
-module Main where
+{-# OPTIONS_GHC -Werror #-}
 
-import           EulerHS.Prelude
-import           Test.Hspec
+module Main (main) where
 
-import qualified EulerHS.Tests.Framework.CachedDBSpec as CachedSqlDBQuery
+import           Control.Exception.Safe (bracket)
+import           EulerHS.Prelude hiding (bracket)
 import qualified EulerHS.Tests.Framework.ArtSpec as Art
 import qualified EulerHS.Tests.Framework.FlowSpec as Framework
 import qualified EulerHS.Tests.Framework.KVDBArtSpec as KVDB
 import qualified EulerHS.Tests.Framework.PubSubSpec as PubSub
 import qualified EulerHS.Tests.Framework.SQLArtSpec as SQL
 import qualified EulerHS.Types as T
--- import           EulerHS.Tests.Framework.Common (initRTWithManagers)
--- import           EulerHS.Language as L
--- import           EulerHS.Interpreters (runFlow)
-
-import System.Process
-
-withRedis :: IO () -> IO ()
-withRedis action = do
-  cmdHandle <- spawnCommand "redis-server"
-  action
-  terminateProcess cmdHandle
-
-logsEnabled :: Maybe T.LoggerConfig
-logsEnabled = Just $ T.LoggerConfig
-  { T._logToFile = False,
-    T._logFilePath = "",
-    T._isAsync = False,
-    T._level = T.Debug,
-    T._logToConsole = True,
-    T._format = "",
-    T._maxQueueSize = 1000,
-    T._logRawSql = False
-  }
-
-logsDisabled :: Maybe T.LoggerConfig
-logsDisabled = Nothing
+import           System.Directory (createDirectory, getTemporaryDirectory,
+                                   removePathForcibly)
+import           System.FilePath ((<.>), (</>))
+import           System.Process.Typed (proc, startProcess, stopProcess)
+import           System.Random (getStdRandom, random)
+import           Test.Hspec (hspec)
 
 main :: IO ()
 main = do
@@ -48,6 +28,36 @@ main = do
     SQL.spec
     PubSub.spec
 
-  -- rt <- initRtWithManagers
-  -- runFlow rt $ L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
-  -- pure ()
+-- Helpers
+
+withRedis :: IO () -> IO ()
+withRedis act = withTempRedisDir $ \redisDir ->
+  withTempRedisConfig redisDir go
+  where
+    go :: FilePath -> IO ()
+    go redisConfPath =
+      bracket (startProcess . proc "redis-server" $ [redisConfPath])
+              stopProcess
+              (const act)
+
+logsDisabled :: Maybe T.LoggerConfig
+logsDisabled = Nothing
+
+withTempRedisDir :: (FilePath -> IO a) -> IO a
+withTempRedisDir act = do
+  rand :: Word <- liftIO . getStdRandom $ random
+  tmp <- liftIO getTemporaryDirectory
+  let tempDir = tmp </> ("redis" <> show rand)
+  bracket (liftIO . createDirectory $ tempDir)
+          (\_ -> liftIO . removePathForcibly $ tempDir)
+          (\_ -> act tempDir)
+
+withTempRedisConfig :: FilePath -> (FilePath -> IO ()) -> IO ()
+withTempRedisConfig tmpRedisDir act = do
+  let tmpRedisConfPath = tmpRedisDir </> "redis" <.> "conf"
+  bracket (withFile tmpRedisConfPath WriteMode go)
+          (\_ -> removePathForcibly tmpRedisConfPath)
+          (\_ -> act tmpRedisConfPath)
+  where
+    go :: Handle -> IO ()
+    go h = hPutStrLn @String h $ "dir " +| tmpRedisDir |+ ""

@@ -1,24 +1,23 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module EulerHS.Tests.Framework.DBSetup where
+module DBSetup where
 
+import           Common (runFlowRecording)
 import           Data.Aeson as A
 import           Data.Aeson.Encode.Pretty
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import qualified Database.Beam.Query as B
 import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
+import           EulerHS.CachedSqlDBQuery
+import           EulerHS.Interpreters as I
+import           EulerHS.Language as L
+import           EulerHS.Prelude
+import           EulerHS.Runtime
+import           EulerHS.Types as T
 import           Named
 import           Sequelize
-
-import EulerHS.CachedSqlDBQuery
-import EulerHS.Interpreters as I
-import EulerHS.Language as L
-import EulerHS.Prelude
-import EulerHS.Runtime
-import EulerHS.Tests.Framework.Common
-import EulerHS.Types as T
 
 
 -- TODO: Refactor the helper db functionskA
@@ -63,7 +62,7 @@ userTMod =
 userEMod :: B.EntityModification (B.DatabaseEntity be db) be (B.TableEntity UserT)
 userEMod = B.modifyTableFields userTMod
 
-data UserDB f = UserDB
+newtype UserDB f = UserDB
     { users :: f (B.TableEntity UserT)
     } deriving (Generic, B.Database be)
 
@@ -98,7 +97,6 @@ prepareTestDB = do
   rmTestDB
   -- L.runSysCmd "pwd" >>= L.runIO . print
   void $ L.runSysCmd $ "cp " <> testDBTemplateName <> " " <> testDBName
-  pure ()
 
 withEmptyDB :: (FlowRuntime -> IO ()) -> IO ()
 withEmptyDB act = withFlowRuntime Nothing (\rt -> do

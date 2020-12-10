@@ -1,17 +1,15 @@
-module EulerHS.Tests.Framework.KVDBArtSpec
+module KVDBArtSpec
   ( spec
   ) where
 
-import           EulerHS.Prelude
-
+import           Common (replayRecording)
 import           Data.Aeson as A
-import           Test.Hspec
-
 import qualified Database.Redis as R
 import           EulerHS.Language as L
+import           EulerHS.Prelude
 import           EulerHS.Runtime
-import           EulerHS.Tests.Framework.Common
 import           EulerHS.Types as T
+import           Test.Hspec
 
 connectInfo :: R.ConnectInfo
 -- connectInfo = R.defaultConnectInfo -- fot recording
@@ -66,9 +64,7 @@ spec = do
       result `shouldBe` Right (T.TxSuccess (Just "bbb"))
 
     it "get incorrect key from transaction" $ do
-      result <- runWithRedisConn_ getIncorrectFromTx $ L.runKVDB "redis" $ L.multiExec $ do
-        res <- L.getTx "aaababababa"
-        pure res
+      result <- runWithRedisConn_ getIncorrectFromTx $ L.runKVDB "redis" $ L.multiExec $ L.getTx "aaababababa"
       result `shouldBe` Right (T.TxSuccess Nothing)
 
     it "setex sets value" $ do

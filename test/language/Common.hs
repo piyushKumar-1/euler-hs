@@ -1,39 +1,41 @@
-module EulerHS.Tests.Framework.Common where
+{-# OPTIONS_GHC -Werror #-}
 
-import           Data.Aeson
+module Common
+  (
+    runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
+    withServer, runFlowRecording, initRTWithManagers, replayRecording,
+    emptyMVarWithWatchDog
+  ) where
+
+import           Control.Concurrent.Async (withAsync)
 import qualified Data.Map as Map
 import qualified Data.Vector as V
-import           Network.HTTP.Client (newManager)
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import           Network.Wai.Handler.Warp
-import           Servant.Client
-import           Servant.Server
-import           Test.Hspec
-
-import           Control.Concurrent.MVar (modifyMVar_)
-import           Data.Aeson.Encode.Pretty
-import           Database.Redis (ConnectInfo, checkedConnect,
-                                 defaultConnectInfo, pubSubForever)
-import           EulerHS.Interpreters
+import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude
-import           EulerHS.Runtime
-import           EulerHS.TestData.API.Client
+import           EulerHS.Runtime (FlowRuntime, _httpClientManagers, _runMode,
+                                  withFlowRuntime)
+import           EulerHS.TestData.API.Client (api, port, server)
 import           EulerHS.Types as T
-
+import           Network.HTTP.Client (newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Network.Wai.Handler.Warp (run)
+import           Servant.Server (serve)
+import           Test.Hspec (shouldBe)
 
 runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b
 runFlowWithArt flow = do
   (recording, recResult) <- runFlowRecording ($) flow
   (errors   , repResult) <- runFlowReplaying recording flow
-  -- print $ encode $ recording
-  -- putStrLn $ encodePretty $ recording
   flattenErrors errors `shouldBe` []
   recResult `shouldBe` repResult
   pure recResult
 
-runFlowRecording :: (forall b . (FlowRuntime -> IO b) -> FlowRuntime -> IO b) -> Flow a -> IO (ResultRecording, a)
-runFlowRecording mod flow = do
+runFlowRecording ::
+  (forall b . (FlowRuntime -> IO b) -> FlowRuntime -> IO b) ->
+  Flow a ->
+  IO (ResultRecording, a)
+runFlowRecording mod' flow = do
   let next flowRuntime = do
         result <- runFlow flowRuntime flow
         case _runMode flowRuntime of
@@ -41,8 +43,7 @@ runFlowRecording mod flow = do
             entries <- awaitRecording recording
             pure (entries, result)
           _ -> fail "wrong mode"
-
-  initRecorderRT >>= mod next
+  initRecorderRT >>= mod' next
 
 runFlowReplaying :: ResultRecording -> Flow a -> IO (ResultReplayError, a)
 runFlowReplaying recording flow  = do
@@ -55,17 +56,8 @@ runFlowReplaying recording flow  = do
     _ -> fail "wrong mode"
 
 withServer :: IO () -> IO ()
-withServer action = do
-  serverStartupLock <- newEmptyMVar
-
-  let
-    settings = setBeforeMainLoop (putMVar serverStartupLock ()) $
-      setPort port defaultSettings
-
-  threadId <- forkIO $ runSettings settings $ serve api server
-  readMVar serverStartupLock
-  action
-  killThread threadId
+withServer action = withAsync (run port . serve api $ server)
+                              (const action)
 
 initRTWithManagers :: IO FlowRuntime
 initRTWithManagers = do
@@ -124,30 +116,6 @@ replayRecording rec flow = do
   flattenErrors errors `shouldBe` []
   pure result
 
--- TODO: This should not take a dummy argument!
--- prints replay in JSON format to console
-runWithRedisConn :: ConnectInfo -> a -> Flow b -> IO b
-runWithRedisConn connectInfo _ flow = do
-    (recording, recResult) <- runFlowRecording withInitRedis flow
-    print $ encode $ recording
-    -- putStrLn $ encodePretty $ recording
-    pure recResult
-  where
-    withInitRedis :: (FlowRuntime -> IO c) -> FlowRuntime -> IO c
-    withInitRedis next _rt = do
-      realRedisConnection <- checkedConnect connectInfo
-      let rt = _rt { _pubSubConnection = Just $ realRedisConnection }
-
-      cancelWorker <- runPubSubWorker rt (const $ pure ())
-
-      modifyMVar_ (_kvdbConnections rt) $
-        pure . Map.insert "redis" (NativeKVDB realRedisConnection)
-
-      res <- next rt
-      cancelWorker
-      pure res
-
-
 emptyMVarWithWatchDog :: Int -> IO (MVar a, IO (Maybe a), IO ())
 emptyMVarWithWatchDog t = do
     guard $ t >= 0
@@ -165,7 +133,7 @@ emptyMVarWithWatchDog t = do
                   Nothing -> do
                     if n > 0
                         then do
-                          threadDelay $ 1 * 10 ^ 5
+                          threadDelay 100000
                           loop $ n - 1
 
                         else putMVar finalMVar Nothing

@@ -1,12 +1,12 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module EulerHS.Tests.Framework.SQLArtSpec
+module SQLArtSpec
   ( spec
   ) where
 
-import           EulerHS.Prelude
-
+import           Common
+import           DBSetup
 import           Data.Aeson as A
 import           Data.Aeson.Encode.Pretty
 import qualified Data.Map as Map
@@ -14,14 +14,12 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import qualified Database.Beam.Query as B
 import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
-import           Test.Hspec
-
 import           EulerHS.Interpreters as I
 import           EulerHS.Language as L
+import           EulerHS.Prelude
 import           EulerHS.Runtime
-import           EulerHS.Tests.Framework.Common
-import           EulerHS.Tests.Framework.DBSetup
 import           EulerHS.Types as T
+import           Test.Hspec
 
 -- Write record to file or to stdout. Choose at 'runWithSQLConn'
 -- writeRecord :: IO ()

@@ -2,14 +2,14 @@
 
 module Main (main) where
 
+import qualified ArtSpec as Art
 import           Control.Exception.Safe (bracket)
 import           EulerHS.Prelude hiding (bracket)
-import qualified EulerHS.Tests.Framework.ArtSpec as Art
-import qualified EulerHS.Tests.Framework.FlowSpec as Framework
-import qualified EulerHS.Tests.Framework.KVDBArtSpec as KVDB
-import qualified EulerHS.Tests.Framework.PubSubSpec as PubSub
-import qualified EulerHS.Tests.Framework.SQLArtSpec as SQL
 import qualified EulerHS.Types as T
+import qualified FlowSpec as Flow
+import qualified KVDBArtSpec as KVDB
+import qualified PubSubSpec as PubSub
+import qualified SQLArtSpec as SQL
 import           System.Directory (createDirectory, getTemporaryDirectory,
                                    removePathForcibly)
 import           System.FilePath ((<.>), (</>))
@@ -20,7 +20,7 @@ import           Test.Hspec (hspec)
 main :: IO ()
 main = do
   withRedis $ hspec $ do
-    Framework.spec logsDisabled
+    Flow.spec logsDisabled
     Art.spec
     -- Disable until it work in jenkins. Need to install redis
     -- CachedSqlDBQuery.spec

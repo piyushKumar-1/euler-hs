@@ -166,23 +166,24 @@ test-suite language
   type:           exitcode-stdio-1.0
   main-is:        Main.hs
   other-modules:
+    ArtSpec
+    CachedDBSpec
+    Common
+    DBSetup
     EulerHS.TestData.API.Client
     EulerHS.TestData.Scenarios.Scenario1
     EulerHS.TestData.Types
     EulerHS.Testing.Flow.Interpreter
     EulerHS.Testing.Types
-    EulerHS.Tests.Framework.ArtSpec
-    EulerHS.Tests.Framework.CachedDBSpec
-    EulerHS.Tests.Framework.Common
-    EulerHS.Tests.Framework.DBSetup
-    EulerHS.Tests.Framework.FlowSpec
-    EulerHS.Tests.Framework.KVDBArtSpec
-    EulerHS.Tests.Framework.PubSubSpec
-    EulerHS.Tests.Framework.SQLArtSpec
+    FlowSpec
+    KVDBArtSpec
+    PubSubSpec
+    SQLArtSpec
 
   build-depends:
     , aeson
     , aeson-pretty
+    , async
     , beam-core
     , beam-sqlite
     , bytestring
@@ -212,7 +213,7 @@ test-suite language
     , vector
     , warp
 
-  hs-source-dirs: test
+  hs-source-dirs: test/language
 
 test-suite db
   import:         common-lang

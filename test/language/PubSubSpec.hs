@@ -1,20 +1,17 @@
-module EulerHS.Tests.Framework.PubSubSpec
+module PubSubSpec
   ( spec
   ) where
 
-import           EulerHS.Prelude
-
-import           Test.Hspec
-
+import           Common (emptyMVarWithWatchDog, replayRecording)
 import           Data.Aeson
 import qualified Database.Redis as R
 import           EulerHS.Language as L
-import           EulerHS.Tests.Framework.Common
+import           EulerHS.Prelude
 import           EulerHS.Types as T
+import           Test.Hspec
 
 connectInfo :: R.ConnectInfo
 connectInfo = R.defaultConnectInfo {R.connectHost = "redis"}
-
 
 runWithRedisConn_ :: ResultRecording -> Flow b -> IO b
 runWithRedisConn_ = replayRecording

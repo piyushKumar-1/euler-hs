@@ -1,13 +1,10 @@
-{-# LANGUAGE DeriveAnyClass        #-}
+{-# OPTIONS_GHC -Werror -Wno-name-shadowing #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 
-module EulerHS.Tests.Framework.ArtSpec where
+module ArtSpec (spec) where
 
-import           Control.Monad (void)
-import           Data.Aeson as A
-import           Data.Aeson.Encode.Pretty
-import qualified Data.ByteString.Lazy as Lazy
+import           Common (initPlayerRT, initRecorderRT, initRegularRT,
+                         runFlowWithArt, withServer)
 import qualified Data.Map as Map
 import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
@@ -16,28 +13,25 @@ import qualified Data.Text.Encoding.Error as Encoding
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Vector as V
-import           Network.Wai.Handler.Warp
-import           Servant.Client
-import           Servant.Server
-import qualified System.IO.Error as Error
-import           Test.Hspec
-
-import           EulerHS.Interpreters
+import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude
-import           EulerHS.Runtime
-import           EulerHS.TestData.API.Client
-import           EulerHS.TestData.Types
-import           EulerHS.Tests.Framework.Common
+import           EulerHS.Runtime (_runMode)
+import           EulerHS.TestData.API.Client (getBook, getUser, port)
+import           EulerHS.TestData.Types (TestStringKey (TestStringKey))
 import           EulerHS.Types as T
-
+import           Servant.Client (BaseUrl (BaseUrl), Scheme (Http))
+import           Servant.Server (err403, errBody)
+import qualified System.IO.Error as Error
+import           Test.Hspec (Spec, around_, describe, it, shouldBe, shouldNotBe,
+                             shouldSatisfy, xit)
 
 spec :: Spec
 spec = do
   describe "ART Test" $ do
     it "Regular mode" $ do
       rt <- initRegularRT
-      res <- runFlow rt $ mainScript
+      res <- runFlow rt mainScript
       res `shouldBe` "hello\n"
 
     it "Recorder mode" $ do
@@ -139,7 +133,7 @@ spec = do
     -- run an example with non-deterministic outputs
     it "RunUntracedIO with UUID" $ do
       runFlowWithArt $ do
-        L.runUntracedIO (UUID.toText <$> UUID.nextRandom)
+        _ <- L.runUntracedIO (UUID.toText <$> UUID.nextRandom)
         pure ()
 
     it "RunSysCmd" $ do
@@ -149,79 +143,79 @@ spec = do
       res `shouldBe` "hello\n"
 
     it "Logging" $ runFlowWithArt $ do
-      L.logInfo    "Info"    "L.logInfo"
-      L.logError   "Error"   "L.logError"
-      L.logDebug   "Debug"   "L.logDebug"
-      L.logWarning "Warning" "L.logWarning"
+      L.logInfo @Text "Info" "L.logInfo"
+      L.logError @Text "Error" "L.logError"
+      L.logDebug @Text "Debug" "L.logDebug"
+      L.logWarning @Text "Warning" "L.logWarning"
 
     it "SafeFlow, throwException" $ do
       res <- runFlowWithArt $ do
-        runSafeFlow $ (throwException err403 {errBody = "403"} :: Flow Text)
-      res `shouldBe` (Left $ show err403{errBody = "403"})
+        runSafeFlow (throwException err403 {errBody = "403"} :: Flow Text)
+      res `shouldBe` Left (show err403{errBody = "403"})
 
     it "SafeFlow, RunSysCmd" $ do
       res <- runFlowWithArt $ do
-        runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+        _ <- runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
         runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello2"
-      res `shouldBe` (Right "safe hello2\n")
+      res `shouldBe` Right "safe hello2\n"
 
     it "Fork" $ runFlowWithArt $ do
       L.forkFlow "Fork" $
-        L.logInfo "Fork" "Hello"
+        L.logInfo @Text "Fork" "Hello"
 
     it "SafeFlow and Fork" $ runFlowWithArt $ do
-      runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+      _ <- runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
       L.forkFlow "Fork" $
-        L.logInfo "Fork" "Hello"
+        L.logInfo @Text "Fork" "Hello"
 
     it "SafeFlow exception and Fork" $ runFlowWithArt $ do
-      runSafeFlow $ (throwException err403 {errBody = "403"} :: Flow Text)
+      _ <- runSafeFlow (throwException err403 {errBody = "403"} :: Flow Text)
       L.forkFlow "Fork" $
-        L.logInfo "Fork" "Hello"
+        L.logInfo @Text "Fork" "Hello"
 
     it "Fork by fork" $ runFlowWithArt $ do
       L.forkFlow "Fork" $
-        L.logInfo "Fork" "Hello"
+        L.logInfo @Text "Fork" "Hello"
       L.forkFlow "Fork 2" $
-        L.logInfo "Fork 2" "Bye"
+        L.logInfo @Text "Fork 2" "Bye"
 
     it "SafeFlow and Fork" $ runFlowWithArt $ do
-      runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+      _ <- runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
       L.forkFlow "Fork" $
-        L.logInfo "Fork" "Hello"
+        L.logInfo @Text "Fork" "Hello"
 
     it "Fork and flow from SafeFlow" $ do
       res <- runFlowWithArt $ do
         runSafeFlow $ do
-          L.runSysCmd $ "echo " <> "safe hello"
+          _ <- L.runSysCmd $ "echo " <> "safe hello"
           L.forkFlow "Fork" $
-            L.logInfo "Fork" "Hello"
-      res `shouldBe` (Right ())
+            L.logInfo @Text "Fork" "Hello"
+      res `shouldBe` Right ()
 
     it "Flow and fork from SafeFlow" $ do
       res <- runFlowWithArt $ do
         runSafeFlow $ do
           L.forkFlow "Fork" $
-            L.logInfo "Fork" "Hello"
+            L.logInfo @Text "Fork" "Hello"
           L.runSysCmd $ "echo " <> "safe hello"
-      res `shouldBe` (Right "safe hello\n")
+      res `shouldBe` Right "safe hello\n"
 
     it "Fork from Fork" $ runFlowWithArt $ do
       L.forkFlow "ForkOne" $ do
-        L.logInfo "ForkOne" "Hello"
+        L.logInfo @Text "ForkOne" "Hello"
         L.forkFlow "ForkTwo" $
           L.forkFlow "ForkThree" $ do
             L.forkFlow "ForkFour" $
-              L.logInfo "ForkFour" "Hello"
+              L.logInfo @Text "ForkFour" "Hello"
 
     it "Fork and safeFlow from Fork" $ runFlowWithArt $ do
       L.forkFlow "ForkOne" $ do
-        L.logInfo "ForkOne" "Hello"
-        runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
+        L.logInfo @Text "ForkOne" "Hello"
+        _ <- runSafeFlow $ L.runSysCmd $ "echo " <> "safe hello"
         L.forkFlow "ForkTwo" $
           L.forkFlow "ForkThree" $ do
             L.forkFlow "ForkFour" $
-              L.logInfo "ForkFour" "Hello"
+              L.logInfo @Text "ForkFour" "Hello"
 
     around_ withServer $ do
       describe "CallServantAPI tests" $ do
@@ -236,11 +230,10 @@ spec = do
           userEither `shouldSatisfy` isRight
 
     xit "Untyped HTTP API Calls" $ do
-      let url = "https://google.com"
       (statusCode, status, body, headers) <- runFlowWithArt $ do
         eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
         response <- case eResponse of
-          Left err -> throwException err403 {errBody = "Expected a response"}
+          Left _ -> throwException err403 {errBody = "Expected a response"}
           Right response -> pure response
         return
           ( getResponseCode    response
@@ -274,7 +267,7 @@ spec = do
       result <- runFlowWithArt $ do
         L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)
 
-      err <- extractLeft result
+      _ <- extractLeft result
       -- putStrLn $ "ERROR" <> err
       pure ()
 
@@ -282,17 +275,15 @@ spec = do
 extractLeft :: Either a b -> IO a
 extractLeft eitherVal =
   case eitherVal of
-    Left val ->
-      pure val
-    Right res ->
-      throwM $ Error.userError "Expected Left from erroneous call!"
+    Left val -> pure val
+    Right _  -> throwM $ Error.userError "Expected Left from erroneous call!"
 
 mainScript :: Flow String
 mainScript = do
   guid1 <- generateGUID
   guid2 <- generateGUID
   -- This should re-execute each time and not break replay
-  runUntracedIO (UUID.toText <$> UUID.nextRandom)
+  _ <- runUntracedIO (UUID.toText <$> UUID.nextRandom)
   forkFlow guid1 (void forkScript)
   forkFlow guid2 (void forkScript)
   runSysCmd "echo hello"

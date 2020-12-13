@@ -168,16 +168,16 @@ test-suite language
   other-modules:
     ArtSpec
     CachedDBSpec
+    Client
     Common
     DBSetup
-    EulerHS.TestData.API.Client
-    EulerHS.TestData.Scenarios.Scenario1
     EulerHS.TestData.Types
     EulerHS.Testing.Flow.Interpreter
     EulerHS.Testing.Types
     FlowSpec
     KVDBArtSpec
     PubSubSpec
+    Scenario1
     SQLArtSpec
 
   build-depends:
@@ -191,6 +191,7 @@ test-suite language
     , directory
     , euler-hs
     , filepath
+    , generic-arbitrary
     , generic-lens
     , hedis
     , hspec
@@ -199,13 +200,14 @@ test-suite language
     , named
     , process
     , QuickCheck
+    , quickcheck-instances
     , random
     , safe-exceptions
     , sequelize
-    , servant             ^>=0.18.1
-    , servant-client      ^>=0.18.1
-    , servant-mock        ^>=0.8.7
-    , servant-server      ^>=0.18.1
+    , servant               ^>=0.18.1
+    , servant-client        ^>=0.18.1
+    , servant-mock          ^>=0.8.7
+    , servant-server        ^>=0.18.1
     , string-conversions
     , text
     , typed-process
@@ -213,6 +215,7 @@ test-suite language
     , vector
     , warp
 
+  ghc-options:    -threaded -O2
   hs-source-dirs: test/language
 
 test-suite db

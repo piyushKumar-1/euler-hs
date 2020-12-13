@@ -3,6 +3,7 @@
 
 module ArtSpec (spec) where
 
+import           Client (getBook, getUser, port)
 import           Common (initPlayerRT, initRecorderRT, initRegularRT,
                          runFlowWithArt, withServer)
 import qualified Data.Map as Map
@@ -17,7 +18,6 @@ import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Runtime (_runMode)
-import           EulerHS.TestData.API.Client (getBook, getUser, port)
 import           EulerHS.TestData.Types (TestStringKey (TestStringKey))
 import           EulerHS.Types as T
 import           Servant.Client (BaseUrl (BaseUrl), Scheme (Http))
@@ -220,12 +220,12 @@ spec = do
     around_ withServer $ do
       describe "CallServantAPI tests" $ do
         it "Simple request (book)" $ do
-          let url = BaseUrl Http "localhost" port ""
+          let url = BaseUrl Http "127.0.0.1" port ""
           bookEither <- runFlowWithArt $ callServantAPI Nothing url getBook
           bookEither `shouldSatisfy` isRight
 
         it "Simple request (user)" $ do
-          let url = BaseUrl Http "localhost" port ""
+          let url = BaseUrl Http "127.0.0.1" port ""
           userEither <- runFlowWithArt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isRight
 

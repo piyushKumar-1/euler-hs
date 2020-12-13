@@ -2,6 +2,7 @@
 
 module FlowSpec (spec) where
 
+import           Client (User (User), getBook, getUser, port)
 import           Common (initRTWithManagers, withServer)
 import qualified Control.Exception as E
 import           Data.Aeson (encode)
@@ -11,8 +12,6 @@ import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
 import           EulerHS.Runtime (withFlowRuntime)
-import           EulerHS.TestData.API.Client (getBook, getUser, port)
-import           EulerHS.TestData.Scenarios.Scenario1 (testScenario1)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
                                          NTTestKeyWithStringPayload (NTTestKeyWithStringPayload),
@@ -28,7 +27,6 @@ import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithI
                                          TestStringKey2 (TestStringKey2),
                                          TestStringKey2AnotherEnc (TestStringKey2AnotherEnc),
                                          TestStringKeyAnotherEnc (TestStringKeyAnotherEnc),
-                                         User (User),
                                          mbNTTestKeyWithIntPayloadAnotherEncS1,
                                          mbNTTestKeyWithIntPayloadAnotherEncS2,
                                          mbNTTestKeyWithIntPayloadS1,
@@ -53,6 +51,7 @@ import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
 import           EulerHS.Testing.Types (FlowMockedValues' (..))
 import           EulerHS.Types (HttpManagerNotFound (..))
 import qualified EulerHS.Types as T
+import           Scenario1 (testScenario1)
 import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
 import           Servant.Server (err403, errBody)
 import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
@@ -71,26 +70,26 @@ spec loggerCfg = do
       around_ withServer $ do
         describe "CallServantAPI tests with server" $ do
           it "Simple request (book) with default manager" $ \rt -> do
-            let url = BaseUrl Http "localhost" port ""
+            let url = BaseUrl Http "127.0.0.1" port ""
             bookEither <- runFlow rt $ callServantAPI Nothing url getBook
             bookEither `shouldSatisfy` isRight
           it "Simple request (user) with default manager" $ \rt -> do
-            let url = BaseUrl Http "localhost" port ""
+            let url = BaseUrl Http "127.0.0.1" port ""
             userEither <- runFlow rt $ callServantAPI Nothing url getUser
             userEither `shouldSatisfy` isRight
           it "Simple request (book) with manager1" $ \_ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "localhost" port ""
+            let url = BaseUrl Http "127.0.0.1" port ""
             bookEither <- runFlow rt $ callServantAPI (Just "manager1") url getBook
             bookEither `shouldSatisfy` isRight
           it "Simple request (user) with manager2" $ \_ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "localhost" port ""
+            let url = BaseUrl Http "127.0.0.1" port ""
             userEither <- runFlow rt $ callServantAPI (Just "manager2") url getUser
             userEither `shouldSatisfy` isRight
           it "Simple request with not existing manager" $ \_ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "localhost" port ""
+            let url = BaseUrl Http "127.0.0.1" port ""
             let err = displayException (ConnectionError (toException $ HttpManagerNotFound "notexist"))
             userEither <- runFlow rt $ callServantAPI (Just "notexist") url getUser
             case userEither of

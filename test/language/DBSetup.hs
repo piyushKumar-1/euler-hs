@@ -75,10 +75,10 @@ userDB = B.defaultDbSettings `B.withDbModification`
 -- Prepare connection to database file
 
 testDBName :: String
-testDBName = "test/EulerHS/TestData/test.db"
+testDBName = "test/language/EulerHS/TestData/test.db"
 
 testDBTemplateName :: String
-testDBTemplateName = "test/EulerHS/TestData/test.db.template"
+testDBTemplateName = "test/language/EulerHS/TestData/test.db.template"
 
 poolConfig = T.PoolConfig
   { stripes = 1

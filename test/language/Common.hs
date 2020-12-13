@@ -7,6 +7,7 @@ module Common
     emptyMVarWithWatchDog
   ) where
 
+import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
 import qualified Data.Map as Map
 import qualified Data.Vector as V
@@ -15,7 +16,6 @@ import           EulerHS.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Runtime (FlowRuntime, _httpClientManagers, _runMode,
                                   withFlowRuntime)
-import           EulerHS.TestData.API.Client (api, port, server)
 import           EulerHS.Types as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)

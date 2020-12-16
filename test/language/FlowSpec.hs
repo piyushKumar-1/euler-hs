@@ -162,8 +162,9 @@ spec loggerCfg = do
                 if count < 100
                   then countTo100
                   else return count
-            forkFlow "counter1" $ runUntracedIO $ void countTo100
-            forkFlow "counter2" $ runUntracedIO $ void countTo100
+            awaitable1 <- forkFlow' "counter1" $ runUntracedIO $ void countTo100
+            awaitable2 <- forkFlow' "counter2" $ runUntracedIO $ void countTo100
+            _ <- await Nothing awaitable1 >> await Nothing awaitable2
             runUntracedIO $ readTVarIO countVar
           result `shouldBe` 100
       describe "Options" $ do

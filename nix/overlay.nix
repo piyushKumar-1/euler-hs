@@ -26,15 +26,15 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     servant = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant";
-        ver = "0.18.1";
-        sha256 = "106ps21r2dcxfzhn72inlncfslbbkvbzn76zd4l5a8z64yh8c8jv";
+        ver = "0.18.2";
+        sha256 = "0l2k895nxvw2ngr9201g3br6s9zab7mk5mhpjibyg8mxfbv75a8y";
       } { });
     };
     servant-server = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-server";
-        ver = "0.18.1";
-        sha256 = "1kqy8kxpxssdmdirmnjq496ak38vc68amqjf5kpgz4bj05kaga20";
+        ver = "0.18.2";
+        sha256 = "1kynxl7qg5z45bhi0k61sxn79xkgnq1z97ccqqs39wjyf45fj5yy";
       } { });
     };
     servant-mock = self.eulerBuild.fastBuildExternal {
@@ -47,15 +47,15 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     servant-client = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-client";
-        ver = "0.18.1";
-        sha256 = "1h84k617j26dfhzyrx95v08a8rzh4y6mzlpxr4lr0l799bsv00hj";
+        ver = "0.18.2";
+        sha256 = "0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3";
       } { });
     };
     servant-client-core = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-client-core";
-        ver = "0.18.1";
-        sha256 = "0zkx2xm49n5m315niz640h06nhxfmgx8c1jlxkh4gx0h6m7zdr57";
+        ver = "0.18.2";
+        sha256 = "1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx";
       } { });
     };
     

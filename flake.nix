@@ -22,6 +22,9 @@
   outputs = flakeInputs@{ self, euler-build, ... }:
     euler-build.mkEulerFlake {
       overlayPath = ./nix/overlay.nix;
+      extraOverlayPaths = [
+        
+      ];
       mkConfig = { nixpkgs }: {
         flakeName = "euler-hs";
         defaultPackageName = "euler-hs";

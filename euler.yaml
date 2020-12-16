@@ -9,13 +9,13 @@ allowed-paths:
 dependencies:
   euler-build:
     branch: master
-    revision: a952dae6726d12fe9d1e24c3c660df890ecfd06a
+    revision: 0f501bd8c76e2af271796de30269f782b4033e6f
   beam:
     branch: master
-    revision: 185ff060e63ab0b8a72775ee2742621dd6fefeb1
+    revision: d36b29726570b6c5d228bee44d169282fe99ebdb
   beam-mysql:
     branch: master
-    revision: 4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace
+    revision: 7a635e8aa39ff85d7d66fb9bcc50d0806550071f
   haskell-sequelize:
     branch: master
     revision: 291eb641989f894fe127d19ebd257c4ff7a6a958
@@ -29,14 +29,14 @@ overrides:
     source: github
 
   servant:
-    version: 0.18.1
+    version: 0.18.2
     source: hackage
-    sha256: 106ps21r2dcxfzhn72inlncfslbbkvbzn76zd4l5a8z64yh8c8jv
+    sha256: 0l2k895nxvw2ngr9201g3br6s9zab7mk5mhpjibyg8mxfbv75a8y
 
   servant-server:
-    version: 0.18.1
+    version: 0.18.2
     source: hackage
-    sha256: 1kqy8kxpxssdmdirmnjq496ak38vc68amqjf5kpgz4bj05kaga20
+    sha256: 1kynxl7qg5z45bhi0k61sxn79xkgnq1z97ccqqs39wjyf45fj5yy
 
   servant-mock:
     version: 0.8.7
@@ -44,14 +44,14 @@ overrides:
     sha256: 1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0
 
   servant-client:
-    version: 0.18.1
+    version: 0.18.2
     source: hackage
-    sha256: 1h84k617j26dfhzyrx95v08a8rzh4y6mzlpxr4lr0l799bsv00hj
+    sha256: 0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3
 
   servant-client-core:
-    version: 0.18.1
+    version: 0.18.2
     source: hackage
-    sha256: 0zkx2xm49n5m315niz640h06nhxfmgx8c1jlxkh4gx0h6m7zdr57
+    sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
 
 # nix-shell-tools:
 # - haskellPackages.cabal-fmt

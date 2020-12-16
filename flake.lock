@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1604096164,
-        "narHash": "sha256-Pkpc/4/UuC6q7WM9Bx7THg0HyRZWU53SDdLsYzB7WQY=",
+        "lastModified": 1608124323,
+        "narHash": "sha256-5+FseBBqkpoRP+e5Yo1hZlUuxT/Elh7JQjcHSbMZ/DQ=",
         "owner": "juspay",
         "repo": "beam",
-        "rev": "185ff060e63ab0b8a72775ee2742621dd6fefeb1",
+        "rev": "d36b29726570b6c5d228bee44d169282fe99ebdb",
         "type": "github"
       },
       "original": {
@@ -29,11 +29,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1604096494,
-        "narHash": "sha256-+mCbshr1YSJzLrEb+JpSQaH5EODAZ0Sm8sstztKAZq0=",
+        "lastModified": 1608124392,
+        "narHash": "sha256-5KBcLiyK2b8epVTqiS59oXnEHxKFa/enSINanl6VSn4=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "4c876ea2eae60bf3402d6f5c1ecb60a386fe3ace",
+        "rev": "7a635e8aa39ff85d7d66fb9bcc50d0806550071f",
         "type": "github"
       },
       "original": {
@@ -48,11 +48,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1607441824,
-        "narHash": "sha256-P7okY95YTRjbZQMpmcQHpy3schlbpZN782gQf5PwT/k=",
+        "lastModified": 1608126605,
+        "narHash": "sha256-sCHZW8/TSXoMGU4Vzzq0N+PzsSuOmCEOJfk37d9/YHU=",
         "ref": "master",
-        "rev": "a952dae6726d12fe9d1e24c3c660df890ecfd06a",
-        "revCount": 19,
+        "rev": "0f501bd8c76e2af271796de30269f782b4033e6f",
+        "revCount": 23,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/euler-build"
       },
@@ -123,17 +123,17 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1589844680,
-        "narHash": "sha256-I4OYatIJsEZvEUkAGdTlJjAuUuAq7A1GA/kepUQic1o=",
+        "lastModified": 1607690238,
+        "narHash": "sha256-9QFXxj6pjmHr+950E3/gXo9cz50l0AbFCHZR5eixkXw=",
         "owner": "NixOS",
-        "repo": "nixpkgs-channels",
-        "rev": "0f5ce2fac0c726036ca69a5524c59a49e2973dd4",
+        "repo": "nixpkgs",
+        "rev": "8006772a054ce57ca18c5955dcd6ec9a62577473",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "repo": "nixpkgs-channels",
-        "rev": "0f5ce2fac0c726036ca69a5524c59a49e2973dd4",
+        "repo": "nixpkgs",
+        "rev": "8006772a054ce57ca18c5955dcd6ec9a62577473",
         "type": "github"
       }
     },

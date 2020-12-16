@@ -216,22 +216,14 @@ rSetB cName k v = do
       L.logError @Text "Redis set" $ show err
       pure res
 
-rSetT :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
-  RedisName -> TextKey -> v -> m (Either T.KVDBReply T.KVDBStatus)
-rSetT = rSet
+rSetT :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> TextKey -> Text -> m (Either T.KVDBReply T.KVDBStatus)
+rSetT cName k v = rSetB cName k' v'
+  where
+    k' = TE.encodeUtf8 k
+    v' = TE.encodeUtf8 v
 
 -- ----------------------------------------------------------------------------
-
-rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
-  RedisName -> TextKey -> m (Maybe v)
-rGet cName k = do
-  mv <- L.runKVDB cName $ L.get (TE.encodeUtf8 k)
-  case mv of
-    Right (Just val) -> pure $ A.decode $ BSL.fromStrict val
-    Right Nothing -> pure Nothing
-    Left err -> do
-      L.logError @Text "Redis get" $ show err
-      pure Nothing
 
 rGetB :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> ByteKey -> m (Maybe ByteValue) -- Binary.decode?
@@ -243,9 +235,27 @@ rGetB cName k = do
       L.logError @Text "Redis get" $ show err
       pure Nothing
 
-rGetT :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
-  Text -> Text -> m (Maybe v)
-rGetT = rGet
+rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
+  RedisName -> TextKey -> m (Maybe v)
+rGet cName k = do
+  mv <- rGetB cName (TE.encodeUtf8 k)
+  pure $ case mv of
+    Just val -> A.decode $ BSL.fromStrict val
+    Nothing -> Nothing
+
+rGetT :: (HasCallStack, L.MonadFlow m) =>
+  Text -> Text -> m (Maybe Text)
+rGetT cName k = do
+  mv <- rGetB cName (TE.encodeUtf8 k)
+  case mv of
+    Just val ->
+      case TE.decodeUtf8' val of
+        Left err -> do
+          L.logError @Text "Redis rGetT unicode decode error" (show err)
+          pure Nothing
+        Right x ->
+          pure $ Just x
+    Nothing -> pure Nothing
 
 -- ----------------------------------------------------------------------------
 

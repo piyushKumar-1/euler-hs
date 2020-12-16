@@ -9,7 +9,7 @@ allowed-paths:
 dependencies:
   euler-build:
     branch: master
-    revision: cb387314a858078d60c0cde32baa81f847ae6664
+    revision: 0f501bd8c76e2af271796de30269f782b4033e6f
   beam:
     branch: master
     revision: d36b29726570b6c5d228bee44d169282fe99ebdb

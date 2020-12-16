@@ -27,7 +27,7 @@ import qualified Data.Text as T
 import qualified EulerHS.Core.SqlDB.Language as DB
 import           EulerHS.Core.Types.DB
 import           EulerHS.Core.Types.Serializable
-import           EulerHS.Extra.Language (getOrInitSqlConn, rGetT, rSetB)
+import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import           Named (defaults, (!))
@@ -76,7 +76,7 @@ create ::
          (beM :: Type -> Type)
          (table :: (Type -> Type) -> Type)
          (m :: Type -> Type) .
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
@@ -101,7 +101,7 @@ create dbConf value mCacheKey = do
 createMySQL ::
   forall (table :: (Type -> Type) -> Type)
          (m :: Type -> Type) .
-  ( HasCallStack, 
+  ( HasCallStack,
     Model BM.MySQL table,
     ToJSON (table Identity),
     FromJSON (table Identity),
@@ -123,7 +123,7 @@ createMySQL dbConf value mCacheKey = do
 -- | Update an element matching the query to the new value.
 --   Cache the value at the given key if the DB update succeeds.
 updateOne ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -145,7 +145,7 @@ updateOne dbConf (Just cacheKey) newVals whereClause = do
 updateOne dbConf Nothing value whereClause = updateOneSql dbConf value whereClause
 
 updateOneWoReturning ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -168,7 +168,7 @@ updateOneWoReturning dbConf Nothing value whereClause = updateOneSqlWoReturning 
 
 updateOneSqlWoReturning ::
   forall m be beM table.
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -199,7 +199,7 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
 
 updateOneSql ::
   forall m be beM table.
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -237,7 +237,7 @@ updateExtended dbConf mKey upd = do
 -- | Find an element matching the query. Only uses the DB if the cache is empty.
 --   Caches the result using the given key.
 findOne ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -251,7 +251,7 @@ findOne ::
   Where be table ->
   m (Either DBError (Maybe (table Identity)))
 findOne dbConf (Just cacheKey) whereClause = do
-  mRes <- rGetT (T.pack cacheName) cacheKey
+  mRes <- rGet (T.pack cacheName) cacheKey
   case join mRes of
     (Just res) -> return $ Right $ Just res
     Nothing -> do
@@ -264,7 +264,7 @@ findOne dbConf Nothing whereClause = findOneSql dbConf whereClause
 --   Caches the result using the given key.
 --   NOTE: Can't use the same key as findOne, updateOne or create since it's result is a list.
 findAll ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -278,7 +278,7 @@ findAll ::
   Where be table ->
   m (Either DBError [table Identity])
 findAll dbConf (Just cacheKey) whereClause = do
-  mRes <- rGetT (T.pack cacheName) cacheKey
+  mRes <- rGet (T.pack cacheName) cacheKey
   case mRes of
     (Just res) -> return $ Right res
     Nothing -> do
@@ -289,7 +289,7 @@ findAll dbConf Nothing whereClause = findAllSql dbConf whereClause
 
 -- | Like 'findAll', but takes an explicit 'SqlSelect'.
 findAllExtended :: forall beM be table m .
-  (HasCallStack, 
+  (HasCallStack,
    L.MonadFlow m,
    B.FromBackendRow be (table Identity),
    BeamRunner beM,
@@ -303,7 +303,7 @@ findAllExtended :: forall beM be table m .
 findAllExtended dbConf mKey sel = case mKey of
   Nothing -> go
   Just k -> do
-    mCached <- rGetT (T.pack cacheName) k
+    mCached <- rGet (T.pack cacheName) k
     case mCached of
       Just res -> pure . Right $ res
       Nothing -> do
@@ -318,7 +318,7 @@ findAllExtended dbConf mKey sel = case mKey of
 
 ------------ Helper functions ------------
 runQuery ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM, BeamRunner beM,
     JSONEx a,
     L.MonadFlow m
@@ -331,7 +331,7 @@ runQuery dbConf query = do
     Left  e -> return $ Left e
 
 runQueryMySQL ::
-  ( HasCallStack, 
+  ( HasCallStack,
     JSONEx a,
     L.MonadFlow m
   ) =>
@@ -351,7 +351,7 @@ sqlCreate value = B.insert modelTableEntity (mkExprWithDefault value)
 
 createSql ::
   forall m be beM table.
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
@@ -376,7 +376,7 @@ createSql dbConf value = do
 
 createSqlMySQL ::
   forall m  table.
-  ( HasCallStack, 
+  ( HasCallStack,
     Model BM.MySQL table,
     ToJSON (table Identity),
     FromJSON (table Identity),
@@ -397,7 +397,7 @@ createSqlMySQL dbConf value = do
     Left e -> return $ Left e
 
 findOneSql ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,
@@ -413,7 +413,7 @@ findOneSql dbConf whereClause = runQuery dbConf findQuery
   where findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
 
 findAllSql ::
-  ( HasCallStack, 
+  ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     Model be table,

@@ -48,11 +48,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1608123207,
-        "narHash": "sha256-rby0vjsuuSWbdeJv7yRvQVNwiMMAw0o11gwDkTIIJXg=",
+        "lastModified": 1608126605,
+        "narHash": "sha256-sCHZW8/TSXoMGU4Vzzq0N+PzsSuOmCEOJfk37d9/YHU=",
         "ref": "master",
-        "rev": "cb387314a858078d60c0cde32baa81f847ae6664",
-        "revCount": 22,
+        "rev": "0f501bd8c76e2af271796de30269f782b4033e6f",
+        "revCount": 23,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/euler-build"
       },
@@ -123,17 +123,17 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1607479660,
-        "narHash": "sha256-TxyUTkUUl9m8vuABhOxbN56BRn0mFQlI1KHaGZ8RqcY=",
+        "lastModified": 1607690238,
+        "narHash": "sha256-9QFXxj6pjmHr+950E3/gXo9cz50l0AbFCHZR5eixkXw=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "3537ea7a8358abe11d07223812305faebf3d5074",
+        "rev": "8006772a054ce57ca18c5955dcd6ec9a62577473",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "3537ea7a8358abe11d07223812305faebf3d5074",
+        "rev": "8006772a054ce57ca18c5955dcd6ec9a62577473",
         "type": "github"
       }
     },

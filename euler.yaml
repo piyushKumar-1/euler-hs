@@ -53,7 +53,8 @@ overrides:
     source: hackage
     sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
 
-# nix-shell-tools:
+nix-shell-tools:
+- redis
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883

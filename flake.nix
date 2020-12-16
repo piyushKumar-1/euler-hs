@@ -32,7 +32,7 @@
           "euler-hs"
         ];
         shellTools = with nixpkgs; [
-          
+          redis
         ];
         # shellAttrs = {
         # };

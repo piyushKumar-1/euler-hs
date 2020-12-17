@@ -9,7 +9,7 @@ allowed-paths:
 dependencies:
   euler-build:
     branch: master
-    revision: 0f501bd8c76e2af271796de30269f782b4033e6f
+    revision: fd6f0a53d4fd5d22739251067a9641e38a6c5d4d
   beam:
     branch: master
     revision: d36b29726570b6c5d228bee44d169282fe99ebdb
@@ -53,7 +53,12 @@ overrides:
     source: hackage
     sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
 
-# nix-shell-tools:
+build-tools:
+- redis
+
+nix-shell-tools:
+- redis
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883
+

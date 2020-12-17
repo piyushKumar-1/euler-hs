@@ -60,7 +60,7 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     };
     
     euler-hs = self.eulerBuild.fastBuild {
-      drv = hself.callCabal2nix "euler-hs" euler-hs-src { };
+      drv = super.haskell.lib.addBuildTools (hself.callCabal2nix "euler-hs" euler-hs-src { }) (with self; [ redis ]);
       overrides = {
         # We want to run tests for our packages most of the time
         runTests = true;

@@ -136,14 +136,4 @@ data TestKVals = TestKVals
 ----------------------------------
 
 
-data User = User { firstName :: String, lastName :: String , userGUID :: String}
-  deriving (Generic, Show, Eq, ToJSON, FromJSON )
 
-instance Arbitrary User where
-  arbitrary = User <$> arbitrary <*> arbitrary <*> arbitrary
-
-data Book = Book { author :: String, name :: String }
-  deriving (Generic, Show, Eq, ToJSON, FromJSON )
-
-instance Arbitrary Book where
-  arbitrary = Book <$> arbitrary <*> arbitrary

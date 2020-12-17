@@ -15,10 +15,10 @@ connectOrFail cfg = L.initSqlDBConnection cfg >>= \case
     Right conn -> pure conn
 
 testDBName :: String
-testDBName = "./test/EulerHS/TestData/test.db"
+testDBName = "./test/language/EulerHS/TestData/test.db"
 
 testDBTemplateName :: String
-testDBTemplateName = "./test/EulerHS/TestData/test.db.template"
+testDBTemplateName = "./test/language/EulerHS/TestData/test.db.template"
 
 rmTestDB :: L.Flow ()
 rmTestDB = void $ L.runSysCmd $ "rm -f " <> testDBName

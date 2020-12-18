@@ -32,26 +32,31 @@ overrides:
     version: 0.18.2
     source: hackage
     sha256: 0l2k895nxvw2ngr9201g3br6s9zab7mk5mhpjibyg8mxfbv75a8y
+    enable-profiling: true
 
   servant-server:
     version: 0.18.2
     source: hackage
     sha256: 1kynxl7qg5z45bhi0k61sxn79xkgnq1z97ccqqs39wjyf45fj5yy
+    enable-profiling: true
 
   servant-mock:
     version: 0.8.7
     source: hackage
     sha256: 1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0
+    enable-profiling: true
 
   servant-client:
     version: 0.18.2
     source: hackage
     sha256: 0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3
+    enable-profiling: true
 
   servant-client-core:
     version: 0.18.2
     source: hackage
     sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
+    enable-profiling: true
 
 build-tools:
 - redis

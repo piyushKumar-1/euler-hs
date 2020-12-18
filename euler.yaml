@@ -62,7 +62,7 @@ build-tools:
 - redis
 
 nix-shell-tools:
-- redis
+ - redis
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883

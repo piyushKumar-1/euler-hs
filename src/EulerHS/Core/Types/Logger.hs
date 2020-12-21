@@ -26,16 +26,19 @@ import           EulerHS.Prelude
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
 
--- | Logging format.
-type Format = String
-
+type MessageFormat = String
+type DateFormat = String
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
+type Message = Text
+type Tag = Text
+type MessageNumber = Int
+type BufferSize = Int
+type MessageFormatter = PendingMsg -> String
 
 data LoggerConfig
-  = MemoryLoggerConfig LogLevel
+  = MemoryLoggerConfig MessageFormatter LogLevel
   | LoggerConfig
-    { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
-    , _formatter    :: Formatter
+    { _msgFormatter :: MessageFormatter
     , _isAsync      :: Bool
     , _level        :: LogLevel
     , _logFilePath  :: FilePath
@@ -44,12 +47,6 @@ data LoggerConfig
     , _maxQueueSize :: Word
     , _logRawSql    :: Bool
     } deriving (Generic, Show, Read)
-
-type Message = Text
-type Tag = Text
-type MessageNumber = Int
-type Formatter = LogLevel -> Tag -> Message -> MessageNumber -> String
-
 
 data PendingMsg = PendingMsg
   !LogLevel

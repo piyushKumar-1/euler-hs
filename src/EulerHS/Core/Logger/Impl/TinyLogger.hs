@@ -6,10 +6,13 @@ module EulerHS.Core.Logger.Impl.TinyLogger
     -- ** Methods
   , sendPendingMsg
   , createLogger
+  , createLogger'
   , createVoidLogger
   , disposeLogger
   , withLogger
-  ,
+  , defaultDateFormat
+  , defaultRenderer
+  , defaultBufferSize
   ) where
 
 import           EulerHS.Prelude hiding ((.=))
@@ -19,35 +22,35 @@ import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
 import qualified System.Logger as Log
 import qualified System.Logger.Message as LogMsg
 
-import qualified EulerHS.Core.Types as D
+import qualified EulerHS.Core.Types as T
 
-type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)
+type LogQueue = (Chan.InChan T.PendingMsg, Chan.OutChan T.PendingMsg)
 
-data Loggers = [Log.Logger]
+type Loggers = [Log.Logger]
 
 data LoggerHandle
   = AsyncLoggerHandle [ThreadId] LogQueue Loggers
   | SyncLoggerHandle Loggers
   | VoidLoggerHandle
 
-dispatchLogLevel :: D.LogLevel -> Log.Level
-dispatchLogLevel D.Debug   = Log.Debug
-dispatchLogLevel D.Info    = Log.Info
-dispatchLogLevel D.Warning = Log.Warn
-dispatchLogLevel D.Error   = Log.Error
+dispatchLogLevel :: T.LogLevel -> Log.Level
+dispatchLogLevel T.Debug   = Log.Debug
+dispatchLogLevel T.Info    = Log.Info
+dispatchLogLevel T.Warning = Log.Warn
+dispatchLogLevel T.Error   = Log.Error
 
-logPendingMsg :: MessageFormatter -> Loggers -> D.PendingMsg -> IO ()
-logPendingMsg formatter loggers pendingMsg@(D.PendingMsg lvl tag msg msgNum) = do
+logPendingMsg :: T.MessageFormatter -> Loggers -> T.PendingMsg -> IO ()
+logPendingMsg formatter loggers pendingMsg@(T.PendingMsg lvl tag msg msgNum) = do
   let lvl' = dispatchLogLevel lvl
-  let msg' = formatter pendingMsg
+  let msg' = Log.msg (formatter pendingMsg)
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
 
-loggerWorker :: MessageFormatter -> Chan.OutChan D.PendingMsg -> Loggers -> IO ()
+loggerWorker :: T.MessageFormatter -> Chan.OutChan T.PendingMsg -> Loggers -> IO ()
 loggerWorker formatter outChan loggers = do
   pendingMsg <- Chan.readChan outChan
   logPendingMsg formatter loggers pendingMsg
 
-sendPendingMsg :: MessageFormatter -> LoggerHandle -> D.PendingMsg -> IO ()
+sendPendingMsg :: T.MessageFormatter -> LoggerHandle -> T.PendingMsg -> IO ()
 sendPendingMsg _ VoidLoggerHandle                    = const (pure ())
 sendPendingMsg formatter (SyncLoggerHandle loggers)  = logPendingMsg formatter loggers
 sendPendingMsg _ (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan
@@ -55,20 +58,22 @@ sendPendingMsg _ (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan
 createVoidLogger :: IO LoggerHandle
 createVoidLogger = pure VoidLoggerHandle
 
-createLogger :: D.LoggerConfig -> IO LoggerHandle
+createLogger :: T.MessageFormatter -> T.LoggerConfig -> IO LoggerHandle
 createLogger = createLogger' defaultDateFormat defaultRenderer defaultBufferSize
 
 createLogger'
-  :: Maybe DateFormat
+  :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
-  -> BufferSize
-  -> D.LoggerConfig
+  -> T.BufferSize
+  -> T.MessageFormatter
+  -> T.LoggerConfig
   -> IO LoggerHandle
 createLogger'
   mbDateFormat
   mbRenderer
   bufferSize
-  (D.LoggerConfig _ formatter isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
+  formatter
+  (T.LoggerConfig isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
 
     let fileSettings
           = Log.setFormat mbDateFormat
@@ -105,36 +110,42 @@ createLogger'
       chan@(_, outChan) <- Chan.newChan (fromIntegral maxQueueSize)
       threadIds <- traverse ((flip forkOn) (forever $ loggerWorker formatter outChan loggers)) [1..caps]
       pure $ AsyncLoggerHandle threadIds chan loggers
-createLogger cfg = error $ "Unknown logger config: " <> show cfg
 
-disposeLogger :: LoggerHandle -> IO ()
-disposeLogger VoidLoggerHandle = pure ()
-disposeLogger (SyncLoggerHandle _ loggers) = do
+disposeLogger :: T.MessageFormatter -> LoggerHandle -> IO ()
+disposeLogger _ VoidLoggerHandle = pure ()
+disposeLogger _ (SyncLoggerHandle loggers) = do
   putStrLn @String "Disposing sync logger..."
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
-disposeLogger (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
+disposeLogger formatter (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
   putStrLn @String "Disposing async logger..."
   traverse_ killThread threadIds
-  Chan.getChanContents outChan >>= mapM_ (logPendingMsg loggers)
+  Chan.getChanContents outChan >>= mapM_ (logPendingMsg formatter loggers)
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
 
 withLogger'
-  :: Maybe DateFormat
+  :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
-  -> BufferSize
-  -> D.LoggerConfig -> (LoggerHandle -> IO a) -> IO a
-withLogger' mbDateFormat mbRenderer bufSize cfg =
-  bracket (createLogger' mbDateFormat mbRenderer bufSize cfg) disposeLogger
+  -> T.BufferSize
+  -> T.MessageFormatter
+  -> T.LoggerConfig
+  -> (LoggerHandle -> IO a)
+  -> IO a
+withLogger' mbDateFormat mbRenderer bufSize formatter cfg =
+  bracket (createLogger' mbDateFormat mbRenderer bufSize formatter cfg) (disposeLogger formatter)
 
-withLogger :: D.LoggerConfig -> (LoggerHandle -> IO a) -> IO a
-withLogger config = bracket (createLogger config) disposeLogger
+withLogger
+  :: T.MessageFormatter
+  -> T.LoggerConfig
+  -> (LoggerHandle -> IO a)
+  -> IO a
+withLogger formatter cfg = bracket (createLogger formatter cfg) (disposeLogger formatter)
 
-defaultBufferSize :: BufferSize
+defaultBufferSize :: T.BufferSize
 defaultBufferSize = 4096
 
-defaultDateFormat :: Maybe DateFormat
+defaultDateFormat :: Maybe Log.DateFormat
 defaultDateFormat = Nothing
 
 defaultRenderer :: Maybe Log.Renderer

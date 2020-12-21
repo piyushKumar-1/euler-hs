@@ -3,14 +3,13 @@ module EulerHS.Core.Runtime
     -- * Core Runtime
     CoreRuntime(..)
   , LoggerRuntime(..)
-  , TransientLoggerContext
-  , setTransientContext
   , shouldLogRawSql
-  , clearTransientContext
   , incLogCounter
   , createCoreRuntime
   , createVoidLoggerRuntime
+  , createMemoryLoggerRuntime
   , createLoggerRuntime
+  , createLoggerRuntime'
   , clearCoreRuntime
   , clearLoggerRuntime
   , module X
@@ -23,38 +22,52 @@ import           EulerHS.Prelude
 import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Types.DB as X (withTransaction)
+import qualified System.Logger as Log
 
--- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
 data LoggerRuntime
   = LoggerRuntime
-      { _formatter                   :: !MessageFormatter
-      , _level                       :: T.LogLevel
-      , _logRawSql                   :: !Bool
-      , _logCounter                  :: !T.LogCounter
-      , _logLoggerHandle             :: Impl.LoggerHandle
+      { _formatter       :: !T.MessageFormatter
+      , _logLevel        :: T.LogLevel
+      , _logRawSql       :: !Bool
+      , _logCounter      :: !T.LogCounter
+      , _logLoggerHandle :: Impl.LoggerHandle
       }
-  | MemoryLoggerRuntime !MessageFormatter !T.LogLevel !(MVar [Text])
+  | MemoryLoggerRuntime !T.MessageFormatter !T.LogLevel !(MVar [Text])
 
 data CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
     }
 
-createLoggerRuntime :: T.LoggerConfig -> IO LoggerRuntime
-createLoggerRuntime (T.MemoryLoggerConfig formatter cfgLogLevel) =
-  T.MemoryLoggerRuntime formatter cfgLogLevel <$> newMVar []
-createLoggerRuntime cfg = do
+createMemoryLoggerRuntime :: T.MessageFormatter -> T.LogLevel -> IO LoggerRuntime
+createMemoryLoggerRuntime formatter logLevel =
+  MemoryLoggerRuntime formatter logLevel <$> newMVar []
+
+createLoggerRuntime :: T.MessageFormatter -> T.LoggerConfig -> IO LoggerRuntime
+createLoggerRuntime formatter cfg = do
   counter <- initLogCounter
-  T.LoggerRuntime formatter (T._level cfg) (T._logRawSql cfg) counter
-    <$> Impl.createLogger cfg
+  LoggerRuntime formatter (T._logLevel cfg) (T._logRawSql cfg) counter
+    <$> Impl.createLogger formatter cfg
+
+createLoggerRuntime'
+  :: Maybe Log.DateFormat
+  -> Maybe Log.Renderer
+  -> T.BufferSize
+  -> T.MessageFormatter
+  -> T.LoggerConfig
+  -> IO LoggerRuntime
+createLoggerRuntime' mbDateFormat mbRenderer bufferSize formatter cfg = do
+  counter <- initLogCounter
+  loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize formatter cfg
+  pure $ LoggerRuntime formatter (T._logLevel cfg) (T._logRawSql cfg) counter loggerHandle
 
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
   counter <- initLogCounter
-  T.LoggerRuntime show Debug True counter <$> Impl.createVoidLogger
+  LoggerRuntime show T.Debug True counter <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
-clearLoggerRuntime (LoggerRuntime _ _ _ _ handle) = Impl.disposeLogger handle
-clearLoggerRuntime _                              = pure ()
+clearLoggerRuntime (LoggerRuntime formatter _ _ _ handle) = Impl.disposeLogger formatter handle
+clearLoggerRuntime (MemoryLoggerRuntime _ _ msgsVar) = void $ swapMVar msgsVar []
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
 createCoreRuntime = pure . CoreRuntime
@@ -67,8 +80,8 @@ shouldLogRawSql = \case
   (LoggerRuntime _ _ logRawSql _ _) -> logRawSql
   _ -> True
 
-initLogCounter :: IO LogCounter
+initLogCounter :: IO T.LogCounter
 initLogCounter = newIORef 0
 
-incLogCounter :: LogCounter -> IO Int
+incLogCounter :: T.LogCounter -> IO Int
 incLogCounter = flip atomicModifyIORef' (\cnt -> (cnt + 1, cnt))

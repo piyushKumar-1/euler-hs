@@ -5,19 +5,18 @@ module EulerHS.Core.Types.Logger
     -- * Core Logger
     -- ** Types
       LogLevel(..)
-    , Format
+    , BufferSize
+    , MessageFormatter
     , LoggerConfig(..)
     , Message
     , Tag
     , PendingMsg(..)
     , LogEntry (..)
     , Log
-    , TransientLoggerContext
     , LogCounter
     -- ** defaults
     , defaultLoggerConfig
-    , mkMemoryLoggerConfig
-    , nullLoger
+    , defaultLoggerFormatter
     ) where
 
 import           EulerHS.Prelude
@@ -26,8 +25,6 @@ import           EulerHS.Prelude
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
 
-type MessageFormat = String
-type DateFormat = String
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
 type Message = Text
 type Tag = Text
@@ -36,11 +33,9 @@ type BufferSize = Int
 type MessageFormatter = PendingMsg -> String
 
 data LoggerConfig
-  = MemoryLoggerConfig MessageFormatter LogLevel
-  | LoggerConfig
-    { _msgFormatter :: MessageFormatter
-    , _isAsync      :: Bool
-    , _level        :: LogLevel
+  = LoggerConfig
+    { _isAsync      :: Bool
+    , _logLevel     :: LogLevel
     , _logFilePath  :: FilePath
     , _logToConsole :: Bool
     , _logToFile    :: Bool
@@ -58,29 +53,17 @@ data PendingMsg = PendingMsg
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
 
-defaultLoggerFormatter :: Formatter
-defaultLoggerFormatter lvl tag msg _ _ _ =
+defaultLoggerFormatter :: MessageFormatter
+defaultLoggerFormatter (PendingMsg lvl tag msg _) =
   "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
-
 
 defaultLoggerConfig :: LoggerConfig
 defaultLoggerConfig = LoggerConfig
-    { _format = ""
-    , _formatter = defaultLoggerFormatter
-    , _isAsync = False
-    , _level = Debug
+    { _isAsync = False
+    , _logLevel = Debug
     , _logFilePath = ""
     , _logToConsole = True
     , _logToFile = False
     , _maxQueueSize = 1000
     , _logRawSql = True
-    }
-
-mkMemoryLoggerConfig :: LogLevel -> LoggerConfig
-mkMemoryLoggerConfig = MemoryLoggerConfig
-
-nullLoger :: LoggerConfig
-nullLoger = defaultLoggerConfig
-    { _logFilePath = "/dev/null"
-    , _logToConsole = False
     }

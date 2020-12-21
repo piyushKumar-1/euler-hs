@@ -39,40 +39,41 @@ dispatchLogLevel T.Info    = Log.Info
 dispatchLogLevel T.Warning = Log.Warn
 dispatchLogLevel T.Error   = Log.Error
 
-logPendingMsg :: T.MessageFormatter -> Loggers -> T.PendingMsg -> IO ()
-logPendingMsg formatter loggers pendingMsg@(T.PendingMsg lvl tag msg msgNum) = do
+logPendingMsg :: T.FlowFormatter -> Loggers -> T.PendingMsg -> IO ()
+logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag msg msgNum) = do
+  formatter <- flowFormatter mbFlowGuid
   let lvl' = dispatchLogLevel lvl
-  let msg' = Log.msg (formatter pendingMsg)
+  let msg' = Log.msg $ formatter pendingMsg
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
 
-loggerWorker :: T.MessageFormatter -> Chan.OutChan T.PendingMsg -> Loggers -> IO ()
-loggerWorker formatter outChan loggers = do
+loggerWorker :: T.FlowFormatter -> Chan.OutChan T.PendingMsg -> Loggers -> IO ()
+loggerWorker flowFormatter outChan loggers = do
   pendingMsg <- Chan.readChan outChan
-  logPendingMsg formatter loggers pendingMsg
+  logPendingMsg flowFormatter loggers pendingMsg
 
-sendPendingMsg :: T.MessageFormatter -> LoggerHandle -> T.PendingMsg -> IO ()
-sendPendingMsg _ VoidLoggerHandle                    = const (pure ())
-sendPendingMsg formatter (SyncLoggerHandle loggers)  = logPendingMsg formatter loggers
+sendPendingMsg :: T.FlowFormatter -> LoggerHandle -> T.PendingMsg -> IO ()
+sendPendingMsg _ VoidLoggerHandle = const (pure ())
+sendPendingMsg flowFormatter (SyncLoggerHandle loggers) = logPendingMsg flowFormatter loggers
 sendPendingMsg _ (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan
 
 createVoidLogger :: IO LoggerHandle
 createVoidLogger = pure VoidLoggerHandle
 
-createLogger :: T.MessageFormatter -> T.LoggerConfig -> IO LoggerHandle
+createLogger :: T.FlowFormatter -> T.LoggerConfig -> IO LoggerHandle
 createLogger = createLogger' defaultDateFormat defaultRenderer defaultBufferSize
 
 createLogger'
   :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
-  -> T.MessageFormatter
+  -> T.FlowFormatter
   -> T.LoggerConfig
   -> IO LoggerHandle
 createLogger'
   mbDateFormat
   mbRenderer
   bufferSize
-  formatter
+  flowFormatter
   (T.LoggerConfig isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
 
     let fileSettings
@@ -108,19 +109,19 @@ createLogger'
     startLogger True  loggers = do
       caps <- getNumCapabilities
       chan@(_, outChan) <- Chan.newChan (fromIntegral maxQueueSize)
-      threadIds <- traverse ((flip forkOn) (forever $ loggerWorker formatter outChan loggers)) [1..caps]
+      threadIds <- traverse ((flip forkOn) (forever $ loggerWorker flowFormatter outChan loggers)) [1..caps]
       pure $ AsyncLoggerHandle threadIds chan loggers
 
-disposeLogger :: T.MessageFormatter -> LoggerHandle -> IO ()
+disposeLogger :: T.FlowFormatter -> LoggerHandle -> IO ()
 disposeLogger _ VoidLoggerHandle = pure ()
 disposeLogger _ (SyncLoggerHandle loggers) = do
   putStrLn @String "Disposing sync logger..."
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
-disposeLogger formatter (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
+disposeLogger flowFormatter (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
   putStrLn @String "Disposing async logger..."
   traverse_ killThread threadIds
-  Chan.getChanContents outChan >>= mapM_ (logPendingMsg formatter loggers)
+  Chan.getChanContents outChan >>= mapM_ (logPendingMsg flowFormatter loggers)
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
 
@@ -128,19 +129,19 @@ withLogger'
   :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
-  -> T.MessageFormatter
+  -> T.FlowFormatter
   -> T.LoggerConfig
   -> (LoggerHandle -> IO a)
   -> IO a
-withLogger' mbDateFormat mbRenderer bufSize formatter cfg =
-  bracket (createLogger' mbDateFormat mbRenderer bufSize formatter cfg) (disposeLogger formatter)
+withLogger' mbDateFormat mbRenderer bufSize flowFormatter cfg =
+  bracket (createLogger' mbDateFormat mbRenderer bufSize flowFormatter cfg) (disposeLogger flowFormatter)
 
 withLogger
-  :: T.MessageFormatter
+  :: T.FlowFormatter
   -> T.LoggerConfig
   -> (LoggerHandle -> IO a)
   -> IO a
-withLogger formatter cfg = bracket (createLogger formatter cfg) (disposeLogger formatter)
+withLogger flowFormatter cfg = bracket (createLogger flowFormatter cfg) (disposeLogger flowFormatter)
 
 defaultBufferSize :: T.BufferSize
 defaultBufferSize = 4096

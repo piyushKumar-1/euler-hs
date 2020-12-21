@@ -1,7 +1,7 @@
 module EulerHS.Framework.Flow.Interpreter
-  (
-    -- * Flow Interpreter
+  ( -- * Flow Interpreter
     runFlow
+  , runFlow'
   ) where
 
 import           Control.Exception (throwIO)
@@ -182,8 +182,8 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
+interpretFlowMethod :: Maybe T.FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
       let mbClientMngr = case mbMgrSel of
             Nothing       -> Right _defaultHttpClientManager
@@ -205,11 +205,11 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
           pure $ Left err
   where
     dbgLogger debugLevel =
-      R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+      R.runLogger mbFlowGuid T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
         . show
 
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
+interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do
       httpLibRequest <- getHttpLibRequest request
       _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
@@ -240,56 +240,56 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
 
     logJson :: ToJSON a => T.LogLevel -> a -> IO ()
     logJson debugLevel =
-      R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+      R.runLogger mbFlowGuid T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
         . encodeJSON
 
-interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
-  next <$> R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct
+interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
+  next <$> R.runLogger mbFlowGuid _runMode (R._loggerRuntime _coreRuntime) loggerAct
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunIO descr ioAct next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.RunIO descr ioAct next) =
   next <$> P.withRunMode _runMode (P.mkRunIOEntry descr) ioAct
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunUntracedIO descr ioAct next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.RunUntracedIO descr ioAct next) =
   case _runMode of
     (T.RecordingMode recorderRt) ->
       next <$> P.record recorderRt (P.mkRunUntracedIOEntry descr) ioAct
     _ ->
       next <$> ioAct
 
-interpretFlowMethod R.FlowRuntime {..} (L.GetOption k next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkGetOptionEntry k) $ do
     m <- readMVar _options
     pure $ do
       valAny <- Map.lookup k m
       pure $ unsafeCoerce valAny
 
-interpretFlowMethod R.FlowRuntime {..} (L.SetOption k v next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetOption k v next) =
   fmap next $ P.withRunMode _runMode (P.mkSetOptionEntry k v) $ do
     m <- takeMVar _options
     let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
     putMVar _options newMap
 
-interpretFlowMethod R.FlowRuntime {..} (L.DelOption k next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
   fmap next $ P.withRunMode _runMode (P.mkDelOptionEntry k) $ do
     m <- takeMVar _options
     let newMap = Map.delete k m
     putMVar _options newMap
 
-interpretFlowMethod R.FlowRuntime {_runMode} (L.GenerateGUID next) = do
+interpretFlowMethod _ R.FlowRuntime {_runMode} (L.GenerateGUID next) = do
   next <$> P.withRunMode _runMode P.mkGenerateGUIDEntry
     (UUID.toText <$> UUID.nextRandom)
 
-interpretFlowMethod R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
+interpretFlowMethod _ R.FlowRuntime {_runMode} (L.RunSysCmd cmd next) =
   next <$> P.withRunMode _runMode
     (P.mkRunSysCmdEntry cmd)
     (readCreateProcess (shell cmd) "")
 
 ----------------------------------------------------------------------
-interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
+interpretFlowMethod mbFlowGuid rt (L.Fork desc newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   case R._runMode rt of
-    T.RegularMode -> void $ forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+    T.RegularMode -> void $ forkIO (suppressErrors (runFlow' mbFlowGuid rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
 
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
       finalRecordingMVar       <- newEmptyMVar
@@ -316,7 +316,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
       let newRt = rt {R._runMode = T.RecordingMode forkRuntime}
 
       void $ forkIO $ do
-        suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
+        suppressErrors (runFlow' mbFlowGuid newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
         putMVar finalRecordingMVar       =<< readMVar forkRecordingMVar
         putMVar finalSafeRecordingVar    =<< readMVar forkSafeRecordingVar
         putMVar finalForkedRecordingsVar =<< readMVar forkForkedRecordingsVar
@@ -372,7 +372,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
           void $ forkIO $ do
-            suppressErrors (runFlow newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
+            suppressErrors (runFlow' mbFlowGuid newRt (L.runSafeFlow flow) >>= putMVar awaitableMVar)
             putMVar finalErrorMVar          =<< readMVar forkErrorMVar
             putMVar finalSafeFlowErrorVar   =<< readMVar forkSafeFlowErrorVar
             putMVar finalForkedFlowErrorVar =<< readMVar forkForkedFlowErrorVar
@@ -385,7 +385,7 @@ interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
 
 ----------------------------------------------------------------------
 
-interpretFlowMethod R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar) next) = do
+interpretFlowMethod _ R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar) next) = do
   let act = case mbMcs of
         Nothing -> do
           val <- readMVar awaitableMVar
@@ -395,27 +395,31 @@ interpretFlowMethod R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar
         Just (T.Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
   next <$> P.withRunMode _runMode (P.mkAwaitEntry mbMcs) act
 
-interpretFlowMethod R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
+interpretFlowMethod _ R.FlowRuntime {_runMode} (L.ThrowException ex _) = do
   void $ P.withRunMode _runMode (P.mkThrowExceptionEntry ex) (pure ())
   throwIO ex
 
-interpretFlowMethod rt (L.CatchException comp handler cont) =
-  cont <$> catch (runFlow rt comp) (runFlow rt . handler)
+interpretFlowMethod mbFlowGuid rt (L.CatchException comp handler cont) =
+  cont <$> catch (runFlow' mbFlowGuid rt comp) (runFlow' mbFlowGuid rt . handler)
 
 -- Lack of impredicative polymorphism in GHC makes me sad. - Koz
-interpretFlowMethod rt (L.Mask cb cont) =
-  cont <$> mask (\cb' -> runFlow rt (cb (dimap (runFlow rt) (L.runUntracedIO' "Mask") cb')))
+interpretFlowMethod mbFlowGuid rt (L.Mask cb cont) =
+  cont <$> mask (\cb' -> runFlow' mbFlowGuid rt (cb (dimap (runFlow' mbFlowGuid rt) (L.runUntracedIO' "Mask") cb')))
 
-interpretFlowMethod rt (L.UninterruptibleMask cb cont) =
-  cont <$> uninterruptibleMask (\cb' -> runFlow rt (cb (dimap (runFlow rt) (L.runUntracedIO' "UninterruptibleMask") cb')))
+interpretFlowMethod mbFlowGuid rt (L.UninterruptibleMask cb cont) =
+  cont <$> uninterruptibleMask
+    (\cb' -> runFlow' mbFlowGuid rt (cb (dimap (runFlow' mbFlowGuid rt) (L.runUntracedIO' "UninterruptibleMask") cb')))
 
-interpretFlowMethod rt (L.GeneralBracket acquire release use' cont) =
-  cont <$> generalBracket (runFlow rt acquire) (\x -> runFlow rt . release x) (runFlow rt . use')
+interpretFlowMethod mbFlowGuid rt (L.GeneralBracket acquire release use' cont) =
+  cont <$> generalBracket
+    (runFlow' mbFlowGuid rt acquire)
+    (\x -> runFlow' mbFlowGuid rt . release x)
+    (runFlow' mbFlowGuid rt . use')
 
-interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow next) = fmap next $ do
+interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow next) = fmap next $ do
   fl <- case R._runMode rt of
     T.RegularMode -> do
-      fl <- try @_ @SomeException $ runFlow rt flow
+      fl <- try @_ @SomeException $ runFlow' mbFlowGuid rt flow
       pure $ mapLeft show fl
 
     T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
@@ -431,7 +435,7 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
 
       let newRt = rt {R._runMode = T.RecordingMode safeRuntime}
 
-      fl <- try @_ @SomeException $ runFlow newRt flow
+      fl <- try @_ @SomeException $ runFlow' mbFlowGuid newRt flow
 
       freshRec <- readMVar freshRecordingMVar
 
@@ -481,7 +485,7 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
                 }
 
           let newRt = rt {R._runMode = T.ReplayingMode forkRuntime}
-          fl <- try @_ @SomeException $ runFlow newRt flow
+          fl <- try @_ @SomeException $ runFlow' mbFlowGuid newRt flow
 
           safeFlowErrs <- takeMVar safeFlowErrorsVar
           freshError   <- takeMVar freshErrorMVar
@@ -498,7 +502,7 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode} (L.RunSafeFlow newFlowGUID flow 
   P.withRunMode (R._runMode rt) (P.mkRunSafeFlowEntry newFlowGUID) (pure fl)
 
 
-interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitSqlDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connMap <- takeMVar _sqldbConnections
@@ -510,7 +514,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
       Left _     -> putMVar _sqldbConnections connMap
     pure res
 
-interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitSqlDBConnectionEntry conn) $ do
     let connTag = getPosition @1 conn
     connMap <- takeMVar _sqldbConnections
@@ -520,7 +524,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
         disconnect conn
         putMVar _sqldbConnections $ Map.delete connTag connMap
 
-interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkGetSqlDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connMap <- readMVar _sqldbConnections
@@ -528,7 +532,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
       Just conn -> Right $ T.nativeToBem connTag conn
       Nothing   -> Left $ T.DBError T.ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
 
-interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkInitKVDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connections <- takeMVar _kvdbConnections
@@ -541,7 +545,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
         $ Map.insert connTag (kvdbToNative conn) connections
     pure res
 
-interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
   fmap next $ P.withRunMode _runMode (P.mkDeInitKVDBConnectionEntry conn) $ do
     let connTag = getPosition @1 conn
     connections <- takeMVar _kvdbConnections
@@ -551,7 +555,7 @@ interpretFlowMethod R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
         R.kvDisconnect $ kvdbToNative conn
         putMVar _kvdbConnections $ Map.delete connTag connections
 
-interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
   fmap next $ P.withRunMode _runMode (P.mkGetKVDBConnectionEntry cfg) $ do
     let connTag = getPosition @1 cfg
     connMap <- readMVar _kvdbConnections
@@ -559,11 +563,11 @@ interpretFlowMethod R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
       Just conn -> Right $ T.nativeToKVDB connTag conn
       Nothing   -> Left $ KVDBError KVDBConnectionDoesNotExist $ "Connection for " +|| connTag ||+ " does not exists."
 
-interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
+interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
     let runMode   = R._runMode flowRt
     let dbgLogger =
           if R.shouldFlowLogRawSql flowRt
-          then R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+          then R.runLogger mbFlowGuid T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                . L.logMessage' T.Debug ("RunDB Impl" :: String)
           else const $ pure ()
     rawSqlTVar <- newTVarIO mempty
@@ -604,7 +608,7 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
 
       wrapException :: HasCallStack => SomeException -> IO T.DBError
       wrapException exception = do
-        R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
+        R.runLogger mbFlowGuid T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
                . L.logMessage' T.Debug ("CALLSTACK" :: String) $ Text.pack $ prettyCallStack callStack
         pure (wrapException' exception)
 
@@ -615,18 +619,21 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
             T.postgresErrorToDbError (show e) <$> fromException e)
 
 
-interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB cName act next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.RunKVDB cName act next) =
     next <$> R.runKVDB cName _runMode _kvdbConnections act
 
 
-interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnection} (L.RunPubSub act next) =
+interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnection} (L.RunPubSub act next) =
     case (_pubSubConnection, _runMode) of
       (Nothing, T.ReplayingMode _) -> go $ error "Connection mock. Shold not ever be evaluated"
       (Just cn, _                ) -> go cn
       _                            -> error "RunPubSub method called, while proper Redis connection has not been provided"
   where
     go conn = next <$> R.runPubSub _runMode _pubSubController conn
-      (L.unpackLanguagePubSub act $ runFlow $ rt { R._runMode = T.RegularMode })
+      (L.unpackLanguagePubSub act $ runFlow' mbFlowGuid $ rt { R._runMode = T.RegularMode })
+
+runFlow' :: Maybe T.FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
+runFlow' mbFlowGuid flowRt (L.Flow comp) = foldF (interpretFlowMethod mbFlowGuid flowRt) comp
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
-runFlow flowRt (L.Flow comp) = foldF (interpretFlowMethod flowRt) comp
+runFlow = runFlow' Nothing

@@ -19,30 +19,34 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Text as T
 
 
-interpretLogger :: T.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
+interpretLogger :: Maybe T.FlowGUID -> T.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
 interpretLogger
+  mbFlowGuid
   runMode
-  (R.MemoryLoggerRuntime formatter logLevel logsVar cntVar)
+  (R.MemoryLoggerRuntime flowFormatter logLevel logsVar cntVar)
   (L.LogMessage msgLogLvl tag msg next) =
 
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
     case compare logLevel msgLogLvl of
       GT -> pure ()
       _  -> do
-        !msgNum <- R.incLogCounter cntVar
-        let !m = T.pack $ formatter $ T.PendingMsg msgLogLvl tag msg msgNum
+        formatter <- flowFormatter mbFlowGuid
+        !msgNum   <- R.incLogCounter cntVar
+        let !m = T.pack $ formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
         MVar.modifyMVar logsVar $ \(!lgs) -> pure (m : lgs, ())
 
-interpretLogger runMode
-  (R.LoggerRuntime formatter logLevel _ cntVar handle)
+interpretLogger
+  mbFlowGuid
+  runMode
+  (R.LoggerRuntime flowFormatter logLevel _ cntVar handle)
   (L.LogMessage msgLogLevel tag msg next) =
 
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLevel tag msg) $
     case compare logLevel msgLogLevel of
       GT -> pure ()
       _  -> do
-        msgNum <- R.incLogCounter cntVar
-        Impl.sendPendingMsg formatter handle $ T.PendingMsg msgLogLevel tag msg msgNum
+        msgNum    <- R.incLogCounter cntVar
+        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum
 
-runLogger :: T.RunMode -> R.LoggerRuntime -> L.Logger a -> IO a
-runLogger runMode loggerRt = foldF (interpretLogger runMode loggerRt)
+runLogger :: Maybe T.FlowGUID -> T.RunMode -> R.LoggerRuntime -> L.Logger a -> IO a
+runLogger mbFlowGuid runMode loggerRt = foldF (interpretLogger mbFlowGuid runMode loggerRt)

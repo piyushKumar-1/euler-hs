@@ -1,7 +1,9 @@
 module EulerHS.Core.Types.Common
   (
+    -- * Guid for any flow
+    FlowGUID
     -- * Guid for a forked flow
-    ForkGUID
+  , ForkGUID
     -- * Guid for a safe flow
   , SafeFlowGUID
     -- * Network manager selector
@@ -16,6 +18,7 @@ module EulerHS.Core.Types.Common
 import qualified Data.Word as W
 import           EulerHS.Prelude
 
+type FlowGUID = Text
 type ForkGUID = Text
 type SafeFlowGUID = Text
 type ManagerSelector = String

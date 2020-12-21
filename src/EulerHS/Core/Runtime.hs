@@ -26,47 +26,47 @@ import qualified System.Logger as Log
 
 data LoggerRuntime
   = LoggerRuntime
-      { _formatter       :: !T.MessageFormatter
+      { _flowFormatter   :: T.FlowFormatter
       , _logLevel        :: T.LogLevel
       , _logRawSql       :: !Bool
       , _logCounter      :: !T.LogCounter
       , _logLoggerHandle :: Impl.LoggerHandle
       }
-  | MemoryLoggerRuntime !T.MessageFormatter !T.LogLevel !(MVar [Text]) !T.LogCounter
+  | MemoryLoggerRuntime !T.FlowFormatter !T.LogLevel !(MVar [Text]) !T.LogCounter
 
 data CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
     }
 
-createMemoryLoggerRuntime :: T.MessageFormatter -> T.LogLevel -> IO LoggerRuntime
-createMemoryLoggerRuntime formatter logLevel =
-  MemoryLoggerRuntime formatter logLevel <$> newMVar [] <*> initLogCounter
+createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
+createMemoryLoggerRuntime flowFormatter logLevel =
+  MemoryLoggerRuntime flowFormatter logLevel <$> newMVar [] <*> initLogCounter
 
-createLoggerRuntime :: T.MessageFormatter -> T.LoggerConfig -> IO LoggerRuntime
-createLoggerRuntime formatter cfg = do
+createLoggerRuntime :: T.FlowFormatter -> T.LoggerConfig -> IO LoggerRuntime
+createLoggerRuntime flowFormatter cfg = do
   counter <- initLogCounter
-  LoggerRuntime formatter (T._logLevel cfg) (T._logRawSql cfg) counter
-    <$> Impl.createLogger formatter cfg
+  LoggerRuntime flowFormatter (T._logLevel cfg) (T._logRawSql cfg) counter
+    <$> Impl.createLogger flowFormatter cfg
 
 createLoggerRuntime'
   :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
-  -> T.MessageFormatter
+  -> T.FlowFormatter
   -> T.LoggerConfig
   -> IO LoggerRuntime
-createLoggerRuntime' mbDateFormat mbRenderer bufferSize formatter cfg = do
+createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg = do
   counter <- initLogCounter
-  loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize formatter cfg
-  pure $ LoggerRuntime formatter (T._logLevel cfg) (T._logRawSql cfg) counter loggerHandle
+  loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
+  pure $ LoggerRuntime flowFormatter (T._logLevel cfg) (T._logRawSql cfg) counter loggerHandle
 
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
   counter <- initLogCounter
-  LoggerRuntime show T.Debug True counter <$> Impl.createVoidLogger
+  LoggerRuntime (const $ pure show)  T.Debug True counter <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
-clearLoggerRuntime (LoggerRuntime formatter _ _ _ handle) = Impl.disposeLogger formatter handle
+clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ handle) = Impl.disposeLogger flowFormatter handle
 clearLoggerRuntime (MemoryLoggerRuntime _ _ msgsVar _) = void $ swapMVar msgsVar []
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime

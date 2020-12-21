@@ -145,5 +145,3 @@ emptyMVarWithWatchDog t = do
 
 
     pure (targetMVar, watch >> takeMVar finalMVar, reset)
-
-

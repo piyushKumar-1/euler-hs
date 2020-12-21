@@ -16,7 +16,7 @@ module EulerHS.Core.Types.Logger
     , LogCounter
     -- ** defaults
     , defaultLoggerConfig
-    , defaultLoggerFormatter
+    , defaultMessageFormatter
     ) where
 
 import           EulerHS.Prelude
@@ -53,8 +53,8 @@ data PendingMsg = PendingMsg
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
 
-defaultLoggerFormatter :: MessageFormatter
-defaultLoggerFormatter (PendingMsg lvl tag msg _) =
+defaultMessageFormatter :: MessageFormatter
+defaultMessageFormatter (PendingMsg lvl tag msg _) =
   "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
 
 defaultLoggerConfig :: LoggerConfig

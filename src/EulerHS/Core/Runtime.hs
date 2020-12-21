@@ -32,7 +32,7 @@ data LoggerRuntime
       , _logCounter      :: !T.LogCounter
       , _logLoggerHandle :: Impl.LoggerHandle
       }
-  | MemoryLoggerRuntime !T.MessageFormatter !T.LogLevel !(MVar [Text])
+  | MemoryLoggerRuntime !T.MessageFormatter !T.LogLevel !(MVar [Text]) !T.LogCounter
 
 data CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
@@ -40,7 +40,7 @@ data CoreRuntime = CoreRuntime
 
 createMemoryLoggerRuntime :: T.MessageFormatter -> T.LogLevel -> IO LoggerRuntime
 createMemoryLoggerRuntime formatter logLevel =
-  MemoryLoggerRuntime formatter logLevel <$> newMVar []
+  MemoryLoggerRuntime formatter logLevel <$> newMVar [] <*> initLogCounter
 
 createLoggerRuntime :: T.MessageFormatter -> T.LoggerConfig -> IO LoggerRuntime
 createLoggerRuntime formatter cfg = do
@@ -67,7 +67,7 @@ createVoidLoggerRuntime = do
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime formatter _ _ _ handle) = Impl.disposeLogger formatter handle
-clearLoggerRuntime (MemoryLoggerRuntime _ _ msgsVar) = void $ swapMVar msgsVar []
+clearLoggerRuntime (MemoryLoggerRuntime _ _ msgsVar _) = void $ swapMVar msgsVar []
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
 createCoreRuntime = pure . CoreRuntime

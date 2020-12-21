@@ -284,8 +284,10 @@ For example:
 ```haskell
 countStuff :: Flow Int
   countVar <- runUntracedIO $ newTVarIO (0 :: Int)
-  forkFlow "counter1" $ void $ runUntracedIO $ countTo100 countVar
-  forkFlow "counter2" $ void $ runUntracedIO $ countTo100 countVar
+  awaitable1 <- forkFlow' "counter1" $ void $ runUntracedIO $ countTo100 countVar
+  awaitable2 <- forkFlow' "counter2" $ void $ runUntracedIO $ countTo100 countVar
+  void $ await Nothing awaitable1
+  void $ await Nothing awaitable2
   count <- runUntracedIO $ atomically $ readTVar countVar
   return count
 
@@ -363,7 +365,7 @@ runDB
   -> L.SqlDB beM a
   -> Flow (T.DBResult a)
 ```
- 
+
 Runs outside of a transaction. For transactions you can use `runTransaction`.
 
 *Extracting existing connection from FlowRuntime by given db config and runs sql query (described using BEAM syntax). Acts like 'getSqlDBConnection' + 'runDB'*

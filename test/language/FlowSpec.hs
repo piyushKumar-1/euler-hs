@@ -60,7 +60,7 @@ import           Unsafe.Coerce (unsafeCoerce)
 
 spec :: Maybe T.LoggerConfig -> Spec
 spec mbLoggerCfg = do
-  around (withFlowRuntime (mbLoggerCfg >>= Just . createLoggerRuntime (const $ pure show)) $ do
+  around (withFlowRuntime (mbLoggerCfg >>= Just . createLoggerRuntime (const $ pure show))) $ do
     describe "EulerHS flow language tests" $ do
       describe "TestInterpreters" $ do
         it "testScenario1" $ \rt -> do

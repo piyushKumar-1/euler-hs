@@ -22,6 +22,8 @@ import qualified Data.ByteString.Lazy as LBS
 
 
 interpretLogger :: Maybe T.FlowGUID -> T.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
+
+-- Memory logger
 interpretLogger
   mbFlowGuid
   runMode
@@ -37,9 +39,11 @@ interpretLogger
         let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
-              T.Builder bld -> T.decodeUtf8 $ LBS.toStrict $ T.builderToByteString bld
+              T.MsgBuilder bld -> T.decodeUtf8 $ LBS.toStrict $ T.builderToByteString bld
+              T.MsgTransformer _ -> error "Msg -> Msg not supported for memory logger."
         MVar.modifyMVar logsVar $ \(!lgs) -> pure (m : lgs, ())
 
+-- Regular logger
 interpretLogger
   mbFlowGuid
   runMode

@@ -46,7 +46,8 @@ logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag 
   let lvl' = dispatchLogLevel lvl
   let msg' = case msgBuilder of
         T.SimpleString str -> Log.msg str
-        T.Builder bld -> Log.msg bld
+        T.MsgBuilder bld -> Log.msg bld
+        T.MsgTransformer f -> f
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
 
 loggerWorker :: T.FlowFormatter -> Chan.OutChan T.PendingMsg -> Loggers -> IO ()

@@ -39,7 +39,8 @@ data LogLevel = Debug | Info | Warning | Error
 
 data MessageBuilder
   = SimpleString String
-  | Builder LogMsg.Builder
+  | MsgBuilder LogMsg.Builder
+  | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
 
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
 type Message = Text

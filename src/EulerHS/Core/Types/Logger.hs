@@ -6,6 +6,7 @@ module EulerHS.Core.Types.Logger
     -- ** Types
       LogLevel(..)
     , BufferSize
+    , MessageBuilder (..)
     , MessageFormatter
     , FlowFormatter
     , LoggerConfig(..)
@@ -18,23 +19,34 @@ module EulerHS.Core.Types.Logger
     -- ** defaults
     , defaultLoggerConfig
     , defaultMessageFormatter
+    , showingMessageFormatter
     , defaultFlowFormatter
+    , builderToByteString
     ) where
 
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Types.Common as T
 
+-- Currently, TinyLogger is highly coupled with the interface.
+-- Reason: unclear current practice of logging that affects design and performance.
+import qualified System.Logger.Message as LogMsg
+import qualified Data.ByteString.Lazy as LBS
+
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
+
+data MessageBuilder
+  = SimpleString String
+  | Builder LogMsg.Builder
 
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
 type Message = Text
 type Tag = Text
 type MessageNumber = Int
 type BufferSize = Int
-type MessageFormatter = PendingMsg -> String
+type MessageFormatter = PendingMsg -> MessageBuilder
 type FlowFormatter = Maybe T.FlowGUID -> IO MessageFormatter
 
 data LoggerConfig
@@ -61,7 +73,10 @@ type Log = [LogEntry]
 
 defaultMessageFormatter :: MessageFormatter
 defaultMessageFormatter (PendingMsg _ lvl tag msg _) =
-  "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+  SimpleString $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+
+showingMessageFormatter :: MessageFormatter
+showingMessageFormatter = SimpleString . show
 
 defaultLoggerConfig :: LoggerConfig
 defaultLoggerConfig = LoggerConfig
@@ -76,3 +91,6 @@ defaultLoggerConfig = LoggerConfig
 
 defaultFlowFormatter :: FlowFormatter
 defaultFlowFormatter _ = pure defaultMessageFormatter
+
+builderToByteString :: LogMsg.Builder -> LBS.ByteString
+builderToByteString = LogMsg.eval

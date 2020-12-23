@@ -17,6 +17,8 @@ import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString.Lazy as LBS
 
 
 interpretLogger :: Maybe T.FlowGUID -> T.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
@@ -32,7 +34,10 @@ interpretLogger
       _  -> do
         formatter <- flowFormatter mbFlowGuid
         !msgNum   <- R.incLogCounter cntVar
-        let !m = T.pack $ formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
+        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
+        let !m = case msgBuilder of
+              T.SimpleString str -> T.pack str
+              T.Builder bld -> T.decodeUtf8 $ LBS.toStrict $ T.builderToByteString bld
         MVar.modifyMVar logsVar $ \(!lgs) -> pure (m : lgs, ())
 
 interpretLogger

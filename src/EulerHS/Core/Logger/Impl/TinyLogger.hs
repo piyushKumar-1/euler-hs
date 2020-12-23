@@ -42,8 +42,11 @@ dispatchLogLevel T.Error   = Log.Error
 logPendingMsg :: T.FlowFormatter -> Loggers -> T.PendingMsg -> IO ()
 logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag msg msgNum) = do
   formatter <- flowFormatter mbFlowGuid
+  let msgBuilder = formatter pendingMsg
   let lvl' = dispatchLogLevel lvl
-  let msg' = Log.msg $ formatter pendingMsg
+  let msg' = case msgBuilder of
+        T.SimpleString str -> Log.msg str
+        T.Builder bld -> Log.msg bld
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
 
 loggerWorker :: T.FlowFormatter -> Chan.OutChan T.PendingMsg -> Loggers -> IO ()

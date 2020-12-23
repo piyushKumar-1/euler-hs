@@ -63,7 +63,7 @@ createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg = do
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
   counter <- initLogCounter
-  LoggerRuntime (const $ pure show)  T.Debug True counter <$> Impl.createVoidLogger
+  LoggerRuntime (const $ pure T.showingMessageFormatter) T.Debug True counter <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ handle) = Impl.disposeLogger flowFormatter handle

@@ -39,6 +39,7 @@ interpretLogger
         let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
+              T.SimpleText txt -> txt
               T.MsgBuilder bld -> T.decodeUtf8 $ LBS.toStrict $ T.builderToByteString bld
               T.MsgTransformer _ -> error "Msg -> Msg not supported for memory logger."
         MVar.modifyMVar logsVar $ \(!lgs) -> pure (m : lgs, ())

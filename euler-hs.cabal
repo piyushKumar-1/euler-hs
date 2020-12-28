@@ -195,6 +195,10 @@ test-suite language
     , generic-lens
     , hedis
     , hspec
+    , fmt
+    , binary
+    , tinylog
+    , criterion
     , http-client
     , http-client-tls
     , named
@@ -243,6 +247,10 @@ test-suite db
     , bytestring
     , euler-hs
     , hspec
+    , fmt
+    , binary
+    , tinylog
+    , criterion
     , mysql-haskell
     , postgresql-simple
     , process

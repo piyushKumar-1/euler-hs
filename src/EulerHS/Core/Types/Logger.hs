@@ -39,6 +39,7 @@ data LogLevel = Debug | Info | Warning | Error
 
 data MessageBuilder
   = SimpleString String
+  | SimpleText Text
   | MsgBuilder LogMsg.Builder
   | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
 

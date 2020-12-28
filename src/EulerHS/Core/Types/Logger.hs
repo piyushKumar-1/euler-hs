@@ -42,6 +42,7 @@ data MessageBuilder
   = SimpleString String
   | SimpleText Text
   | SimpleBS ByteString
+  | SimpleLBS LBS.ByteString
   | MsgBuilder LogMsg.Builder
   | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
 

@@ -166,8 +166,8 @@ spec = describe "PS Mimic Logger tests" $ do
                   hostNameT envT sourceCommitT
                   mbCtx2 pendingMsgSimple
       case bld of
-        T.SimpleBS bs -> LBS.fromStrict bs `shouldBe` aesonTest1Expected
-        _ -> error "Custom formatting builder should return a SimpleBS."
+        T.SimpleLBS lbs -> lbs `shouldBe` aesonTest1Expected
+        _ -> error "Custom formatting builder should return a SimpleLBS."
 
     it "Log message with tag having a quote" $ do
       let bld = aesonPSMimicFormatterText
@@ -176,8 +176,8 @@ spec = describe "PS Mimic Logger tests" $ do
                   hostNameT envT sourceCommitT
                   mbCtx2 pendingMsgWithQuotes
       case bld of
-        T.SimpleBS bs -> LBS.fromStrict bs `shouldBe` aesonTest2Expected
-        _ -> error "Custom formatting builder should return a SimpleBS."
+        T.SimpleLBS lbs -> lbs `shouldBe` aesonTest2Expected
+        _ -> error "Custom formatting builder should return a SimpleLBS."
 
 
 benchmarking :: IO ()
@@ -227,5 +227,5 @@ aesonBenchSample _ = sample
                   hostNameT envT sourceCommitT
                   mbCtx2 pendingMsgWithQuotes
     sample = case bld of
-        T.SimpleBS bs -> bs
-        _ -> error "Custom formatting builder should return a SimpleBS."
+        T.SimpleLBS lbs -> lbs
+        _ -> error "Custom formatting builder should return a SimpleLBS."

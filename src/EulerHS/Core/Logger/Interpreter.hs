@@ -41,6 +41,7 @@ interpretLogger
               T.SimpleString str -> T.pack str
               T.SimpleText txt -> txt
               T.SimpleBS bs -> T.decodeUtf8 bs
+              T.SimpleLBS lbs -> T.decodeUtf8 $ LBS.toStrict lbs
               T.MsgBuilder bld -> T.decodeUtf8 $ LBS.toStrict $ T.builderToByteString bld
               T.MsgTransformer _ -> error "Msg -> Msg not supported for memory logger."
         MVar.modifyMVar logsVar $ \(!lgs) -> pure (m : lgs, ())

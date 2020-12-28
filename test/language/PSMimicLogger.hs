@@ -230,4 +230,4 @@ aesonPSMimicFormatterText
           , _message_type             = "string"
           }
 
-    res = T.SimpleBS $ LBS.toStrict $ A.encode logEntry
+    res = T.SimpleLBS $ A.encode logEntry

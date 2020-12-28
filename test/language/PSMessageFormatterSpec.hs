@@ -79,6 +79,10 @@ test1Expected = "{\"timestamp\": \"23-12-2020 03:52:16.000\", \"app_framework\":
 
 test2Expected = "{\"timestamp\": \"23-12-2020 03:52:16.000\", \"app_framework\": \"euler-hs-application\", \"hostname\": \"euler-api-order-8ba0ea3-5cb57644bc-mvrfs\", \"source_commit\": \"NA\", \"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", \"refund_id\": \"null\", \"refund_unique_request_id\": \"null\", \"merchant_id\": \"null\", \"message_number\": \"29660\", \"x-request-id\": \"517bf125-6974-45c9-a268-96e5922a56ee\", \"x-global-request-id\": \"some x-global-request-id\", \"message\": \"[Debug] <\\\"runOrderCreateUpdate\\\"> order doesn't exist, run create order\", \"message_type\": \"string\"}\n"
 
+aesonTest1Expected = "{\"x-request-id\":\"517bf125-6974-45c9-a268-96e5922a56ee\",\"order_id\":\"null\",\"message_number\":\"29660\",\"hostname\":\"euler-api-order-8ba0ea3-5cb57644bc-mvrfs\",\"app_framework\":\"euler-hs-application\",\"txn_uuid\":\"null\",\"source_commit\":\"NA\",\"refund_unique_request_id\":\"null\",\"refund_id\":\"null\",\"x-global-request-id\":\"some x-global-request-id\",\"merchant_id\":\"null\",\"message\":\"[Debug] <runOrderCreateUpdate> order doesn't exist, run create order\",\"timestamp\":\"23-12-2020 03:52:16.000\",\"level\":\"info\"}"
+
+aesonTest2Expected = "{\"x-request-id\":\"517bf125-6974-45c9-a268-96e5922a56ee\",\"order_id\":\"null\",\"message_number\":\"29660\",\"hostname\":\"euler-api-order-8ba0ea3-5cb57644bc-mvrfs\",\"app_framework\":\"euler-hs-application\",\"txn_uuid\":\"null\",\"source_commit\":\"NA\",\"refund_unique_request_id\":\"null\",\"refund_id\":\"null\",\"x-global-request-id\":\"some x-global-request-id\",\"merchant_id\":\"null\",\"message\":\"[Debug] <\\\"runOrderCreateUpdate\\\"> order doesn't exist, run create order\",\"timestamp\":\"23-12-2020 03:52:16.000\",\"level\":\"info\"}"
+
 defElements :: [LogMsg.Element]
 defElements = [LogMsg.Bytes (LogMsg.bytes timestamp)]
 
@@ -153,12 +157,36 @@ spec = describe "PS Mimic Logger tests" $ do
         _ -> error "Custom formatting builder should return a SimpleText."
 
 
+  describe "Aeson formatter, Text" $ do
+
+    it "Regular log message" $ do
+      let bld = aesonPSMimicFormatterText
+                  appFrameworkT
+                  timestampT
+                  hostNameT envT sourceCommitT
+                  mbCtx2 pendingMsgSimple
+      case bld of
+        T.SimpleBS bs -> LBS.fromStrict bs `shouldBe` aesonTest1Expected
+        _ -> error "Custom formatting builder should return a SimpleBS."
+
+    it "Log message with tag having a quote" $ do
+      let bld = aesonPSMimicFormatterText
+                  appFrameworkT
+                  timestampT
+                  hostNameT envT sourceCommitT
+                  mbCtx2 pendingMsgWithQuotes
+      case bld of
+        T.SimpleBS bs -> LBS.fromStrict bs `shouldBe` aesonTest2Expected
+        _ -> error "Custom formatting builder should return a SimpleBS."
+
+
 benchmarking :: IO ()
 benchmarking = do
   defaultMain [
-    bgroup "psMimic" [ bench "original"  $ whnf origBenchSample 0
+    bgroup "psMimic" [ bench "original"             $ whnf origBenchSample 0
                      , bench "custom fmt #1 String" $ whnf custom1BenchSample 0
-                     , bench "custom fmt #2 Text" $ whnf custom2BenchSample 0
+                     , bench "custom fmt #2 Text"   $ whnf custom2BenchSample 0
+                     , bench "aeson Text"           $ whnf aesonBenchSample 0
                      ]
     ]
 
@@ -190,3 +218,14 @@ custom2BenchSample _ = sample
     sample = case bld of
         T.SimpleText txt -> txt
         _ -> error "Custom formatting builder should return a SimpleText."
+
+aesonBenchSample _ = sample
+  where
+    bld = aesonPSMimicFormatterText
+                  appFrameworkT
+                  timestampT
+                  hostNameT envT sourceCommitT
+                  mbCtx2 pendingMsgWithQuotes
+    sample = case bld of
+        T.SimpleBS bs -> bs
+        _ -> error "Custom formatting builder should return a SimpleBS."

@@ -47,6 +47,7 @@ logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag 
   let msg' = case msgBuilder of
         T.SimpleString str -> Log.msg str
         T.SimpleText txt -> Log.msg txt
+        T.SimpleBS bs -> Log.msg bs
         T.MsgBuilder bld -> Log.msg bld
         T.MsgTransformer f -> f
   mapM_ (\logger -> Log.log logger lvl' msg') loggers

@@ -32,6 +32,7 @@ import qualified EulerHS.Core.Types.Common as T
 -- Reason: unclear current practice of logging that affects design and performance.
 import qualified System.Logger.Message as LogMsg
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString as BS
 
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
@@ -40,6 +41,7 @@ data LogLevel = Debug | Info | Warning | Error
 data MessageBuilder
   = SimpleString String
   | SimpleText Text
+  | SimpleBS ByteString
   | MsgBuilder LogMsg.Builder
   | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
 

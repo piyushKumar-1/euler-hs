@@ -9,7 +9,8 @@ import qualified EulerHS.Runtime    as R
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.Binary.Builder as BinaryBuilder
 import qualified Data.ByteString.Builder as ByteStringBuilder
 
@@ -42,10 +43,12 @@ originalPSMimicRenderer hostname env sourceCommit _ _ _ loggerFields = res
       (tsEl:pMsgEl:rest) -> (elementToBS tsEl, processMsgStr pMsgEl, rest)
       _ -> error "Malformed log fields."
     commaSep = BinaryBuilder.fromByteString ", "
+    -- Why level is info??
     invariant = "\"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", \"refund_id\": \"null\", \"refund_unique_request_id\": \"null\", \"merchant_id\": \"null\", " -- x-request-id = \"null\", "
+    escapeMsg m = BinaryBuilder.fromByteString (T.encodeUtf8 $ T.tail $ T.init $ show $ BinaryBuilder.toLazyByteString m)
     processMsgStr = \case
-      LogMsg.Bytes b   -> LogMsg.builderBytes b
-      LogMsg.Field _ v -> LogMsg.builderBytes v
+      LogMsg.Bytes b   -> escapeMsg $ LogMsg.builderBytes b
+      LogMsg.Field _ v -> escapeMsg $ LogMsg.builderBytes v
     elementToBS = \case
       LogMsg.Bytes b -> LogMsg.builderBytes b
       LogMsg.Field k v -> jsonField (LogMsg.builderBytes k) (LogMsg.builderBytes v)
@@ -55,13 +58,11 @@ originalPSMimicFormatter ctx2 (T.PendingMsg mbFlowGuid lvl tag msg msgNum) = res
   where
     eulerMsg :: Text
     eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
-    escapedMsg = T.tail . T.init $ show eulerMsg
     ctxVal1 = fromMaybe "null" mbFlowGuid
     ctxVal2 = fromMaybe "null" ctx2
-    logEntry = PSLogEntry escapedMsg (show msgNum) ctxVal1 ctxVal2
 
-    f = (Log.field @ByteString "message" (T.encodeUtf8 escapedMsg))
-      . (Log.field @Int "message_number" msgNum)
+    f = (Log.field "message" eulerMsg)
+      . (Log.field @String "message_number" (show msgNum))
       . (Log.field "x-request-id" ctxVal1)
       . (Log.field "x-global-request-id" ctxVal2)
 
@@ -91,6 +92,7 @@ fmtPSMimicFormatterString
     ctxVal1 = fromMaybe "null" (T.unpack <$> mbFlowGuid)
     ctxVal2 = fromMaybe "null" (T.unpack <$> mbCtx2)
 
+    -- Why level is info??
     invariant = ", \"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", \"refund_id\": \"null\", \"refund_unique_request_id\": \"null\", \"merchant_id\": \"null\""
 
     msgCustomFmt
@@ -107,8 +109,6 @@ fmtPSMimicFormatterString
          +| ", \"message_type\": \"string\"}\n"
 
     res = T.SimpleString msgCustomFmt
-
-
 
 fmtPSMimicFormatterText
   :: Text
@@ -132,6 +132,7 @@ fmtPSMimicFormatterText
     ctxVal1 = fromMaybe "null" mbFlowGuid
     ctxVal2 = fromMaybe "null" mbCtx2
 
+    -- Why level is info??
     invariant = ", \"level\": \"info\", \"txn_uuid\": \"null\", \"order_id\": \"null\", \"refund_id\": \"null\", \"refund_unique_request_id\": \"null\", \"merchant_id\": \"null\""
 
     msgCustomFmt
@@ -151,43 +152,82 @@ fmtPSMimicFormatterText
 
 -- Custom formatter #3, aeson based, TODO
 
-data PSLogEntry = PSLogEntry
-  { message :: Text
-  , message_number :: Text
-  , x_request_id :: Text
-  , x_global_request_id :: Text
+data PSLogEntry strType = PSLogEntry
+  { _timestamp                :: strType
+  , _app_framework            :: strType
+  , _hostname                 :: strType
+  , _source_commit            :: strType
+
+  , _level                    :: strType
+  , _txn_uuid                 :: strType
+  , _order_id                 :: strType
+  , _refund_id                :: strType
+  , _refund_unique_request_id :: strType
+  , _merchant_id              :: strType
+
+  , _message_number           :: strType
+  , _x_request_id             :: strType
+  , _x_global_request_id      :: strType
+  , _message                  :: strType
+  , _message_type             :: strType
   }
 
-instance A.ToJSON PSLogEntry where
+instance A.ToJSON (PSLogEntry Text) where
   toJSON (PSLogEntry {..}) =
-    A.object [ "message" A..= message
-             , "message_number" A..= message_number
-             , "x-request-id"  A..= x_request_id
-             , "x-global-request-id"  A..= x_global_request_id
+    A.object [ "timestamp"                A..= _timestamp
+             , "app_framework"            A..= _app_framework
+             , "hostname"                 A..= _hostname
+             , "source_commit"            A..= _source_commit
+             , "level"                    A..= _level
+             , "txn_uuid"                 A..= _txn_uuid
+             , "order_id"                 A..= _order_id
+             , "refund_id"                A..= _refund_id
+             , "refund_unique_request_id" A..= _refund_unique_request_id
+             , "merchant_id"              A..= _merchant_id
+             , "message_number"           A..= _message_number
+             , "x-request-id"             A..= _x_request_id
+             , "x-global-request-id"      A..= _x_global_request_id
+             , "message"                  A..= _message
              ]
 
--- Initial experiments
--- customPSMimicFormatter :: BuilderType -> Maybe Text -> T.MessageFormatter
--- customPSMimicFormatter bldType ctx2 (T.PendingMsg mbFlowGuid lvl tag msg msgNum) = res
---   where
---     eulerMsg :: Text
---     eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
---     escapedMsg = T.tail . T.init $ show eulerMsg
---     ctxVal1 = fromMaybe "null" mbFlowGuid
---     ctxVal2 = fromMaybe "null" ctx2
---     logEntry = PSLogEntry escapedMsg (show msgNum) ctxVal1 ctxVal2
---
---     msgAeson = BS.unpack $ A.encode logEntry
---     msgCustomFmt = "message" +|| T.encodeUtf8 escapedMsg ||+
---       "message_number" +|| msgNum ||+
---       "x-request-id" +| ctxVal1 |+
---       "x-global-request-id" +| ctxVal2 |+ ""
---
---     f = (Log.field @ByteString "message" (T.encodeUtf8 escapedMsg))
---       . (Log.field @Int "message_number" msgNum)
---       . (Log.field "x-request-id" ctxVal1)
---       . (Log.field "x-global-request-id" ctxVal2)
---
---     msg' Aeson     = T.SimpleString msgAeson
---     msg' CustomFmt = T.SimpleString msgCustomFmt
---     msg' PSMimic   = T.MsgTransformer f
+aesonPSMimicFormatterText
+  :: Text
+  -> Text
+  -> Text
+  -> Text
+  -> Text
+  -> Maybe Text
+  -> T.MessageFormatter
+aesonPSMimicFormatterText
+  appFramework
+  timestamp
+  hostname env sourceCommit
+  mbCtx2
+  (T.PendingMsg mbFlowGuid lvl tag msg msgNum) = res
+  where
+    eulerMsg :: Text
+    eulerMsg = "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+    ctxVal1, ctxVal2 :: Text
+    ctxVal1 = fromMaybe "null" mbFlowGuid
+    ctxVal2 = fromMaybe "null" mbCtx2
+
+    -- Why level is info??
+    logEntry = PSLogEntry
+          { _timestamp                = timestamp
+          , _app_framework            = appFramework
+          , _hostname                 = hostname
+          , _source_commit            = sourceCommit
+          , _level                    = "info"
+          , _txn_uuid                 = "null"
+          , _order_id                 = "null"
+          , _refund_id                = "null"
+          , _refund_unique_request_id = "null"
+          , _merchant_id              = "null"
+          , _message_number           = show msgNum
+          , _x_request_id             = ctxVal1
+          , _x_global_request_id      = ctxVal2
+          , _message                  = eulerMsg
+          , _message_type             = "string"
+          }
+
+    res = T.SimpleBS $ LBS.toStrict $ A.encode logEntry

@@ -11,12 +11,12 @@ import           Servant.Client.Core.RunClient (RunClient)
 import qualified Servant.Client.Free as SCF
 import qualified Servant.Client.Internal.HttpClient as SCIHC
 import qualified Network.HTTP.Types as HTTP
-import Network.HTTP.Types (parseQueryText, queryTextToQuery,renderQuery)
+import Network.HTTP.Types (parseQueryText)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.ByteString.Lazy as LBS(toStrict)
 import qualified Data.Text as Text (unpack)
 import Data.HashSet (member)
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
+import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..), MaskKeyType (..))
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)
@@ -56,8 +56,8 @@ logServantRequest log mbMaskConfig url req = do
 
   where
     body = case SCC.requestBody req of
-      Just (body, mediaType) ->
-        case body of
+      Just (reqbody, _) ->
+        case reqbody of
           SCC.RequestBodyBS s -> Text.unpack $ parse (shouldMask mbMaskConfig) s 
           SCC.RequestBodyLBS s -> Text.unpack $ parse (shouldMask mbMaskConfig) $ LBS.toStrict s 
           SCC.RequestBodySource sr -> show $ SCC.RequestBodySource sr
@@ -70,8 +70,9 @@ logServantRequest log mbMaskConfig url req = do
     shouldMask :: Maybe Log.LogMaskingConfig -> Text -> Bool
     shouldMask Nothing _ = False
     shouldMask (Just Log.LogMaskingConfig{..}) key = 
-      (not $ member key  _whiteListKey)
-      || (member key _blackListKey)
+      case _keyType of
+        Log.WhiteListKey -> not $ member key _maskKeys
+        Log.BlackListKey -> member key _maskKeys
 
 runEulerClient :: (String -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
 runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClientF log mbMaskConfig bUrl) f
@@ -81,7 +82,7 @@ parse :: (Text -> Bool) -> ByteString -> Text
 parse shouldMask req = 
   case Aeson.eitherDecodeStrict req of
     Right value ->  decodeUtf8 . Aeson.encode $ parse' shouldMask value
-    Left err -> decodeUtf8 . Aeson.encode $ parse' shouldMask $ handleQueryString req
+    Left _ -> decodeUtf8 . Aeson.encode $ parse' shouldMask $ handleQueryString req
 
 parse' :: (Text -> Bool) -> Aeson.Value -> Aeson.Value
 parse' shouldMask (Aeson.Object r) = (Aeson.Object $ handleObject shouldMask r)
@@ -92,11 +93,7 @@ parse' _ r = r
 handleObject :: (Text -> Bool) -> Aeson.Object -> Aeson.Object
 handleObject shouldMask obj = HashMap.mapWithKey maskingFn obj
   where
-    maskingFn key value = 
-      case value of
-        (Aeson.Object r) -> parse' shouldMask $ updatedValue key value
-        (Aeson.Array r) -> parse' shouldMask $ updatedValue key value
-        _ -> parse' shouldMask $ updatedValue key value
+    maskingFn key value = parse' shouldMask $ updatedValue key value
     updatedValue key fn = if shouldMask key then Aeson.String "***" else fn
 
 handleQueryString :: ByteString -> Aeson.Value

@@ -15,6 +15,7 @@ module EulerHS.Core.Types.Logger
     , TransientLoggerContext
     , LogCounter
     , LogMaskingConfig (..)
+    , MaskKeyType (..)
     -- ** defaults
     , defaultLoggerConfig
     , mkMemoryLoggerConfig
@@ -38,22 +39,27 @@ type LogCounter = IORef Int
 
 data LogMaskingConfig = 
   LogMaskingConfig
-    { _whiteListKey :: HashSet Text
-    , _blackListKey :: HashSet Text
-    , _mask         :: Text
+    { _maskKeys      :: HashSet Text
+    , _maskText      :: Maybe Text
+    , _keyType       :: MaskKeyType
     } deriving (Generic, Show, Read)
+
+data MaskKeyType = 
+    WhiteListKey
+  | BlackListKey
+  deriving (Generic, Show, Read)
 
 data LoggerConfig
   = MemoryLoggerConfig LogLevel
   | LoggerConfig
-  { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
-  , _isAsync      :: Bool
-  , _level        :: LogLevel
-  , _logFilePath  :: FilePath
-  , _logToConsole :: Bool
-  , _logToFile    :: Bool
-  , _maxQueueSize :: Word
-  , _logRawSql    :: Bool
+  { _format           :: Format         -- TODO: FIXME: Not used for tiny logger
+  , _isAsync          :: Bool
+  , _level            :: LogLevel
+  , _logFilePath      :: FilePath
+  , _logToConsole     :: Bool
+  , _logToFile        :: Bool
+  , _maxQueueSize     :: Word
+  , _logRawSql        :: Bool
   , _logMaskingConfig :: Maybe LogMaskingConfig
   } deriving (Generic, Show, Read)
 

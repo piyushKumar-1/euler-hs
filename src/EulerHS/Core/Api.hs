@@ -17,6 +17,7 @@ import qualified Data.ByteString.Lazy as LBS(toStrict)
 import qualified Data.Text as Text (unpack)
 import Data.HashSet (member)
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..), MaskKeyType (..))
+import qualified Data.CaseInsensitive as CI 
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)
@@ -64,8 +65,8 @@ logServantRequest log mbMaskConfig url req = do
       Nothing -> "body = (empty)"
 
     method = SCC.requestMethod req
-    headers = SCC.requestHeaders req
-    queryString = SCC.requestQueryString req
+    headers = maskHeaders (shouldMask mbMaskConfig) getMaskText $ SCC.requestHeaders req
+    queryString = maskQueryStrings (shouldMask mbMaskConfig) getMaskText $ SCC.requestQueryString req
 
     shouldMask :: Maybe Log.LogMaskingConfig -> Text -> Bool
     shouldMask Nothing _ = False
@@ -83,6 +84,24 @@ runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClient
 defaultMaskText :: Text
 defaultMaskText = "***"
 
+maskHeaders :: (Text -> Bool) -> Text -> Seq HTTP.Header -> Seq HTTP.Header
+maskHeaders shouldMask maskText headers = maskHeader <$> headers
+  where
+    maskHeader :: HTTP.Header -> HTTP.Header
+    maskHeader (headerName,headerValue) =
+      if shouldMask (decodeUtf8 $ CI.original headerName)
+        then (headerName,(encodeUtf8 maskText)) 
+        else (headerName,headerValue)
+
+maskQueryStrings :: (Text -> Bool) -> Text -> Seq HTTP.QueryItem -> Seq HTTP.QueryItem
+maskQueryStrings shouldMask maskText queryStrings = maskQueryString <$> queryStrings
+  where
+    maskQueryString :: HTTP.QueryItem -> HTTP.QueryItem
+    maskQueryString (key,value) =
+      if shouldMask (decodeUtf8 key)
+        then (key,(Just $ encodeUtf8 maskText)) 
+        else (key,value)
+
 parse :: (Text -> Bool) -> Text -> ByteString -> Text
 parse shouldMask maskText req = 
   case Aeson.eitherDecodeStrict req of
@@ -92,8 +111,7 @@ parse shouldMask maskText req =
 parse' :: (Text -> Bool) -> Text -> Aeson.Value -> Aeson.Value
 parse' shouldMask maskText (Aeson.Object r) = (Aeson.Object $ handleObject shouldMask maskText r)
 parse' shouldMask maskText (Aeson.Array r) =  (Aeson.Array $ parse' shouldMask maskText <$> r)
-parse' _ _ (Aeson.String r) = (Aeson.String r)
-parse' _ _ r = r
+parse' _ _ value = value
 
 handleObject :: (Text -> Bool) -> Text -> Aeson.Object -> Aeson.Object
 handleObject shouldMask maskText obj = HashMap.mapWithKey maskingFn obj

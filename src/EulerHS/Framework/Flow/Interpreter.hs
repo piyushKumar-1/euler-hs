@@ -191,7 +191,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
       case mbClientMngr of
         Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
-          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) bUrl clientAct) $
+          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setRequestTimeout T.defaultTimeout . makeClientRequest url)
           case eitherResult of
             Left err -> do
@@ -208,6 +208,8 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
       R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
         . show
+    getLoggerMaskConfig = 
+      R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ P.withRunMode _runMode (P.mkCallHttpAPIEntry request) $ do

@@ -58,8 +58,8 @@ logServantRequest log mbMaskConfig url req = do
     body = case SCC.requestBody req of
       Just (reqbody, _) ->
         case reqbody of
-          SCC.RequestBodyBS s -> Text.unpack $ parse (shouldMask mbMaskConfig) s 
-          SCC.RequestBodyLBS s -> Text.unpack $ parse (shouldMask mbMaskConfig) $ LBS.toStrict s 
+          SCC.RequestBodyBS s -> Text.unpack $ parse (shouldMask mbMaskConfig) getMaskText s 
+          SCC.RequestBodyLBS s -> Text.unpack $ parse (shouldMask mbMaskConfig) getMaskText  $ LBS.toStrict s 
           SCC.RequestBodySource sr -> show $ SCC.RequestBodySource sr
       Nothing -> "body = (empty)"
 
@@ -73,28 +73,33 @@ logServantRequest log mbMaskConfig url req = do
       case _keyType of
         Log.WhiteListKey -> not $ member key _maskKeys
         Log.BlackListKey -> member key _maskKeys
+    
+    getMaskText :: Text
+    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
 runEulerClient :: (String -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
 runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClientF log mbMaskConfig bUrl) f
 
+defaultMaskText :: Text
+defaultMaskText = "***"
 
-parse :: (Text -> Bool) -> ByteString -> Text
-parse shouldMask req = 
+parse :: (Text -> Bool) -> Text -> ByteString -> Text
+parse shouldMask maskText req = 
   case Aeson.eitherDecodeStrict req of
-    Right value ->  decodeUtf8 . Aeson.encode $ parse' shouldMask value
-    Left _ -> decodeUtf8 . Aeson.encode $ parse' shouldMask $ handleQueryString req
+    Right value ->  decodeUtf8 . Aeson.encode $ parse' shouldMask maskText value
+    Left _ -> decodeUtf8 . Aeson.encode $ parse' shouldMask maskText $ handleQueryString req
 
-parse' :: (Text -> Bool) -> Aeson.Value -> Aeson.Value
-parse' shouldMask (Aeson.Object r) = (Aeson.Object $ handleObject shouldMask r)
-parse' shouldMask (Aeson.Array r) =  (Aeson.Array $ parse' shouldMask <$> r)
-parse' _ (Aeson.String r) = (Aeson.String r)
-parse' _ r = r
+parse' :: (Text -> Bool) -> Text -> Aeson.Value -> Aeson.Value
+parse' shouldMask maskText (Aeson.Object r) = (Aeson.Object $ handleObject shouldMask maskText r)
+parse' shouldMask maskText (Aeson.Array r) =  (Aeson.Array $ parse' shouldMask maskText <$> r)
+parse' _ _ (Aeson.String r) = (Aeson.String r)
+parse' _ _ r = r
 
-handleObject :: (Text -> Bool) -> Aeson.Object -> Aeson.Object
-handleObject shouldMask obj = HashMap.mapWithKey maskingFn obj
+handleObject :: (Text -> Bool) -> Text -> Aeson.Object -> Aeson.Object
+handleObject shouldMask maskText obj = HashMap.mapWithKey maskingFn obj
   where
-    maskingFn key value = parse' shouldMask $ updatedValue key value
-    updatedValue key fn = if shouldMask key then Aeson.String "***" else fn
+    maskingFn key value = parse' shouldMask maskText $ updatedValue key value
+    updatedValue key fn = if shouldMask key then Aeson.String maskText else fn
 
 handleQueryString :: ByteString -> Aeson.Value
 handleQueryString strg = Aeson.Object . fmap Aeson.String . fmap (fromMaybe "") . HashMap.fromList $ parseQueryText strg 

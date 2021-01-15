@@ -14,6 +14,8 @@ module EulerHS.Core.Types.Logger
     , Log
     , TransientLoggerContext
     , LogCounter
+    , LogMaskingConfig (..)
+    , MaskKeyType (..)
     -- ** defaults
     , defaultLoggerConfig
     , mkMemoryLoggerConfig
@@ -21,7 +23,7 @@ module EulerHS.Core.Types.Logger
     ) where
 
 import           EulerHS.Prelude
-
+import           Data.HashSet(HashSet)
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
@@ -35,17 +37,30 @@ type TransientLoggerContext = Maybe Text
 
 type LogCounter = IORef Int
 
+data LogMaskingConfig = 
+  LogMaskingConfig
+    { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
+    , _maskText      :: Maybe Text
+    , _keyType       :: MaskKeyType
+    } deriving (Generic, Show, Read)
+
+data MaskKeyType = 
+    WhiteListKey
+  | BlackListKey
+  deriving (Generic, Show, Read)
+
 data LoggerConfig
   = MemoryLoggerConfig LogLevel
   | LoggerConfig
-  { _format       :: Format         -- TODO: FIXME: Not used for tiny logger
-  , _isAsync      :: Bool
-  , _level        :: LogLevel
-  , _logFilePath  :: FilePath
-  , _logToConsole :: Bool
-  , _logToFile    :: Bool
-  , _maxQueueSize :: Word
-  , _logRawSql    :: Bool
+  { _format           :: Format         -- TODO: FIXME: Not used for tiny logger
+  , _isAsync          :: Bool
+  , _level            :: LogLevel
+  , _logFilePath      :: FilePath
+  , _logToConsole     :: Bool
+  , _logToFile        :: Bool
+  , _maxQueueSize     :: Word
+  , _logRawSql        :: Bool
+  , _logMaskingConfig :: Maybe LogMaskingConfig
   } deriving (Generic, Show, Read)
 
 type Message = Text

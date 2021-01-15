@@ -76,6 +76,7 @@ library
     EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
+    EulerHS.Core.Masking
     EulerHS.Core.Playback.Entries
     EulerHS.Core.Playback.Machine
     EulerHS.Core.PubSub.Entries

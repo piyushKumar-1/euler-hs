@@ -161,7 +161,7 @@ mimicEulerPSSettings hostname env sourceCommit = Log.setFormat (Just dateFormat)
 
 -- TODO: errors -> stderr
 createLogger :: D.LoggerConfig -> IO LoggerHandle
-createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _) = do
+createLogger (D.LoggerConfig _ isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _ _) = do
     -- This is a temporary hack for euler-api-order deployment
     envVars <- Map.fromList <$> getEnvironment
     let hostname = maybe "NA" id $ Map.lookup "HOSTNAME" envVars

@@ -30,7 +30,7 @@ interpretLogger runMode (R.MemoryLoggerRuntime cfgLogLvl mvar) (L.LogMessage msg
         let m = "" +|| msgLogLvl ||+ " " +| tag |+ " " +| msg |+ ""
         pure (m : lgs, ())
 
-interpretLogger runMode (R.LoggerRuntime cfgLogLvl _ cnt ctx1 ctx2  handle) (L.LogMessage msgLogLvl tag msg next) =
+interpretLogger runMode (R.LoggerRuntime cfgLogLvl _ cnt ctx1 ctx2 _ handle) (L.LogMessage msgLogLvl tag msg next) =
   fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
     case compare cfgLogLvl msgLogLvl of
       GT -> pure ()

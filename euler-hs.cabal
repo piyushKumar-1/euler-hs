@@ -180,6 +180,7 @@ test-suite language
     PubSubSpec
     Scenario1
     SQLArtSpec
+    MaskingSpec
 
   build-depends:
     , aeson
@@ -215,6 +216,7 @@ test-suite language
     , uuid
     , vector
     , warp
+    , unordered-containers
 
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language

@@ -69,11 +69,11 @@ spec loggerCfg = do
           res `shouldBe` User "John" "Snow" "00000000-0000-0000-0000-000000000000"
       around_ withServer $ do
         describe "CallServantAPI tests with server" $ do
-          it "Simple request (book) with default manager" $ \rt -> do
+          xit "Simple request (book) with default manager" $ \rt -> do
             let url = BaseUrl Http "127.0.0.1" port ""
             bookEither <- runFlow rt $ callServantAPI Nothing url getBook
             bookEither `shouldSatisfy` isRight
-          it "Simple request (user) with default manager" $ \rt -> do
+          xit "Simple request (user) with default manager" $ \rt -> do
             let url = BaseUrl Http "127.0.0.1" port ""
             userEither <- runFlow rt $ callServantAPI Nothing url getUser
             userEither `shouldSatisfy` isRight

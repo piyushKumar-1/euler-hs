@@ -10,6 +10,7 @@ import qualified FlowSpec as Flow
 import qualified KVDBArtSpec as KVDB
 import qualified PubSubSpec as PubSub
 import qualified SQLArtSpec as SQL
+import qualified MaskingSpec as MaskSpec
 import           System.Directory (createDirectory, getTemporaryDirectory,
                                    removePathForcibly)
 import           System.FilePath ((<.>), (</>))
@@ -27,6 +28,7 @@ main = do
     KVDB.spec
     SQL.spec
     PubSub.spec
+    MaskSpec.spec
 
 -- Helpers
 

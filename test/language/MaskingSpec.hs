@@ -11,21 +11,21 @@ spec =
   describe "Outgoing API call log masking" $ do
     it "Should Mask All the blackListed Keys" $ do
       rawRequest <-
-        LBS.readFile "./fixtures/masking/maskingData.json"
+        LBS.readFile "fixtures/masking/MaskingData.json"
       let maskText = "$$$"
       let mbMaskConfig = Just $ makeLogMaskingConfig CType.BlackListKey ["id", "url1","a"] maskText
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (LBS.toStrict rawRequest)
       maskedValue `shouldBe` expectedOutput
     it "Should Mask All the blackListed Keys" $ do
       rawRequest <-
-        LBS.readFile "./fixtures/masking/maskingData.json"
+        LBS.readFile "fixtures/masking/MaskingData.json"
       let maskText = "$**$"
       let mbMaskConfig = Just $ makeLogMaskingConfig CType.WhiteListKey ["id", "url1","a"] maskText
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (LBS.toStrict rawRequest)
       maskedValue `shouldBe` expectedOutput'
     it "Should Not Mask Any Keys" $ do
       rawRequest <-
-        LBS.readFile "./fixtures/masking/maskingData.json"
+        LBS.readFile "fixtures/masking/MaskingData.json"
       let maskText = "$**$"
       let mbMaskConfig = Nothing
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (LBS.toStrict rawRequest)

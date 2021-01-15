@@ -71,7 +71,7 @@ logServantRequest log mbMaskConfig url req = do
       Nothing -> "body = (empty)"
 
     method = SCC.requestMethod req
-    headers = maskHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestHeaders req
+    headers = maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestHeaders req
     queryString = maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestQueryString req
 
     getMaskText :: Text
@@ -87,7 +87,7 @@ logServantResponse log mbMaskConfig res =
     }
     where
       status = SCC.responseStatusCode res
-      responseheaders = maskHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.responseHeaders res
+      responseheaders = maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.responseHeaders res
       version = SCC.responseHttpVersion res
       responseBody =
           Text.unpack

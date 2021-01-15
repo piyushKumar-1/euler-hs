@@ -8,6 +8,7 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.HashSet (member)
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..), MaskKeyType (..))
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Map as Map
 
 shouldMaskKey :: Maybe Log.LogMaskingConfig -> Text -> Bool
 shouldMaskKey Nothing _ = False
@@ -19,8 +20,15 @@ shouldMaskKey (Just Log.LogMaskingConfig{..}) key =
 defaultMaskText :: Text
 defaultMaskText = "***"
 
-maskHeaders :: (Text -> Bool) -> Text -> Seq HTTP.Header -> Seq HTTP.Header
-maskHeaders shouldMask maskText headers = maskHeader <$> headers
+
+maskHTTPHeaders :: (Text -> Bool) -> Text -> Map.Map Text Text ->  Map.Map Text Text
+maskHTTPHeaders shouldMask maskText = Map.mapWithKey maskHeader
+  where
+    maskHeader :: Text -> Text -> Text
+    maskHeader key value  = if shouldMask key then maskText else value
+
+maskServantHeaders :: (Text -> Bool) -> Text -> Seq HTTP.Header -> Seq HTTP.Header
+maskServantHeaders shouldMask maskText headers = maskHeader <$> headers
   where
     maskHeader :: HTTP.Header -> HTTP.Header
     maskHeader (headerName,headerValue) =

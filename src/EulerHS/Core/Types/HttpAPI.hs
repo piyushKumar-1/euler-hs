@@ -23,28 +23,23 @@ module EulerHS.Core.Types.HttpAPI
     , withBody
     , withTimeout
     , withRedirects
+    , maskHTTPRequest
+    , maskHTTPResponse
     ) where
 
 import           EulerHS.Prelude                 hiding ((.=), ord)
 import qualified EulerHS.Core.Types.BinaryString as T
 
-import qualified Data.Aeson                      as Aeson
 import qualified Data.ByteString                 as B
-import qualified Data.ByteString.Char8           as B8
 import qualified Data.ByteString.Lazy            as LB
 import           Data.ByteString.Lazy.Builder    (Builder)
 import qualified Data.ByteString.Lazy.Builder    as Builder
-import           Data.Char                       hiding (ord)
 import qualified Data.Char                       as Char
 import qualified Data.Map                        as Map
 import           Data.String.Conversions         (convertString)
-import           Data.Text                       (Text)
-import qualified Data.Text                       as Text
 import qualified Data.Text.Encoding              as Text
-import           Data.Text.Encoding              (decodeUtf8With)
-import           Data.Text.Encoding.Error        (lenientDecode)
-import qualified Data.Text.Lazy                  as LazyText
-import qualified Data.Text.Lazy.Encoding         as LazyText
+import           EulerHS.Core.Masking
+import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
 
 data HTTPRequest
   = HTTPRequest
@@ -122,13 +117,13 @@ data HTTPIOException
     }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
 
-
-getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
-getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
-  -- return request body as base64-encoded text (not valid UTF-8)
-  Left e -> Nothing
-  -- return request body as UTF-8 decoded text
-  Right utf8Body -> Just utf8Body
+-- Not Used anywhere
+-- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
+-- getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
+--   -- return request body as base64-encoded text (not valid UTF-8)
+--   Left e -> Nothing
+--   -- return request body as UTF-8 decoded text
+--   Right utf8Body -> Just utf8Body
 
 
 
@@ -247,3 +242,43 @@ formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encod
         offset
           | n < 10    = 48
           | otherwise = 55
+
+maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequest
+maskHTTPRequest mbMaskConfig request = 
+  request
+    { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
+    , getRequestBody = maskedRequestBody
+    }
+  where
+    requestHeaders = getRequestHeaders request
+    
+    requestBody = getRequestBody request
+    
+    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+    
+    maskedRequestBody =
+      T.LBinaryString
+        . encodeUtf8
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText
+        . LB.toStrict
+        . T.getLBinaryString <$> requestBody
+
+maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponse
+maskHTTPResponse mbMaskConfig response =
+  response
+    { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
+    , getResponseBody = maskedResponseBody
+    }
+  where
+    responseHeaders = getResponseHeaders response
+
+    responseBody = getResponseBody response
+
+    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
+    maskedResponseBody =
+      T.LBinaryString
+        . encodeUtf8
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText
+        . LB.toStrict
+        $ T.getLBinaryString responseBody

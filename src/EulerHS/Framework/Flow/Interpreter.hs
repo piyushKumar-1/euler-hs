@@ -219,22 +219,25 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       case _manager of
         Left err -> do
           let errMsg = "Certificate failure: " <> Text.pack err
-          logJsonError errMsg request
+          logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right manager -> do
           eResponse <- try $ HTTP.httpLbs httpLibRequest manager
           case eResponse of
             Left (err :: SomeException) -> do
               let errMsg = Text.pack $ displayException err
-              logJsonError errMsg request
+              logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right httpResponse -> do
               case translateHttpResponse httpResponse of
                 Left errMsg -> do
-                  logJsonError errMsg request
+                  logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  logJson T.Debug $ T.HTTPRequestResponse request response
+                  logJson T.Debug 
+                    $ T.HTTPRequestResponse 
+                      (T.maskHTTPRequest getLoggerMaskConfig request) 
+                      (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
   where
     logJsonError :: Text -> T.HTTPRequest -> IO ()
@@ -245,6 +248,9 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
         . encodeJSON
+    
+    getLoggerMaskConfig = 
+      R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   next <$> R.runLogger _runMode (R._loggerRuntime _coreRuntime) loggerAct

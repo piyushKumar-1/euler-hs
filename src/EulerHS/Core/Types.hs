@@ -3,6 +3,7 @@ module EulerHS.Core.Types
   ) where
 
 import           EulerHS.Core.Api as X
+import           EulerHS.Core.Masking as X
 import           EulerHS.Core.Types.BinaryString as X
 import           EulerHS.Core.Types.Common as X
 import           EulerHS.Core.Types.DB as X hiding (withTransaction)

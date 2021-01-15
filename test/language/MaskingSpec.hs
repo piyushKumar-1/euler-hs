@@ -10,22 +10,19 @@ spec :: Spec
 spec =
   describe "Outgoing API call log masking" $ do
     it "Should Mask All the blackListed Keys" $ do
-      rawRequest <-
-        LBS.readFile "fixtures/masking/MaskingData.json"
+      let rawRequest = inputJSON
       let maskText = "$$$"
       let mbMaskConfig = Just $ makeLogMaskingConfig CType.BlackListKey ["id", "url1","a"] maskText
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (LBS.toStrict rawRequest)
       maskedValue `shouldBe` expectedOutput
     it "Should Mask All the blackListed Keys" $ do
-      rawRequest <-
-        LBS.readFile "fixtures/masking/MaskingData.json"
+      let rawRequest = inputJSON
       let maskText = "$**$"
       let mbMaskConfig = Just $ makeLogMaskingConfig CType.WhiteListKey ["id", "url1","a"] maskText
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (LBS.toStrict rawRequest)
       maskedValue `shouldBe` expectedOutput'
     it "Should Not Mask Any Keys" $ do
-      rawRequest <-
-        LBS.readFile "fixtures/masking/MaskingData.json"
+      let rawRequest = inputJSON
       let maskText = "$**$"
       let mbMaskConfig = Nothing
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (LBS.toStrict rawRequest)
@@ -39,6 +36,9 @@ expectedOutput' = "{\"status\":\"$**$\",\"txnId\":\"$**$\",\"txnDetailId\":\"$**
 
 expectedOutput'' :: Text
 expectedOutput'' = "{\"status\":\"INIT\",\"txnId\":\"paypal-tatapay_740-1\",\"txnDetailId\":\"2148428442\",\"responseAttempted\":{\"lastUpdated\":\"2020-09-25T05:58:13Z\",\"gatewayAuthReqParams\":\"{\\\"euler-api-gateway\\\":\\\"fehfioe\\\"}\",\"dateCreated\":\"2020-09-25T05:58:13Z\",\"challengesAttempted\":0,\"canAcceptResponse\":true,\"id\":\"2148361678\"},\"version\":0,\"url1\":[{\"a\":\"b\"},\"wefojoefwj\"],\"type\":\"VBV\"}"
+
+inputJSON :: LBS.ByteString
+inputJSON = "{\"version\": 0,\"url1\": [{\"a\":\"b\"},\"wefojoefwj\"],\"type\": \"VBV\",\"txnId\": \"paypal-tatapay_740-1\",\"txnDetailId\": \"2148428442\",\"status\": \"INIT\",\"responseAttempted\": {\"lastUpdated\": \"2020-09-25T05:58:13Z\",\"id\": \"2148361678\",\"gatewayAuthReqParams\": \"{\\\"euler-api-gateway\\\":\\\"fehfioe\\\"}\",\"dateCreated\": \"2020-09-25T05:58:13Z\",\"challengesAttempted\": 0,\"canAcceptResponse\": true}}"
 
 makeLogMaskingConfig :: CType.MaskKeyType -> [Text] -> Text ->  CType.LogMaskingConfig
 makeLogMaskingConfig keyType keyList maskText =

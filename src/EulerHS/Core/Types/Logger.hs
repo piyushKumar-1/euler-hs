@@ -39,7 +39,7 @@ type LogCounter = IORef Int
 
 data LogMaskingConfig = 
   LogMaskingConfig
-    { _maskKeys      :: HashSet Text
+    { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
     , _maskText      :: Maybe Text
     , _keyType       :: MaskKeyType
     } deriving (Generic, Show, Read)

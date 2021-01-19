@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.0.2.0
+version:       2.0.3.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -177,10 +177,10 @@ test-suite language
     EulerHS.Testing.Types
     FlowSpec
     KVDBArtSpec
+    MaskingSpec
     PubSubSpec
     Scenario1
     SQLArtSpec
-    MaskingSpec
 
   build-depends:
     , aeson
@@ -213,10 +213,10 @@ test-suite language
     , string-conversions
     , text
     , typed-process
+    , unordered-containers
     , uuid
     , vector
     , warp
-    , unordered-containers
 
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language

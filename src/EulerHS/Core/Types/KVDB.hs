@@ -71,7 +71,7 @@ data KVDBError
   = KVDBConnectionAlreadyExists
   | KVDBConnectionDoesNotExist
   | KVDBConnectionFailed
-  deriving (Eq, Show, Generic, ToJSON, FromJSON)
+  deriving (Eq, Show, Generic)
 
 data KVDBReplyF bs
   = SingleLine bs
@@ -83,16 +83,16 @@ data KVDBReplyF bs
   | KVDBError KVDBError String
   deriving (Eq, Show, Generic, Functor)
 
-instance ToJSON   (KVDBReplyF ByteStringS)
-instance FromJSON (KVDBReplyF ByteStringS)
+-- instance ToJSON   (KVDBReplyF ByteStringS)
+-- instance FromJSON (KVDBReplyF ByteStringS)
 
 type KVDBReply = KVDBReplyF ByteString
 
-instance ToJSON KVDBReply where
-  toJSON = toJSON . fromKVDBReply
+-- instance ToJSON KVDBReply where
+--   toJSON = toJSON . fromKVDBReply
 
-instance FromJSON KVDBReply where
-  parseJSON = fmap toKVDBReply . parseJSON
+-- instance FromJSON KVDBReply where
+--   parseJSON = fmap toKVDBReply . parseJSON
 
 fromKVDBReply :: KVDBReply -> KVDBReplyF ByteStringS
 fromKVDBReply = fmap fromByteString
@@ -108,16 +108,16 @@ data KVDBStatusF bs
   | Status bs
   deriving (Eq, Show, Generic, Functor)
 
-instance ToJSON   (KVDBStatusF ByteStringS)
-instance FromJSON (KVDBStatusF ByteStringS)
+-- instance ToJSON   (KVDBStatusF ByteStringS)
+-- instance FromJSON (KVDBStatusF ByteStringS)
 
 type KVDBStatus = KVDBStatusF ByteString
 
-instance ToJSON KVDBStatus where
-  toJSON = toJSON . fromStatus
+-- instance ToJSON KVDBStatus where
+--   toJSON = toJSON . fromStatus
 
-instance FromJSON KVDBStatus where
-  parseJSON = fmap toStatus . parseJSON
+-- instance FromJSON KVDBStatus where
+--   parseJSON = fmap toStatus . parseJSON
 
 fromStatus :: KVDBStatus -> KVDBStatusF ByteStringS
 fromStatus Ok          = Ok
@@ -140,7 +140,7 @@ data TxResult a
   = TxSuccess a
   | TxAborted
   | TxError String
-  deriving (Eq, Show, Functor, Generic, G.Generic1, A.ToJSON1, A.FromJSON1, ToJSON, FromJSON)
+  deriving (Eq, Show, Functor, Generic, G.Generic1)
 
 fromRdTxResult :: RD.TxResult a -> TxResult a
 fromRdTxResult (RD.TxSuccess a) = TxSuccess a
@@ -183,7 +183,7 @@ data KVDBConfig
   = KVDBConfig Text RedisConfig
   | KVDBClusterConfig Text RedisConfig
   | KVDBMockedConfig Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
 
 data RedisConfig = RedisConfig
     { connectHost           :: String
@@ -193,7 +193,7 @@ data RedisConfig = RedisConfig
     , connectMaxConnections :: Int
     , connectMaxIdleTime    :: NominalDiffTime
     , connectTimeout        :: Maybe NominalDiffTime
-    } deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+    } deriving (Show, Eq, Ord, Generic)
 
 
 defaultKVDBConnConfig :: RedisConfig

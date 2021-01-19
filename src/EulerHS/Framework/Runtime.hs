@@ -41,7 +41,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Typed key-value storage
   , _kvdbConnections          :: MVar (Map Text T.NativeKVDBConn)
   -- ^ Connections for key-value databases
-  , _runMode                  :: T.RunMode
+  -- , _runMode                  :: T.RunMode
   -- ^ ART mode in which current flow runs
   , _sqldbConnections         :: MVar (Map T.ConnTag T.NativeSqlPool)
   -- ^ Connections for SQL databases
@@ -66,7 +66,7 @@ createFlowRuntime coreRt = do
     , _httpClientManagers       = Map.empty
     , _options                  = optionsVar
     , _kvdbConnections          = kvdbConnections
-    , _runMode                  = T.RegularMode
+    -- , _runMode                  = T.RegularMode
     , _sqldbConnections         = sqldbConnections
     , _pubSubController         = pubSubController
     , _pubSubConnection         = Nothing

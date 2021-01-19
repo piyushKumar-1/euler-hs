@@ -244,18 +244,18 @@ formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encod
           | otherwise = 55
 
 maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequest
-maskHTTPRequest mbMaskConfig request = 
+maskHTTPRequest mbMaskConfig request =
   request
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     }
   where
     requestHeaders = getRequestHeaders request
-    
+
     requestBody = getRequestBody request
-    
+
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-    
+
     maskedRequestBody =
       T.LBinaryString
         . encodeUtf8

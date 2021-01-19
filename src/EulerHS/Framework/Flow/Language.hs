@@ -48,7 +48,7 @@ import           Servant.Client (BaseUrl, ClientError)
 -- | Flow language.
 data FlowMethod (next :: Type) where
   CallServantAPI
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => Maybe T.ManagerSelector
     -> BaseUrl
     -> T.EulerClient a
@@ -69,7 +69,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   RunIO
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => Text
     -> IO a
     -> (a -> next)
@@ -83,13 +83,13 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   GetOption
-    :: (HasCallStack, ToJSON a, FromJSON a)
+    :: HasCallStack
     => T.KVDBKey
     -> (Maybe a -> next)
     -> FlowMethod next
 
   SetOption
-    :: (HasCallStack, ToJSON a, FromJSON a)
+    :: HasCallStack
     => T.KVDBKey
     -> a
     -> (() -> next)
@@ -113,7 +113,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   Fork
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => T.Description
     -> T.ForkGUID
     -> Flow a
@@ -121,7 +121,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   Await
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> (Either T.AwaitingError a -> next)
@@ -168,7 +168,7 @@ data FlowMethod (next :: Type) where
   -- This is technically redundant - we can implement this using something like
   -- bracket, but better. - Koz
   RunSafeFlow
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => T.SafeFlowGUID
     -> Flow a
     -> (Either Text a -> next)
@@ -211,7 +211,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   RunDB
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => T.SqlConn beM
     -> L.SqlDB beM a
     -> Bool
@@ -343,7 +343,7 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
-forkFlow' :: (HasCallStack, FromJSON a, ToJSON a) =>
+forkFlow' :: HasCallStack =>
   T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
     flowGUID <- generateGUID
@@ -386,12 +386,12 @@ forkFlow' description flow = do
 -- > myFlow = do
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
-callAPI' :: (HasCallStack, T.JSONEx a, MonadFlow m) =>
+callAPI' :: (HasCallStack, MonadFlow m) =>
   Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI' = callServantAPI
 
 -- | The same as `callAPI'` but with default manager to be used.
-callAPI :: (HasCallStack, T.JSONEx a, MonadFlow m) =>
+callAPI :: (HasCallStack, MonadFlow m) =>
   BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI = callServantAPI Nothing
 
@@ -434,7 +434,7 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   content <- runIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runIO :: (HasCallStack, MonadFlow m, T.JSONEx a) => IO a -> m a
+runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
 
 -- | The same as runIO, but do not record IO outputs in the ART recordings.
@@ -501,7 +501,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   book <- callServantAPI url getBook
   -- >   user <- callServantAPI url getUser
   callServantAPI
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => Maybe T.ManagerSelector     -- ^ name of the connection manager to be used
     -> BaseUrl                     -- ^ remote url 'BaseUrl'
     -> T.EulerClient a             -- ^ servant client 'EulerClient'
@@ -522,7 +522,7 @@ class (MonadMask m) => MonadFlow m where
     -> m (Either Text.Text T.HTTPResponse)  -- ^ result
 
   -- | Evaluates a logging action.
-  evalLogger' :: (HasCallStack, ToJSON a, FromJSON a) => Logger a -> m a
+  evalLogger' :: HasCallStack => Logger a -> m a
 
   -- | The same as runIO, but accepts a description which will be written into the ART recordings
   -- for better clarity.
@@ -533,7 +533,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   content <- runIO' "reading from file" $ readFromFile file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runIO' :: (HasCallStack, T.JSONEx a) => Text -> IO a -> m a
+  runIO' :: HasCallStack => Text -> IO a -> m a
 
   -- | The same as runUntracedIO, but accepts a description which will be written into
   -- the ART recordings for better clarity.
@@ -549,7 +549,7 @@ class (MonadMask m) => MonadFlow m where
   -- | Gets stored a typed option by a typed key.
   --
   -- Thread safe, exception free.
-  getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m (Maybe v)
+  getOption :: HasCallStack => T.KVDBKey -> m (Maybe v)
 
   -- Sets a typed option using a typed key (a mutable destructive operation)
   --
@@ -570,10 +570,10 @@ class (MonadMask m) => MonadFlow m where
   -- >    mKey <- getOption MerchantIdKey
   -- >    runIO $ putTextLn mKey
   -- >    delOption MerchantIdKey
-  setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> m ()
+  setOption :: HasCallStack => T.KVDBKey -> v -> m ()
 
   -- | Deletes a typed option using a typed key.
-  delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> m ()
+  delOption :: HasCallStack => T.KVDBKey -> m ()
 
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
@@ -671,7 +671,6 @@ class (MonadMask m) => MonadFlow m where
   runDB
     ::
       ( HasCallStack
-      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -683,7 +682,6 @@ class (MonadMask m) => MonadFlow m where
   runTransaction
     ::
       ( HasCallStack
-      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -713,7 +711,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
   -- >   await Nothing awaitable
   await
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> m (Either T.AwaitingError a)
@@ -756,7 +754,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   case eitherContent of
   -- >     Left err -> ...
   -- >     Right content -> ...
-  runSafeFlow :: (HasCallStack, FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
+  runSafeFlow :: HasCallStack => Flow a -> m (Either Text a)
 
   -- | Execute kvdb actions.
   --
@@ -818,14 +816,14 @@ instance MonadFlow Flow where
   {-# INLINEABLE runUntracedIO' #-}
   runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
   {-# INLINEABLE getOption #-}
-  getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow (Maybe v)
-  getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
+  -- getOption :: HasCallStack => T.KVDBKey -> Flow (Maybe v)
+  getOption k = liftFC $ GetOption k id
   {-# INLINEABLE setOption #-}
-  setOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> v -> Flow ()
-  setOption k v = liftFC $ SetOption (T.mkOptionKey @k @v k) v id
+  -- setOption :: forall k v. (HasCallStack) => k -> v -> Flow ()
+  setOption k v = liftFC $ SetOption k v id
   {-# INLINEABLE delOption #-}
-  delOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow ()
-  delOption k = liftFC $ DelOption (T.mkOptionKey @k @v k) id
+  -- delOption :: forall k v. (HasCallStack) => k -> Flow ()
+  delOption k = liftFC $ DelOption k id
   {-# INLINEABLE generateGUID #-}
   generateGUID = liftFC $ GenerateGUID id
   {-# INLINEABLE runSysCmd #-}

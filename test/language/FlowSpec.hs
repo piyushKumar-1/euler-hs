@@ -5,8 +5,8 @@ module FlowSpec (spec) where
 import           Client (User (User), getBook, getUser, port)
 import           Common (initRTWithManagers, withServer)
 import qualified Control.Exception as E
-import           Data.Aeson (encode)
-import qualified Data.ByteString.Lazy as BSL
+-- import           Data.Aeson (encode)
+-- import qualified Data.ByteString.Lazy as BSL
 import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
@@ -145,12 +145,12 @@ spec loggerCfg = do
                             pure err)
           result `shouldBe` ("Exception from IO" :: Text)
         it "RunUntracedIO" $ \rt -> do
-          result <- runFlow rt $ runUntracedIO (pure ("hi" :: String))
+          result <- runFlow rt $ runIO (pure ("hi" :: String))
           result `shouldBe` "hi"
       describe "STM tests" $ do
         it "STM Test" $ \rt -> do
           result <- runFlow rt $ do
-            countVar <- runUntracedIO $ newTVarIO (0 :: Int)
+            countVar <- runIO $ newTVarIO (0 :: Int)
             let
               updateCount = do
                 count <- readTVar countVar
@@ -162,10 +162,10 @@ spec loggerCfg = do
                 if count < 100
                   then countTo100
                   else return count
-            awaitable1 <- forkFlow' "counter1" $ runUntracedIO $ void countTo100
-            awaitable2 <- forkFlow' "counter2" $ runUntracedIO $ void countTo100
+            awaitable1 <- forkFlow' "counter1" $ runIO $ void countTo100
+            awaitable2 <- forkFlow' "counter2" $ runIO $ void countTo100
             _ <- await Nothing awaitable1 >> await Nothing awaitable2
-            runUntracedIO $ readTVarIO countVar
+            runIO $ readTVarIO countVar
           result `shouldBe` 100
       describe "Options" $ do
         it "One key" $ \rt -> do
@@ -363,8 +363,8 @@ user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000
 localGUID :: Any
 localGUID = unsafeCoerce ("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" :: String)
 
-lhost :: BSL.ByteString
-lhost = encode ("localhost" :: String)
+lhost :: ByteString
+lhost = "localhost"
 
 scenario1MockedValues :: FlowMockedValues'
 scenario1MockedValues = FlowMockedValues'

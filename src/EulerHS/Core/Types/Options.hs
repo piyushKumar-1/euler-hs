@@ -2,18 +2,16 @@ module EulerHS.Core.Types.Options
   (
     -- * Options
     -- | Determine the relationship between key & value
-    -- OptionEntity
+    OptionEntity
     -- * Make option key
-  -- , mkOptionKey
+  , mkOptionKey
   ) where
 
--- import           Data.Aeson (encode)
--- import qualified Data.ByteString.Lazy as BSL
--- import           EulerHS.Prelude
--- import           Type.Reflection (typeRep)
+import           EulerHS.Prelude
 
--- class Typeable k
---   => OptionEntity k v |  k -> v
+class Show k
+  => OptionEntity k v | k -> v
 
--- mkOptionKey :: forall k v. OptionEntity k v => k -> Text
--- mkOptionKey k = show (typeRep @k) <> (decodeUtf8 $ BSL.toStrict $ encode k)
+mkOptionKey :: forall k v. OptionEntity k v => k -> Text
+mkOptionKey = show
+

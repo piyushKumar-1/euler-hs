@@ -50,19 +50,7 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- instance ToJSON HTTPRequest where
---   toJSON request =
---     Aeson.object
---       [ "getRequestMethod"    Aeson..= getRequestMethod request
---       , "getRequestHeaders"   Aeson..= getRequestHeaders request
---       , "getRequestBody"      Aeson..= getRequestBody request
---       , "getRequestURL"       Aeson..= getRequestURL request
---       , "getRequestTimeout"   Aeson..= getRequestTimeout request
---       , "getRequestRedirects" Aeson..= getRequestRedirects request
---       , "utf8Body"            Aeson..= (getMaybeUtf8 <$> getRequestBody request)
---       ]
+    deriving (Show, Eq, Ord, Generic)
 
 data HTTPResponse
   = HTTPResponse
@@ -71,17 +59,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- instance ToJSON HTTPResponse where
---   toJSON response =
---     Aeson.object
---       [ "getResponseBody"    Aeson..= getResponseBody response
---       , "getResponseCode"    Aeson..= getResponseCode response
---       , "getResponseHeaders" Aeson..= getResponseHeaders response
---       , "getResponseStatus"  Aeson..= getResponseStatus response
---       , "utf8Body"           Aeson..= getMaybeUtf8 (getResponseBody response)
---       ]
+    deriving (Show, Eq, Ord, Generic)
 
 data HTTPCert
   = HTTPCert
@@ -97,7 +75,7 @@ data HTTPMethod
   | Post
   | Delete
   | Head
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
 
 type HeaderName = Text
 type HeaderValue = Text
@@ -107,7 +85,7 @@ data HTTPRequestResponse
     { request  :: HTTPRequest
     , response :: HTTPResponse
     }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
 
 -- | Used when some IO (or other) exception ocurred during a request
 data HTTPIOException
@@ -115,7 +93,7 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequest
     }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
@@ -179,16 +157,16 @@ withOptionalHeader _ Nothing = id
 
 -- | Sets timeout, in microseconds
 withTimeout :: Int -> HTTPRequest -> HTTPRequest
-withTimeout timeout (request@HTTPRequest {getRequestTimeout}) =
+withTimeout timeout request =
   request {getRequestTimeout = Just timeout}
 
 withRedirects :: Int -> HTTPRequest -> HTTPRequest
-withRedirects redirects (request@HTTPRequest {getRequestRedirects}) =
+withRedirects redirects request =
   request {getRequestRedirects = Just redirects}
 
 -- TODO: Rename to `withFormData` or some such?
 withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
-withBody pairs (request@HTTPRequest {getRequestBody}) = request {getRequestBody = Just body}
+withBody pairs request = request {getRequestBody = Just body}
   where
     body = T.LBinaryString $ formUrlEncode pairs
 

@@ -9,7 +9,7 @@ import           EulerHS.Prelude
 data FlowMockedValues' = FlowMockedValues'
   { mockedCallServantAPI :: [Any]
   , mockedRunIO          :: [Any]
-  , mockedGetOption      :: [BSL.ByteString]
+  , mockedGetOption      :: [ByteString]
   , mockedGenerateGUID   :: [Text]
   , mockedRunSysCmd      :: [String]
   } deriving (Generic, Typeable)

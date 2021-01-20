@@ -4,7 +4,7 @@
 
 module EulerHS.Testing.Flow.Interpreter where
 
-import           Data.Aeson (decode)
+-- import           Data.Aeson (decode)
 import           Data.Generics.Product.Fields (HasField', getField, setField)
 import           EulerHS.Language (Flow, FlowMethod, foldFlow)
 import qualified EulerHS.Language as L
@@ -23,7 +23,7 @@ interpretFlowMethod mmv _ = \case
   L.RunIO _ _ next -> next . unsafeCoerce <$> takeMockedVal @"mockedRunIO" mmv
   L.CallServantAPI _ _ _ next ->
     next . unsafeCoerce <$> takeMockedVal @"mockedCallServantAPI" mmv
-  L.GetOption _ next -> next . decode <$> takeMockedVal @"mockedGetOption" mmv
+  L.GetOption _ next -> next <$> (unsafeCoerce $ Just $ takeMockedVal @"mockedGetOption" mmv)
   L.SetOption _ _ next -> pure . next $ ()
   L.GenerateGUID next -> next <$> takeMockedVal @"mockedGenerateGUID" mmv
   L.RunSysCmd _ next -> next <$> takeMockedVal @"mockedRunSysCmd" mmv

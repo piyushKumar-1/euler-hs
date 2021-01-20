@@ -2,14 +2,14 @@
 
 module Main (main) where
 
-import qualified ArtSpec as Art
+-- import qualified ArtSpec as Art
 import           Control.Exception.Safe (bracket)
 import           EulerHS.Prelude hiding (bracket)
 import qualified EulerHS.Types as T
 import qualified FlowSpec as Flow
-import qualified KVDBArtSpec as KVDB
-import qualified PubSubSpec as PubSub
-import qualified SQLArtSpec as SQL
+-- import qualified KVDBArtSpec as KVDB
+-- import qualified PubSubSpec as PubSub
+-- import qualified SQLArtSpec as SQL
 import qualified MaskingSpec as MaskSpec
 import           System.Directory (createDirectory, getTemporaryDirectory,
                                    removePathForcibly)
@@ -22,12 +22,12 @@ main :: IO ()
 main = do
   withRedis $ hspec $ do
     Flow.spec logsDisabled
-    Art.spec
+    -- Art.spec
     -- Disable until it work in jenkins. Need to install redis
     -- CachedSqlDBQuery.spec
-    KVDB.spec
-    SQL.spec
-    PubSub.spec
+    -- KVDB.spec
+    -- SQL.spec
+    -- PubSub.spec
     MaskSpec.spec
 
 -- Helpers

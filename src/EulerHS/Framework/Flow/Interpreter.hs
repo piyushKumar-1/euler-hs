@@ -20,7 +20,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
-import qualified Data.Vector as V
+-- import qualified Data.Vector as V
 import qualified EulerHS.Core.Interpreters as R
 import qualified EulerHS.Core.Logger.Language as L
 -- import qualified EulerHS.Core.Playback.Entries as P
@@ -221,35 +221,36 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       case _manager of
         Left err -> do
           let errMsg = "Certificate failure: " <> Text.pack err
-          logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
+          logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right manager -> do
           eResponse <- try $ HTTP.httpLbs httpLibRequest manager
           case eResponse of
             Left (err :: SomeException) -> do
               let errMsg = Text.pack $ displayException err
-              logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
+              logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right httpResponse -> do
               case translateHttpResponse httpResponse of
                 Left errMsg -> do
-                  logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
+                  logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  logJson T.Debug
+                  log T.Debug
                     $ T.HTTPRequestResponse
                       (T.maskHTTPRequest getLoggerMaskConfig request)
                       (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
   where
-    logJsonError :: Text -> T.HTTPRequest -> IO ()
-    logJsonError err = logJson T.Error . T.HTTPIOException err
+    logError :: Text -> T.HTTPRequest -> IO ()
+    logError err = log T.Error . T.HTTPIOException err
 
-    logJson :: ToJSON a => T.LogLevel -> a -> IO ()
-    logJson debugLevel =
+    log :: Show a => T.LogLevel -> a -> IO ()
+    log debugLevel =
       R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
-        . encodeJSON
+        -- . encodeJSON
+        . show
 
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
@@ -257,7 +258,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   next <$> R.runLogger (R._loggerRuntime _coreRuntime) loggerAct
 
-interpretFlowMethod _ (L.RunIO descr ioAct next) =
+interpretFlowMethod _ (L.RunIO _ ioAct next) =
   -- next <$> P.withRunMode _runMode (P.mkRunIOEntry descr) ioAct
   next <$> ioAct
 
@@ -299,11 +300,11 @@ interpretFlowMethod _ (L.RunSysCmd cmd next) =
   next <$> (readCreateProcess (shell cmd) "")
 
 ----------------------------------------------------------------------
-interpretFlowMethod rt (L.Fork desc newFlowGUID flow next) = do
+interpretFlowMethod rt (L.Fork _ _ flow next) = do
   awaitableMVar <- newEmptyMVar
   -- case R._runMode rt of
   --   T.RegularMode -> void $ forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
-  forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+  void $ forkIO (suppressErrors (runFlow rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
 
     -- T.RecordingMode T.RecorderRuntime{recording = T.Recording{..}, ..} -> do
     --   finalRecordingMVar       <- newEmptyMVar
@@ -427,7 +428,7 @@ interpretFlowMethod rt (L.UninterruptibleMask cb cont) =
 interpretFlowMethod rt (L.GeneralBracket acquire release use' cont) =
   cont <$> generalBracket (runFlow rt acquire) (\x -> runFlow rt . release x) (runFlow rt . use')
 
-interpretFlowMethod rt (L.RunSafeFlow newFlowGUID flow next) = fmap next $ do
+interpretFlowMethod rt (L.RunSafeFlow _ flow next) = fmap next $ do
   -- fl <- case R._runMode rt of
   --   T.RegularMode -> do
       fl <- try @_ @SomeException $ runFlow rt flow

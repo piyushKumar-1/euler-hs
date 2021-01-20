@@ -4,7 +4,7 @@
 
 module CachedDBSpec where
 
-import           Common
+-- import           Common
 import           DBSetup
 import           DBSetup as DBS
 import           Data.Aeson as A

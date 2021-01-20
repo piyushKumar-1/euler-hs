@@ -13,7 +13,7 @@ module EulerHS.Framework.Language
     X.callAPI',
     X.callHTTP,
     X.runIO,
-    X.runUntracedIO,
+    -- X.runUntracedIO,
     X.forkFlow,
     X.forkFlow',
     X.unpackLanguagePubSub,

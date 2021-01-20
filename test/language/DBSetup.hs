@@ -3,7 +3,7 @@
 
 module DBSetup where
 
-import           Common (runFlowRecording)
+-- import           Common (runFlowRecording)
 import           Data.Aeson as A
 import           Data.Aeson.Encode.Pretty
 import qualified Database.Beam as B
@@ -113,11 +113,11 @@ connectOrFail cfg = L.getOrInitSqlConn cfg >>= \case
     Left e     -> error $ show e
     Right conn -> pure conn
 
-runWithSQLConn :: (Show b, Eq b) => Flow b -> IO b
-runWithSQLConn flow = do
-  (recording, recResult) <- runFlowRecording ($) flow
-  -- putStrLn $ encodePretty $ recording
-  print $ encode recording
-  -- writeFile "recorded" $ show $ encode $ recording
-  -- print recResult
-  pure recResult
+-- runWithSQLConn :: (Show b, Eq b) => Flow b -> IO b
+-- runWithSQLConn flow = do
+--   (recording, recResult) <- runFlowRecording ($) flow
+--   -- putStrLn $ encodePretty $ recording
+--   print $ encode recording
+--   -- writeFile "recorded" $ show $ encode $ recording
+--   -- print recResult
+--   pure recResult

@@ -31,7 +31,6 @@ module EulerHS.Core.KVDB.Language
   , expireTx
   ) where
 
-import qualified Data.Aeson as A
 import qualified Database.Redis as R
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (get)
@@ -41,14 +40,12 @@ data KVDBSetTTLOption
   | Seconds Integer
   | Milliseconds Integer
   deriving stock Generic
-  -- deriving anyclass A.ToJSON
 
 data KVDBSetConditionOption
   = SetAlways
   | SetIfExist
   | SetIfNotExist
   deriving stock Generic
-  -- deriving anyclass A.ToJSON
 
 type KVDBKey = ByteString
 type KVDBValue = ByteString
@@ -61,13 +58,11 @@ type KVDBStream = ByteString
 
 data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
   deriving stock Generic
-  -- deriving anyclass (A.ToJSON, A.FromJSON)
 
 data KVDBStreamEntryIDInput
   = EntryID KVDBStreamEntryID
   | AutoID
   deriving stock Generic
-  -- deriving anyclass A.ToJSON
 
 type KVDBStreamItem = (ByteString, ByteString)
 

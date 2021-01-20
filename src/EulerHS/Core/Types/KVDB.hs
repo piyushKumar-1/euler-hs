@@ -33,7 +33,6 @@ module EulerHS.Core.Types.KVDB
   , kvdbToNative
   ) where
 
-import qualified Data.Aeson as A
 import           Data.Time (NominalDiffTime)
 import qualified Database.Redis as RD
 import           EulerHS.Core.Types.Serializable
@@ -83,16 +82,7 @@ data KVDBReplyF bs
   | KVDBError KVDBError String
   deriving (Eq, Show, Generic, Functor)
 
--- instance ToJSON   (KVDBReplyF ByteStringS)
--- instance FromJSON (KVDBReplyF ByteStringS)
-
 type KVDBReply = KVDBReplyF ByteString
-
--- instance ToJSON KVDBReply where
---   toJSON = toJSON . fromKVDBReply
-
--- instance FromJSON KVDBReply where
---   parseJSON = fmap toKVDBReply . parseJSON
 
 fromKVDBReply :: KVDBReply -> KVDBReplyF ByteStringS
 fromKVDBReply = fmap fromByteString
@@ -108,16 +98,7 @@ data KVDBStatusF bs
   | Status bs
   deriving (Eq, Show, Generic, Functor)
 
--- instance ToJSON   (KVDBStatusF ByteStringS)
--- instance FromJSON (KVDBStatusF ByteStringS)
-
 type KVDBStatus = KVDBStatusF ByteString
-
--- instance ToJSON KVDBStatus where
---   toJSON = toJSON . fromStatus
-
--- instance FromJSON KVDBStatus where
---   parseJSON = fmap toStatus . parseJSON
 
 fromStatus :: KVDBStatus -> KVDBStatusF ByteStringS
 fromStatus Ok          = Ok

@@ -23,7 +23,6 @@ module EulerHS.Framework.Flow.Language
   , callAPI'
   , callHTTP
   , runIO
-  -- , runUntracedIO
   , forkFlow
   , forkFlow'
   -- *** PublishSubscribe
@@ -74,13 +73,6 @@ data FlowMethod (next :: Type) where
     -> IO a
     -> (a -> next)
     -> FlowMethod next
-
-  -- RunUntracedIO
-  --   :: HasCallStack
-  --   => Text
-  --   -> IO a
-  --   -> (a -> next)
-  --   -> FlowMethod next
 
   GetOption
     :: HasCallStack
@@ -241,7 +233,6 @@ instance Functor FlowMethod where
     CallHTTP req cert cont -> CallHTTP req cert (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
-    -- RunUntracedIO t act cont -> RunUntracedIO t act (f . cont)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
@@ -437,19 +428,6 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
 
--- | The same as runIO, but do not record IO outputs in the ART recordings.
---   For example, this can be useful to implement things like STM or use mutable
---   state.
---
--- Warning. This method is dangerous and should be used wisely.
---
--- > myFlow = do
--- >   content <- runUntracedIO $ readFromFile file
--- >   logDebugT "content id" $ extractContentId content
--- >   pure content
--- runUntracedIO :: (HasCallStack, MonadFlow m) => IO a -> m a
--- runUntracedIO = runUntracedIO' ""
-
 -- | The same as callHTTPWithCert but does not need certificate data.
 --
 -- Thread safe, exception free.
@@ -534,17 +512,6 @@ class (MonadMask m) => MonadFlow m where
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
   runIO' :: HasCallStack => Text -> IO a -> m a
-
-  -- | The same as runUntracedIO, but accepts a description which will be written into
-  -- the ART recordings for better clarity.
-  --
-  -- Warning. This method is dangerous and should be used wisely.
-  --
-  -- > myFlow = do
-  -- >   content <- runUntracedIO' "reading secret data" $ readFromFile secret_file
-  -- >   logDebugT "content id" $ extractContentId content
-  -- >   pure content
-  -- runUntracedIO' :: HasCallStack => Text -> IO a -> m a
 
   -- | Gets stored a typed option by a typed key.
   --
@@ -813,8 +780,6 @@ instance MonadFlow Flow where
   evalLogger' logAct = liftFC $ EvalLogger logAct id
   {-# INLINEABLE runIO' #-}
   runIO' descr ioAct = liftFC $ RunIO descr ioAct id
-  -- {-# INLINEABLE runUntracedIO' #-}
-  -- runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
   {-# INLINEABLE getOption #-}
   getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow (Maybe v)
   getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
@@ -872,8 +837,6 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  -- {-# INLINEABLE runUntracedIO' #-}
-  -- runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -924,8 +887,6 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  -- {-# INLINEABLE runUntracedIO' #-}
-  -- runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -976,8 +937,6 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  -- {-# INLINEABLE runUntracedIO' #-}
-  -- runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -1028,8 +987,6 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  -- {-# INLINEABLE runUntracedIO' #-}
-  -- runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -1080,8 +1037,6 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  -- {-# INLINEABLE runUntracedIO' #-}
-  -- runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}

@@ -68,18 +68,13 @@ library
   other-modules:
     EulerHS.Core.Api
     EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Entries
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-    EulerHS.Core.Logger.Entries
     EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
     EulerHS.Core.Masking
-    EulerHS.Core.Playback.Entries
-    EulerHS.Core.Playback.Machine
-    EulerHS.Core.PubSub.Entries
     EulerHS.Core.PubSub.Interpreter
     EulerHS.Core.PubSub.Language
     EulerHS.Core.Runtime
@@ -95,7 +90,6 @@ library
     EulerHS.Core.Types.Logger
     EulerHS.Core.Types.MySQL
     EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Playback
     EulerHS.Core.Types.Postgres
     EulerHS.Core.Types.Serializable
     EulerHS.Extra.Aeson

@@ -5,8 +5,6 @@ module FlowSpec (spec) where
 import           Client (User (User), getBook, getUser, port)
 import           Common (initRTWithManagers, withServer)
 import qualified Control.Exception as E
--- import           Data.Aeson (encode)
--- import qualified Data.ByteString.Lazy as BSL
 import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L

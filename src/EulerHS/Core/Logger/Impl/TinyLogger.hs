@@ -21,6 +21,7 @@ import qualified System.Logger.Message as LogMsg
 
 import qualified EulerHS.Core.Types as D
 
+
 type LogQueue = (Chan.InChan D.PendingMsg, Chan.OutChan D.PendingMsg)
 
 type Loggers = [Log.Logger]

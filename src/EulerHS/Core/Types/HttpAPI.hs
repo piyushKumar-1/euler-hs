@@ -41,6 +41,7 @@ import qualified Data.Text.Encoding              as Text
 import           EulerHS.Core.Masking
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
 
+
 data HTTPRequest
   = HTTPRequest
     { getRequestMethod    :: HTTPMethod

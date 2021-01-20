@@ -4,7 +4,6 @@
 
 module EulerHS.Testing.Flow.Interpreter where
 
--- import           Data.Aeson (decode)
 import           Data.Generics.Product.Fields (HasField', getField, setField)
 import           EulerHS.Language (Flow, FlowMethod, foldFlow)
 import qualified EulerHS.Language as L

@@ -100,12 +100,12 @@ runParser
 runParser p msg = fromEither $ runReaderT p msg
 
 -- | Return text representation of constructors of a given type
-showConstructors :: forall t . Data t => Text
-showConstructors = T.pack $ show $ getConstructors @t
+-- showConstructors :: forall t . Data t => Text
+-- showConstructors = T.pack $ show $ getConstructors @t
 
 -- | Return list with constructors of a given type
-getConstructors :: forall t . Data t => [Constr]
-getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
+-- getConstructors :: forall t . Data t => [Constr]
+-- getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
 
 -- | Return given 'Symbol' as 'Text'
 -- >>> fieldName @"userId"

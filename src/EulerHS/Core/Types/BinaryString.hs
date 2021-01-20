@@ -10,7 +10,6 @@ module EulerHS.Core.Types.BinaryString
 import           EulerHS.Prelude
 
 import qualified Control.Monad.Fail as MonadFail
-import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Lazy as Lazy

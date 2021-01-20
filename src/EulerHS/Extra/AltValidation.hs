@@ -114,7 +114,7 @@ decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
 
 -- | Trying to decode 'Text' into a target type, use custom error
 decodeCustom :: forall t . (Data t, Read t) => VErrorPayload -> Transformer Text t
-decodeCustom err v = ReaderT (\ctx -> case (readMaybe $ toString v) of
+decodeCustom err v = ReaderT (\_ -> case (readMaybe $ toString v) of
   Just x -> Right x
   _      -> Left [ err ])
 -- Could throw 'Data.Data.dataTypeConstrs is not supported for Prelude.Double' for primitive types!
@@ -161,12 +161,12 @@ runParser
 runParser p err = fromEither $ runReaderT p err
 
 -- | Return text representation of constructors of a given type
-showConstructors :: forall t . Data t => Text
-showConstructors = T.pack $ show $ getConstructors @t
+-- showConstructors :: forall t . Data t => Text
+-- showConstructors = T.pack $ show $ getConstructors @t
 
 -- | Return list with constructors of a given type
-getConstructors :: forall t . Data t => [Constr]
-getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
+-- getConstructors :: forall t . Data t => [Constr]
+-- getConstructors = dataTypeConstrs (dataTypeOf (undefined :: t))
 
 -- | Return given 'Symbol' as 'Text'
 -- >>> fieldName @"userId"

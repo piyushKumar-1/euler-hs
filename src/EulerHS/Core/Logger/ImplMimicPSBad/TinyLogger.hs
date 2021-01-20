@@ -22,15 +22,13 @@ import qualified System.Logger.Message as LogMsg
 
 import qualified EulerHS.Core.Types as D
 
-import qualified Data.Aeson as Json
 import qualified Data.Binary.Builder as BinaryBuilder
-import qualified Data.ByteString.Builder as ByteStringBuilder
-import qualified Data.ByteString.Lazy as BSL
-import           Data.Text (Text)
+-- import qualified Data.ByteString.Builder as ByteStringBuilder
+-- import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Lazy.Encoding as TL
+-- import qualified Data.Text.Lazy as TL
+-- import qualified Data.Text.Lazy.Encoding as TL
 
 -- TODO: remove this along with the whole impl
 import qualified Data.Map as Map
@@ -52,8 +50,8 @@ dispatchLogLevel D.Error   = Log.Error
 
 -- TODO: extract formatting from this module.
 -- Make it configurable.
-strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
-strMsg = Log.msg
+-- strMsg :: ByteString -> LogMsg.Msg -> LogMsg.Msg
+-- strMsg = Log.msg
 
 logPendingMsg :: Loggers -> D.PendingMsg -> IO ()
 logPendingMsg loggers (D.PendingMsg lvl tag msg msgNum ctx1 ctx2 ) = do
@@ -86,11 +84,11 @@ sendPendingMsg (AsyncLoggerHandle _ (inChan, _) _) = Chan.writeChan inChan
 createVoidLogger :: IO LoggerHandle
 createVoidLogger = pure VoidLoggerHandle
 
-convBS :: LogMsg.Builder -> BSL.ByteString
-convBS = ByteStringBuilder.toLazyByteString . LogMsg.builderBytes
+-- convBS :: LogMsg.Builder -> BSL.ByteString
+-- convBS = ByteStringBuilder.toLazyByteString . LogMsg.builderBytes
 
-convTextL :: LogMsg.Builder -> Text
-convTextL = TL.toStrict . TL.decodeUtf8 . convBS
+-- convTextL :: LogMsg.Builder -> Text
+-- convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 
 -- TODO: this is terrible quick version
 -- would use Aeson.Value in the end
@@ -99,11 +97,11 @@ convTextL = TL.toStrict . TL.decodeUtf8 . convBS
 -- type Renderer = ByteString -> DateFormat -> Level -> [Element] -> Builder
 -- we've rewritten this to use mason, hopefully it's a performance boost
 jsonRenderer :: String -> String -> String -> Log.Renderer
-jsonRenderer hostname env sourceCommit _separator dateFormat logLevel loggerFields 
+jsonRenderer hostname _ sourceCommit _separator _ _ loggerFields
   = mbuilder
   where
     mbuilder :: BinaryBuilder.Builder
-    mbuilder = 
+    mbuilder =
       BinaryBuilder.fromLazyByteString "{\"timestamp\": " <> quote <> timestamp <> quote <> commaSep <>
       BinaryBuilder.fromLazyByteString "\"app_framework\": " <> quote <> "euler-hs-application" <> quote <> commaSep <>
       BinaryBuilder.fromLazyByteString "\"hostname\": " <> quote <> fromString hostname <> quote <> commaSep <>

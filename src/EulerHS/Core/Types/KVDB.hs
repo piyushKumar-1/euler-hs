@@ -35,7 +35,6 @@ module EulerHS.Core.Types.KVDB
 
 import           Data.Time (NominalDiffTime)
 import qualified Database.Redis as RD
-import           EulerHS.Core.Types.Serializable
 import           EulerHS.Prelude
 import qualified GHC.Generics as G
 
@@ -84,11 +83,11 @@ data KVDBReplyF bs
 
 type KVDBReply = KVDBReplyF ByteString
 
-fromKVDBReply :: KVDBReply -> KVDBReplyF ByteStringS
-fromKVDBReply = fmap fromByteString
+-- fromKVDBReply :: KVDBReply -> KVDBReplyF ByteStringS
+-- fromKVDBReply = fmap fromByteString
 
-toKVDBReply :: KVDBReplyF ByteStringS -> KVDBReply
-toKVDBReply = fmap toByteString
+-- toKVDBReply :: KVDBReplyF ByteStringS -> KVDBReply
+-- toKVDBReply = fmap toByteString
 
 ----------------------------------------------------------------------
 
@@ -100,15 +99,15 @@ data KVDBStatusF bs
 
 type KVDBStatus = KVDBStatusF ByteString
 
-fromStatus :: KVDBStatus -> KVDBStatusF ByteStringS
-fromStatus Ok          = Ok
-fromStatus Pong        = Pong
-fromStatus (Status bs) = Status $ fromByteString bs
+-- fromStatus :: KVDBStatus -> KVDBStatusF ByteStringS
+-- fromStatus Ok          = Ok
+-- fromStatus Pong        = Pong
+-- fromStatus (Status bs) = Status $ fromByteString bs
 
-toStatus :: KVDBStatusF ByteStringS -> KVDBStatus
-toStatus Ok          = Ok
-toStatus Pong        = Pong
-toStatus (Status bs) = Status $ toByteString bs
+-- toStatus :: KVDBStatusF ByteStringS -> KVDBStatus
+-- toStatus Ok          = Ok
+-- toStatus Pong        = Pong
+-- toStatus (Status bs) = Status $ toByteString bs
 
 fromRdStatus :: RD.Status -> KVDBStatus
 fromRdStatus RD.Ok          = Ok

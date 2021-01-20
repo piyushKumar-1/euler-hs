@@ -6,10 +6,10 @@ module EulerHS.Core.KVDB.Entries where
 
 
 import qualified Data.Aeson as A
+import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Types (MockedResult (..), RRItem (..))
 import qualified EulerHS.Types as T
-import qualified EulerHS.Core.KVDB.Language as L
 
 data SetEntry = SetEntry
   { jsonKey    :: A.Value
@@ -24,10 +24,10 @@ instance MockedResult SetEntry (Either T.KVDBReply T.KVDBStatus) where
   getMock SetEntry {jsonResult} = T.jsonDecode jsonResult
 
 mkSetEntry :: ByteString -> ByteString -> Either T.KVDBReply T.KVDBStatus -> SetEntry
-mkSetEntry k v r = SetEntry
-  (T.jsonEncode k)
-  (T.jsonEncode v)
-  (T.jsonEncode r)
+mkSetEntry _ _ _ = SetEntry
+  (A.String "a_key") -- (T.jsonEncode k)
+  (A.String "a_value") -- (T.jsonEncode v)
+  (A.String "a_result") -- (T.jsonEncode r)
 
 ----------------------------------------------------------------------
 
@@ -46,10 +46,10 @@ instance MockedResult SetExEntry (Either T.KVDBReply T.KVDBStatus) where
 
 mkSetExEntry :: ByteString -> Integer -> ByteString -> Either T.KVDBReply T.KVDBStatus -> SetExEntry
 mkSetExEntry k e v r = SetExEntry
-  (T.jsonEncode k)
-  (toJSON e)
-  (T.jsonEncode v)
-  (T.jsonEncode r)
+  (A.String "a_key") -- (T.jsonEncode k)
+  (A.String "e") -- (toJSON e)
+  (A.String "a_value") -- (T.jsonEncode v)
+  (A.String "a_result") -- (T.jsonEncode r)
 
 ----------------------------------------------------------------------
 
@@ -90,9 +90,9 @@ instance MockedResult GetEntry (Either T.KVDBReply (Maybe ByteString)) where
 
 
 mkGetEntry :: ByteString -> Either T.KVDBReply (Maybe ByteString) -> GetEntry
-mkGetEntry k r = GetEntry
-  (T.jsonEncode k)
-  (T.jsonEncode r)
+mkGetEntry _ _ = GetEntry
+  (A.String "a_key") -- (T.jsonEncode k)
+  (A.String "a_result") -- (T.jsonEncode r)
 
 ----------------------------------------------------------------------
 
@@ -236,8 +236,8 @@ mkXAddEntry s e i r = XAddEntry
 -- ----------------------------------------------------------------------
 
 data XLenEntry = XLenEntry
-  { jsonStream  :: A.Value
-  , jsonResult  :: A.Value
+  { jsonStream :: A.Value
+  , jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 instance RRItem XLenEntry where
@@ -285,7 +285,7 @@ mkMultiExecEntry r = MultiExecEntry $
 -- MultiExecWithHash
 
 data MultiExecWithHashEntry = MultiExecWithHashEntry
-  { hashValue :: A.Value
+  { hashValue  :: A.Value
   , jsonResult :: A.Value
   } deriving (Show, Eq, Generic, ToJSON, FromJSON)
 

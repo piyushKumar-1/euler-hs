@@ -7,7 +7,6 @@ import           Control.Exception.Safe (bracket)
 import           EulerHS.Prelude hiding (bracket)
 import qualified EulerHS.Types as T
 import qualified FlowSpec as Flow
-import qualified KVDBArtSpec as KVDB
 import qualified PubSubSpec as PubSub
 import qualified SQLArtSpec as SQL
 import qualified MaskingSpec as MaskSpec
@@ -25,7 +24,6 @@ main = do
     Art.spec
     -- Disable until it work in jenkins. Need to install redis
     -- CachedSqlDBQuery.spec
-    KVDB.spec
     SQL.spec
     PubSub.spec
     MaskSpec.spec

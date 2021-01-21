@@ -176,7 +176,6 @@ test-suite language
     EulerHS.Testing.Flow.Interpreter
     EulerHS.Testing.Types
     FlowSpec
-    KVDBArtSpec
     PubSubSpec
     Scenario1
     SQLArtSpec

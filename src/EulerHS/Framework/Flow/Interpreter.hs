@@ -182,7 +182,7 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod :: HasCallStack => R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ P.withRunMode _runMode (P.mkCallServantAPIEntry bUrl) $ do
       let mbClientMngr = case mbMgrSel of
@@ -208,7 +208,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
       R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
         . show
-    getLoggerMaskConfig = 
+    getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
@@ -234,9 +234,9 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
                   logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  logJson T.Debug 
-                    $ T.HTTPRequestResponse 
-                      (T.maskHTTPRequest getLoggerMaskConfig request) 
+                  logJson T.Debug
+                    $ T.HTTPRequestResponse
+                      (T.maskHTTPRequest getLoggerMaskConfig request)
                       (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
   where
@@ -248,8 +248,8 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       R.runLogger T.RegularMode (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
         . encodeJSON
-    
-    getLoggerMaskConfig = 
+
+    getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
@@ -639,5 +639,5 @@ interpretFlowMethod rt@R.FlowRuntime {_runMode, _pubSubController, _pubSubConnec
     go conn = next <$> R.runPubSub _runMode _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow $ rt { R._runMode = T.RegularMode })
 
-runFlow :: R.FlowRuntime -> L.Flow a -> IO a
+runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt (L.Flow comp) = foldF (interpretFlowMethod flowRt) comp

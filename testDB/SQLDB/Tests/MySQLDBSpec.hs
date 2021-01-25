@@ -34,6 +34,7 @@ mySQLCfg = T.MySQLConfig
   , connectOptions  = [T.CharsetName "utf8"]
   , connectPath     = ""
   , connectSSL      = Nothing
+  , connectCharset  = Latin1
   }
 
 mySQLRootCfg :: T.MySQLConfig

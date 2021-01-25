@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.0.3.0] - 2021-01-20
+
+* Allow passing of a character set to a MySQL connection, along with a type
+  specifying the character sets supported currently
+
 ## [1.10.0.0] - 2020-06-16
 * Euler-HS 1.10.0.0: a significant update with new features and fixes.
   - New authentication service in euler-api-order

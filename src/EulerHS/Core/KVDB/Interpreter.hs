@@ -14,6 +14,7 @@ import qualified Data.Map as Map
 import qualified Database.Redis as R
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.Encoding.Error as TE
 import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Core.Types.KVDB
 import qualified EulerHS.Core.Types as D
@@ -21,7 +22,8 @@ import qualified EulerHS.Core.Types as D
 
 
 interpretKeyValueF
-  :: (forall b . R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
+  :: HasCallStack
+  => (forall b . R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> L.KeyValueF (Either KVDBReply) a
   -> IO a
 interpretKeyValueF runRedis (L.Set k v next) =
@@ -84,7 +86,7 @@ interpretKeyValueF runRedis (L.XAdd stream entryId items next) =
 
     parseStreamEntryId bs =
       -- "number-number" is redis entry id invariant
-      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
+      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
       in L.KVDBStreamEntryID ms sq
 
 interpretKeyValueF runRedis (L.XLen stream next) =
@@ -92,7 +94,7 @@ interpretKeyValueF runRedis (L.XLen stream next) =
     runRedis $ R.xlen stream
 
 
-interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
+interpretKeyValueTxF :: HasCallStack => L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
   fmap next $ fmap (fmap D.fromRdStatus) $ R.set k v
 
@@ -140,13 +142,15 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
 
     parseStreamEntryId bs =
       -- "number-number" is redis entry id invariant
-      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8 bs)
+      -- TODO:
+      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
       in L.KVDBStreamEntryID ms sq
 
 
 
 interpretTransactionF
-  :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
+  :: HasCallStack
+  => (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> L.TransactionF a
   -> IO a
 interpretTransactionF runRedis (L.MultiExec dsl next) =
@@ -166,7 +170,7 @@ interpretDbF runRedis (L.KV f) = interpretKeyValueF    runRedis f
 interpretDbF runRedis (L.TX f) = interpretTransactionF runRedis f
 
 
-runKVDB :: Text -> MVar (Map Text NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB :: HasCallStack => Text -> MVar (Map Text NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
 runKVDB cName kvdbConnMapMVar =
   fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
     foldF (interpretDbF runRedis) . runExceptT
@@ -183,7 +187,7 @@ runKVDB cName kvdbConnMapMVar =
               error "Result of runRedis with mocked connection should not ever be evaluated"
 
 
-makeSetOpts :: L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts
+makeSetOpts :: HasCallStack => L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts
 makeSetOpts ttl cond =
   R.SetOpts
     { setSeconds =

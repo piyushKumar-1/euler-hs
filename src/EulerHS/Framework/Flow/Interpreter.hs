@@ -180,7 +180,7 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod :: HasCallStack => R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ do
       let mbClientMngr = case mbMgrSel of
@@ -450,5 +450,5 @@ interpretFlowMethod rt@R.FlowRuntime {_pubSubController, _pubSubConnection} (L.R
     go conn = next <$> R.runPubSub _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow rt)
 
-runFlow :: R.FlowRuntime -> L.Flow a -> IO a
+runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt (L.Flow comp) = foldF (interpretFlowMethod flowRt) comp

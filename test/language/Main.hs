@@ -11,7 +11,7 @@ import qualified FlowSpec as Flow
 -- import qualified PubSubSpec as PubSub
 -- import qualified SQLArtSpec as SQL
 import qualified MaskingSpec as MaskSpec
-import qualified CachedDBSpec as CachedSqlDBQuery
+-- import qualified CachedDBSpec as CachedSqlDBQuery
 -- import           System.Directory (createDirectory, getTemporaryDirectory,
 --                                    removePathForcibly)
 -- import           System.FilePath ((<.>), (</>))
@@ -25,8 +25,10 @@ main = do
   -- withRedis $
   hspec $ do
     Flow.spec logsDisabled
-    CachedSqlDBQuery.spec
     MaskSpec.spec
+
+    -- Wait for Redis on CI
+    -- CachedSqlDBQuery.spec
 
     -- ART removed and these tests not work anymore
     -- Art.spec

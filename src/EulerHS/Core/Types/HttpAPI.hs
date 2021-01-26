@@ -51,7 +51,7 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord, Generic)
+    deriving (Eq, Ord)
 
 data HTTPResponse
   = HTTPResponse
@@ -60,7 +60,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Ord, Generic)
+    deriving (Eq, Ord)
 
 data HTTPCert
   = HTTPCert
@@ -76,7 +76,7 @@ data HTTPMethod
   | Post
   | Delete
   | Head
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Eq, Ord)
 
 type HeaderName = Text
 type HeaderValue = Text
@@ -86,7 +86,7 @@ data HTTPRequestResponse
     { request  :: HTTPRequest
     , response :: HTTPResponse
     }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Eq, Ord)
 
 -- | Used when some IO (or other) exception ocurred during a request
 data HTTPIOException
@@ -94,7 +94,7 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequest
     }
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Eq, Ord)
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text

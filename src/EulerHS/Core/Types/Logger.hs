@@ -82,6 +82,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToFile = False
     , _maxQueueSize = 1000
     , _logRawSql = True
+    , _logMaskingConfig = Nothing
     }
 
 mkMemoryLoggerConfig :: LogLevel -> LoggerConfig

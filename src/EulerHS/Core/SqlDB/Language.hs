@@ -10,7 +10,6 @@ module EulerHS.Core.SqlDB.Language
     SqlDB
   , SqlDBMethodF(..)
   -- ** Methods
-  , sqlThrowException -- for tests
   , findRow
   , findRows
   , insertRows

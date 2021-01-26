@@ -51,7 +51,7 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord)
+    deriving (Eq, Ord)
 
 data HTTPResponse
   = HTTPResponse
@@ -76,7 +76,7 @@ data HTTPMethod
   | Post
   | Delete
   | Head
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord)
 
 type HeaderName = Text
 type HeaderValue = Text
@@ -94,7 +94,7 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequest
     }
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord)
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text

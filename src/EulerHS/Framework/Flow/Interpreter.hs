@@ -209,7 +209,7 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl cl
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
-interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
+interpretFlowMethod R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
       _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
@@ -217,38 +217,19 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       case _manager of
         Left err -> do
           let errMsg = "Certificate failure: " <> Text.pack err
-          logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right manager -> do
           eResponse <- try $ HTTP.httpLbs httpLibRequest manager
           case eResponse of
             Left (err :: SomeException) -> do
               let errMsg = Text.pack $ displayException err
-              logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right httpResponse -> do
               case translateHttpResponse httpResponse of
                 Left errMsg -> do
-                  logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  -- log T.Debug
-                  --   $ T.HTTPRequestResponse
-                  --     (T.maskHTTPRequest getLoggerMaskConfig request)
-                  --     (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
-  where
-    logError :: Text -> T.HTTPRequest -> IO ()
-    logError err = log T.Error . T.HTTPIOException err
-
-    log :: Show a => T.LogLevel -> a -> IO ()
-    log debugLevel =
-      R.runLogger (R._loggerRuntime . R._coreRuntime $ flowRt)
-        . L.logMessage' debugLevel ("callHTTP" :: String)
-        . show
-
-    getLoggerMaskConfig =
-      R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   next <$> R.runLogger (R._loggerRuntime _coreRuntime) loggerAct

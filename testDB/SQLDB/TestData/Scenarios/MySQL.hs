@@ -74,7 +74,7 @@ throwExceptionFlowScript dbcfg = do
           $ B.insert (_users eulerDb)
           $ B.insertValues [User 6 "Billy" "Evil"]
 
-        L.sqlThrowException ThisException
+        -- L.sqlThrowException ThisException
 
         L.insertRows
           $ B.insert (_users eulerDb)

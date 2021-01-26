@@ -232,10 +232,10 @@ interpretFlowMethod flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
                   logError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  log T.Debug
-                    $ T.HTTPRequestResponse
-                      (T.maskHTTPRequest getLoggerMaskConfig request)
-                      (T.maskHTTPResponse getLoggerMaskConfig response)
+                  -- log T.Debug
+                  --   $ T.HTTPRequestResponse
+                  --     (T.maskHTTPRequest getLoggerMaskConfig request)
+                  --     (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
   where
     logError :: Text -> T.HTTPRequest -> IO ()

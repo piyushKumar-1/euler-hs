@@ -31,7 +31,6 @@ module EulerHS.Core.KVDB.Language
   , expireTx
   ) where
 
-import qualified Data.Aeson as A
 import qualified Database.Redis as R
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude hiding (get)
@@ -41,14 +40,12 @@ data KVDBSetTTLOption
   | Seconds Integer
   | Milliseconds Integer
   deriving stock Generic
-  deriving anyclass A.ToJSON
 
 data KVDBSetConditionOption
   = SetAlways
   | SetIfExist
   | SetIfNotExist
   deriving stock Generic
-  deriving anyclass A.ToJSON
 
 type KVDBKey = ByteString
 type KVDBValue = ByteString
@@ -61,13 +58,11 @@ type KVDBStream = ByteString
 
 data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
   deriving stock Generic
-  deriving anyclass (A.ToJSON, A.FromJSON)
 
 data KVDBStreamEntryIDInput
   = EntryID KVDBStreamEntryID
   | AutoID
   deriving stock Generic
-  deriving anyclass A.ToJSON
 
 type KVDBStreamItem = (ByteString, ByteString)
 
@@ -107,13 +102,11 @@ type KVDBTx = F (KeyValueF R.Queued)
 
 data TransactionF next where
   MultiExec
-    :: T.JSONEx a
-    => KVDBTx (R.Queued a)
+    :: KVDBTx (R.Queued a)
     -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
   MultiExecWithHash
-    :: T.JSONEx a
-    => ByteString
+    :: ByteString
     -> KVDBTx (R.Queued a)
     -> (T.KVDBAnswer (T.TxResult a) -> next)
     -> TransactionF next
@@ -213,9 +206,9 @@ xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 
 -- | Run commands inside a transaction(suited only for standalone redis setup).
-multiExec :: T.JSONEx a => KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExec :: KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
 
 -- | Run commands inside a transaction(suited only for cluster redis setup).
-multiExecWithHash :: T.JSONEx a => ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id

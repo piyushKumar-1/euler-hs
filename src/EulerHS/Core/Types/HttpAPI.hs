@@ -41,6 +41,7 @@ import qualified Data.Text.Encoding              as Text
 import           EulerHS.Core.Masking
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
 
+
 data HTTPRequest
   = HTTPRequest
     { getRequestMethod    :: HTTPMethod
@@ -50,19 +51,7 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- instance ToJSON HTTPRequest where
---   toJSON request =
---     Aeson.object
---       [ "getRequestMethod"    Aeson..= getRequestMethod request
---       , "getRequestHeaders"   Aeson..= getRequestHeaders request
---       , "getRequestBody"      Aeson..= getRequestBody request
---       , "getRequestURL"       Aeson..= getRequestURL request
---       , "getRequestTimeout"   Aeson..= getRequestTimeout request
---       , "getRequestRedirects" Aeson..= getRequestRedirects request
---       , "utf8Body"            Aeson..= (getMaybeUtf8 <$> getRequestBody request)
---       ]
+    deriving (Eq, Ord)
 
 data HTTPResponse
   = HTTPResponse
@@ -71,17 +60,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
--- instance ToJSON HTTPResponse where
---   toJSON response =
---     Aeson.object
---       [ "getResponseBody"    Aeson..= getResponseBody response
---       , "getResponseCode"    Aeson..= getResponseCode response
---       , "getResponseHeaders" Aeson..= getResponseHeaders response
---       , "getResponseStatus"  Aeson..= getResponseStatus response
---       , "utf8Body"           Aeson..= getMaybeUtf8 (getResponseBody response)
---       ]
+    deriving (Eq, Ord)
 
 data HTTPCert
   = HTTPCert
@@ -97,7 +76,7 @@ data HTTPMethod
   | Post
   | Delete
   | Head
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Eq, Ord)
 
 type HeaderName = Text
 type HeaderValue = Text
@@ -107,7 +86,7 @@ data HTTPRequestResponse
     { request  :: HTTPRequest
     , response :: HTTPResponse
     }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Eq, Ord)
 
 -- | Used when some IO (or other) exception ocurred during a request
 data HTTPIOException
@@ -115,7 +94,7 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequest
     }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Eq, Ord)
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
@@ -179,16 +158,16 @@ withOptionalHeader _ Nothing = id
 
 -- | Sets timeout, in microseconds
 withTimeout :: Int -> HTTPRequest -> HTTPRequest
-withTimeout timeout (request@HTTPRequest {getRequestTimeout}) =
+withTimeout timeout request =
   request {getRequestTimeout = Just timeout}
 
 withRedirects :: Int -> HTTPRequest -> HTTPRequest
-withRedirects redirects (request@HTTPRequest {getRequestRedirects}) =
+withRedirects redirects request =
   request {getRequestRedirects = Just redirects}
 
 -- TODO: Rename to `withFormData` or some such?
 withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
-withBody pairs (request@HTTPRequest {getRequestBody}) = request {getRequestBody = Just body}
+withBody pairs request = request {getRequestBody = Just body}
   where
     body = T.LBinaryString $ formUrlEncode pairs
 
@@ -244,18 +223,18 @@ formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encod
           | otherwise = 55
 
 maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequest
-maskHTTPRequest mbMaskConfig request = 
+maskHTTPRequest mbMaskConfig request =
   request
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     }
   where
     requestHeaders = getRequestHeaders request
-    
+
     requestBody = getRequestBody request
-    
+
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-    
+
     maskedRequestBody =
       T.LBinaryString
         . encodeUtf8

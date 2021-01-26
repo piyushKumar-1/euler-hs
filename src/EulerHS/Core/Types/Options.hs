@@ -7,13 +7,11 @@ module EulerHS.Core.Types.Options
   , mkOptionKey
   ) where
 
-import           Data.Aeson (encode)
-import qualified Data.ByteString.Lazy as BSL
 import           EulerHS.Prelude
-import           Type.Reflection (typeRep)
 
-class (Typeable k, FromJSON k, ToJSON k, FromJSON v, ToJSON v)
-  => OptionEntity k v |  k -> v
+class Show k
+  => OptionEntity k v | k -> v
 
 mkOptionKey :: forall k v. OptionEntity k v => k -> Text
-mkOptionKey k = show (typeRep @k) <> (decodeUtf8 $ BSL.toStrict $ encode k)
+mkOptionKey = show
+

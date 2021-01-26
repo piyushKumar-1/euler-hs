@@ -10,7 +10,6 @@ module EulerHS.Core.SqlDB.Language
     SqlDB
   , SqlDBMethodF(..)
   -- ** Methods
-  , sqlThrowException -- for tests
   , findRow
   , findRows
   , insertRows
@@ -21,6 +20,7 @@ module EulerHS.Core.SqlDB.Language
   , deleteRowsReturningListPG
   , updateRowsReturningListPG
   , insertRowReturningMySQL
+  , sqlThrowException -- for tests
   ) where
 
 import qualified Database.Beam as B
@@ -35,8 +35,7 @@ type SqlDB beM = F (SqlDBMethodF beM)
 data SqlDBMethodF (beM :: Type -> Type) next where
   SqlDBMethod :: HasCallStack => (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
 
-  SqlThrowException :: (HasCallStack, Exception e)
-    => e -> (a -> next) -> SqlDBMethodF beM next
+  SqlThrowException :: (HasCallStack, Exception e) => e -> (a -> next) -> SqlDBMethodF beM next
 
 instance Functor (SqlDBMethodF beM) where
   fmap f (SqlDBMethod runner next) = SqlDBMethod runner (f . next)
@@ -48,7 +47,7 @@ sqlDBMethod
   -> SqlDB beM a
 sqlDBMethod act = liftFC $ SqlDBMethod (flip T.getBeamDebugRunner act) id
 
--- For testing purposes
+-- For testing purpose
 sqlThrowException :: forall a e beM be . (HasCallStack, Exception e, T.BeamRunner beM, T.BeamRuntime be beM) => e -> SqlDB beM a
 sqlThrowException ex = liftFC $ SqlThrowException ex id
 

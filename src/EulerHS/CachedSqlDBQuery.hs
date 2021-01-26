@@ -160,7 +160,7 @@ updateOneWoReturning ::
   [Set be table] ->
   Where be table ->
   m (Either DBError ())
-updateOneWoReturning dbConf (Just cacheKey) newVals whereClause = do
+updateOneWoReturning dbConf (Just _) newVals whereClause = do
   val <- updateOneSqlWoReturning dbConf newVals whereClause
  -- whenRight val (\_ -> cacheWithKey cacheKey val)
   return val

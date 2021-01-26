@@ -1,66 +1,64 @@
 {-# LANGUAGE DeriveAnyClass #-}
+
 module EulerHS.TestData.Types where
 
 import qualified Data.Aeson as A
 import           EulerHS.Prelude
 import           EulerHS.Types
 
-import           Test.QuickCheck.Arbitrary
-
-
 
 data UrlKey = UrlKey
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 data TestStringKey = TestStringKey
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 data TestStringKey2 = TestStringKey2
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 data TestIntKey = TestIntKey
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 data TestIntKey2 = TestIntKey2
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 data TestStringKeyAnotherEnc = TestStringKeyAnotherEnc
-  deriving (Generic, Typeable, Show, Eq, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 data TestStringKey2AnotherEnc = TestStringKey2AnotherEnc
-  deriving (Generic, Typeable, Show, Eq, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 data TestKeyWithStringPayload = TestKeyWithStringPayload String
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 data TestKeyWithIntPayload = TestKeyWithIntPayload Int
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 data TestKeyWithStringPayloadAnotherEnc = TestKeyWithStringPayloadAnotherEnc String
-  deriving (Generic, Typeable, Show, Eq, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 data TestKeyWithIntPayloadAnotherEnc = TestKeyWithIntPayloadAnotherEnc Int
-  deriving (Generic, Typeable, Show, Eq, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 
 newtype NTTestKeyWithStringPayload = NTTestKeyWithStringPayload String
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 newtype NTTestKeyWithIntPayload = NTTestKeyWithIntPayload Int
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 newtype NTTestKeyWithStringPayloadAnotherEnc = NTTestKeyWithStringPayloadAnotherEnc String
-  deriving (Generic, Typeable, Show, Eq, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 newtype NTTestKeyWithIntPayloadAnotherEnc = NTTestKeyWithIntPayloadAnotherEnc Int
-  deriving (Generic, Typeable, Show, Eq, FromJSON)
+  deriving (Generic, Typeable, Show, Eq)
 
 
 

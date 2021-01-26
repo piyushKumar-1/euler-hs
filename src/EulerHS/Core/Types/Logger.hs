@@ -23,7 +23,8 @@ module EulerHS.Core.Types.Logger
     ) where
 
 import           EulerHS.Prelude
-import           Data.HashSet(HashSet)
+
+
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
@@ -37,14 +38,14 @@ type TransientLoggerContext = Maybe Text
 
 type LogCounter = IORef Int
 
-data LogMaskingConfig = 
+data LogMaskingConfig =
   LogMaskingConfig
     { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
     , _maskText      :: Maybe Text
     , _keyType       :: MaskKeyType
     } deriving (Generic, Show, Read)
 
-data MaskKeyType = 
+data MaskKeyType =
     WhiteListKey
   | BlackListKey
   deriving (Generic, Show, Read)

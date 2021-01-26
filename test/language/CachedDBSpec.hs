@@ -4,24 +4,24 @@
 
 module CachedDBSpec where
 
-import           Common
+-- import           Common
 import           DBSetup
 import           DBSetup as DBS
-import           Data.Aeson as A
-import           Data.Aeson.Encode.Pretty
+-- import           Data.Aeson as A
+-- import           Data.Aeson.Encode.Pretty
 import qualified Database.Beam as B
-import qualified Database.Beam.Backend.SQL as B
-import qualified Database.Beam.Query as B
-import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
+-- import qualified Database.Beam.Backend.SQL as B
+-- import qualified Database.Beam.Query as B
+-- import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
 import           EulerHS.CachedSqlDBQuery
 import           EulerHS.Interpreters as I
 import           EulerHS.Language as L
 import           EulerHS.Prelude
-import           EulerHS.Runtime
+-- import           EulerHS.Runtime
 import           EulerHS.Types as T
-import           Named
+-- import           Named
 import           Sequelize
-import           System.Process
+-- import           System.Process
 import           Test.Hspec
 
 

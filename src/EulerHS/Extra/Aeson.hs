@@ -14,10 +14,9 @@ import qualified Data.Aeson.Text as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LazyText
--- import qualified Data.Text.Lazy.Encoding as LazyText
+
 
 stripLensPrefixOptions :: Options
 stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }

@@ -11,7 +11,6 @@ import qualified EulerHS.Core.Types as T
 
 import           Control.Exception (throwIO)
 
-
 -- TODO: The runner runner gets composed in in `sqlDBMethod`. Move it into the interpreter!
 interpretSqlDBMethod
   :: T.NativeSqlConn
@@ -21,8 +20,9 @@ interpretSqlDBMethod
 interpretSqlDBMethod conn logger (L.SqlDBMethod runner next) =
   next <$> runner conn logger
 
-interpretSqlMethod (L.SqlThrowException ex _) = do
-  void <$> throwIO ex
+
+interpretSqlDBMethod _ _ (L.SqlThrowException ex next) = do
+  next <$> throwIO ex
 
 runSqlDB  :: T.NativeSqlConn -> (Text -> IO ()) -> L.SqlDB beM a -> IO a
 runSqlDB sqlConn logger = foldF (interpretSqlDBMethod sqlConn logger)

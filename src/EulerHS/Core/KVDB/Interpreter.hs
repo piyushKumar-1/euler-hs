@@ -12,34 +12,30 @@ import           EulerHS.Prelude
 
 import qualified Data.Map as Map
 import qualified Database.Redis as R
-import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TE
 import qualified EulerHS.Core.KVDB.Language as L
 import           EulerHS.Core.Types.KVDB
-
-import qualified EulerHS.Core.KVDB.Entries as E
-import qualified EulerHS.Core.Playback.Machine as P
 import qualified EulerHS.Core.Types as D
+
 
 
 interpretKeyValueF
   :: HasCallStack
   => (forall b . R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
-  -> D.RunMode
   -> L.KeyValueF (Either KVDBReply) a
   -> IO a
-interpretKeyValueF runRedis runMode (L.Set k v next) =
-  fmap next $ P.withRunMode runMode (E.mkSetEntry k v) $
+interpretKeyValueF runRedis (L.Set k v next) =
+  fmap next $
     fmap (second fromRdStatus) $ runRedis $ R.set k v
 
-interpretKeyValueF runRedis runMode (L.SetEx k e v next) =
-  fmap next $ P.withRunMode runMode (E.mkSetExEntry k e v) $
+interpretKeyValueF runRedis (L.SetEx k e v next) =
+  fmap next $
     fmap (second fromRdStatus) $ runRedis $ R.setex k e v
 
-interpretKeyValueF runRedis runMode (L.SetOpts k v ttl cond next) =
-  fmap next $ P.withRunMode runMode (E.mkSetOptsEntry k v ttl cond) $ do
+interpretKeyValueF runRedis (L.SetOpts k v ttl cond next) =
+  fmap next $ do
     result <- runRedis $ R.setOpts k v (makeSetOpts ttl cond)
     pure $ case result of
       Right _ -> Right True
@@ -47,54 +43,54 @@ interpretKeyValueF runRedis runMode (L.SetOpts k v ttl cond next) =
       Left (Bulk Nothing) -> Right False
       Left reply -> Left reply
 
-interpretKeyValueF runRedis runMode (L.Get k next) =
-  fmap next $ P.withRunMode runMode (E.mkGetEntry k) $
+interpretKeyValueF runRedis (L.Get k next) =
+  fmap next $
     runRedis $ R.get k
 
-interpretKeyValueF runRedis runMode (L.Exists k next) =
-  fmap next $ P.withRunMode runMode (E.mkExistsEntry k) $
+interpretKeyValueF runRedis (L.Exists k next) =
+  fmap next $
     runRedis $ R.exists k
 
-interpretKeyValueF _ runMode (L.Del [] next) =
-  fmap next $ P.withRunMode runMode (E.mkDelEntry []) $
+interpretKeyValueF _ (L.Del [] next) =
+  fmap next $
     pure $ pure 0
 
-interpretKeyValueF runRedis runMode (L.Del ks next) =
-  fmap next $ P.withRunMode runMode (E.mkDelEntry ks) $
+interpretKeyValueF runRedis (L.Del ks next) =
+  fmap next $
     runRedis $ R.del ks
 
-interpretKeyValueF runRedis runMode (L.Expire k sec next) =
-  fmap next $ P.withRunMode runMode (E.mkExpireEntry k sec) $
+interpretKeyValueF runRedis (L.Expire k sec next) =
+  fmap next $
     runRedis $ R.expire k sec
 
-interpretKeyValueF runRedis runMode (L.Incr k next) =
-  fmap next $ P.withRunMode runMode (E.mkIncrEntry k) $
+interpretKeyValueF runRedis (L.Incr k next) =
+  fmap next $
     runRedis $ R.incr k
 
-interpretKeyValueF runRedis runMode (L.HSet k field value next) =
-  fmap next $ P.withRunMode runMode (E.mkHSetEntry k field value) $
+interpretKeyValueF runRedis (L.HSet k field value next) =
+  fmap next $
     runRedis $ R.hset k field value
 
-interpretKeyValueF runRedis runMode (L.HGet k field next) =
-  fmap next $ P.withRunMode runMode (E.mkHGetEntry k field) $
+interpretKeyValueF runRedis (L.HGet k field next) =
+  fmap next $
     runRedis $ R.hget k field
 
-interpretKeyValueF runRedis runMode (L.XAdd stream entryId items next) =
-  fmap next $ P.withRunMode runMode (E.mkXAddEntry stream entryId items) $
+interpretKeyValueF runRedis (L.XAdd stream entryId items next) =
+  fmap next $
     runRedis $ do
       result <- R.xadd stream (makeStreamEntryId entryId) items
       pure $ parseStreamEntryId <$> result
   where
-    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms seq)) = show ms <> "-" <> show seq
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
     makeStreamEntryId L.AutoID = "*"
 
     parseStreamEntryId bs =
       -- "number-number" is redis entry id invariant
-      let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
-      in L.KVDBStreamEntryID ms seq
+      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
+      in L.KVDBStreamEntryID ms sq
 
-interpretKeyValueF runRedis runMode (L.XLen stream next) =
-  fmap next $ P.withRunMode runMode (E.mkXLenEntry stream) $
+interpretKeyValueF runRedis (L.XLen stream next) =
+  fmap next $
     runRedis $ R.xlen stream
 
 
@@ -141,50 +137,43 @@ interpretKeyValueTxF (L.XLen stream next) =
 interpretKeyValueTxF (L.XAdd stream entryId items next) =
   fmap next $ fmap (fmap parseStreamEntryId) $ R.xadd stream (makeStreamEntryId entryId) items
   where
-    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms seq)) = show ms <> "-" <> show seq
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
     makeStreamEntryId L.AutoID = "*"
 
     parseStreamEntryId bs =
       -- "number-number" is redis entry id invariant
       -- TODO:
-      let [ms, seq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
-      in L.KVDBStreamEntryID ms seq
+      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
+      in L.KVDBStreamEntryID ms sq
 
 
 
 interpretTransactionF
   :: HasCallStack
   => (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
-  -> D.RunMode
   -> L.TransactionF a
   -> IO a
-interpretTransactionF runRedis runMode (L.MultiExec dsl next) =
-  fmap next $ P.withRunMode runMode E.mkMultiExecEntry $
+interpretTransactionF runRedis (L.MultiExec dsl next) =
+  fmap next $
     runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
 
-interpretTransactionF runRedis runMode (L.MultiExecWithHash h dsl next) =
-  fmap next $ P.withRunMode runMode (E.mkMultiExecWithHashEntry h) $
+interpretTransactionF runRedis (L.MultiExecWithHash h dsl next) =
+  fmap next $
     runRedis $ fmap (Right . fromRdTxResult) $ R.multiExecWithHash h $ foldF interpretKeyValueTxF dsl
 
 
 interpretDbF
   :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
-  -> D.RunMode
   -> L.KVDBF a
   -> IO a
-interpretDbF runRedis runMode (L.KV f) = interpretKeyValueF    runRedis runMode f
-interpretDbF runRedis runMode (L.TX f) = interpretTransactionF runRedis runMode f
+interpretDbF runRedis (L.KV f) = interpretKeyValueF    runRedis f
+interpretDbF runRedis (L.TX f) = interpretTransactionF runRedis f
 
 
-runKVDB
-  :: HasCallStack
-  => Text
-  -> D.RunMode
-  -> MVar (Map Text NativeKVDBConn)
-  -> L.KVDB a -> IO (Either KVDBReply a)
-runKVDB cName runMode kvdbConnMapMVar =
+runKVDB :: HasCallStack => Text -> MVar (Map Text NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB cName kvdbConnMapMVar =
   fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
-    foldF (interpretDbF runRedis runMode) . runExceptT
+    foldF (interpretDbF runRedis) . runExceptT
   where
     runRedis :: R.Redis (Either R.Reply a) -> IO (Either KVDBReply a)
     runRedis redisDsl = do

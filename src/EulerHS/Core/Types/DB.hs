@@ -138,7 +138,7 @@ instance BeamRunner BM.MySQLM where
     \logger -> BM.runBeamMySQLDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a MySQL connection"
 
-withTransaction :: forall beM a . 
+withTransaction :: forall beM a .
   SqlConn beM -> (NativeSqlConn -> IO a) -> IO (Either SomeException a)
 withTransaction conn f = case conn of
   MockedPool _ -> error "Mocked pool connections are not supported."
@@ -147,7 +147,7 @@ withTransaction conn f = case conn of
   SQLitePool _ pool -> DP.withResource pool (go SQLite.withTransaction NativeSQLiteConn)
   where
     go :: forall b . (b -> IO a -> IO a) -> (b -> NativeSqlConn) -> b -> IO (Either SomeException a)
-    go hof wrap conn' = tryAny (hof conn' (f . wrap $ conn')) 
+    go hof wrap conn' = tryAny (hof conn' (f . wrap $ conn'))
 
 -- | Representation of native DB pools that we store in FlowRuntime
 data NativeSqlPool
@@ -357,8 +357,8 @@ data SQLError
 
 ----------------------------------------------------------------------
 
-data MysqlSqlError = 
-  MysqlSqlError 
+data MysqlSqlError =
+  MysqlSqlError
   { errCode :: {-# UNPACK #-} !Word16,
     errMsg :: {-# UNPACK #-} !Text
   }
@@ -366,11 +366,11 @@ data MysqlSqlError =
   deriving anyclass (ToJSON, FromJSON)
 
 toMysqlSqlError :: MySQL.ERR -> MysqlSqlError
-toMysqlSqlError err = MysqlSqlError { errCode = MySQL.errCode err, 
+toMysqlSqlError err = MysqlSqlError { errCode = MySQL.errCode err,
                                       errMsg = decodeUtf8 . MySQL.errMsg $ err }
 
 mysqlErrorToDbError :: Text -> MySQL.ERRException -> DBError
-mysqlErrorToDbError desc (MySQL.ERRException e) = 
+mysqlErrorToDbError desc (MySQL.ERRException e) =
   DBError (SQLError . MysqlError . toMysqlSqlError $ e) desc
 
 ----------------------------------------------------------------------

@@ -4,7 +4,7 @@ allowed-paths:
 - test
 - euler-hs.cabal
 
-# disable-tests: true
+disable-tests: true
 
 dependencies:
   euler-build:

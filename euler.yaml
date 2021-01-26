@@ -58,6 +58,9 @@ overrides:
     sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
     enable-profiling: true
 
+  # disable tests
+  beam-mysql: {}
+
 build-tools:
 - redis
 

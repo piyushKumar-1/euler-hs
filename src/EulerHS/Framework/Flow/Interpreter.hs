@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror -Wno-redundant-constraints #-}
+
 module EulerHS.Framework.Flow.Interpreter
   (
     -- * Flow Interpreter
@@ -260,7 +262,7 @@ interpretFlowMethod _ (L.GenerateGUID next) = do
   next <$> (UUID.toText <$> UUID.nextRandom)
 
 interpretFlowMethod _ (L.RunSysCmd cmd next) =
-  next <$> (readCreateProcess (shell cmd) "")
+  next <$> readCreateProcess (shell cmd) ""
 
 ----------------------------------------------------------------------
 interpretFlowMethod rt (L.Fork _ _ flow next) = do
@@ -418,10 +420,8 @@ interpretFlowMethod flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
       connPoolExceptionWrapper (Left e) = (Left $ T.DBError T.ConnectionFailed $ show e, [])
       connPoolExceptionWrapper (Right r) = r
 
-
 interpretFlowMethod R.FlowRuntime {..} (L.RunKVDB cName act next) =
     next <$> R.runKVDB cName _kvdbConnections act
-
 
 interpretFlowMethod rt@R.FlowRuntime {_pubSubController, _pubSubConnection} (L.RunPubSub act next) =
     case _pubSubConnection of
@@ -430,6 +430,8 @@ interpretFlowMethod rt@R.FlowRuntime {_pubSubController, _pubSubConnection} (L.R
   where
     go conn = next <$> R.runPubSub _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow rt)
+
+interpretFlowMethod rt (L.WithModifiedRuntime f flow next) = next <$> runFlow (f rt) flow
 
 runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
 runFlow flowRt (L.Flow comp) = foldF (interpretFlowMethod flowRt) comp

@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.0.3.1] - 2021-01-28
+
+* Add `withModifiedRuntime` method to `MonadFlow`, plus implementation for
+  `Flow` interpreter.
+
 ## [2.0.3.0] - 2021-01-20
 
 * Allow passing of a character set to a MySQL connection, along with a type

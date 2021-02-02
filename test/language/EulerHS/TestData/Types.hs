@@ -8,21 +8,21 @@ import           EulerHS.Types
 
 
 data UrlKey = UrlKey
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 
 data TestStringKey = TestStringKey
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 data TestStringKey2 = TestStringKey2
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 
 data TestIntKey = TestIntKey
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 data TestIntKey2 = TestIntKey2
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 
 data TestStringKeyAnotherEnc = TestStringKeyAnotherEnc
@@ -33,10 +33,10 @@ data TestStringKey2AnotherEnc = TestStringKey2AnotherEnc
 
 
 data TestKeyWithStringPayload = TestKeyWithStringPayload String
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 data TestKeyWithIntPayload = TestKeyWithIntPayload Int
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 
 data TestKeyWithStringPayloadAnotherEnc = TestKeyWithStringPayloadAnotherEnc String
@@ -48,10 +48,10 @@ data TestKeyWithIntPayloadAnotherEnc = TestKeyWithIntPayloadAnotherEnc Int
 
 
 newtype NTTestKeyWithStringPayload = NTTestKeyWithStringPayload String
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 newtype NTTestKeyWithIntPayload = NTTestKeyWithIntPayload Int
-  deriving (Generic, Typeable, Show, Eq)
+  deriving (Generic, Typeable, Show, Eq, ToJSON)
 
 
 newtype NTTestKeyWithStringPayloadAnotherEnc = NTTestKeyWithStringPayloadAnotherEnc String

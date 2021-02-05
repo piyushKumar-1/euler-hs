@@ -29,11 +29,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1611256566,
-        "narHash": "sha256-CG76ewnhE3TeDnrp54TXAFe4N8/WXf8J9UtgVz05Vag=",
+        "lastModified": 1612265549,
+        "narHash": "sha256-IAgJWjYYzD4xOah3Ehhagg8FL8jCaabEg7M9dd2kPjg=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "94ad81653384d4dd452fce492bc89ecf62556432",
+        "rev": "be424eba9576620a1d613e07a310a2c4ebdeca8f",
         "type": "github"
       },
       "original": {

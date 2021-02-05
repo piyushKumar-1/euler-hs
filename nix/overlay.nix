@@ -54,11 +54,11 @@ super.eulerBuild.mkEulerHaskellOverlay self super
       };
     };
     servant-client = self.eulerBuild.fastBuildExternal {
-      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+      drv = self.haskell.lib.doJailbreak (super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-client";
         ver = "0.18.2";
         sha256 = "0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3";
-      } { });
+      } { }));
       overrides = {
         enableProfiling = true;
       };
@@ -73,6 +73,16 @@ super.eulerBuild.mkEulerHaskellOverlay self super
         enableProfiling = true;
       };
     };
+    http-client = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "http-client";
+        ver = "0.7.2";
+        sha256 = "1hrig5linj15q90mcs6jzj8iqkcpr29rhv11xm6bhm53l5xkhwx5";
+      } { });
+      overrides = {
+        enableProfiling = true;
+      };
+    };
     beam-mysql = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hsuper.beam-mysql);
     };
@@ -81,7 +91,7 @@ super.eulerBuild.mkEulerHaskellOverlay self super
       drv = super.haskell.lib.addBuildTools (hself.callCabal2nix "euler-hs" euler-hs-src { }) (with self; [ redis ]);
       overrides = {
         # We want to run tests for our packages most of the time
-        runTests = false;
+        runTests = true;
       };
     };
   })

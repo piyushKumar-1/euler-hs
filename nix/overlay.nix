@@ -76,8 +76,8 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     http-client = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "http-client";
-        ver = "0.7.2";
-        sha256 = "1hrig5linj15q90mcs6jzj8iqkcpr29rhv11xm6bhm53l5xkhwx5";
+        ver = "0.7.2.1";
+        sha256 = "05nl4m7062nm4pmyv2hrah3m1dmdf8pf95wmq49mg6x9n9h8nqy2";
       } { });
       overrides = {
         enableProfiling = true;

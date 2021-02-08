@@ -10,9 +10,9 @@ where
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Core.Logger.Entries as E
+
 import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
-import qualified EulerHS.Core.Playback.Machine as P
+
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 import qualified Control.Concurrent.MVar as MVar
@@ -21,16 +21,15 @@ import qualified Data.Text.Encoding as T
 import qualified Data.ByteString.Lazy as LBS
 
 
-interpretLogger :: Maybe T.FlowGUID -> T.RunMode -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
+interpretLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
 
 -- Memory logger
 interpretLogger
   mbFlowGuid
-  runMode
   (R.MemoryLoggerRuntime flowFormatter logLevel logsVar cntVar)
   (L.LogMessage msgLogLvl tag msg next) =
 
-  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLvl tag msg) $
+  fmap next $
     case compare logLevel msgLogLvl of
       GT -> pure ()
       _  -> do
@@ -53,12 +52,12 @@ interpretLogger
   (R.LoggerRuntime flowFormatter logLevel _ cntVar handle)
   (L.LogMessage msgLogLevel tag msg next) =
 
-  fmap next $ P.withRunMode runMode (E.mkLogMessageEntry msgLogLevel tag msg) $
-    case compare logLevel msgLogLevel of
+  fmap next $
+    case compare logLevel msgLogLvl of
       GT -> pure ()
       _  -> do
-        msgNum    <- R.incLogCounter cntVar
+        msgNum <- R.incLogCounter cntVar
         Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum
 
-runLogger :: Maybe T.FlowGUID -> T.RunMode -> R.LoggerRuntime -> L.Logger a -> IO a
-runLogger mbFlowGuid runMode loggerRt = foldF (interpretLogger mbFlowGuid runMode loggerRt)
+runLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.Logger a -> IO a
+runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)

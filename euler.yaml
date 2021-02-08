@@ -4,21 +4,21 @@ allowed-paths:
 - test
 - euler-hs.cabal
 
-# disable-tests: true
+disable-tests: false
 
 dependencies:
   euler-build:
     branch: master
-    revision: fd6f0a53d4fd5d22739251067a9641e38a6c5d4d
+    revision: aa20a46b6ae5d638c23fa009fb1dd9b07727ffa2
   beam:
     branch: master
     revision: d36b29726570b6c5d228bee44d169282fe99ebdb
   beam-mysql:
     branch: master
-    revision: 7a635e8aa39ff85d7d66fb9bcc50d0806550071f
+    revision: 94ad81653384d4dd452fce492bc89ecf62556432
   haskell-sequelize:
     branch: master
-    revision: 291eb641989f894fe127d19ebd257c4ff7a6a958
+    revision: 70fb0e639a7a571ec130ed5b4137745269cf3304
 
 overrides:
   hedis:
@@ -32,26 +32,34 @@ overrides:
     version: 0.18.2
     source: hackage
     sha256: 0l2k895nxvw2ngr9201g3br6s9zab7mk5mhpjibyg8mxfbv75a8y
+    enable-profiling: true
 
   servant-server:
     version: 0.18.2
     source: hackage
     sha256: 1kynxl7qg5z45bhi0k61sxn79xkgnq1z97ccqqs39wjyf45fj5yy
+    enable-profiling: true
 
   servant-mock:
     version: 0.8.7
     source: hackage
     sha256: 1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0
+    enable-profiling: true
 
   servant-client:
     version: 0.18.2
     source: hackage
     sha256: 0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3
+    enable-profiling: true
 
   servant-client-core:
     version: 0.18.2
     source: hackage
     sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
+    enable-profiling: true
+
+  # disable tests
+  beam-mysql: {}
 
 build-tools:
 - redis

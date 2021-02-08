@@ -8,8 +8,9 @@ import           EulerHS.Prelude
 import           EulerHS.Runtime
 import qualified EulerHS.Types as T
 
+redisName = "eulerKVDB"
 
-redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
+redisCfg = T.mkKVDBConfig redisName T.defaultKVDBConnConfig
 
 spec :: Spec
 spec =
@@ -73,3 +74,59 @@ spec =
         void $ runFlow rt $ do
           eConn <- L.getKVDBConnection redisCfg
           when (isLeft eConn) $ error "Failed to get prepared connection."
+
+      it "Redis binary strings 1" $ \rt -> do
+        let key = "a\xfcज" :: ByteString
+        let value = "bbbex\xfc\xffकखगघङचछज" :: ByteString
+        result <- runFlow rt $ do
+          eConn <- L.initKVDBConnection redisCfg
+          case eConn of
+            Left err ->
+              error $ "Failed to get prepared connection: " <> show err
+            Right conn -> do
+              let hour = 60 * 60
+              L.runKVDB redisName $ do
+                L.setex key hour value
+                res <- L.get key
+                L.del [key]
+                pure res
+        result `shouldBe` Right (Just value)
+
+      it "Redis binary strings 2" $ \rt -> do
+        let key = "a\xfcज" :: ByteString
+        let value = "bbbex\xfc\xffकखगघङचछज" :: ByteString
+        result <- runFlow rt $ do
+          eConn <- L.initKVDBConnection redisCfg
+          case eConn of
+            Left err ->
+              error $ "Failed to get prepared connection: " <> show err
+            Right conn -> do
+              L.rSetB redisName key value
+              L.rGetB redisName key
+        result `shouldBe` Just value
+
+      it "Redis unicode" $ \rt -> do
+        let key = "a\xfcज" :: Text
+        let value = "bbbex\xfc\xffकखगघङचछज" :: Text
+        result <- runFlow rt $ do
+          eConn <- L.initKVDBConnection redisCfg
+          case eConn of
+            Left err ->
+              error $ "Failed to get prepared connection: " <> show err
+            Right conn -> do
+              L.rSetT redisName key value
+              L.rGetT redisName key
+        result `shouldBe` Just value
+
+      it "Redis unicode + json" $ \rt -> do
+        let key = "a\xfcज" :: Text
+        let value = "bbbex\xfc\xffकखगघङचछज" :: Text
+        result <- runFlow rt $ do
+          eConn <- L.initKVDBConnection redisCfg
+          case eConn of
+            Left err ->
+              error $ "Failed to get prepared connection: " <> show err
+            Right conn -> do
+              L.rSet redisName key value
+              L.rGet redisName key
+        result `shouldBe` Just value

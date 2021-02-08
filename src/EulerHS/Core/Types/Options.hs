@@ -12,7 +12,7 @@ import qualified Data.ByteString.Lazy as BSL
 import           EulerHS.Prelude
 import           Type.Reflection (typeRep)
 
-class (Typeable k, FromJSON k, ToJSON k, FromJSON v, ToJSON v)
+class (Typeable k, ToJSON k)
   => OptionEntity k v |  k -> v
 
 mkOptionKey :: forall k v. OptionEntity k v => k -> Text

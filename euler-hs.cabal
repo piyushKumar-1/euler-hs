@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.0.2.0
+version:       2.0.3.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -68,17 +68,14 @@ library
   other-modules:
     EulerHS.Core.Api
     EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Entries
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-    EulerHS.Core.Logger.Entries
+
     EulerHS.Core.Logger.Impl.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
-    EulerHS.Core.Playback.Entries
-    EulerHS.Core.Playback.Machine
-    EulerHS.Core.PubSub.Entries
+    EulerHS.Core.Masking
     EulerHS.Core.PubSub.Interpreter
     EulerHS.Core.PubSub.Language
     EulerHS.Core.Runtime
@@ -94,7 +91,6 @@ library
     EulerHS.Core.Types.Logger
     EulerHS.Core.Types.MySQL
     EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Playback
     EulerHS.Core.Types.Postgres
     EulerHS.Core.Types.Serializable
     EulerHS.Extra.Aeson
@@ -176,6 +172,7 @@ test-suite language
     EulerHS.Testing.Types
     FlowSpec
     KVDBArtSpec
+    MaskingSpec
     PubSubSpec
     Scenario1
     SQLArtSpec
@@ -215,6 +212,7 @@ test-suite language
     , string-conversions
     , text
     , typed-process
+    , unordered-containers
     , uuid
     , vector
     , warp

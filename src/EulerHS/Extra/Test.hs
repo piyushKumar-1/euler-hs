@@ -5,20 +5,14 @@ module EulerHS.Extra.Test where
 import           EulerHS.Prelude
 
 import qualified Database.Beam.Postgres as BP
-import           Database.MySQL.Base
+-- import           Database.MySQL.Base
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PG (execute_)
 import           EulerHS.Interpreters
-import           EulerHS.Interpreters
-import           EulerHS.Language
 import           EulerHS.Language
 import           EulerHS.Runtime (FlowRuntime)
-import           EulerHS.Runtime (FlowRuntime)
-import           EulerHS.Types
 import           EulerHS.Types
 import qualified EulerHS.Types as T
-import qualified EulerHS.Types as T
-import           System.Process
 import           System.Process
 
 

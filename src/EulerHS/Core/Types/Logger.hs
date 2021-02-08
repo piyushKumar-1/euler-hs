@@ -16,6 +16,8 @@ module EulerHS.Core.Types.Logger
     , LogEntry (..)
     , Log
     , LogCounter
+    , LogMaskingConfig (..)
+    , MaskKeyType (..)
     -- ** defaults
     , defaultLoggerConfig
     , defaultMessageFormatter
@@ -37,6 +39,24 @@ import qualified Data.ByteString as BS
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
+
+-- TODO: FIXME
+-- this currently only stores session id
+type TransientLoggerContext = Maybe Text
+
+type LogCounter = IORef Int
+
+data LogMaskingConfig =
+  LogMaskingConfig
+    { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
+    , _maskText      :: Maybe Text
+    , _keyType       :: MaskKeyType
+    } deriving (Generic, Show, Read)
+
+data MaskKeyType =
+    WhiteListKey
+  | BlackListKey
+  deriving (Generic, Show, Read)
 
 data MessageBuilder
   = SimpleString String
@@ -92,6 +112,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToFile = False
     , _maxQueueSize = 1000
     , _logRawSql = True
+    , _logMaskingConfig = Nothing
     }
 
 defaultFlowFormatter :: FlowFormatter

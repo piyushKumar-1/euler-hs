@@ -14,4 +14,4 @@ data HttpManagerNotFound = HttpManagerNotFound String
 
 
 data AwaitingError = AwaitingTimeout | ForkedFlowError Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving (Show, Eq, Ord, Generic)

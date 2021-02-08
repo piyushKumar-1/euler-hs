@@ -23,7 +23,6 @@ module EulerHS.Framework.Flow.Language
   , callAPI'
   , callHTTP
   , runIO
-  , runUntracedIO
   , forkFlow
   , forkFlow'
   -- *** PublishSubscribe
@@ -48,7 +47,7 @@ import           Servant.Client (BaseUrl, ClientError)
 -- | Flow language.
 data FlowMethod (next :: Type) where
   CallServantAPI
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => Maybe T.ManagerSelector
     -> BaseUrl
     -> T.EulerClient a
@@ -69,13 +68,6 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   RunIO
-    :: (HasCallStack, T.JSONEx a)
-    => Text
-    -> IO a
-    -> (a -> next)
-    -> FlowMethod next
-
-  RunUntracedIO
     :: HasCallStack
     => Text
     -> IO a
@@ -83,21 +75,21 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   GetOption
-    :: (HasCallStack, ToJSON a, FromJSON a)
-    => T.KVDBKey
+    :: HasCallStack
+    => Text
     -> (Maybe a -> next)
     -> FlowMethod next
 
   SetOption
-    :: (HasCallStack, ToJSON a, FromJSON a)
-    => T.KVDBKey
+    :: HasCallStack
+    => Text
     -> a
     -> (() -> next)
     -> FlowMethod next
 
   DelOption
     :: HasCallStack
-    => T.KVDBKey
+    => Text
     -> (() -> next)
     -> FlowMethod next
 
@@ -113,7 +105,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   Fork
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => T.Description
     -> T.ForkGUID
     -> Flow a
@@ -121,7 +113,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   Await
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> (Either T.AwaitingError a -> next)
@@ -168,7 +160,7 @@ data FlowMethod (next :: Type) where
   -- This is technically redundant - we can implement this using something like
   -- bracket, but better. - Koz
   RunSafeFlow
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => T.SafeFlowGUID
     -> Flow a
     -> (Either Text a -> next)
@@ -211,7 +203,7 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   RunDB
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => T.SqlConn beM
     -> L.SqlDB beM a
     -> Bool
@@ -241,7 +233,6 @@ instance Functor FlowMethod where
     CallHTTP req cert cont -> CallHTTP req cert (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
-    RunUntracedIO t act cont -> RunUntracedIO t act (f . cont)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
@@ -343,7 +334,7 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
-forkFlow' :: (HasCallStack, FromJSON a, ToJSON a) =>
+forkFlow' :: HasCallStack =>
   T.Description -> Flow a -> Flow (T.Awaitable (Either Text a))
 forkFlow' description flow = do
     flowGUID <- generateGUID
@@ -386,12 +377,12 @@ forkFlow' description flow = do
 -- > myFlow = do
 -- >   book <- callAPI url getBook
 -- >   user <- callAPI url getUser
-callAPI' :: (HasCallStack, T.JSONEx a, MonadFlow m) =>
+callAPI' :: (HasCallStack, MonadFlow m) =>
   Maybe T.ManagerSelector -> BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI' = callServantAPI
 
 -- | The same as `callAPI'` but with default manager to be used.
-callAPI :: (HasCallStack, T.JSONEx a, MonadFlow m) =>
+callAPI :: (HasCallStack, MonadFlow m) =>
   BaseUrl -> T.EulerClient a -> m (Either ClientError a)
 callAPI = callServantAPI Nothing
 
@@ -434,21 +425,8 @@ logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
 -- >   content <- runIO $ readFromFile file
 -- >   logDebugT "content id" $ extractContentId content
 -- >   pure content
-runIO :: (HasCallStack, MonadFlow m, T.JSONEx a) => IO a -> m a
+runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
-
--- | The same as runIO, but do not record IO outputs in the ART recordings.
---   For example, this can be useful to implement things like STM or use mutable
---   state.
---
--- Warning. This method is dangerous and should be used wisely.
---
--- > myFlow = do
--- >   content <- runUntracedIO $ readFromFile file
--- >   logDebugT "content id" $ extractContentId content
--- >   pure content
-runUntracedIO :: (HasCallStack, MonadFlow m) => IO a -> m a
-runUntracedIO = runUntracedIO' ""
 
 -- | The same as callHTTPWithCert but does not need certificate data.
 --
@@ -501,7 +479,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   book <- callServantAPI url getBook
   -- >   user <- callServantAPI url getUser
   callServantAPI
-    :: (HasCallStack, T.JSONEx a)
+    :: HasCallStack
     => Maybe T.ManagerSelector     -- ^ name of the connection manager to be used
     -> BaseUrl                     -- ^ remote url 'BaseUrl'
     -> T.EulerClient a             -- ^ servant client 'EulerClient'
@@ -522,7 +500,7 @@ class (MonadMask m) => MonadFlow m where
     -> m (Either Text.Text T.HTTPResponse)  -- ^ result
 
   -- | Evaluates a logging action.
-  evalLogger' :: (HasCallStack, ToJSON a, FromJSON a) => Logger a -> m a
+  evalLogger' :: HasCallStack => Logger a -> m a
 
   -- | The same as runIO, but accepts a description which will be written into the ART recordings
   -- for better clarity.
@@ -533,18 +511,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   content <- runIO' "reading from file" $ readFromFile file
   -- >   logDebugT "content id" $ extractContentId content
   -- >   pure content
-  runIO' :: (HasCallStack, T.JSONEx a) => Text -> IO a -> m a
-
-  -- | The same as runUntracedIO, but accepts a description which will be written into
-  -- the ART recordings for better clarity.
-  --
-  -- Warning. This method is dangerous and should be used wisely.
-  --
-  -- > myFlow = do
-  -- >   content <- runUntracedIO' "reading secret data" $ readFromFile secret_file
-  -- >   logDebugT "content id" $ extractContentId content
-  -- >   pure content
-  runUntracedIO' :: HasCallStack => Text -> IO a -> m a
+  runIO' :: HasCallStack => Text -> IO a -> m a
 
   -- | Gets stored a typed option by a typed key.
   --
@@ -671,7 +638,6 @@ class (MonadMask m) => MonadFlow m where
   runDB
     ::
       ( HasCallStack
-      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -683,7 +649,6 @@ class (MonadMask m) => MonadFlow m where
   runTransaction
     ::
       ( HasCallStack
-      , T.JSONEx a
       , T.BeamRunner beM
       , T.BeamRuntime be beM
       )
@@ -713,7 +678,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
   -- >   await Nothing awaitable
   await
-    :: (HasCallStack, FromJSON a, ToJSON a)
+    :: HasCallStack
     => Maybe T.Microseconds
     -> T.Awaitable (Either Text a)
     -> m (Either T.AwaitingError a)
@@ -756,7 +721,7 @@ class (MonadMask m) => MonadFlow m where
   -- >   case eitherContent of
   -- >     Left err -> ...
   -- >     Right content -> ...
-  runSafeFlow :: (HasCallStack, FromJSON a, ToJSON a) => Flow a -> m (Either Text a)
+  runSafeFlow :: HasCallStack => Flow a -> m (Either Text a)
 
   -- | Execute kvdb actions.
   --
@@ -815,8 +780,6 @@ instance MonadFlow Flow where
   evalLogger' logAct = liftFC $ EvalLogger logAct id
   {-# INLINEABLE runIO' #-}
   runIO' descr ioAct = liftFC $ RunIO descr ioAct id
-  {-# INLINEABLE runUntracedIO' #-}
-  runUntracedIO' descr ioAct = liftFC $ RunUntracedIO descr ioAct id
   {-# INLINEABLE getOption #-}
   getOption :: forall k v. (HasCallStack, T.OptionEntity k v) => k -> Flow (Maybe v)
   getOption k = liftFC $ GetOption (T.mkOptionKey @k @v k) id
@@ -874,8 +837,6 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  {-# INLINEABLE runUntracedIO' #-}
-  runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -926,8 +887,6 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  {-# INLINEABLE runUntracedIO' #-}
-  runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -978,8 +937,6 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  {-# INLINEABLE runUntracedIO' #-}
-  runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -1030,8 +987,6 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  {-# INLINEABLE runUntracedIO' #-}
-  runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
@@ -1082,8 +1037,6 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
   runIO' descr = lift . runIO' descr
-  {-# INLINEABLE runUntracedIO' #-}
-  runUntracedIO' descr = lift . runUntracedIO' descr
   {-# INLINEABLE getOption #-}
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}

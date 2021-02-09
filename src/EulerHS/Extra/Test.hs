@@ -18,7 +18,7 @@ import           System.Process
 
 mwhen :: Monoid m => Bool -> m -> m
 mwhen True  = id
-mwhen False = const mempty
+mwnen False = const mempty
 
 
 withMysqlDb :: String -> String -> MySQLConfig -> IO a -> IO a

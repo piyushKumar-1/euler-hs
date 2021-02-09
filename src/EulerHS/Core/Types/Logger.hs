@@ -27,6 +27,7 @@ module EulerHS.Core.Types.Logger
     ) where
 
 import           EulerHS.Prelude
+import           Data.HashSet(HashSet)
 
 import qualified EulerHS.Core.Types.Common as T
 
@@ -40,23 +41,12 @@ import qualified Data.ByteString as BS
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
 
--- TODO: FIXME
--- this currently only stores session id
-type TransientLoggerContext = Maybe Text
-
-type LogCounter = IORef Int
-
-data LogMaskingConfig =
+data LogMaskingConfig = 
   LogMaskingConfig
     { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
     , _maskText      :: Maybe Text
     , _keyType       :: MaskKeyType
     } deriving (Generic, Show, Read)
-
-data MaskKeyType =
-    WhiteListKey
-  | BlackListKey
-  deriving (Generic, Show, Read)
 
 data MessageBuilder
   = SimpleString String
@@ -65,6 +55,11 @@ data MessageBuilder
   | SimpleLBS LBS.ByteString
   | MsgBuilder LogMsg.Builder
   | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
+
+data MaskKeyType = 
+    WhiteListKey
+  | BlackListKey
+  deriving (Generic, Show, Read)
 
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
 type Message = Text
@@ -83,6 +78,7 @@ data LoggerConfig
     , _logToFile    :: Bool
     , _maxQueueSize :: Word
     , _logRawSql    :: Bool
+    , _logMaskingConfig :: Maybe LogMaskingConfig
     } deriving (Generic, Show, Read)
 
 data PendingMsg = PendingMsg

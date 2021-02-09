@@ -10,9 +10,7 @@ where
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
-
 import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
-
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
 import qualified Control.Concurrent.MVar as MVar
@@ -48,15 +46,14 @@ interpretLogger
 -- Regular logger
 interpretLogger
   mbFlowGuid
-  runMode
-  (R.LoggerRuntime flowFormatter logLevel _ cntVar handle)
+  (R.LoggerRuntime flowFormatter logLevel _ cntVar _ handle)
   (L.LogMessage msgLogLevel tag msg next) =
 
   fmap next $
-    case compare logLevel msgLogLvl of
+    case compare logLevel msgLogLevel of
       GT -> pure ()
       _  -> do
-        msgNum <- R.incLogCounter cntVar
+        msgNum    <- R.incLogCounter cntVar
         Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum
 
 runLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.Logger a -> IO a

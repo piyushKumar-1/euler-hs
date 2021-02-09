@@ -71,7 +71,6 @@ library
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-
     EulerHS.Core.Logger.Impl.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
@@ -192,10 +191,6 @@ test-suite language
     , generic-lens
     , hedis
     , hspec
-    , fmt
-    , binary
-    , tinylog
-    , criterion
     , http-client
     , http-client-tls
     , named
@@ -245,10 +240,6 @@ test-suite db
     , bytestring
     , euler-hs
     , hspec
-    , fmt
-    , binary
-    , tinylog
-    , criterion
     , mysql-haskell
     , postgresql-simple
     , process

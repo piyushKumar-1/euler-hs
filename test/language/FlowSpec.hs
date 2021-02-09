@@ -9,7 +9,7 @@ import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
-import           EulerHS.Runtime (withFlowRuntime, createLoggerRuntime)
+import           EulerHS.Runtime (withFlowRuntime)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
                                          NTTestKeyWithStringPayload (NTTestKeyWithStringPayload),
@@ -57,8 +57,8 @@ import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
 import           Unsafe.Coerce (unsafeCoerce)
 
 spec :: Maybe T.LoggerConfig -> Spec
-spec mbLoggerCfg = do
-  around (withFlowRuntime (mbLoggerCfg >>= Just . createLoggerRuntime (const $ pure T.showingMessageFormatter))) $ do
+spec loggerCfg = do
+  around (withFlowRuntime loggerCfg) $ do
     describe "EulerHS flow language tests" $ do
       describe "TestInterpreters" $ do
         it "testScenario1" $ \rt -> do
@@ -377,3 +377,5 @@ ioActWithException :: IO Text
 ioActWithException = do
   _ <- E.throw (E.AssertionFailed "Exception from IO")
   pure "Text from IO"
+
+

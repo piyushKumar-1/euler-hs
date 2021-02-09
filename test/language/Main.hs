@@ -2,11 +2,11 @@
 
 module Main (main) where
 
+-- import qualified ArtSpec as Art
 -- import           Control.Exception.Safe (bracket)
 import           EulerHS.Prelude hiding (bracket)
--- import qualified EulerHS.Types as T
--- import qualified ArtSpec as Art
--- import qualified FlowSpec as Flow
+import qualified EulerHS.Types as T
+import qualified FlowSpec as Flow
 -- import qualified KVDBArtSpec as KVDB
 -- import qualified PubSubSpec as PubSub
 -- import qualified SQLArtSpec as SQL
@@ -18,8 +18,6 @@ import qualified MaskingSpec as MaskSpec
 -- import           System.Process.Typed (proc, startProcess, stopProcess)
 -- import           System.Random (getStdRandom, random)
 import           Test.Hspec (hspec)
-
-import qualified PSMessageFormatterSpec as Log
 
 main :: IO ()
 main = do
@@ -34,15 +32,12 @@ main = do
 
     -- ART removed and these tests not work anymore
     -- Art.spec
-    -- -- Disable until it work in jenkins. Need to install redis
-    -- -- CachedSqlDBQuery.spec
     -- KVDB.spec
     -- SQL.spec
     -- PubSub.spec
 
-    Log.spec
 
-  Log.benchmarking
+
 
 -- Helpers
 
@@ -56,8 +51,8 @@ main = do
 --               stopProcess
 --               (const act)
 
--- logsDisabled :: Maybe T.LoggerConfig
--- logsDisabled = Nothing
+logsDisabled :: Maybe T.LoggerConfig
+logsDisabled = Nothing
 
 -- withTempRedisDir :: (FilePath -> IO a) -> IO a
 -- withTempRedisDir act = do

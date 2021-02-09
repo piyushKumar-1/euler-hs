@@ -5,7 +5,6 @@ allowed-paths:
 - euler-hs.cabal
 
 disable-tests: false
-
 dependencies:
   euler-build:
     branch: master
@@ -15,7 +14,7 @@ dependencies:
     revision: d36b29726570b6c5d228bee44d169282fe99ebdb
   beam-mysql:
     branch: master
-    revision: 94ad81653384d4dd452fce492bc89ecf62556432
+    revision: be424eba9576620a1d613e07a310a2c4ebdeca8f
   haskell-sequelize:
     branch: master
     revision: 70fb0e639a7a571ec130ed5b4137745269cf3304
@@ -50,6 +49,7 @@ overrides:
     version: 0.18.2
     source: hackage
     sha256: 0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3
+    jailbreak: true
     enable-profiling: true
 
   servant-client-core:
@@ -58,14 +58,20 @@ overrides:
     sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
     enable-profiling: true
 
+  http-client:
+    version: 0.7.2.1
+    source: hackage
+    sha256: 05nl4m7062nm4pmyv2hrah3m1dmdf8pf95wmq49mg6x9n9h8nqy2
+    enable-profiling: true
+
   # disable tests
   beam-mysql: {}
-
 build-tools:
 - redis
 
 nix-shell-tools:
 - redis
+
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883

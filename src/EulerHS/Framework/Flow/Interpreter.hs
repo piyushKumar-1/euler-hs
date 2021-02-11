@@ -210,7 +210,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
-interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
       _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
@@ -235,7 +235,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallHTTP request cer
 interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   next <$> R.runLogger mbFlowGuid (R._loggerRuntime _coreRuntime) loggerAct
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.RunIO descr ioAct next) =
+interpretFlowMethod _ _ (L.RunIO _ ioAct next) =
   next <$> ioAct
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetOption k next) =
@@ -264,7 +264,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.RunSysCmd cmd next) =
   next <$> readCreateProcess (shell cmd) ""
 
 ----------------------------------------------------------------------
-interpretFlowMethod mbFlowGuid rt (L.Fork desc newFlowGUID flow next) = do
+interpretFlowMethod mbFlowGuid rt (L.Fork _desc _newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   void $ forkIO (suppressErrors (runFlow' mbFlowGuid rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
   pure $ next $ T.Awaitable awaitableMVar
@@ -437,7 +437,7 @@ interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_pubSubController, _pubSubConne
     go conn = next <$> R.runPubSub _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow' mbFlowGuid rt)
 
-interpretFlowMethod rt (L.WithModifiedRuntime f flow next) = next <$> runFlow (f rt) flow
+interpretFlowMethod _ rt (L.WithModifiedRuntime f flow next) = next <$> runFlow (f rt) flow
 
 runFlow' :: HasCallStack => Maybe T.FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
 runFlow' mbFlowGuid flowRt (L.Flow comp) = foldF (interpretFlowMethod mbFlowGuid flowRt) comp

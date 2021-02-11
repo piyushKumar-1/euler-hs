@@ -92,7 +92,7 @@ setTransientLoggerContext ctx1 ctx2 rt@FlowRuntime{_coreRuntime} =
   where loggerRuntimeWithCtx = R.setTransientContext ctx1 ctx2 (R._loggerRuntime _coreRuntime)
 
 shouldFlowLogRawSql :: FlowRuntime -> Bool
-shouldFlowLogRawSql _ = False -- R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
+shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
 
 sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case

@@ -20,13 +20,19 @@ module EulerHS.Core.Runtime
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
-import           EulerHS.Core.Types (LogCounter, LogLevel (..),
-                                     LoggerConfig (..), TransientLoggerContext, LogMaskingConfig(..))
+import           EulerHS.Core.Types
+  ( LogCounter
+  , LogLevel(..)
+  , LoggerConfig(..)
+  , TransientLoggerContext
+  , LogMaskingConfig(..)
+  , ShouldLogSQL(SafelyOmitSqlLogs, UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION)
+  )
 import           EulerHS.Core.Types.DB as X (withTransaction)
 
 -- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
 data LoggerRuntime
-  = LoggerRuntime !LogLevel !Bool !LogCounter TransientLoggerContext TransientLoggerContext (Maybe LogMaskingConfig) Impl.LoggerHandle
+  = LoggerRuntime !LogLevel !ShouldLogSQL !LogCounter TransientLoggerContext TransientLoggerContext (Maybe LogMaskingConfig) Impl.LoggerHandle
   | MemoryLoggerRuntime !LogLevel !(MVar [Text])
 
 data CoreRuntime = CoreRuntime
@@ -43,7 +49,7 @@ createLoggerRuntime cfg = do
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
   counter <- initLogCounter
-  LoggerRuntime Debug True counter Nothing Nothing Nothing <$> Impl.createVoidLogger
+  LoggerRuntime Debug SafelyOmitSqlLogs counter Nothing Nothing Nothing <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime _ _ _ _ _ _ handle) = Impl.disposeLogger handle
@@ -68,8 +74,8 @@ clearTransientContext rt = rt
 
 shouldLogRawSql :: LoggerRuntime -> Bool
 shouldLogRawSql = \case
-  (LoggerRuntime _ logRawSql _ _ _ _ _) -> logRawSql
-  _ -> True
+  (LoggerRuntime _ UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _ _ _) -> True
+  _ -> False
 
 getLogMaskingConfig :: LoggerRuntime -> Maybe LogMaskingConfig
 getLogMaskingConfig = \case

@@ -10,6 +10,7 @@ module EulerHS.Core.Types.Logger
     , Message
     , Tag
     , PendingMsg(..)
+    , ShouldLogSQL(..)
     , LogEntry (..)
     , Log
     , TransientLoggerContext
@@ -60,9 +61,17 @@ data LoggerConfig
   , _logToConsole     :: Bool
   , _logToFile        :: Bool
   , _maxQueueSize     :: Word
-  , _logRawSql        :: Bool
+  , _logRawSql        :: ShouldLogSQL
   , _logMaskingConfig :: Maybe LogMaskingConfig
   } deriving (Generic, Show, Read)
+
+data ShouldLogSQL
+  -- Log SQL queries, including sensitive data and API keys. Do NOT PR code
+  -- with this enabled, and make sure this doesn't make it into production
+  = UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION
+  -- omit SQL logs
+  | SafelyOmitSqlLogs
+  deriving (Generic, Show, Read)
 
 type Message = Text
 type Tag = Text
@@ -82,7 +91,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToConsole = True
     , _logToFile = False
     , _maxQueueSize = 1000
-    , _logRawSql = True
+    , _logRawSql = SafelyOmitSqlLogs
     , _logMaskingConfig = Nothing
     }
 

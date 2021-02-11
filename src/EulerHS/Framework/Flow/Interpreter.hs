@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror -Wno-redundant-constraints #-}
+
 module EulerHS.Framework.Flow.Interpreter
   ( -- * Flow Interpreter
     runFlow
@@ -259,7 +261,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GenerateGUID next) = do
   next <$> (UUID.toText <$> UUID.nextRandom)
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.RunSysCmd cmd next) =
-  next <$> (readCreateProcess (shell cmd) "")
+  next <$> readCreateProcess (shell cmd) ""
 
 ----------------------------------------------------------------------
 interpretFlowMethod mbFlowGuid rt (L.Fork desc newFlowGUID flow next) = do
@@ -427,7 +429,6 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
 interpretFlowMethod _ R.FlowRuntime {..} (L.RunKVDB cName act next) =
     next <$> R.runKVDB cName _kvdbConnections act
 
-
 interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_pubSubController, _pubSubConnection} (L.RunPubSub act next) =
     case _pubSubConnection of
       Nothing -> go $ error "Connection to pubSub is not set in FlowRuntime"
@@ -435,6 +436,8 @@ interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_pubSubController, _pubSubConne
   where
     go conn = next <$> R.runPubSub _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow' mbFlowGuid rt)
+
+interpretFlowMethod rt (L.WithModifiedRuntime f flow next) = next <$> runFlow (f rt) flow
 
 runFlow' :: HasCallStack => Maybe T.FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
 runFlow' mbFlowGuid flowRt (L.Flow comp) = foldF (interpretFlowMethod mbFlowGuid flowRt) comp

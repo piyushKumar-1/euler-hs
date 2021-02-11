@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -41,6 +42,7 @@ import           EulerHS.Core.Language (KVDB, Logger, logMessage')
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.PubSub.Language as PSL
 import qualified EulerHS.Core.Types as T
+import           EulerHS.Framework.Runtime (FlowRuntime)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import           Servant.Client (BaseUrl, ClientError)
 
@@ -223,6 +225,13 @@ data FlowMethod (next :: Type) where
     -> (a -> next)
     -> FlowMethod next
 
+  WithModifiedRuntime
+    :: HasCallStack
+    => (FlowRuntime -> FlowRuntime)
+    -> Flow a
+    -> (a -> next)
+    -> FlowMethod next
+
 -- Needed due to lack of impredicative instantiation (for stuff like Mask). -
 -- Koz
 instance Functor FlowMethod where
@@ -256,6 +265,8 @@ instance Functor FlowMethod where
     RunDB conn db b cont -> RunDB conn db b (f . cont)
     RunKVDB t db cont -> RunKVDB t db (f . cont)
     RunPubSub pubSub cont -> RunPubSub pubSub (f . cont)
+    WithModifiedRuntime g innerFlow cont ->
+      WithModifiedRuntime g innerFlow (f . cont)
 
 newtype Flow (a :: Type) = Flow (F FlowMethod a)
   deriving newtype (Functor, Applicative, Monad, MonadFree FlowMethod)
@@ -771,6 +782,16 @@ class (MonadMask m) => MonadFlow m where
     -> PMessageCallback     -- ^ Callback function
     -> m (Flow ())       -- ^ Inner flow is a canceller of current subscription
 
+  -- | Run a flow with a modified runtime. The runtime will be restored after
+  -- the computation finishes.
+  --
+  -- @since 2.0.3.1
+  withModifiedRuntime
+    :: (HasCallStack, MonadFlow m)
+    => (FlowRuntime -> FlowRuntime) -- ^ Temporary modification function for runtime
+    -> Flow a -- ^ Computation to run with modified runtime
+    -> m a
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
@@ -827,6 +848,8 @@ instance MonadFlow Flow where
   {-# INLINEABLE psubscribe #-}
   psubscribe channels cb = fmap (runIO' "psubscribe") $
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -877,6 +900,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   subscribe channels = lift . subscribe channels
   {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -927,6 +952,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   subscribe channels = lift . subscribe channels
   {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -977,6 +1004,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   subscribe channels = lift . subscribe channels
   {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1027,6 +1056,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   subscribe channels = lift . subscribe channels
   {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1077,6 +1108,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   subscribe channels = lift . subscribe channels
   {-# INLINEABLE psubscribe #-}
   psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
 
 -- TODO: save a builder in some state for using `hPutBuilder`?
 --

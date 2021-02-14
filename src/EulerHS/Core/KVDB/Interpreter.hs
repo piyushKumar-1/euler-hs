@@ -1,25 +1,19 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE TypeFamilies        #-}
 module EulerHS.Core.KVDB.Interpreter
   (
     -- * KVDB Interpreter
     runKVDB
   ) where
 
-import           EulerHS.Prelude
-
 import qualified Data.Map as Map
-import qualified Database.Redis as R
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TE
+import qualified Database.Redis as R
 import qualified EulerHS.Core.KVDB.Language as L
-import           EulerHS.Core.Types.KVDB
 import qualified EulerHS.Core.Types as D
-
-
+import           EulerHS.Core.Types.KVDB
+import           EulerHS.Prelude
 
 interpretKeyValueF
   :: HasCallStack
@@ -27,21 +21,19 @@ interpretKeyValueF
   -> L.KeyValueF (Either KVDBReply) a
   -> IO a
 interpretKeyValueF runRedis (L.Set k v next) =
-  fmap next $
-    fmap (second fromRdStatus) $ runRedis $ R.set k v
+  next . second fromRdStatus <$> runRedis (R.set k v)
 
 interpretKeyValueF runRedis (L.SetEx k e v next) =
-  fmap next $
-    fmap (second fromRdStatus) $ runRedis $ R.setex k e v
+  next . second fromRdStatus <$> runRedis (R.setex k e v)
 
 interpretKeyValueF runRedis (L.SetOpts k v ttl cond next) =
   fmap next $ do
     result <- runRedis $ R.setOpts k v (makeSetOpts ttl cond)
     pure $ case result of
-      Right _ -> Right True
+      Right _             -> Right True
       -- (nil) is ok, app should not fail
       Left (Bulk Nothing) -> Right False
-      Left reply -> Left reply
+      Left reply          -> Left reply
 
 interpretKeyValueF runRedis (L.Get k next) =
   fmap next $
@@ -52,8 +44,7 @@ interpretKeyValueF runRedis (L.Exists k next) =
     runRedis $ R.exists k
 
 interpretKeyValueF _ (L.Del [] next) =
-  fmap next $
-    pure $ pure 0
+  pure . next . pure $ 0
 
 interpretKeyValueF runRedis (L.Del ks next) =
   fmap next $
@@ -93,49 +84,47 @@ interpretKeyValueF runRedis (L.XLen stream next) =
   fmap next $
     runRedis $ R.xlen stream
 
+interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest args)
 
 interpretKeyValueTxF :: HasCallStack => L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
-  fmap next $ fmap (fmap D.fromRdStatus) $ R.set k v
+  next . fmap D.fromRdStatus <$> R.set k v
 
 interpretKeyValueTxF (L.SetEx k e v next) =
-  fmap next $ fmap (fmap D.fromRdStatus) $ R.setex k e v
+  next . fmap D.fromRdStatus <$> R.setex k e v
 
 interpretKeyValueTxF (L.SetOpts k v ttl cond next) =
-  fmap next $ fmap (fmap rdStatusToBool) $ R.setOpts k v (makeSetOpts ttl cond)
-    where
-      rdStatusToBool R.Ok = True
-      rdStatusToBool _ = False
+  next . fmap (R.Ok ==) <$> (R.setOpts k v . makeSetOpts ttl $ cond)
 
 interpretKeyValueTxF (L.Get k next) =
-  fmap next $ R.get k
+  next <$> R.get k
 
 interpretKeyValueTxF (L.Exists k next) =
-  fmap next $ R.exists k
+  next <$> R.exists k
 
 interpretKeyValueTxF (L.Del [] next) =
-  fmap next $ return $ pure 0
+  pure . next . pure $ 0
 
 interpretKeyValueTxF (L.Del ks next) =
-  fmap next $ R.del ks
+  next <$> R.del ks
 
 interpretKeyValueTxF (L.Expire k sec next) =
-  fmap next $ R.expire k sec
+  next <$> R.expire k sec
 
 interpretKeyValueTxF (L.Incr k next) =
-  fmap next $ R.incr k
+  next <$> R.incr k
 
 interpretKeyValueTxF (L.HSet k field value next) =
-  fmap next $ R.hset k field value
+  next <$> R.hset k field value
 
 interpretKeyValueTxF (L.HGet k field next) =
-  fmap next $ R.hget k field
+  next <$> R.hget k field
 
 interpretKeyValueTxF (L.XLen stream next) =
-  fmap next $ R.xlen stream
+  next <$> R.xlen stream
 
 interpretKeyValueTxF (L.XAdd stream entryId items next) =
-  fmap next $ fmap (fmap parseStreamEntryId) $ R.xadd stream (makeStreamEntryId entryId) items
+  next . fmap parseStreamEntryId <$> R.xadd stream (makeStreamEntryId entryId) items
   where
     makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
     makeStreamEntryId L.AutoID = "*"
@@ -146,6 +135,7 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
       let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
       in L.KVDBStreamEntryID ms sq
 
+interpretKeyValueTxF (L.Raw args next) = next <$> R.sendRequest args
 
 
 interpretTransactionF
@@ -182,7 +172,7 @@ runKVDB cName kvdbConnMapMVar =
         Nothing   -> pure $ Left $ KVDBError KVDBConnectionDoesNotExist "Can't find redis connection"
         Just conn ->
           case conn of
-            NativeKVDB c         -> fmap (first hedisReplyToKVDBReply) $ R.runRedis c redisDsl
+            NativeKVDB c         -> first hedisReplyToKVDBReply <$> R.runRedis c redisDsl
             NativeKVDBMockedConn -> pure $ Right $
               error "Result of runRedis with mocked connection should not ever be evaluated"
 
@@ -193,14 +183,14 @@ makeSetOpts ttl cond =
     { setSeconds =
         case ttl of
           L.Seconds s -> Just s
-          _ -> Nothing
+          _           -> Nothing
     , setMilliseconds =
         case ttl of
           L.Milliseconds ms -> Just ms
-          _ -> Nothing
+          _                 -> Nothing
     , setCondition =
         case cond of
-          L.SetAlways -> Nothing
-          L.SetIfExist -> Just R.Xx
+          L.SetAlways     -> Nothing
+          L.SetIfExist    -> Just R.Xx
           L.SetIfNotExist -> Just R.Nx
     }

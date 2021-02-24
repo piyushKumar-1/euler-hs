@@ -71,7 +71,7 @@ library
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-    EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
+    EulerHS.Core.Logger.Impl.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
     EulerHS.Core.Masking

@@ -9,7 +9,7 @@ import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
-import           EulerHS.Runtime (withFlowRuntime)
+import           EulerHS.Runtime (withFlowRuntime, createLoggerRuntime)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
                                          NTTestKeyWithStringPayload (NTTestKeyWithStringPayload),
@@ -47,7 +47,7 @@ import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithI
                                          mbTestStringKeyAnotherEnc)
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
 import           EulerHS.Testing.Types (FlowMockedValues' (..))
-import           EulerHS.Types (HttpManagerNotFound (..))
+import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter)
 import qualified EulerHS.Types as T
 import           Scenario1 (testScenario1)
 import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
@@ -58,7 +58,7 @@ import           Unsafe.Coerce (unsafeCoerce)
 
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do
-  around (withFlowRuntime loggerCfg) $ do
+  around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter) loggerCfg)) $ do
     describe "EulerHS flow language tests" $ do
       describe "TestInterpreters" $ do
         it "testScenario1" $ \rt -> do

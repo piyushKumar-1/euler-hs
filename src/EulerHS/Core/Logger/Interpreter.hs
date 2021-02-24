@@ -10,31 +10,51 @@ where
 import           EulerHS.Prelude
 
 import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger as Impl
+import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
 import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as D
+import qualified EulerHS.Core.Types as T
 import qualified Control.Concurrent.MVar as MVar
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.ByteString.Lazy as LBS
 
 
-interpretLogger :: R.LoggerRuntime -> L.LoggerMethod a -> IO a
-interpretLogger (R.MemoryLoggerRuntime cfgLogLvl mvar) (L.LogMessage msgLogLvl tag msg next) =
+interpretLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
+
+-- Memory logger
+interpretLogger
+  mbFlowGuid
+  (R.MemoryLoggerRuntime flowFormatter logLevel logsVar cntVar)
+  (L.LogMessage msgLogLvl tag msg next) =
+
   fmap next $
-    case compare cfgLogLvl msgLogLvl of
-      GT -> pure ()
-      -- _  -> do
-        -- !lgs <- takeMVar mvar
-        -- putMVar mvar (m : lgs)
-      _  -> MVar.modifyMVar mvar $ \(!lgs) -> do
-        let m = "" +|| msgLogLvl ||+ " " +| tag |+ " " +| msg |+ ""
-        pure (m : lgs, ())
-
-interpretLogger (R.LoggerRuntime cfgLogLvl _ cnt ctx1 ctx2 _ handle) (L.LogMessage msgLogLvl tag msg next) =
-  fmap next $
-    case compare cfgLogLvl msgLogLvl of
+    case compare logLevel msgLogLvl of
       GT -> pure ()
       _  -> do
-        msgNum <- R.incLogCounter cnt
-        Impl.sendPendingMsg handle $ D.PendingMsg msgLogLvl tag msg msgNum ctx1 ctx2
+        formatter <- flowFormatter mbFlowGuid
+        !msgNum   <- R.incLogCounter cntVar
+        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
+        let !m = case msgBuilder of
+              T.SimpleString str -> T.pack str
+              T.SimpleText txt -> txt
+              T.SimpleBS bs -> T.decodeUtf8 bs
+              T.SimpleLBS lbs -> T.decodeUtf8 $ LBS.toStrict lbs
+              T.MsgBuilder bld -> T.decodeUtf8 $ LBS.toStrict $ T.builderToByteString bld
+              T.MsgTransformer _ -> error "Msg -> Msg not supported for memory logger."
+        MVar.modifyMVar logsVar $ \(!lgs) -> pure (m : lgs, ())
 
-runLogger :: R.LoggerRuntime -> L.Logger a -> IO a
-runLogger loggerRt = foldF (interpretLogger loggerRt)
+-- Regular logger
+interpretLogger
+  mbFlowGuid
+  (R.LoggerRuntime flowFormatter logLevel _ cntVar _ handle)
+  (L.LogMessage msgLogLevel tag msg next) =
+
+  fmap next $
+    case compare logLevel msgLogLevel of
+      GT -> pure ()
+      _  -> do
+        msgNum    <- R.incLogCounter cntVar
+        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum
+
+runLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.Logger a -> IO a
+runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)

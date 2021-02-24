@@ -7,7 +7,6 @@ module EulerHS.Framework.Runtime
   , withFlowRuntime
   , kvDisconnect
   , runPubSubWorker
-  , setTransientLoggerContext
   , shouldFlowLogRawSql
   ) where
 
@@ -68,9 +67,9 @@ createFlowRuntime coreRt = do
     , _pubSubConnection         = Nothing
     }
 
-createFlowRuntime' :: Maybe T.LoggerConfig -> IO FlowRuntime
-createFlowRuntime'  mbLoggerCfg =
-  createLoggerRuntime' mbLoggerCfg >>= R.createCoreRuntime >>= createFlowRuntime
+createFlowRuntime' :: Maybe (IO R.LoggerRuntime) -> IO FlowRuntime
+createFlowRuntime' Nothing = R.createVoidLoggerRuntime >>= R.createCoreRuntime >>= createFlowRuntime
+createFlowRuntime' (Just loggerRtCreator) = loggerRtCreator >>= R.createCoreRuntime >>= createFlowRuntime
 
 -- | Clear resources in given 'FlowRuntime'
 clearFlowRuntime :: FlowRuntime  -> IO ()
@@ -85,11 +84,6 @@ clearFlowRuntime FlowRuntime{..} = do
   traverse_ sqlDisconnect sqlConns
   -- The Manager will be shut down automatically via garbage collection.
   SYSM.performGC
-
-setTransientLoggerContext :: R.TransientLoggerContext -> R.TransientLoggerContext -> FlowRuntime -> FlowRuntime
-setTransientLoggerContext ctx1 ctx2 rt@FlowRuntime{_coreRuntime} =
-  rt { _coreRuntime = _coreRuntime { R._loggerRuntime = loggerRuntimeWithCtx } }
-  where loggerRuntimeWithCtx = R.setTransientContext ctx1 ctx2 (R._loggerRuntime _coreRuntime)
 
 shouldFlowLogRawSql :: FlowRuntime -> Bool
 shouldFlowLogRawSql _ = False -- R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
@@ -106,18 +100,16 @@ kvDisconnect = \case
   T.NativeKVDBMockedConn -> pure ()
   T.NativeKVDB conn -> RD.disconnect conn
 
--- | Run flow with given logger config.
-withFlowRuntime ::  Maybe T.LoggerConfig -> (FlowRuntime -> IO a) -> IO a
-withFlowRuntime mbLoggerCfg actionF =
-  bracket (createLoggerRuntime' mbLoggerCfg) R.clearLoggerRuntime $ \loggerRt ->
+-- | Run flow with given logger runtime creation function.
+withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a
+withFlowRuntime Nothing actionF =
+  bracket R.createVoidLoggerRuntime R.clearLoggerRuntime $ \loggerRt ->
   bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt ->
   bracket (createFlowRuntime coreRt) clearFlowRuntime actionF
-
--- | Create logger runtime with given configuration.
-createLoggerRuntime' :: Maybe T.LoggerConfig -> IO R.LoggerRuntime
-createLoggerRuntime' mbLoggerCfg = case mbLoggerCfg of
-  Nothing        -> R.createVoidLoggerRuntime
-  Just loggerCfg -> R.createLoggerRuntime loggerCfg
+withFlowRuntime (Just loggerRuntimeCreator) actionF =
+  bracket loggerRuntimeCreator R.clearLoggerRuntime $ \loggerRt ->
+  bracket (R.createCoreRuntime loggerRt) R.clearCoreRuntime $ \coreRt ->
+  bracket (createFlowRuntime coreRt) clearFlowRuntime actionF
 
 -- Use {-# NOINLINE foo #-} as a pragma on any function foo that calls unsafePerformIO.
 -- If the call is inlined, the I/O may be performed more than once.

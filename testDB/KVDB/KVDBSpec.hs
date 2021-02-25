@@ -130,3 +130,15 @@ spec =
               L.rSet redisName key value
               L.rGet redisName key
         result `shouldBe` Just value
+      it "Redis set functions" $ \rt -> do
+        let key = "abc" :: ByteString
+        let value = ["hello", "world"] :: [ByteString]
+        result <- runFlow rt $ do
+          eConn <- L.initKVDBConnection redisCfg
+          case eConn of
+            Left err ->
+              error $ "Failed to get prepared connection: " <> show err
+            Right conn -> do
+              void $ L.rSadd redisName key value
+              L.rSismember redisName key (head value)
+        result `shouldBe` (Right True)

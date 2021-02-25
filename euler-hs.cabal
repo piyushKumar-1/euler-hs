@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.0.3.1
+version:       2.0.4.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -71,7 +71,7 @@ library
     EulerHS.Core.KVDB.Interpreter
     EulerHS.Core.KVDB.Language
     EulerHS.Core.Language
-    EulerHS.Core.Logger.ImplMimicPSBad.TinyLogger
+    EulerHS.Core.Logger.Impl.TinyLogger
     EulerHS.Core.Logger.Interpreter
     EulerHS.Core.Logger.Language
     EulerHS.Core.Masking
@@ -122,7 +122,7 @@ library
     , free
     , generic-lens
     , hedis                   ^>=0.12.8.1
-    , http-client             ^>=0.7.2.1
+    , http-client
     , http-client-tls
     , http-media
     , http-types

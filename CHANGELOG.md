@@ -1,5 +1,13 @@
 # Changelog for euler-hs
 
+## [2.0.4] - 2021-02-25
+
+* Add `ShouldLogSQL(SafelyOmitSqlLogs, UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION)` to `LoggerConfig`
+
+## [2.0.3.2] - 2021-02-12
+
+* Add `rawRequest` to KVDB API, plus implementation for KVDB interpreter.
+
 ## [2.0.3.1] - 2021-01-28
 
 * Add `withModifiedRuntime` method to `MonadFlow`, plus implementation for

@@ -1,7 +1,6 @@
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE DerivingStrategies    #-}
-{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module EulerHS.Core.KVDB.Language
   (
@@ -29,6 +28,11 @@ module EulerHS.Core.KVDB.Language
   , hsetTx, hgetTx
   , xaddTx, xlenTx
   , expireTx
+  -- *** Set
+  , sadd
+  , sismember
+  -- *** Raw
+  , rawRequest
   ) where
 
 import qualified Database.Redis as R
@@ -81,6 +85,9 @@ data KeyValueF f next where
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
+  SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
+  Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
   fmap f (Set k value next)              = Set k value (f . next)
@@ -95,6 +102,9 @@ instance Functor (KeyValueF f) where
   fmap f (HGet k field next)             = HGet k field (f . next)
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
+  fmap f (SAdd k v next)                 = SAdd k v (f . next)
+  fmap f (SMem k v next)                 = SMem k v (f . next)
+  fmap f (Raw args next)                 = Raw args (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
 
@@ -112,7 +122,7 @@ data TransactionF next where
     -> TransactionF next
 
 instance Functor TransactionF where
-  fmap f (MultiExec dsl next) = MultiExec dsl (f . next)
+  fmap f (MultiExec dsl next)           = MultiExec dsl (f . next)
   fmap f (MultiExecWithHash h dsl next) = MultiExecWithHash h dsl (f . next)
 
 ----------------------------------------------------------------------
@@ -205,6 +215,13 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 
+-- | Add one or more members to a set
+sadd :: KVDBKey -> [KVDBValue] -> KVDB Integer
+sadd setKey setmem = ExceptT $ liftFC $ KV $ SAdd setKey setmem id
+
+sismember :: KVDBKey -> KVDBKey -> KVDB Bool
+sismember key member = ExceptT $ liftFC $ KV $ SMem key member id
+
 -- | Run commands inside a transaction(suited only for standalone redis setup).
 multiExec :: KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
@@ -212,3 +229,13 @@ multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
 -- | Run commands inside a transaction(suited only for cluster redis setup).
 multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
 multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
+
+-- | Perform a raw call against the underlying Redis data store. This is
+-- definitely unsafe, and should only be used if you know what you're doing.
+--
+-- /See also:/ The
+-- [Hedis function](http://hackage.haskell.org/package/hedis-0.12.8/docs/Database-Redis.html#v:sendRequest) this is based on.
+--
+-- @since 2.0.3.2
+rawRequest :: (R.RedisResult a) => [ByteString] -> KVDB a
+rawRequest args = ExceptT . liftFC . KV . Raw args $ id

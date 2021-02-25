@@ -54,11 +54,11 @@ super.eulerBuild.mkEulerHaskellOverlay self super
       };
     };
     servant-client = self.eulerBuild.fastBuildExternal {
-      drv = self.haskell.lib.doJailbreak (super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-client";
         ver = "0.18.2";
         sha256 = "0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3";
-      } { }));
+      } { });
       overrides = {
         enableProfiling = true;
       };
@@ -68,16 +68,6 @@ super.eulerBuild.mkEulerHaskellOverlay self super
         pkg = "servant-client-core";
         ver = "0.18.2";
         sha256 = "1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx";
-      } { });
-      overrides = {
-        enableProfiling = true;
-      };
-    };
-    http-client = self.eulerBuild.fastBuildExternal {
-      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
-        pkg = "http-client";
-        ver = "0.7.2.1";
-        sha256 = "05nl4m7062nm4pmyv2hrah3m1dmdf8pf95wmq49mg6x9n9h8nqy2";
       } { });
       overrides = {
         enableProfiling = true;

@@ -84,6 +84,12 @@ interpretKeyValueF runRedis (L.XLen stream next) =
   fmap next $
     runRedis $ R.xlen stream
 
+interpretKeyValueF runRedis (L.SAdd k v next) =
+  fmap next $ runRedis $ R.sadd k v
+
+interpretKeyValueF runRedis (L.SMem k v next) =
+  fmap next $ runRedis $ R.sismember k v
+
 interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest args)
 
 interpretKeyValueTxF :: HasCallStack => L.KeyValueF R.Queued a -> R.RedisTx a
@@ -134,6 +140,12 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
       -- TODO:
       let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
       in L.KVDBStreamEntryID ms sq
+
+interpretKeyValueTxF (L.SAdd k v next) =
+  next <$> R.sadd k v
+
+interpretKeyValueTxF (L.SMem k v next) =
+  next <$> R.sismember k v
 
 interpretKeyValueTxF (L.Raw args next) = next <$> R.sendRequest args
 

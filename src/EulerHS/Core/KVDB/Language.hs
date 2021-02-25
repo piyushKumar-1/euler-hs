@@ -28,6 +28,9 @@ module EulerHS.Core.KVDB.Language
   , hsetTx, hgetTx
   , xaddTx, xlenTx
   , expireTx
+  -- *** Set
+  , sadd
+  , sismember
   -- *** Raw
   , rawRequest
   ) where
@@ -82,6 +85,8 @@ data KeyValueF f next where
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
+  SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
@@ -97,6 +102,8 @@ instance Functor (KeyValueF f) where
   fmap f (HGet k field next)             = HGet k field (f . next)
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
+  fmap f (SAdd k v next)                 = SAdd k v (f . next)
+  fmap f (SMem k v next)                 = SMem k v (f . next)
   fmap f (Raw args next)                 = Raw args (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
@@ -207,6 +214,13 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 
 xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
+
+-- | Add one or more members to a set
+sadd :: KVDBKey -> [KVDBValue] -> KVDB Integer
+sadd setKey setmem = ExceptT $ liftFC $ KV $ SAdd setKey setmem id
+
+sismember :: KVDBKey -> KVDBKey -> KVDB Bool
+sismember key member = ExceptT $ liftFC $ KV $ SMem key member id
 
 -- | Run commands inside a transaction(suited only for standalone redis setup).
 multiExec :: KVDBTx (R.Queued a) -> KVDB (T.TxResult a)

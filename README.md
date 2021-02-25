@@ -1,4 +1,4 @@
-# EulerHS Project 
+# EulerHS Project
 
 ### EulerHS Framework
 
@@ -477,3 +477,10 @@ prepareDBConnections = do
   setOption DB2Cfg sqlDBcfg2
   throwOnFailedWithLog ePool SqlDBConnectionFailedException "Failed to connect to SQL DB2."
 ```
+
+# Enabling SQL Logging
+
+To enable SQL query logging you can use `UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION`
+in your application `LoggerConfig`. However, this will logs data passed into the query,
+like API keys and other sensitive data. As such, this should be used for local debugging
+only!

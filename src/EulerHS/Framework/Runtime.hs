@@ -86,7 +86,7 @@ clearFlowRuntime FlowRuntime{..} = do
   SYSM.performGC
 
 shouldFlowLogRawSql :: FlowRuntime -> Bool
-shouldFlowLogRawSql _ = False -- R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
+shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
 
 sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case

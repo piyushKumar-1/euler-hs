@@ -13,6 +13,7 @@ module EulerHS.Core.Types.Logger
     , Message
     , Tag
     , PendingMsg(..)
+    , ShouldLogSQL(..)
     , LogEntry (..)
     , Log
     , LogCounter
@@ -41,7 +42,7 @@ import qualified Data.ByteString as BS
 data LogLevel = Debug | Info | Warning | Error
     deriving (Generic, Eq, Ord, Show, Read, Enum, ToJSON, FromJSON)
 
-data LogMaskingConfig = 
+data LogMaskingConfig =
   LogMaskingConfig
     { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
     , _maskText      :: Maybe Text
@@ -56,9 +57,17 @@ data MessageBuilder
   | MsgBuilder LogMsg.Builder
   | MsgTransformer (LogMsg.Msg -> LogMsg.Msg)
 
-data MaskKeyType = 
+data MaskKeyType =
     WhiteListKey
   | BlackListKey
+  deriving (Generic, Show, Read)
+
+data ShouldLogSQL
+  -- | Log SQL queries, including sensitive data and API keys. Do NOT PR code
+  -- with this enabled, and make sure this doesn't make it into production
+  = UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION
+  -- | omit SQL logs
+  | SafelyOmitSqlLogs
   deriving (Generic, Show, Read)
 
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
@@ -77,7 +86,7 @@ data LoggerConfig
     , _logToConsole :: Bool
     , _logToFile    :: Bool
     , _maxQueueSize :: Word
-    , _logRawSql    :: Bool
+    , _logRawSql    :: ShouldLogSQL
     , _logMaskingConfig :: Maybe LogMaskingConfig
     } deriving (Generic, Show, Read)
 
@@ -107,7 +116,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToConsole = True
     , _logToFile = False
     , _maxQueueSize = 1000
-    , _logRawSql = True
+    , _logRawSql = SafelyOmitSqlLogs
     , _logMaskingConfig = Nothing
     }
 

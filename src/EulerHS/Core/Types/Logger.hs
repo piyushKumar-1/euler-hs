@@ -63,10 +63,10 @@ data MaskKeyType =
   deriving (Generic, Show, Read)
 
 data ShouldLogSQL
-  -- Log SQL queries, including sensitive data and API keys. Do NOT PR code
+  -- | Log SQL queries, including sensitive data and API keys. Do NOT PR code
   -- with this enabled, and make sure this doesn't make it into production
   = UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION
-  -- omit SQL logs
+  -- | omit SQL logs
   | SafelyOmitSqlLogs
   deriving (Generic, Show, Read)
 

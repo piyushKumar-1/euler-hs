@@ -26,6 +26,8 @@ module EulerHS.Extra.Language
   , rSetOpts
   , rSetOptsB
   , keyToSlot
+  , rSadd
+  , rSismember
   ) where
 
 import           EulerHS.Prelude hiding (get, id)
@@ -313,4 +315,26 @@ rSetOptsB cName k v ttl cond = do
     Right _ -> pure res
     Left err -> do
       L.logError @Text "Redis setOpts" $ show err
+      pure res
+
+-- ------------------------------------------------------------------------------
+
+rSadd :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> L.KVDBKey -> [L.KVDBValue] -> m (Either T.KVDBReply Integer)
+rSadd cName k v = do
+  res <- L.runKVDB cName $ L.sadd k v
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis sadd" $ show err
+      pure res
+
+rSismember :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> L.KVDBKey -> L.KVDBValue -> m (Either T.KVDBReply Bool)
+rSismember cName k v = do
+  res <- L.runKVDB cName $ L.sismember k v
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis sismember" $ show err
       pure res

@@ -16,6 +16,7 @@ module EulerHS.Core.Types.Logger
     , ShouldLogSQL(..)
     , LogEntry (..)
     , Log
+    , LogContext
     , LogCounter
     , LogMaskingConfig (..)
     , MaskKeyType (..)
@@ -77,6 +78,7 @@ type MessageNumber = Int
 type BufferSize = Int
 type MessageFormatter = PendingMsg -> MessageBuilder
 type FlowFormatter = Maybe T.FlowGUID -> IO MessageFormatter
+type LogContext = HashMap Text Text
 
 data LoggerConfig
   = LoggerConfig
@@ -96,13 +98,14 @@ data PendingMsg = PendingMsg
   !Tag
   !Message
   !MessageNumber
+  !LogContext
   deriving (Show)
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
 
 defaultMessageFormatter :: MessageFormatter
-defaultMessageFormatter (PendingMsg _ lvl tag msg _) =
+defaultMessageFormatter (PendingMsg _ lvl tag msg _ _) =
   SimpleString $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
 
 showingMessageFormatter :: MessageFormatter

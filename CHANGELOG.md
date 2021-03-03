@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.0.4.1] - 2021-03-03
+
+* Remove waste entries.
+* Add `rSetOpts` and `rSetOptsB`
+
 ## [2.0.4] - 2021-02-25
 
 * Add `ShouldLogSQL(SafelyOmitSqlLogs, UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION)` to `LoggerConfig`

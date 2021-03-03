@@ -238,7 +238,7 @@ maskHTTPRequest mbMaskConfig request =
     maskedRequestBody =
       T.LBinaryString
         . encodeUtf8
-        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
         . LB.toStrict
         . T.getLBinaryString <$> requestBody
 
@@ -258,6 +258,6 @@ maskHTTPResponse mbMaskConfig response =
     maskedResponseBody =
       T.LBinaryString
         . encodeUtf8
-        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
         . LB.toStrict
         $ T.getLBinaryString responseBody

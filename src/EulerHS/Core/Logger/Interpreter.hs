@@ -24,7 +24,7 @@ interpretLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.LoggerMethod a -> IO
 -- Memory logger
 interpretLogger
   mbFlowGuid
-  (R.MemoryLoggerRuntime flowFormatter logLevel logsVar cntVar)
+  (R.MemoryLoggerRuntime flowFormatter logContext logLevel logsVar cntVar)
   (L.LogMessage msgLogLvl tag msg next) =
 
   fmap next $
@@ -33,7 +33,7 @@ interpretLogger
       _  -> do
         formatter <- flowFormatter mbFlowGuid
         !msgNum   <- R.incLogCounter cntVar
-        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum
+        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum logContext
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
               T.SimpleText txt -> txt
@@ -46,7 +46,7 @@ interpretLogger
 -- Regular logger
 interpretLogger
   mbFlowGuid
-  (R.LoggerRuntime flowFormatter logLevel _ cntVar _ handle)
+  (R.LoggerRuntime flowFormatter logContext logLevel _ cntVar _ handle)
   (L.LogMessage msgLogLevel tag msg next) =
 
   fmap next $
@@ -54,7 +54,7 @@ interpretLogger
       GT -> pure ()
       _  -> do
         msgNum    <- R.incLogCounter cntVar
-        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum
+        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum logContext
 
 runLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.Logger a -> IO a
 runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)

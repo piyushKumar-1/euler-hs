@@ -40,7 +40,7 @@ dispatchLogLevel T.Warning = Log.Warn
 dispatchLogLevel T.Error   = Log.Error
 
 logPendingMsg :: T.FlowFormatter -> Loggers -> T.PendingMsg -> IO ()
-logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag msg msgNum) = do
+logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag msg msgNum logContext) = do
   formatter <- flowFormatter mbFlowGuid
   let msgBuilder = formatter pendingMsg
   let lvl' = dispatchLogLevel lvl

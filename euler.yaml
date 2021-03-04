@@ -44,6 +44,7 @@ overrides:
     source: hackage
     sha256: 1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0
     enable-profiling: true
+    jailbreak: true
 
   servant-client:
     version: 0.18.2

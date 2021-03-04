@@ -44,11 +44,11 @@ super.eulerBuild.mkEulerHaskellOverlay self super
       };
     };
     servant-mock = self.eulerBuild.fastBuildExternal {
-      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+      drv = self.haskell.lib.doJailbreak (super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-mock";
         ver = "0.8.7";
         sha256 = "1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0";
-      } { });
+      } { }));
       overrides = {
         enableProfiling = true;
       };

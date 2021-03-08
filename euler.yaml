@@ -8,7 +8,7 @@ disable-tests: false
 dependencies:
   euler-build:
     branch: nixpkgs-darwin
-    revision: afe05cc6e63c3cd7f16e15a3c926349c42d7740c
+    revision: 818f7faefdca2866c87aa26faa1add35ae3ef153
   beam:
     branch: master
     revision: d36b29726570b6c5d228bee44d169282fe99ebdb

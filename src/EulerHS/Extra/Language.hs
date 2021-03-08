@@ -243,9 +243,13 @@ rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
   mv <- rGetB cName (TE.encodeUtf8 k)
-  pure $ case mv of
-    Just val -> A.decode $ BSL.fromStrict val
-    Nothing -> Nothing
+  case mv of
+    Just val -> case A.eitherDecode' $ BSL.fromStrict val of
+      Left err -> do
+        L.logError @Text "Redis rGet json decodeEither error" $ show err
+        pure Nothing
+      Right resp -> pure $ Just resp
+    Nothing -> pure Nothing
 
 rGetT :: (HasCallStack, L.MonadFlow m) =>
   Text -> Text -> m (Maybe Text)

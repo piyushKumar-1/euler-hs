@@ -25,6 +25,7 @@ module EulerHS.Extra.Language
   , rSetexT  -- alias for rSetex (back compat)
   , rSetOpts
   , rSetOptsB
+  , rSetOptsT
   , keyToSlot
   , rSadd
   , rSismember
@@ -320,6 +321,19 @@ rSetOptsB cName k v ttl cond = do
     Left err -> do
       L.logError @Text "Redis setOpts" $ show err
       pure res
+
+rSetOptsT
+  :: (HasCallStack, L.MonadFlow m)
+  => RedisName
+  -> TextKey
+  -> Text
+  -> L.KVDBSetTTLOption
+  -> L.KVDBSetConditionOption
+  -> m (Either T.KVDBReply Bool)
+rSetOptsT cName k v ttl cond = rSetOptsB cName k' v' ttl cond
+  where
+    k' = TE.encodeUtf8 k
+    v' = TE.encodeUtf8 v
 
 -- ------------------------------------------------------------------------------
 

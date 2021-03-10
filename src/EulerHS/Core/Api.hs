@@ -65,8 +65,8 @@ logServantRequest log mbMaskConfig url req = do
     body = case SCC.requestBody req of
       Just (reqbody, _) ->
         case reqbody of
-          SCC.RequestBodyBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText s
-          SCC.RequestBodyLBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText  $ LBS.toStrict s
+          SCC.RequestBodyBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) s
+          SCC.RequestBodyLBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
           SCC.RequestBodySource sr -> show $ SCC.RequestBodySource sr
       Nothing -> "body = (empty)"
 
@@ -91,7 +91,7 @@ logServantResponse log mbMaskConfig res =
       version = SCC.responseHttpVersion res
       responseBody =
           Text.unpack
-        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText
+        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
         . LBS.toStrict
         $ SCC.responseBody res
 

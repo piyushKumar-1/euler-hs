@@ -210,7 +210,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.CallHTTP request cert next) =
+interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
       _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
@@ -228,9 +228,25 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.CallHTTP request cert next) =
             Right httpResponse -> do
               case translateHttpResponse httpResponse of
                 Left errMsg -> do
+                  logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
+                  logJson T.Debug 
+                    $ T.HTTPRequestResponse 
+                      (T.maskHTTPRequest getLoggerMaskConfig request) 
+                      (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
+  where
+    logJsonError :: Text -> T.HTTPRequest -> IO ()
+    logJsonError err = logJson T.Error . T.HTTPIOException err
+    logJson :: ToJSON a => T.LogLevel -> a -> IO ()
+    logJson debugLevel =
+      R.runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
+        . L.logMessage' debugLevel ("callHTTP" :: String)
+        . encodeJSON
+    
+    getLoggerMaskConfig = 
+      R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
   next <$> R.runLogger mbFlowGuid (R._loggerRuntime _coreRuntime) loggerAct

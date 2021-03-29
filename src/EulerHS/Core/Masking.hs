@@ -9,6 +9,8 @@ import           Data.HashSet (member)
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..), MaskKeyType (..))
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Map as Map
+import qualified Data.Text as Text
+import qualified Data.List as List
 
 shouldMaskKey :: Maybe Log.LogMaskingConfig -> Text -> Bool
 shouldMaskKey Nothing _ = False
@@ -45,11 +47,13 @@ maskQueryStrings shouldMask maskText queryStrings = maskQueryString <$> queryStr
         then (key,Just $ encodeUtf8 maskText)
         else (key,value)
 
-parseRequestResponseBody :: (Text -> Bool) -> Text -> ByteString -> Text
-parseRequestResponseBody shouldMask maskText req =
-  case Aeson.eitherDecodeStrict req of
-    Right value ->  decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText value
-    Left _ -> decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText $ handleQueryString req
+parseRequestResponseBody :: (Text -> Bool) -> Text -> Maybe ByteString -> ByteString -> Text
+parseRequestResponseBody shouldMask maskText mbContentType req
+  | isContentTypeBlockedForLogging mbContentType = notSupportedPlaceHolder
+  | otherwise = 
+      case Aeson.eitherDecodeStrict req of
+        Right value ->  decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText value
+        Left _ -> decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText $ handleQueryString req
 
 maskJSON :: (Text -> Bool) -> Text -> Aeson.Value -> Aeson.Value
 maskJSON shouldMask maskText (Aeson.Object r) = Aeson.Object $ handleObject shouldMask maskText r
@@ -64,3 +68,23 @@ handleObject shouldMask maskText = HashMap.mapWithKey maskingFn
 
 handleQueryString :: ByteString -> Aeson.Value
 handleQueryString strg = Aeson.Object . fmap (Aeson.String . fromMaybe "") . HashMap.fromList $ HTTP.parseQueryText strg
+
+notSupportedPlaceHolder :: Text
+notSupportedPlaceHolder = "Logging Not Support For this content"
+
+isContentTypeBlockedForLogging :: Maybe ByteString -> Bool
+isContentTypeBlockedForLogging Nothing = False
+isContentTypeBlockedForLogging (Just contentType) =
+       Text.isInfixOf "html" (Text.toLower $ decodeUtf8 contentType) 
+    || Text.isInfixOf "xml" (Text.toLower $ decodeUtf8 contentType)
+
+
+
+getContentTypeForServant :: HTTP.ResponseHeaders -> Maybe ByteString
+getContentTypeForServant = List.lookup HTTP.hContentType
+
+getContentTypeForHTTP :: Map.Map Text Text -> Maybe ByteString
+getContentTypeForHTTP header = getContentTypeForServant $ getTupleList
+  where
+    getTupleList = makeHeaderLableCI <$> (Map.assocs header)
+    makeHeaderLableCI (headerName,headerValue) = (CI.mk $ encodeUtf8 headerName, encodeUtf8 headerValue)

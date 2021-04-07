@@ -128,9 +128,19 @@ disposeLogger _ (SyncLoggerHandle loggers) = do
 disposeLogger flowFormatter (AsyncLoggerHandle threadIds (_, outChan) loggers) = do
   putStrLn @String "Disposing async logger..."
   traverse_ killThread threadIds
-  Chan.getChanContents outChan >>= mapM_ (logPendingMsg flowFormatter loggers)
+  logRemaining outChan
   mapM_ Log.flush loggers
   mapM_ Log.close loggers
+  where
+    logRemaining :: Chan.OutChan T.PendingMsg -> IO ()
+    logRemaining oc = do
+      (el,_) <- Chan.tryReadChan oc
+      mPendingMsg <- Chan.tryRead el
+      case mPendingMsg of
+        Just pendingMsg -> do
+            logPendingMsg flowFormatter loggers pendingMsg
+            logRemaining oc
+        Nothing -> pure ()
 
 withLogger'
   :: Maybe Log.DateFormat

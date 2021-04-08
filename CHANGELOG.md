@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.0.4.2] - 2021-04-07
+
+* Fixed a bug with MVar blocking when disposing `Async` logger.
+
 ## [2.0.4.1] - 2021-03-03
 
 * Remove waste entries.

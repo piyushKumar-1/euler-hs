@@ -35,6 +35,7 @@ import           EulerHS.Prelude hiding (get, id)
 
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
+import           Data.Either.Extra (fromEither, mapLeft)
 import qualified Data.Text.Encoding as TE
 import           Database.Redis (keyToSlot)
 import qualified EulerHS.Core.KVDB.Language as L
@@ -247,7 +248,8 @@ rGet cName k = do
   case mv of
     Just val -> case A.eitherDecode' $ BSL.fromStrict val of
       Left err -> do
-        L.logError @Text "Redis rGet json decodeEither error" $ show err
+        L.logError @Text "rGet JSON decode error" $ "error: " <> show err
+                                  <> "while decoding value: " <> (fromEither $ mapLeft show $ TE.decodeUtf8' val)
         pure Nothing
       Right resp -> pure $ Just resp
     Nothing -> pure Nothing

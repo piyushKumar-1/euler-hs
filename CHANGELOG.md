@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.0.4.3] - 
+
+* `ManagerSelector` is now a newtype.
+
 ## [2.0.4.2] - 2021-04-07
 
 * Fixed a bug with MVar blocking when disposing `Async` logger.

@@ -10,21 +10,16 @@ module EulerHS.Framework.Runtime
   , shouldFlowLogRawSql
   ) where
 
-import           EulerHS.Prelude
-
-import           Network.HTTP.Client (Manager, newManager)
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-
 import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
 import qualified Database.Redis as RD
-import qualified System.Mem as SYSM (performGC)
-
-import           System.IO.Unsafe (unsafePerformIO)
-
 import qualified EulerHS.Core.Runtime as R
 import qualified EulerHS.Core.Types as T
-
+import           EulerHS.Prelude
+import           Network.HTTP.Client (Manager, newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           System.IO.Unsafe (unsafePerformIO)
+import qualified System.Mem as SYSM (performGC)
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
@@ -32,7 +27,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Contains logger settings
   , _defaultHttpClientManager :: Manager
   -- ^ Http default manager, used for external api calls
-  , _httpClientManagers       :: Map String Manager
+  , _httpClientManagers       :: HashMap Text Manager
   -- ^ Http managers, used for external api calls
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
@@ -54,11 +49,10 @@ createFlowRuntime coreRt = do
   kvdbConnections   <- newMVar Map.empty
   sqldbConnections  <- newMVar Map.empty
   pubSubController  <- RD.newPubSubController [] []
-
   pure $ FlowRuntime
     { _coreRuntime              = coreRt
     , _defaultHttpClientManager = defaultManagerVar
-    , _httpClientManagers       = Map.empty
+    , _httpClientManagers       = mempty
     , _options                  = optionsVar
     , _kvdbConnections          = kvdbConnections
     -- , _runMode                  = T.RegularMode
@@ -90,15 +84,15 @@ shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
 
 sqlDisconnect :: T.NativeSqlPool -> IO ()
 sqlDisconnect = \case
-  T.NativePGPool connPool -> DP.destroyAllResources connPool
-  T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
+  T.NativePGPool connPool     -> DP.destroyAllResources connPool
+  T.NativeMySQLPool connPool  -> DP.destroyAllResources connPool
   T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  T.NativeMockedPool -> pure ()
+  T.NativeMockedPool          -> pure ()
 
 kvDisconnect :: T.NativeKVDBConn -> IO ()
 kvDisconnect = \case
   T.NativeKVDBMockedConn -> pure ()
-  T.NativeKVDB conn -> RD.disconnect conn
+  T.NativeKVDB conn      -> RD.disconnect conn
 
 -- | Run flow with given logger runtime creation function.
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a

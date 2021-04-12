@@ -9,7 +9,7 @@ maintainer:    koz.ross@juspay.in
 copyright:     (C) Juspay Technologies Pvt Ltd 2019-2020
 category:      Euler
 build-type:    Simple
-tested-with:   GHC ==8.8.3
+tested-with:   GHC ==8.8.4
 
 source-repository head
   type:     git

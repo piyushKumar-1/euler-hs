@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.0.4.3] - 2021-04-12
+
+* Add `changeLoggerContext` to EulerHS.Extra.Language
+
 ## [2.0.4.2] - 2021-04-07
 
 * Fixed a bug with MVar blocking when disposing `Async` logger.

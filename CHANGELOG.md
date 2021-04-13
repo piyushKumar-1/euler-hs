@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.0.4.4] - 2021-04-13
+
+* Rename `changeLoggerContext` to `withLoggerContext`
+* Add `updateLoggerContext`
+
 ## [2.0.4.3] - 2021-04-12
 
 * Add `changeLoggerContext` to EulerHS.Extra.Language

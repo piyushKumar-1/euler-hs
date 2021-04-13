@@ -33,6 +33,7 @@ import           EulerHS.Prelude
 import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as TLS
+import           Network.HTTP.Client.Internal
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
@@ -190,8 +191,11 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
       case mbClientMngr of
         Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
+          let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
+                            then setRequestTimeout T.defaultTimeout req
+                            else req {HTTP.responseTimeout = mResponseTimeout mngr}
           eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) getLoggerMaskConfig bUrl clientAct) $
-            S.ClientEnv manager baseUrl cookieJar (\url -> setRequestTimeout T.defaultTimeout . makeClientRequest url)
+            S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
               dbgLogger T.Error $ show err

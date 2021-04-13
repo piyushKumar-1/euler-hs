@@ -8,10 +8,10 @@ disable-tests: false
 dependencies:
   euler-build:
     branch: nixpkgs-darwin
-    revision: 818f7faefdca2866c87aa26faa1add35ae3ef153
+    revision: 02598dbbb80662947305b394b1b1e8d0bb55d639
   beam:
-    branch: master
-    revision: f66a82f754eb43c8a7930e474347d694d2c81a99
+    branch: nixpkgs-darwin
+    revision: 5a192e0c9b095f15a65df00f78041c98f27e2a61
   beam-mysql:
     branch: master
     revision: a348d31dec415d0819eaf88b9d931fbbc2c8a075

@@ -29,7 +29,8 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
-  , changeLoggerContext
+  , updateLoggerContext
+  , withLoggerContext
   ) where
 
 import           EulerHS.Prelude hiding (get, id)
@@ -360,14 +361,15 @@ rSismember cName k v = do
       L.logError @Text "Redis sismember" $ show err
       pure res
 
-changeLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogContext) -> L.Flow a -> m a
-changeLoggerContext changeLCtx = L.withModifiedRuntime changeLoggerContext'
+withLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogContext) -> L.Flow a -> m a
+withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
+
+
+updateLoggerContext :: HasCallStack => (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
+updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
   where
-    changeLoggerContext' :: FlowRuntime -> FlowRuntime
-    changeLoggerContext' rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
-      where
-        newLrt :: LoggerRuntime
-        newLrt = case _loggerRuntime _coreRuntime of
-                   MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (changeLCtx lc) b c d
-                   LoggerRuntime { _flowFormatter, _logContext, _logLevel, _logRawSql, _logCounter, _logMaskingConfig, _logLoggerHandle}
-                     -> LoggerRuntime  _flowFormatter (changeLCtx _logContext) _logLevel _logRawSql _logCounter _logMaskingConfig _logLoggerHandle
+    newLrt :: LoggerRuntime
+    newLrt = case _loggerRuntime _coreRuntime of
+               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+               LoggerRuntime { _flowFormatter, _logContext, _logLevel, _logRawSql, _logCounter, _logMaskingConfig, _logLoggerHandle}
+                 -> LoggerRuntime  _flowFormatter (updateLCtx _logContext) _logLevel _logRawSql _logCounter _logMaskingConfig _logLoggerHandle

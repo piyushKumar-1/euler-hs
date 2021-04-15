@@ -55,7 +55,8 @@ obfuscate :: Value -> Value
 obfuscate v = go v where
     go (Object o) = Object $ go <$> o
     go (Array a) = Array $ go <$> a
-    go (String  _) = String "*** text ***"
-    go (Number _) = String "*** number ***"
-    go (Bool _) = String "*** bool ***"
+    go (String  _) = String "***"
+    go (Number _) = Number 0
+    go (Bool _) = Bool False
     go Null = Null
+

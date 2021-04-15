@@ -34,6 +34,7 @@ module EulerHS.Extra.Language
 import           EulerHS.Prelude hiding (get, id)
 
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Either.Extra (fromEither, mapLeft)
 import qualified Data.Text.Encoding as TE
@@ -247,16 +248,20 @@ rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
 rGet cName k = do
   mv <- rGetB cName (TE.encodeUtf8 k)
   case mv of
-    Just val -> case A.eitherDecode' $ BSL.fromStrict val of
+    Just val -> case A.eitherDecode' @A.Value $ BSL.fromStrict val of
       Left err -> do
-        L.logError @Text "rGet JSON decode error" $ "error: " <> show err
-                                  <> "while decoding value: "
-                                  <> either
-                                      (\v -> "wrong JSON: " <> show v <> ", " <> (fromEither $ mapLeft show $ TE.decodeUtf8' val))
-                                      (show . A.encode . obfuscate)
-                                      ( A.eitherDecode' @A.Value $ BSL.fromStrict val)
+        L.logError @Text "rGet value is not a valid JSON" $ "error: '" <> toText err
+                                  <> "' while decoding value: "
+                                  <> (fromEither $ mapLeft (toText . displayException) $ TE.decodeUtf8' val)
         pure Nothing
-      Right resp -> pure $ Just resp
+      Right value -> do
+        case (A.parseEither A.parseJSON value) of
+          Left err -> do
+            L.logError @Text "rGet value cannot be decoded to target type" $ "error: '" <> toText err
+                                      <> "' while decoding value: "
+                                      <> (TE.decodeUtf8 . BSL.toStrict . A.encode . obfuscate) value
+            pure Nothing
+          Right v -> pure $ Just v
     Nothing -> pure Nothing
 
 rGetT :: (HasCallStack, L.MonadFlow m) =>
@@ -272,6 +277,7 @@ rGetT cName k = do
         Right x ->
           pure $ Just x
     Nothing -> pure Nothing
+
 
 -- ----------------------------------------------------------------------------
 

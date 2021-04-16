@@ -29,6 +29,8 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
+  , updateLoggerContext
+  , withLoggerContext
   ) where
 
 import           EulerHS.Prelude hiding (get, id)
@@ -43,6 +45,8 @@ import qualified EulerHS.Core.KVDB.Language as L
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Extra.Aeson (obfuscate)
 import qualified EulerHS.Framework.Language as L
+import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
+                                  LoggerRuntime (..))
 
 type RedisName = Text
 type TextKey = Text
@@ -369,3 +373,16 @@ rSismember cName k v = do
     Left err -> do
       L.logError @Text "Redis sismember" $ show err
       pure res
+
+withLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogContext) -> L.Flow a -> m a
+withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
+
+
+updateLoggerContext :: HasCallStack => (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
+updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
+  where
+    newLrt :: LoggerRuntime
+    newLrt = case _loggerRuntime _coreRuntime of
+               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+               LoggerRuntime { _flowFormatter, _logContext, _logLevel, _logRawSql, _logCounter, _logMaskingConfig, _logLoggerHandle}
+                 -> LoggerRuntime  _flowFormatter (updateLCtx _logContext) _logLevel _logRawSql _logCounter _logMaskingConfig _logLoggerHandle

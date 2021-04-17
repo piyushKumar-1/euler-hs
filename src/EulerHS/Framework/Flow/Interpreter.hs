@@ -15,6 +15,7 @@ import qualified Data.DList as DL
 import           Data.Default (def)
 import           Data.Either.Extra (mapLeft)
 import           Data.Generics.Product.Positions (getPosition)
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as Map
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
@@ -186,8 +187,9 @@ interpretFlowMethod :: HasCallStack => Maybe T.FlowGUID -> R.FlowRuntime -> L.Fl
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ do
       let mbClientMngr = case mbMgrSel of
-            Nothing       -> Right _defaultHttpClientManager
-            Just mngrName -> maybeToRight mngrName $ Map.lookup mngrName _httpClientManagers
+            Nothing                           -> Right _defaultHttpClientManager
+            Just (T.ManagerSelector mngrName) ->
+              maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
       case mbClientMngr of
         Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
@@ -235,9 +237,9 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
                   logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  logJson T.Debug 
-                    $ T.HTTPRequestResponse 
-                      (T.maskHTTPRequest getLoggerMaskConfig request) 
+                  logJson T.Debug
+                    $ T.HTTPRequestResponse
+                      (T.maskHTTPRequest getLoggerMaskConfig request)
                       (T.maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
   where
@@ -248,8 +250,8 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       R.runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
         . encodeJSON
-    
-    getLoggerMaskConfig = 
+
+    getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) =

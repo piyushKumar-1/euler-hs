@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
 
 module EulerHS.Core.Types.Exceptions
   ( -- * Exceptions
@@ -8,10 +8,11 @@ module EulerHS.Core.Types.Exceptions
 
 import           EulerHS.Prelude
 
+newtype HttpManagerNotFound = HttpManagerNotFound Text
+ deriving stock (Show)
+ deriving (Eq) via Text
 
-data HttpManagerNotFound = HttpManagerNotFound String
- deriving (Show, Eq, Exception)
-
+instance Exception HttpManagerNotFound
 
 data AwaitingError = AwaitingTimeout | ForkedFlowError Text
   deriving (Show, Eq, Ord, Generic)

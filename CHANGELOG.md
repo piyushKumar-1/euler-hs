@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.2.0.0] - 2021-04-19
+
+* Major version bump for `beam-mysql`.
+
 ## [2.1.0.0] - 2021-04-12
 
 * `ManagerSelector` is now a newtype.

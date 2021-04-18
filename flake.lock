@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1614857416,
-        "narHash": "sha256-M/T7AlImFXwo927svaaDAxzYclK7O6CxysqHrOoYhcg=",
+        "lastModified": 1618312249,
+        "narHash": "sha256-H/NyW0a/8RFs++dfWf4HfgPr31+DU8v9zQTeT70oYMw=",
         "owner": "juspay",
         "repo": "beam",
-        "rev": "f66a82f754eb43c8a7930e474347d694d2c81a99",
+        "rev": "2feb7ca79c6262e76a38feaee04c94ccf4cd8812",
         "type": "github"
       },
       "original": {
@@ -29,11 +29,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1613424382,
-        "narHash": "sha256-7n+wf5oxBcC5ZvrpWay0914snjx+dHX7j9HsONfMe7I=",
+        "lastModified": 1618783882,
+        "narHash": "sha256-05tgfayUEmUpIUZgxhDzhJQ6COR9BT+4+XcZQ8zsiSY=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "a348d31dec415d0819eaf88b9d931fbbc2c8a075",
+        "rev": "597e4c7bff065644cea74ebc52b2438456f00a39",
         "type": "github"
       },
       "original": {

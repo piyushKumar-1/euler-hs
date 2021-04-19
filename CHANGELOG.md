@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.1.1.0] - 2021-04-20
+
+* Use RDP plugin
+
 ## [2.1.0.0] - 2021-04-12
 
 * `ManagerSelector` is now a newtype.

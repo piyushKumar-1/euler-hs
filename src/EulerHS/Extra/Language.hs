@@ -25,9 +25,12 @@ module EulerHS.Extra.Language
   , rSetexT  -- alias for rSetex (back compat)
   , rSetOpts
   , rSetOptsB
+  , rSetOptsT
   , keyToSlot
   , rSadd
   , rSismember
+  , updateLoggerContext
+  , withLoggerContext
   ) where
 
 import           EulerHS.Prelude hiding (get, id)
@@ -39,6 +42,8 @@ import           Database.Redis (keyToSlot)
 import qualified EulerHS.Core.KVDB.Language as L
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
+import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
+                                  LoggerRuntime (..))
 
 type RedisName = Text
 type TextKey = Text
@@ -243,9 +248,13 @@ rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
   mv <- rGetB cName (TE.encodeUtf8 k)
-  pure $ case mv of
-    Just val -> A.decode $ BSL.fromStrict val
-    Nothing -> Nothing
+  case mv of
+    Just val -> case A.eitherDecode' $ BSL.fromStrict val of
+      Left err -> do
+        L.logError @Text "Redis rGet json decodeEither error" $ show err
+        pure Nothing
+      Right resp -> pure $ Just resp
+    Nothing -> pure Nothing
 
 rGetT :: (HasCallStack, L.MonadFlow m) =>
   Text -> Text -> m (Maybe Text)
@@ -317,6 +326,19 @@ rSetOptsB cName k v ttl cond = do
       L.logError @Text "Redis setOpts" $ show err
       pure res
 
+rSetOptsT
+  :: (HasCallStack, L.MonadFlow m)
+  => RedisName
+  -> TextKey
+  -> Text
+  -> L.KVDBSetTTLOption
+  -> L.KVDBSetConditionOption
+  -> m (Either T.KVDBReply Bool)
+rSetOptsT cName k v ttl cond = rSetOptsB cName k' v' ttl cond
+  where
+    k' = TE.encodeUtf8 k
+    v' = TE.encodeUtf8 v
+
 -- ------------------------------------------------------------------------------
 
 rSadd :: (HasCallStack, L.MonadFlow m) =>
@@ -338,3 +360,16 @@ rSismember cName k v = do
     Left err -> do
       L.logError @Text "Redis sismember" $ show err
       pure res
+
+withLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogContext) -> L.Flow a -> m a
+withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
+
+
+updateLoggerContext :: HasCallStack => (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
+updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
+  where
+    newLrt :: LoggerRuntime
+    newLrt = case _loggerRuntime _coreRuntime of
+               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+               LoggerRuntime { _flowFormatter, _logContext, _logLevel, _logRawSql, _logCounter, _logMaskingConfig, _logLoggerHandle}
+                 -> LoggerRuntime  _flowFormatter (updateLCtx _logContext) _logLevel _logRawSql _logCounter _logMaskingConfig _logLoggerHandle

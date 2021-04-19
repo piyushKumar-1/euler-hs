@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.1.0.1] - 2021-04-19
+
+* Add a range of additional functions to `EulerHS.Framework.Flow.Language` (and
+  everything that imports it), originally from `euler-webservice`.
+
 ## [2.1.0.0] - 2021-04-12
 
 * `ManagerSelector` is now a newtype.

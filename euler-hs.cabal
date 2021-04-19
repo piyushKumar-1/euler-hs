@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.1.0.0
+version:       2.1.0.1
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -138,6 +138,7 @@ library
     , sequelize               ^>=1.1.0.0
     , servant-client          ^>=0.18.1
     , servant-client-core     ^>=0.18.1
+    , servant-server          ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions

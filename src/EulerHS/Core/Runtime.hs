@@ -16,21 +16,14 @@ module EulerHS.Core.Runtime
   , module X
   ) where
 
+import           EulerHS.Core.Types (ShouldLogSQL (SafelyOmitSqlLogs, UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION))
 import           EulerHS.Prelude
-import           EulerHS.Core.Types
-  ( LogCounter
-  , LogLevel(..)
-  , LoggerConfig(..)
-  , LogMaskingConfig(..)
-  , ShouldLogSQL(SafelyOmitSqlLogs, UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION)
-  )
 -- Currently, TinyLogger is highly coupled with the Runtime.
 -- Fix it if an interchangable implementations are needed.
 import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Core.Types.DB as X (withTransaction)
 import qualified System.Logger as Log
-
 
 -- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
 data LoggerRuntime
@@ -45,7 +38,7 @@ data LoggerRuntime
     }
   | MemoryLoggerRuntime !T.FlowFormatter T.LogContext !T.LogLevel !(MVar [Text]) !T.LogCounter
 
-data CoreRuntime = CoreRuntime
+newtype CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
     }
 
@@ -96,12 +89,12 @@ clearCoreRuntime _ = pure ()
 shouldLogRawSql :: LoggerRuntime -> Bool
 shouldLogRawSql = \case
   (LoggerRuntime _ _ _ UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _) -> True
-  _ -> False
+  _                                                                 -> False
 
 getLogMaskingConfig :: LoggerRuntime -> Maybe T.LogMaskingConfig
 getLogMaskingConfig = \case
   (LoggerRuntime _ _ _ _ _ mbMaskConfig _) -> mbMaskConfig
-  _ -> Nothing
+  _                                        -> Nothing
 
 initLogCounter :: IO T.LogCounter
 initLogCounter = newIORef 0

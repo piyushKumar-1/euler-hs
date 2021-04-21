@@ -1,12 +1,11 @@
-{-# LANGUAGE AllowAmbiguousTypes  #-}
-{-# LANGUAGE DeriveAnyClass       #-}
-{-# LANGUAGE DeriveDataTypeable   #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE UndecidableInstances #-}
-
-
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Core.Types.Serializable
   (
@@ -23,7 +22,6 @@ module EulerHS.Core.Types.Serializable
   , fromJSONMaybe
   ) where
 
-
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString as BS
@@ -38,8 +36,6 @@ import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as S
 import qualified Servant.Client.Core.Request as S
 
-
-
 ----------------------------------------------------------------------
 
 class EitherC c d where
@@ -47,7 +43,6 @@ class EitherC c d where
 
 instance {-# OVERLAPPABLE #-} d => EitherC c d where
     resolve _ r = r
-
 
 ----------------------------------------------------------------------
 
@@ -63,7 +58,7 @@ resolveJSONEx
     => (Serializable a => r)
     -> ((ToJSON a, FromJSON a) => r)
     -> r
-resolveJSONEx sf jf = resolve @(Serializable a) @(ToJSON a, FromJSON a) sf jf
+resolveJSONEx = resolve @(Serializable a) @(ToJSON a, FromJSON a)
 
 ----------------------------------------------------------------------
 
@@ -84,9 +79,9 @@ instance JSONEx a => Serializable (Maybe a) where
         (decodeWith fromJSONMaybe)
         where
           decodeWith dl val =
-            case fmap (fmap dl) $ fromJSONMaybe val of
-              Just (Just (Just v)) -> Just (Just v)
-              Just (Nothing)       -> Just (Nothing)
+            case fmap dl <$> fromJSONMaybe val of
+              Just (Just (Just v)) -> Just . Just $ v
+              Just Nothing         -> Just Nothing
               _                    -> Nothing
 
 
@@ -153,7 +148,7 @@ instance (JSONEx a, JSONEx b) => EitherC (Serializable (a, b)) d where resolve r
 
 instance JSONEx a => Serializable [a] where
     jsonEncode = toJSON . fmap (resolveJSONEx @a jsonEncode toJSON)
-    jsonDecode = join . fmap (sequence . fmap (resolveJSONEx @a jsonDecode fromJSONMaybe)) . fromJSONMaybe
+    jsonDecode = traverse (resolveJSONEx @a jsonDecode fromJSONMaybe) <=< fromJSONMaybe
 
 
 instance JSONEx a => EitherC (Serializable [a]) d where resolve r _ = r
@@ -181,7 +176,8 @@ instance EitherC (Serializable S.ClientError) d where resolve r _ = r
 ----------------------------------------------------------------------
 
 newtype ByteStringS = ByteStringS [Word8]
-  deriving (Generic, ToJSON, FromJSON)
+  deriving stock (Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 fromByteString :: ByteString -> ByteStringS
 fromByteString = ByteStringS . BS.unpack
@@ -242,7 +238,7 @@ fromResponse S.Response {..} = ResponseS
   { responseStatusCode  = fromHTTPStatus responseStatusCode
   , responseHttpVersion = fromHttpVersion responseHttpVersion
   , responseBody        = fromByteString $ BSL.toStrict responseBody
-  , responseHeaders     = toList $ fmap (bimap fromCIByteString fromByteString) $ responseHeaders
+  , responseHeaders     = toList $ bimap fromCIByteString fromByteString <$> responseHeaders
   }
 
 toResponse :: ResponseS -> S.Response
@@ -250,7 +246,7 @@ toResponse ResponseS {..} = S.Response
   { responseStatusCode  = toHTTPStatus responseStatusCode
   , responseHttpVersion = toHttpVersion responseHttpVersion
   , responseBody        = BSL.fromStrict $ toByteString responseBody
-  , responseHeaders     = Seq.fromList $ fmap (bimap toCIByteString toByteString) $ responseHeaders
+  , responseHeaders     = Seq.fromList $ bimap toCIByteString toByteString <$> responseHeaders
   }
 
 ----------------------------------------------------------------------

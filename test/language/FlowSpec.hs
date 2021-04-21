@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Werror #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module FlowSpec (spec) where
 
@@ -9,7 +9,7 @@ import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
-import           EulerHS.Runtime (withFlowRuntime, createLoggerRuntime)
+import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
                                          NTTestKeyWithStringPayload (NTTestKeyWithStringPayload),

@@ -1,8 +1,8 @@
-{-# OPTIONS_GHC -Werror #-}
-{-# LANGUAGE AllowAmbiguousTypes        #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE InstanceSigs               #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Framework.Flow.Language
   (

@@ -1,4 +1,6 @@
-{-# OPTIONS_GHC -Werror -Wno-redundant-constraints #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Framework.Flow.Interpreter
   ( -- * Flow Interpreter
@@ -33,8 +35,8 @@ import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.Prelude
 import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Client.TLS as TLS
 import           Network.HTTP.Client.Internal
+import qualified Network.HTTP.Client.TLS as TLS
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
@@ -183,7 +185,7 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: HasCallStack => Maybe T.FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod :: Maybe T.FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ do
       let mbClientMngr = case mbMgrSel of
@@ -461,8 +463,8 @@ interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_pubSubController, _pubSubConne
 
 interpretFlowMethod _ rt (L.WithModifiedRuntime f flow next) = next <$> runFlow (f rt) flow
 
-runFlow' :: HasCallStack => Maybe T.FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
+runFlow' :: Maybe T.FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
 runFlow' mbFlowGuid flowRt (L.Flow comp) = foldF (interpretFlowMethod mbFlowGuid flowRt) comp
 
-runFlow :: HasCallStack => R.FlowRuntime -> L.Flow a -> IO a
+runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow = runFlow' Nothing

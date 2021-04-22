@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fclear-plugins #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE StandaloneDeriving #-}
 

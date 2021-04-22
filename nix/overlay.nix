@@ -23,6 +23,13 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     hedis = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callCabal2nix "hedis" hedis-path { });
     };
+    record-dot-preprocessor = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
+        pkg = "record-dot-preprocessor";
+        ver = "0.2.10";
+        sha256 = "08ad4d3z5rspxcqxl5iv7b3w6m8ik642cxpm5d8a77s03dyp1z75";
+      } { });
+    };
     servant = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant";

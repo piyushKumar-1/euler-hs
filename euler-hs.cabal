@@ -19,8 +19,13 @@ common common-lang
   ghc-options:
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints
+    -fplugin=RecordDotPreprocessor
 
-  build-depends:      base >=4.13 && <5
+  build-depends:
+    , base                     >=4.13   && <5
+    , record-dot-preprocessor  ^>=0.2.10
+    , record-hasfield
+
   default-extensions:
     NoImplicitPrelude
     ConstraintKinds
@@ -48,6 +53,7 @@ common common-lang
     TypeApplications
     TypeFamilies
     TypeOperators
+    UndecidableInstances
     ViewPatterns
 
   default-language:   Haskell2010

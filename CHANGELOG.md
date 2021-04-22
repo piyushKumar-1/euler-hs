@@ -1,8 +1,12 @@
 # Changelog for euler-hs
 
-## [2.2.0.0] - 2021-04-19
+## [2.2.0.0] - 2021-04-23
 
 * Major version bump for `beam-mysql`.
+
+## [2.1.1.0] - 2021-04-20
+
+* Use RDP plugin
 
 ## [2.1.0.0] - 2021-04-12
 

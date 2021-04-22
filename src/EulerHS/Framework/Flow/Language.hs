@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Werror #-}
+{-# OPTIONS_GHC -Werror -fclear-plugins #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}

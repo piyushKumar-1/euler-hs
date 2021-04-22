@@ -22,15 +22,14 @@ module EulerHS.Extra.Validation
   , parValidate
   ) where
 
-import           EulerHS.Prelude hiding (or, pred)
-import qualified Prelude as P
-
 import           Data.Data hiding (typeRep)
-import           Data.Generics.Product.Fields
 import qualified Data.Text as T
 import           Data.Validation
 import           Data.Validation as X
+import           EulerHS.Prelude hiding (or, pred)
+import           GHC.Records.Compat (HasField, getField)
 import           GHC.TypeLits
+import qualified Prelude as P
 import           Type.Reflection
 
 
@@ -87,7 +86,7 @@ extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)
 -- | Extract value and run validators on it
 withField
   :: forall (f :: Symbol) v r a
-   . (Generic r, HasField' f r v, KnownSymbol f)
+   . (HasField f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
 

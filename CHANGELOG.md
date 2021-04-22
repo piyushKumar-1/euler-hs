@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.2.0.0] - 2021-04-23
+
+* Remove all `lens` and `generic-lens` usage and exports.
+
 ## [2.1.1.0] - 2021-04-20
 
 * Use RDP plugin

@@ -6,8 +6,6 @@ module EulerHS.Prelude
   , liftFC
   , catchAny
   -- JSON
-  , stripLensPrefixOptions
-  , stripAllLensPrefixOptions
   , jsonSetField
   , encodeJSON
   , decodeJSON
@@ -26,8 +24,6 @@ import           Control.Concurrent.STM.TMVar as X (TMVar, newEmptyTMVar,
                                                     tryReadTMVar)
 import           Control.Concurrent.STM.TVar as X (modifyTVar)
 import           Control.Exception as X (SomeException (..))
-import           Control.Lens as X (at, (.=))
-import           Control.Lens.TH as X (makeFieldsNoPrefix, makeLenses)
 import           Control.Monad as X (liftM, unless, void, when)
 import           Control.Monad.Free as X (Free (..), foldFree, liftF)
 import           Control.Monad.Free.Church as X (F (..), foldF, fromF, iter,
@@ -46,14 +42,13 @@ import           GHC.Generics as X (Generic)
 import           Text.Read as X (read, readsPrec)
 
 -- includes Data.IORef
-import           Universum as X hiding (All, Option, Set, Type, head, init,
-                                 last, set, tail, trace, catchAny)
 import           Universum (catchAny)
+import           Universum as X hiding (All, Option, Set, Type, catchAny, head,
+                                 init, last, set, tail, trace)
 import           Universum.Functor.Fmap as X ((<<$>>))
 import           Universum.Unsafe as X (head, init, last, tail, (!!))
 
-import           EulerHS.Extra.Aeson (
-  stripLensPrefixOptions, stripAllLensPrefixOptions, jsonSetField, encodeJSON, decodeJSON)
+import           EulerHS.Extra.Aeson (decodeJSON, encodeJSON, jsonSetField)
 
 import qualified Control.Monad.Free.Church as CF
 import qualified Control.Monad.Free.Class as MF

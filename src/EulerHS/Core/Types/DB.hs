@@ -1,7 +1,7 @@
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE FunctionalDependencies     #-}
-{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE DeriveAnyClass         #-}
+{-# LANGUAGE DerivingStrategies     #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE RecordWildCards        #-}
 
 module EulerHS.Core.Types.DB
   (
@@ -16,7 +16,7 @@ module EulerHS.Core.Types.DB
   , ConnTag
   , SQliteDBname
   , SqlConn(..)
-  , DBConfig
+  , DBConfig(..) -- NOTE: Ensure this is not exported publically. - Koz
   , PoolConfig(..)
   , DBErrorType(..)
   , DBError(..)
@@ -60,8 +60,8 @@ import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PGS
 import qualified Database.SQLite.Simple as SQLite
 
-import           EulerHS.Core.Types.MySQL (MySQLConfig(..), createMySQLConn)
-import           EulerHS.Core.Types.Postgres (PostgresConfig(..),
+import           EulerHS.Core.Types.MySQL (MySQLConfig (..), createMySQLConn)
+import           EulerHS.Core.Types.Postgres (PostgresConfig (..),
                                               createPostgresConn)
 
 
@@ -360,7 +360,7 @@ data SQLError
 data MysqlSqlError =
   MysqlSqlError
   { errCode :: {-# UNPACK #-} !Word16,
-    errMsg :: {-# UNPACK #-} !Text
+    errMsg  :: {-# UNPACK #-} !Text
   }
   deriving stock (Show, Eq, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON)

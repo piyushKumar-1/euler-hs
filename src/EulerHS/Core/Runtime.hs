@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-record-updates #-} -- due to RDP - Koz
+
 module EulerHS.Core.Runtime
   (
     -- * Core Runtime

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module EulerHS.Core.Types.HttpAPI
     (
@@ -27,20 +28,18 @@ module EulerHS.Core.Types.HttpAPI
     , maskHTTPResponse
     ) where
 
-import           EulerHS.Prelude                 hiding ((.=), ord)
-import qualified EulerHS.Core.Types.BinaryString as T
-
-import qualified Data.ByteString                 as B
-import qualified Data.ByteString.Lazy            as LB
-import           Data.ByteString.Lazy.Builder    (Builder)
-import qualified Data.ByteString.Lazy.Builder    as Builder
-import qualified Data.Char                       as Char
-import qualified Data.Map                        as Map
-import           Data.String.Conversions         (convertString)
-import qualified Data.Text.Encoding              as Text
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
+import           Data.ByteString.Lazy.Builder (Builder)
+import qualified Data.ByteString.Lazy.Builder as Builder
+import qualified Data.Char as Char
+import qualified Data.Map as Map
+import           Data.String.Conversions (convertString)
+import qualified Data.Text.Encoding as Text
 import           EulerHS.Core.Masking
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
-
+import qualified EulerHS.Core.Types.BinaryString as T
+import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig (..))
+import           EulerHS.Prelude hiding (ord, (.=))
 
 data HTTPRequest
   = HTTPRequest
@@ -149,7 +148,7 @@ defaultTimeout = 9000000
 --  >   & withHeader "Content-Type" "application/json"
 --
 withHeader :: HeaderName -> HeaderValue -> HTTPRequest -> HTTPRequest
-withHeader headerName headerValue (request@HTTPRequest {getRequestHeaders}) =
+withHeader headerName headerValue request@HTTPRequest {getRequestHeaders} =
   let headers = Map.insert headerName headerValue getRequestHeaders
   in  request { getRequestHeaders = headers }
 

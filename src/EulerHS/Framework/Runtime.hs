@@ -1,4 +1,5 @@
-{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DerivingVia     #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module EulerHS.Framework.Runtime
   (
@@ -214,4 +215,4 @@ runPubSubWorker rt log = do
     pure $ do
       killThread threadId
       putMVar pubSubWorkerLock ()
-      log $ "Publish/Subscribe worker: Killed"
+      log "Publish/Subscribe worker: Killed"

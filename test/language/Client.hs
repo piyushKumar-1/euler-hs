@@ -1,6 +1,6 @@
-{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE TypeOperators      #-}
 
 module Client
   (

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.CachedSqlDBQuery
   ( create
@@ -19,14 +19,13 @@ where
 
 import           Data.Aeson (encode)
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
-import qualified Data.Text as T
 import qualified EulerHS.Core.SqlDB.Language as DB
 import           EulerHS.Core.Types.DB
-import           EulerHS.Core.Types.Serializable
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
@@ -82,7 +81,6 @@ create ::
     B.HasQBuilder be,
     Model be table,
     ToJSON (table Identity),
-    FromJSON (table Identity),
     Show (table Identity),
     L.MonadFlow m
   ) =>
@@ -104,7 +102,6 @@ createMySQL ::
   ( HasCallStack,
     Model BM.MySQL table,
     ToJSON (table Identity),
-    FromJSON (table Identity),
     Show (table Identity),
     L.MonadFlow m
   ) =>
@@ -129,7 +126,6 @@ updateOne ::
     Model be table,
     B.HasQBuilder be,
     ToJSON (table Identity),
-    FromJSON (table Identity),
     Show (table Identity),
     L.MonadFlow m
   ) =>
@@ -150,9 +146,6 @@ updateOneWoReturning ::
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
-    ToJSON (table Identity),
-    FromJSON (table Identity),
-    Show (table Identity),
     L.MonadFlow m
   ) =>
   DBConfig beM ->
@@ -161,9 +154,7 @@ updateOneWoReturning ::
   Where be table ->
   m (Either DBError ())
 updateOneWoReturning dbConf (Just _) newVals whereClause = do
-  val <- updateOneSqlWoReturning dbConf newVals whereClause
- -- whenRight val (\_ -> cacheWithKey cacheKey val)
-  return val
+  updateOneSqlWoReturning dbConf newVals whereClause
 updateOneWoReturning dbConf Nothing value whereClause = updateOneSqlWoReturning dbConf value whereClause
 
 updateOneSqlWoReturning ::
@@ -173,9 +164,6 @@ updateOneSqlWoReturning ::
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
-    FromJSON (table Identity),
-    ToJSON (table Identity),
-    Show (table Identity),
     L.MonadFlow m
   ) =>
   DBConfig beM ->
@@ -204,8 +192,6 @@ updateOneSql ::
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
-    FromJSON (table Identity),
-    ToJSON (table Identity),
     Show (table Identity),
     L.MonadFlow m
   ) =>
@@ -320,7 +306,6 @@ findAllExtended dbConf mKey sel = case mKey of
 runQuery ::
   ( HasCallStack,
     BeamRuntime be beM, BeamRunner beM,
-    JSONEx a,
     L.MonadFlow m
   ) =>
   DBConfig beM -> DB.SqlDB beM a -> m (Either DBError a)
@@ -332,7 +317,6 @@ runQuery dbConf query = do
 
 runQueryMySQL ::
   ( HasCallStack,
-    JSONEx a,
     L.MonadFlow m
   ) =>
   DBConfig BM.MySQLM -> DB.SqlDB BM.MySQLM a -> m (Either DBError a)
@@ -344,7 +328,7 @@ runQueryMySQL dbConf query = do
 
 sqlCreate ::
   forall be table.
-  (HasCallStack, B.HasQBuilder be, Model be table) =>
+  (B.HasQBuilder be, Model be table) =>
   table Identity ->
   B.SqlInsert be table
 sqlCreate value = B.insert modelTableEntity (mkExprWithDefault value)
@@ -356,8 +340,6 @@ createSql ::
     BeamRunner beM,
     B.HasQBuilder be,
     Model be table,
-    ToJSON (table Identity),
-    FromJSON (table Identity),
     Show (table Identity),
     L.MonadFlow m
   ) =>
@@ -378,8 +360,6 @@ createSqlMySQL ::
   forall m  table.
   ( HasCallStack,
     Model BM.MySQL table,
-    ToJSON (table Identity),
-    FromJSON (table Identity),
     Show (table Identity),
     L.MonadFlow m
   ) =>
@@ -402,8 +382,6 @@ findOneSql ::
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
-    ToJSON (table Identity),
-    FromJSON (table Identity),
     L.MonadFlow m
   ) =>
   DBConfig beM ->
@@ -418,7 +396,6 @@ findAllSql ::
     BeamRunner beM,
     Model be table,
     B.HasQBuilder be,
-    JSONEx (table Identity),
     L.MonadFlow m
   ) =>
   DBConfig beM ->

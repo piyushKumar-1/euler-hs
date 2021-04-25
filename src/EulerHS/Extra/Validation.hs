@@ -1,5 +1,5 @@
-{-# OPTIONS -fno-warn-deprecations #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Extra.Validation
   (
@@ -22,17 +22,13 @@ module EulerHS.Extra.Validation
   , parValidate
   ) where
 
-import           EulerHS.Prelude hiding (or, pred)
-import qualified Prelude as P
-
-import           Data.Data hiding (typeRep)
 import           Data.Generics.Product.Fields
 import qualified Data.Text as T
-import           Data.Validation
 import           Data.Validation as X
-import           GHC.TypeLits
-import           Type.Reflection
-
+import           EulerHS.Prelude hiding (or, pred)
+import           GHC.TypeLits (KnownSymbol, Symbol)
+import qualified Prelude as P
+import           Type.Reflection (typeRep)
 
 type Ctx = Text
 type Errors = [Text]
@@ -61,10 +57,9 @@ guarded err pred | pred      = ReaderT (\_   -> pure ())
                  | otherwise = ReaderT (\ctx -> Left [ctx <> " " <> err])
 
 -- | Trying to decode Text to target type
-decode :: forall t . (Data t, Read t) => Transformer Text t
-decode v = ReaderT (\ctx -> case (readMaybe $ toString v) of
+decode :: forall t . (Read t) => Transformer Text t
+decode v = ReaderT (\ctx -> case readMaybe $ toString v of
   Just x -> Right x
---  _      -> Left ["Can't decode " <> v <> " from field " <> ctx <> ", should be one of " <> showConstructors @t])
   _      -> Left ["Can't decode " <> v <> " from field " <> ctx])
 
 mkTransformer :: Text -> (a -> Maybe b) -> Transformer a b
@@ -87,7 +82,7 @@ extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)
 -- | Extract value and run validators on it
 withField
   :: forall (f :: Symbol) v r a
-   . (Generic r, HasField' f r v, KnownSymbol f)
+   . (HasField' f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
 
@@ -111,7 +106,7 @@ runParser p msg = fromEither $ runReaderT p msg
 -- >>> fieldName @"userId"
 -- "userId"
 fieldName_ :: forall (f :: Symbol) . KnownSymbol f => Text
-fieldName_ = T.pack $ ((filter (/='"'))) $ P.show $ typeRep @f
+fieldName_ = T.pack $ filter (/='"') $ P.show $ typeRep @f
 
 parValidate :: [Validator a] -> Validator a
 parValidate vals a = ReaderT (\ctx -> toEither $ foldr (*>) (pure a) $ fmap (mapper ctx) vals)

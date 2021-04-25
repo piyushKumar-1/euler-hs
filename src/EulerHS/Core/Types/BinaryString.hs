@@ -1,5 +1,3 @@
--- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module EulerHS.Core.Types.BinaryString
 ( BinaryString(..)
 , LBinaryString(..)

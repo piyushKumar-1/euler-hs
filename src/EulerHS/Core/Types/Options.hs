@@ -1,3 +1,6 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+
 module EulerHS.Core.Types.Options
   (
     -- * Options
@@ -16,4 +19,4 @@ class (Typeable k, ToJSON k)
   => OptionEntity k v |  k -> v
 
 mkOptionKey :: forall k v. OptionEntity k v => k -> Text
-mkOptionKey k = show (typeRep @k) <> (decodeUtf8 $ BSL.toStrict $ encode k)
+mkOptionKey k = show (typeRep @k) <> decodeUtf8 (BSL.toStrict $ encode k)

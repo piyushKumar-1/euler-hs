@@ -1,24 +1,19 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 
 module DBSetup where
 
--- import           Common (runFlowRecording)
 import           Data.Aeson as A
--- import           Data.Aeson.Encode.Pretty
 import qualified Database.Beam as B
--- import qualified Database.Beam.Backend.SQL as B
--- import qualified Database.Beam.Query as B
-import           Database.Beam.Sqlite.Connection (Sqlite, SqliteM)
--- import           EulerHS.CachedSqlDBQuery
+import           Database.Beam.Sqlite.Connection (SqliteM)
 import           EulerHS.Interpreters as I
 import           EulerHS.Language as L
 import           EulerHS.Prelude
 import           EulerHS.Runtime
 import           EulerHS.Types as T
--- import           Named
 import           Sequelize
-
 
 -- TODO: Refactor the helper db functionskA
 -- Prepare custom types for tests
@@ -52,6 +47,7 @@ deriving instance Eq User
 deriving instance ToJSON User
 deriving instance FromJSON User
 
+userTMod :: UserT (B.FieldModification (B.TableField UserT))
 userTMod =
   B.tableModification
     { _userGUID = B.fieldNamed "id"
@@ -64,7 +60,8 @@ userEMod = B.modifyTableFields userTMod
 
 newtype UserDB f = UserDB
     { users :: f (B.TableEntity UserT)
-    } deriving (Generic, B.Database be)
+    } deriving stock (Generic)
+      deriving anyclass (B.Database be)
 
 userDB :: B.DatabaseSettings be UserDB
 userDB = B.defaultDbSettings `B.withDbModification`
@@ -80,6 +77,7 @@ testDBName = "test/language/EulerHS/TestData/test.db"
 testDBTemplateName :: String
 testDBTemplateName = "test/language/EulerHS/TestData/test.db.template"
 
+poolConfig :: PoolConfig
 poolConfig = T.PoolConfig
   { stripes = 1
   , keepAlive = 10

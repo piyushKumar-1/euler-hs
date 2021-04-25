@@ -1,3 +1,6 @@
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module EulerHS.Extra.Language
   ( getOrInitSqlConn
   , getOrInitKVDBConn
@@ -75,7 +78,7 @@ getOrInitKVDBConn cfg = do
 
 rExpire :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> t -> m (Either T.KVDBReply Bool)
-rExpire cName k t = rExpireB cName (TE.encodeUtf8 k) t
+rExpire cName k = rExpireB cName (TE.encodeUtf8 k)
 
 rExpireB :: (HasCallStack, Integral t, L.MonadFlow m) =>
   RedisName -> ByteKey -> t -> m (Either T.KVDBReply Bool)
@@ -274,7 +277,7 @@ rGetT cName k = do
 
 rSetex :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
-rSetex cName k v t = rSetexB cName k' v' t
+rSetex cName k v = rSetexB cName k' v'
   where
     k' = TE.encodeUtf8 k
     v' = BSL.toStrict $ A.encode v
@@ -305,7 +308,7 @@ rSetOpts
   -> L.KVDBSetTTLOption
   -> L.KVDBSetConditionOption
   -> m (Either T.KVDBReply Bool)
-rSetOpts cName k v ttl cond = rSetOptsB cName k' v' ttl cond
+rSetOpts cName k v = rSetOptsB cName k' v'
   where
     k' = TE.encodeUtf8 k
     v' = BSL.toStrict $ A.encode v
@@ -334,7 +337,7 @@ rSetOptsT
   -> L.KVDBSetTTLOption
   -> L.KVDBSetConditionOption
   -> m (Either T.KVDBReply Bool)
-rSetOptsT cName k v ttl cond = rSetOptsB cName k' v' ttl cond
+rSetOptsT cName k v = rSetOptsB cName k' v'
   where
     k' = TE.encodeUtf8 k
     v' = TE.encodeUtf8 v
@@ -365,7 +368,7 @@ withLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogCont
 withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
 
 
-updateLoggerContext :: HasCallStack => (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
+updateLoggerContext :: (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
 updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
   where
     newLrt :: LoggerRuntime

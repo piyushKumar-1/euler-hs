@@ -1,5 +1,5 @@
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE GeneralisedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass  #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module EulerHS.Core.Types.Postgres
   (
@@ -11,10 +11,8 @@ module EulerHS.Core.Types.Postgres
   , closePostgresConn
   ) where
 
-import           EulerHS.Prelude
-
 import qualified Database.Beam.Postgres as BP
-
+import           EulerHS.Prelude
 
 data PostgresConfig = PostgresConfig
   { connectHost     :: String
@@ -26,7 +24,7 @@ data PostgresConfig = PostgresConfig
 
 -- | Transform PostgresConfig to the Postgres ConnectInfo.
 toBeamPostgresConnectInfo :: PostgresConfig -> BP.ConnectInfo
-toBeamPostgresConnectInfo (PostgresConfig {..}) = BP.ConnectInfo {..}
+toBeamPostgresConnectInfo PostgresConfig {..} = BP.ConnectInfo {..}
 
 -- | Connect with the given config to the database.
 createPostgresConn :: PostgresConfig -> IO BP.Connection

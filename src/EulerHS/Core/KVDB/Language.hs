@@ -1,6 +1,5 @@
-{-# OPTIONS_GHC -Werror #-}
-{-# LANGUAGE DerivingStrategies    #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GADTs              #-}
 
 module EulerHS.Core.KVDB.Language
   (

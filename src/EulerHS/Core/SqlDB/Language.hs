@@ -1,7 +1,5 @@
-{-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Core.SqlDB.Language
   (
@@ -29,26 +27,24 @@ import qualified Database.Beam.Postgres as BP
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
 
-
 type SqlDB beM = F (SqlDBMethodF beM)
 
 data SqlDBMethodF (beM :: Type -> Type) next where
   SqlDBMethod :: HasCallStack => (T.NativeSqlConn -> (Text -> IO ()) -> IO a) -> (a -> next) -> SqlDBMethodF beM next
-
   SqlThrowException :: (HasCallStack, Exception e) => e -> (a -> next) -> SqlDBMethodF beM next
 
 instance Functor (SqlDBMethodF beM) where
-  fmap f (SqlDBMethod runner next) = SqlDBMethod runner (f . next)
+  fmap f (SqlDBMethod runner next)        = SqlDBMethod runner (f . next)
   fmap f (SqlThrowException message next) = SqlThrowException message (f . next)
 
 sqlDBMethod
-  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM)
+  :: (HasCallStack, T.BeamRunner beM)
   => beM a
   -> SqlDB beM a
-sqlDBMethod act = liftFC $ SqlDBMethod (flip T.getBeamDebugRunner act) id
+sqlDBMethod act = liftFC $ SqlDBMethod (`T.getBeamDebugRunner` act) id
 
 -- For testing purpose
-sqlThrowException :: forall a e beM be . (HasCallStack, Exception e, T.BeamRunner beM, T.BeamRuntime be beM) => e -> SqlDB beM a
+sqlThrowException :: forall a e beM . (HasCallStack, Exception e) => e -> SqlDB beM a
 sqlThrowException ex = liftFC $ SqlThrowException ex id
 
 -- Convenience interface

@@ -18,7 +18,7 @@ source-repository head
 common common-lang
   ghc-options:
     -Wall -Wcompat -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wredundant-constraints
+    -Wincomplete-uni-patterns -Wredundant-constraints -Werror
     -fplugin=RecordDotPreprocessor
 
   build-depends:
@@ -28,33 +28,24 @@ common common-lang
 
   default-extensions:
     NoImplicitPrelude
-    ConstraintKinds
     DataKinds
-    DefaultSignatures
     DeriveFunctor
     DeriveGeneric
     DuplicateRecordFields
-    ExplicitNamespaces
+    EmptyCase
     FlexibleContexts
     FlexibleInstances
-    FunctionalDependencies
-    GADTs
+    GeneralizedNewtypeDeriving
+    InstanceSigs
     LambdaCase
     MultiParamTypeClasses
-    MultiWayIf
-    NamedFieldPuns
     OverloadedLabels
     OverloadedStrings
-    PatternSynonyms
-    RankNTypes
-    RecordWildCards
-    ScopedTypeVariables
     TupleSections
     TypeApplications
     TypeFamilies
-    TypeOperators
+    TypeSynonymInstances
     UndecidableInstances
-    ViewPatterns
 
   default-language:   Haskell2010
 

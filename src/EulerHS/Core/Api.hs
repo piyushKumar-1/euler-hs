@@ -1,39 +1,37 @@
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.Core.Api where
+import qualified Data.ByteString.Lazy as LBS (toStrict)
+import qualified Data.Text as Text (unpack)
+import           EulerHS.Core.Masking
+import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig (..))
 import           EulerHS.Prelude
+import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as SC
 import qualified Servant.Client.Core as SCC
 import           Servant.Client.Core.RunClient (RunClient)
 import qualified Servant.Client.Free as SCF
 import qualified Servant.Client.Internal.HttpClient as SCIHC
-import qualified Network.HTTP.Types as HTTP
-import qualified Data.ByteString.Lazy as LBS(toStrict)
-import qualified Data.Text as Text (unpack)
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
-import           EulerHS.Core.Masking
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)
 
 data LogServantRequest
   = LogServantRequest
-    { url :: SCF.BaseUrl
-    , method :: HTTP.Method
-    , body :: String
-    , headers :: Seq HTTP.Header
+    { url         :: SCF.BaseUrl
+    , method      :: HTTP.Method
+    , body        :: String
+    , headers     :: Seq HTTP.Header
     , queryString :: Seq HTTP.QueryItem
     }
     deriving (Show)
 
 data LogServantResponse
   = LogServantResponse
-    { statusCode :: HTTP.Status
-    , headers :: Seq HTTP.Header
+    { statusCode  :: HTTP.Status
+    , headers     :: Seq HTTP.Header
     , httpVersion :: HTTP.HttpVersion
-    , body :: String
+    , body        :: String
     }
     deriving (Show)
 
@@ -52,28 +50,25 @@ runEulerClient :: (String -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl 
 runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClientF log mbMaskConfig bUrl) f
 
 logServantRequest :: (String -> IO ()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> SCC.Request -> IO ()
-logServantRequest log mbMaskConfig url req = do
+logServantRequest log mbMaskConfig url' req = do
   log $ show $ LogServantRequest
-    { url = url
-    , method = method
-    , body = body
-    , headers = headers
-    , queryString = queryString
+    { url = url'
+    , method = method'
+    , body = body'
+    , headers = headers'
+    , queryString = queryString'
     }
-
   where
-    body = case SCC.requestBody req of
+    body' = case SCC.requestBody req of
       Just (reqbody, _) ->
         case reqbody of
           SCC.RequestBodyBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) s
           SCC.RequestBodyLBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
           SCC.RequestBodySource sr -> show $ SCC.RequestBodySource sr
       Nothing -> "body = (empty)"
-
-    method = SCC.requestMethod req
-    headers = maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestHeaders req
-    queryString = maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestQueryString req
-
+    method' = SCC.requestMethod req
+    headers' = maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestHeaders req
+    queryString' = maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestQueryString req
     getMaskText :: Text
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 

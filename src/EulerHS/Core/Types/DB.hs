@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingStrategies     #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 
 module EulerHS.Core.Types.DB
   (
@@ -45,8 +46,6 @@ module EulerHS.Core.Types.DB
   , SQLError(..)
   ) where
 
-import           EulerHS.Prelude
-
 import qualified Data.Pool as DP
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Database.Beam as B
@@ -59,12 +58,10 @@ import qualified Database.Beam.Sqlite.Connection as SQLite
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PGS
 import qualified Database.SQLite.Simple as SQLite
-
 import           EulerHS.Core.Types.MySQL (MySQLConfig (..), createMySQLConn)
 import           EulerHS.Core.Types.Postgres (PostgresConfig (..),
                                               createPostgresConn)
-
-
+import           EulerHS.Prelude
 
 class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   | be -> beM, beM -> be where
@@ -257,8 +254,8 @@ mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM
 mkMySQLPoolConfig = MySQLPoolConf
 
 getDBName :: DBConfig beM -> String
-getDBName (PostgresPoolConf _ (PostgresConfig{..}) _) = connectDatabase
-getDBName (MySQLPoolConf _ (MySQLConfig{..}) _) = connectDatabase
+getDBName (PostgresPoolConf _ PostgresConfig{..} _) = connectDatabase
+getDBName (MySQLPoolConf _ MySQLConfig{..} _) = connectDatabase
 getDBName (SQLitePoolConf _ dbName _) = dbName
 getDBName (MockConfig _) = error "Can't get DB name of MockConfig"
 

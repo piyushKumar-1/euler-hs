@@ -1,10 +1,7 @@
-{-# LANGUAGE DeriveFunctor #-}
-
 module EulerHS.Core.PubSub.Language where
 
-import           EulerHS.Prelude
-
 import qualified Database.Redis as R
+import           EulerHS.Prelude
 import qualified EulerHS.Types as T
 
 newtype Channel        = Channel        ByteString
@@ -27,5 +24,3 @@ subscribe channels cb = liftFC $ Subscribe channels cb id
 
 psubscribe :: [ChannelPattern] -> R.PMessageCallback -> PubSub (IO ())
 psubscribe channels cb = liftFC $ PSubscribe channels cb id
-
-

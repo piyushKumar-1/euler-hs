@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -Werror -Wno-name-shadowing #-}
-{-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module ArtSpec (
   -- spec

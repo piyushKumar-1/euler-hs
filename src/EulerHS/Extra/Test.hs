@@ -1,31 +1,29 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE RankNTypes      #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module EulerHS.Extra.Test where
 
-import           EulerHS.Prelude
-
 import qualified Database.Beam.Postgres as BP
--- import           Database.MySQL.Base
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PG (execute_)
 import           EulerHS.Interpreters
 import           EulerHS.Language
+import           EulerHS.Prelude
 import           EulerHS.Runtime (FlowRuntime)
 import           EulerHS.Types
 import qualified EulerHS.Types as T
 import           System.Process
 
-
 mwhen :: Monoid m => Bool -> m -> m
 mwhen True  = id
-mwnen False = const mempty
-
+mwhen False = const mempty
 
 withMysqlDb :: String -> String -> MySQLConfig -> IO a -> IO a
 withMysqlDb dbName filePath msRootCfg next =
     bracket_
       (dropTestDbIfExist >> createTestDb)
-      (dropTestDbIfExist)
+      dropTestDbIfExist
       (loadMySQLDump >> next)
   where
     T.MySQLConfig
@@ -41,7 +39,7 @@ withMysqlDb dbName filePath msRootCfg next =
           "mysql " <> options <> " " <> dbName <> " 2> /dev/null < " <> filePath
       where
         options =
-          intercalate " "
+          intercalate " " -- Can't replace with 'unwords' because of Euler prelude overloading. - Koz
             [                                      "--port="     <> show connectPort
             , mwhen (not $ null connectHost    ) $ "--host="     <> connectHost
             , mwhen (not $ null connectUser    ) $ "--user="     <> connectUser
@@ -129,7 +127,7 @@ preparePostgresDB filePath pgRootCfg pgCfg@T.PostgresConfig{..} pgCfgToDbCfg wit
 
         bracket_
           (dropTestDbIfExist >> createTestDb)
-          (dropTestDbIfExist)
+          dropTestDbIfExist
           (loadPgDump >> prepareDBConnections flowRt >> next flowRt)
   where
     prepareDBConnections :: FlowRuntime -> IO ()

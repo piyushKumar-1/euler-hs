@@ -15,14 +15,11 @@ module EulerHS.Core.Logger.Impl.TinyLogger
   , defaultBufferSize
   ) where
 
-import           EulerHS.Prelude hiding ((.=))
-
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
-import qualified System.Logger as Log
-import qualified System.Logger.Message as LogMsg
-
 import qualified EulerHS.Core.Types as T
+import           EulerHS.Prelude
+import qualified System.Logger as Log
 
 type LogQueue = (Chan.InChan T.PendingMsg, Chan.OutChan T.PendingMsg)
 
@@ -40,16 +37,16 @@ dispatchLogLevel T.Warning = Log.Warn
 dispatchLogLevel T.Error   = Log.Error
 
 logPendingMsg :: T.FlowFormatter -> Loggers -> T.PendingMsg -> IO ()
-logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl tag msg msgNum logContext) = do
+logPendingMsg flowFormatter loggers pendingMsg@(T.PendingMsg mbFlowGuid lvl _ _ _ _) = do
   formatter <- flowFormatter mbFlowGuid
   let msgBuilder = formatter pendingMsg
   let lvl' = dispatchLogLevel lvl
   let msg' = case msgBuilder of
         T.SimpleString str -> Log.msg str
-        T.SimpleText txt -> Log.msg txt
-        T.SimpleBS bs -> Log.msg bs
-        T.SimpleLBS lbs -> Log.msg lbs
-        T.MsgBuilder bld -> Log.msg bld
+        T.SimpleText txt   -> Log.msg txt
+        T.SimpleBS bs      -> Log.msg bs
+        T.SimpleLBS lbs    -> Log.msg lbs
+        T.MsgBuilder bld   -> Log.msg bld
         T.MsgTransformer f -> f
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
 
@@ -88,20 +85,20 @@ createLogger'
           $ maybe id Log.setRenderer mbRenderer
           $ Log.setBufSize bufferSize
           $ Log.setOutput (Log.Path logFileName)
-          $ Log.defSettings
+          Log.defSettings
 
     let consoleSettings
           = Log.setFormat mbDateFormat
           $ maybe id Log.setRenderer mbRenderer
           $ Log.setBufSize bufferSize
           $ Log.setOutput Log.StdOut
-          $ Log.defSettings
+          Log.defSettings
 
     let fileH    = [Log.new fileSettings    | isFileLog]
     let consoleH = [Log.new consoleSettings | isConsoleLog]
     let loggersH = fileH ++ consoleH
 
-    when (not $ null loggersH) $
+    unless (null loggersH) $
       if isAsync then putStrLn @String "Creating async loggers..."
                  else putStrLn @String "Creating sync loggers..."
     when isFileLog    $ putStrLn @String $ "Creating file logger (" +| logFileName |+ ")..."
@@ -116,7 +113,7 @@ createLogger'
     startLogger True  loggers = do
       caps <- getNumCapabilities
       chan@(_, outChan) <- Chan.newChan (fromIntegral maxQueueSize)
-      threadIds <- traverse ((flip forkOn) (forever $ loggerWorker flowFormatter outChan loggers)) [1..caps]
+      threadIds <- traverse (`forkOn` (forever $ loggerWorker flowFormatter outChan loggers)) [1..caps]
       pure $ AsyncLoggerHandle threadIds chan loggers
 
 disposeLogger :: T.FlowFormatter -> LoggerHandle -> IO ()
@@ -141,17 +138,6 @@ disposeLogger flowFormatter (AsyncLoggerHandle threadIds (_, outChan) loggers) =
             logPendingMsg flowFormatter loggers pendingMsg
             logRemaining oc
         Nothing -> pure ()
-
-withLogger'
-  :: Maybe Log.DateFormat
-  -> Maybe Log.Renderer
-  -> T.BufferSize
-  -> T.FlowFormatter
-  -> T.LoggerConfig
-  -> (LoggerHandle -> IO a)
-  -> IO a
-withLogger' mbDateFormat mbRenderer bufSize flowFormatter cfg =
-  bracket (createLogger' mbDateFormat mbRenderer bufSize flowFormatter cfg) (disposeLogger flowFormatter)
 
 withLogger
   :: T.FlowFormatter

@@ -1,13 +1,13 @@
-module SQLDB.TestData.Connections where
+{-# LANGUAGE ScopedTypeVariables #-}
 
-import           EulerHS.Prelude
+module SQLDB.TestData.Connections where
 
 import           EulerHS.Interpreters
 import qualified EulerHS.Language as L
+import           EulerHS.Prelude
 import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Types as T
-
 
 connectOrFail :: T.DBConfig beM -> L.Flow (T.SqlConn beM)
 connectOrFail cfg = L.initSqlDBConnection cfg >>= \case

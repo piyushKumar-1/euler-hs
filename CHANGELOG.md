@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.3.0.0] - 2021-04-26
+
+* Remove `Serializable` module.
+
 ## [2.2.0.0] - 2021-04-23
 
 * Major version bump for `beam-mysql`.

@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Werror -fclear-plugins #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
-{-# LANGUAGE DeriveAnyClass             #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE InstanceSigs               #-}
@@ -17,35 +16,18 @@ module EulerHS.Framework.Flow.Language
   , logCallStack
   , logExceptionCallStack
   , logInfo
-  , logInfoT
   , logError
-  , logErrorT
   , logDebug
-  , logDebugT
   , logWarning
-  , logWarningT
   -- *** PublishSubscribe
   , unpackLanguagePubSub
-  -- *** DB
-  , withDB
-  , withDBTransaction
-  , insertRow
-  , unsafeInsertRow
-  , insertRowMySQL
-  , unsafeInsertRowMySQL
   -- *** Other
-  , AppException(..)
   , callAPI
   , callAPI'
   , callHTTP
   , runIO
   , forkFlow
   , forkFlow'
-  , getCurrentTimeUTC
-  , getCurrentDateInSeconds
-  , getCurrentDateInMillis
-  , getCurrentDateStringWithSecOffset
-  , throwOnFailedWithLog
   -- ** Interpretation
   , foldFlow
   ) where
@@ -56,20 +38,12 @@ import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
 import qualified Data.Text as Text
-import           Data.Time (LocalTime, addUTCTime, defaultTimeLocale,
-                            formatTime, getCurrentTime, utc, utcToZonedTime,
-                            zonedTimeToLocalTime)
-import           Data.Time.Clock.POSIX (getPOSIXTime)
-import           Database.Beam (Beamable, FromBackendRow)
-import           Database.Beam.MySQL (MySQL, MySQLM)
-import           Database.Beam.Query (SqlInsert)
 import           EulerHS.Core.Language (KVDB, Logger, logMessage')
 import qualified EulerHS.Core.Language as L
 import qualified EulerHS.Core.PubSub.Language as PSL
 import qualified EulerHS.Core.Types as T
 import           EulerHS.Framework.Runtime (FlowRuntime)
 import           EulerHS.Prelude hiding (getOption, throwM)
-import           Servant (err500)
 import           Servant.Client (BaseUrl, ClientError)
 
 -- | Flow language.
@@ -430,12 +404,6 @@ logInfo :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
 
--- | As 'logInfo', but specialized for logging 'Text' tags.
---
--- @since 2.1.0.1
-logInfoT :: forall (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m) => Text -> T.Message -> m ()
-logInfoT = logInfo @Text
 
 -- | Log message with Error level.
 --
@@ -446,13 +414,6 @@ logError tag msg = do
   logCallStack
   evalLogger' $ logMessage' T.Error tag msg
 
--- | As 'logError', but specialized for logging 'Text' tags.
---
--- @since 2.1.0.1
-logErrorT :: forall (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m) => Text -> T.Message -> m ()
-logErrorT = logError @Text
-
 -- | Log message with Debug level.
 --
 -- Thread safe.
@@ -460,26 +421,12 @@ logDebug :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logDebug tag msg = evalLogger' $ logMessage' T.Debug tag msg
 
--- | As 'logDebug', but specialized for logging 'Text' tags.
---
--- @since 2.1.0.1
-logDebugT :: forall (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m) => Text -> T.Message -> m ()
-logDebugT = logDebug @Text
-
 -- | Log message with Warning level.
 --
 -- Thread safe.
 logWarning :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logWarning tag msg = evalLogger' $ logMessage' T.Warning tag msg
-
--- | As 'logWarning', but specialized for logging 'Text' tags.
---
--- @since 2.1.0.1
-logWarningT :: forall (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m) => Text -> T.Message -> m ()
-logWarningT = logWarning @Text
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.
@@ -504,172 +451,6 @@ runIO = runIO' ""
 callHTTP :: (HasCallStack, MonadFlow m) =>
   T.HTTPRequest -> m (Either Text.Text T.HTTPResponse)
 callHTTP url = callHTTPWithCert url Nothing
-
--- | Retrieves the current UTC time, but as a 'LocalTime'.
---
--- @since 2.1.0.1
-getCurrentTimeUTC :: (MonadFlow m) => m LocalTime
-getCurrentTimeUTC = runIO' "getCurrentTimeUTC" go
-  where
-    go :: IO LocalTime
-    go = zonedTimeToLocalTime . utcToZonedTime utc <$> getCurrentTime
-
--- | Retrieves the current POSIX time, rounded to seconds.
---
--- @since 2.1.0.1
-getCurrentDateInSeconds :: (MonadFlow m) => m Int
-getCurrentDateInSeconds = runIO' "getCurrentDateInSeconds" (floor <$> getPOSIXTime)
-
--- | Retrieves the current POSIX time, rounded to milliseconds.
---
--- @since 2.1.0.1
-getCurrentDateInMillis :: (MonadFlow m) => m Int
-getCurrentDateInMillis = runIO' "getCurrentDateInMillis" $ do
-  t <- (* 1000) <$> getPOSIXTime
-  pure . floor $ t
-
--- | Given a number of seconds as an offset, return a date string, in the format
--- YYYY-MM-ddTHH:MM:SSZ, representing the current time, offset by the specified
--- number of seconds.
---
--- @since 2.1.0.1
-getCurrentDateStringWithSecOffset :: (MonadFlow m) => Int -> m Text
-getCurrentDateStringWithSecOffset secs = do
-  now <- runIO' "getCurrentDateStringWithSecOffset" getCurrentTime
-  let offset = addUTCTime (realToFrac secs) now
-  pure . Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" $ offset
-
--- | An app-specific exception.
---
--- @since 2.1.0.1
-data AppException =
-  SqlDBConnectionFailedException Text |
-  KVDBConnectionFailedException Text
-  deriving stock (Eq, Show, Ord, Generic)
-  deriving anyclass (ToJSON, FromJSON)
-
-instance Exception AppException
-
--- | Transforms a 'Left' result into an exception, logging this outcome. Does
--- nothing on a 'Right'.
---
--- @since 2.1.0.1
-throwOnFailedWithLog :: (HasCallStack, Show e, MonadFlow m) =>
-  Either e a -> (Text -> AppException) -> Text -> m ()
-throwOnFailedWithLog res mkException msg = case res of
-  Left err -> do
-    let errMsg = msg <> " " <> show err
-    logError @Text "" errMsg
-    throwException . mkException $ errMsg
-  Right _  -> pure ()
-
--- | Creates a connection and runs a DB operation. Throws on connection failure
--- or if the operation fails; this will log if either of these things happens.
---
--- NOTE: This does /not/ run inside a transaction.
---
--- @since 2.1.0.1
-withDB :: (HasCallStack, MonadFlow m, T.BeamRunner beM, T.BeamRuntime be beM) =>
-  T.DBConfig beM -> L.SqlDB beM a -> m a
-withDB = withDB' runDB
-
--- | As 'withDB', but runs inside a transaction.
---
--- @since 2.1.0.1
-withDBTransaction :: (HasCallStack, MonadFlow m, T.BeamRunner beM, T.BeamRuntime be beM) =>
-  T.DBConfig beM -> L.SqlDB beM a -> m a
-withDBTransaction = withDB' runTransaction
-
--- Internal helper
-withDB' :: (HasCallStack, MonadFlow m) =>
-  (T.SqlConn beM -> L.SqlDB beM a -> m (T.DBResult a)) ->
-  T.DBConfig beM ->
-  L.SqlDB beM a ->
-  m a
-withDB' run conf act = do
-  mConn <- getSqlDBConnection conf
-  case mConn of
-    Left err   -> do
-      logError @Text "SqlDB connect" . show $ err
-      throwException err500
-    Right conn -> do
-      res <- run conn act
-      case res of
-        Left err  -> do
-          logError @Text "SqlDB interaction" . show $ err
-          throwException err500
-        Right val -> pure val
-
--- | Inserts several rows, returning the first successful inserted result. Use
--- this function with care: if your insert ends up inserting nothing
--- successfully, this will return a 'Left'.
---
--- @since 2.1.0.1
-insertRow ::
-  (HasCallStack,
-    MonadFlow m,
-    T.BeamRunner beM,
-    T.BeamRuntime be beM,
-    Beamable table,
-    FromBackendRow be (table Identity)) =>
-  T.DBConfig beM -> SqlInsert be table -> m (Either Text (table Identity))
-insertRow conf ins = do
-  results <- withDBTransaction conf . L.insertRowsReturningList $ ins
-  pure $ case results of
-    []      -> Left "Unexpected empty result."
-    (x : _) -> Right x
-
--- | As 'insertRow', but instead throws the provided exception on failure. Will
--- also log in such a case.
---
--- @since 2.1.0.1
-unsafeInsertRow ::
-  (HasCallStack,
-    MonadFlow m,
-    T.BeamRunner beM,
-    T.BeamRuntime be beM,
-    Beamable table,
-    FromBackendRow be (table Identity),
-    Exception e) =>
-  e -> T.DBConfig beM -> SqlInsert be table -> m (table Identity)
-unsafeInsertRow err conf ins = do
-  res <- insertRow conf ins
-  case res of
-    Left err' -> do
-      logError @Text "unsafeInsertRow" err'
-      throwException err
-    Right x -> pure x
-
--- | MySQL-specific version of 'insertRow'.
---
--- @since 2.1.0.1
-insertRowMySQL ::
-  (HasCallStack,
-    MonadFlow m,
-    FromBackendRow MySQL (table Identity)) =>
-  T.DBConfig MySQLM -> SqlInsert MySQL table -> m (Either Text (table Identity))
-insertRowMySQL conf ins = do
-  results <- withDBTransaction conf . L.insertRowReturningMySQL $ ins
-  pure $ case results of
-    Nothing -> Left "Unexpected empty result."
-    Just x  -> Right x
-
--- | MySQL-specific version of 'unsafeInsertRow'.
---
--- @since 2.1.0.1
-unsafeInsertRowMySQL ::
-  (HasCallStack,
-    MonadFlow m,
-    FromBackendRow MySQL (table Identity),
-    Exception e) =>
-  e -> T.DBConfig MySQLM -> SqlInsert MySQL table -> m (table Identity)
-unsafeInsertRowMySQL err conf ins = do
-  res <- insertRowMySQL conf ins
-  case res of
-    Left err' -> do
-      logError @Text "unsafeInsertRowMySQL" err'
-      throwException err
-    Right x -> pure x
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
 -- `ReaderT` and other monad transformers.

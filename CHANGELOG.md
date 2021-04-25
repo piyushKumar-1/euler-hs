@@ -2,8 +2,8 @@
 
 ## [2.1.1.1] - 2021-04-23
 
-* Add a range of additional functions to `EulerHS.Framework.Flow.Language` (and
-  everything that imports it), originally from `euler-webservice`.
+* Add a range of additional functions to `EulerHS.Extra.Language`, originally 
+  from `euler-webservice`.
 
 ## [2.1.1.0] - 2021-04-20
 

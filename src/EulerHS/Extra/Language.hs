@@ -1,5 +1,8 @@
-{-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Extra.Language
   ( getOrInitSqlConn
@@ -32,21 +35,49 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
+  -- * Logging
+  , AppException(..)
+  , throwOnFailedWithLog
   , updateLoggerContext
   , withLoggerContext
+  , logInfoT
+  , logWarningT
+  , logErrorT
+  , logDebugT
+  -- * Time and date
+  , getCurrentTimeUTC
+  , getCurrentDateInSeconds
+  , getCurrentDateInMillis
+  , getCurrentDateStringWithSecOffset
+  -- * SQL database
+  , withDB
+  , withDBTransaction
+  , insertRow
+  , unsafeInsertRow
+  , insertRowMySQL
+  , unsafeInsertRowMySQL
   ) where
-
-import           EulerHS.Prelude hiding (get, id)
 
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE
+import           Data.Time (LocalTime, addUTCTime, defaultTimeLocale,
+                            formatTime, getCurrentTime, utc, utcToZonedTime,
+                            zonedTimeToLocalTime)
+import           Data.Time.Clock.POSIX (getPOSIXTime)
+import           Database.Beam (Beamable, FromBackendRow, SqlInsert)
+import           Database.Beam.MySQL (MySQL, MySQLM)
 import           Database.Redis (keyToSlot)
 import qualified EulerHS.Core.KVDB.Language as L
+import           EulerHS.Core.Language (SqlDB, insertRowReturningMySQL,
+                                        insertRowsReturningList)
 import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
+import           EulerHS.Prelude hiding (get, id)
 import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
                                   LoggerRuntime (..))
+import           Servant (err500)
 
 type RedisName = Text
 type TextKey = Text
@@ -54,6 +85,200 @@ type TextField = Text
 type ByteKey = ByteString
 type ByteField = ByteString
 type ByteValue = ByteString
+
+-- | Retrieves the current UTC time, but as a 'LocalTime'.
+--
+-- @since 2.1.0.1
+getCurrentTimeUTC :: (L.MonadFlow m) => m LocalTime
+getCurrentTimeUTC = L.runIO' "getCurrentTimeUTC" go
+  where
+    go :: IO LocalTime
+    go = zonedTimeToLocalTime . utcToZonedTime utc <$> getCurrentTime
+
+-- | Retrieves the current POSIX time, rounded to seconds.
+--
+-- @since 2.1.0.1
+getCurrentDateInSeconds :: (L.MonadFlow m) => m Int
+getCurrentDateInSeconds = L.runIO' "getCurrentDateInSeconds" (floor <$> getPOSIXTime)
+
+-- | Retrieves the current POSIX time, rounded to milliseconds.
+--
+-- @since 2.1.0.1
+getCurrentDateInMillis :: (L.MonadFlow m) => m Int
+getCurrentDateInMillis = L.runIO' "getCurrentDateInMillis" $ do
+  t <- (* 1000) <$> getPOSIXTime
+  pure . floor $ t
+
+-- | Given a number of seconds as an offset, return a date string, in the format
+-- YYYY-MM-ddTHH:MM:SSZ, representing the current time, offset by the specified
+-- number of seconds.
+--
+-- @since 2.1.0.1
+getCurrentDateStringWithSecOffset :: (L.MonadFlow m) => Int -> m Text
+getCurrentDateStringWithSecOffset secs = do
+  now <- L.runIO' "getCurrentDateStringWithSecOffset" getCurrentTime
+  let offset = addUTCTime (realToFrac secs) now
+  pure . Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" $ offset
+
+-- | An app-specific exception.
+--
+-- @since 2.1.0.1
+data AppException =
+  SqlDBConnectionFailedException Text |
+  KVDBConnectionFailedException Text
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance Exception AppException
+
+-- | Transforms a 'Left' result into an exception, logging this outcome. Does
+-- nothing on a 'Right'.
+--
+-- @since 2.1.0.1
+throwOnFailedWithLog :: (HasCallStack, Show e, L.MonadFlow m) =>
+  Either e a -> (Text -> AppException) -> Text -> m ()
+throwOnFailedWithLog res mkException msg = case res of
+  Left err -> do
+    let errMsg = msg <> " " <> show err
+    L.logError @Text "" errMsg
+    L.throwException . mkException $ errMsg
+  Right _  -> pure ()
+
+-- | As 'logInfo', but specialized for logging 'Text' tags.
+--
+-- @since 2.1.0.1
+logInfoT :: forall (m :: Type -> Type) .
+  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+logInfoT = L.logInfo @Text
+
+-- | As 'logError', but specialized for logging 'Text' tags.
+--
+-- @since 2.1.0.1
+logErrorT :: forall (m :: Type -> Type) .
+  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+logErrorT = L.logError @Text
+
+-- | As 'logDebug', but specialized for logging 'Text' tags.
+--
+-- @since 2.1.0.1
+logDebugT :: forall (m :: Type -> Type) .
+  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+logDebugT = L.logDebug @Text
+
+-- | As 'logWarning', but specialized for logging 'Text' tags.
+--
+-- @since 2.1.0.1
+logWarningT :: forall (m :: Type -> Type) .
+  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+logWarningT = L.logWarning @Text
+
+-- | Creates a connection and runs a DB operation. Throws on connection failure
+-- or if the operation fails; this will log if either of these things happens.
+--
+-- NOTE: This does /not/ run inside a transaction.
+--
+-- @since 2.1.0.1
+withDB :: (HasCallStack, L.MonadFlow m, T.BeamRunner beM, T.BeamRuntime be beM) =>
+  T.DBConfig beM -> SqlDB beM a -> m a
+withDB = withDB' L.runDB
+
+-- | As 'withDB', but runs inside a transaction.
+--
+-- @since 2.1.0.1
+withDBTransaction :: (HasCallStack, L.MonadFlow m, T.BeamRunner beM, T.BeamRuntime be beM) =>
+  T.DBConfig beM -> SqlDB beM a -> m a
+withDBTransaction = withDB' L.runTransaction
+
+-- Internal helper
+withDB' :: (HasCallStack, L.MonadFlow m) =>
+  (T.SqlConn beM -> SqlDB beM a -> m (T.DBResult a)) ->
+  T.DBConfig beM ->
+  SqlDB beM a ->
+  m a
+withDB' run conf act = do
+  mConn <- L.getSqlDBConnection conf
+  case mConn of
+    Left err   -> do
+      L.logError @Text "SqlDB connect" . show $ err
+      L.throwException err500
+    Right conn -> do
+      res <- run conn act
+      case res of
+        Left err  -> do
+          L.logError @Text "SqlDB interaction" . show $ err
+          L.throwException err500
+        Right val -> pure val
+
+-- | Inserts several rows, returning the first successful inserted result. Use
+-- this function with care: if your insert ends up inserting nothing
+-- successfully, this will return a 'Left'.
+--
+-- @since 2.1.0.1
+insertRow ::
+  (HasCallStack,
+    L.MonadFlow m,
+    T.BeamRunner beM,
+    T.BeamRuntime be beM,
+    Beamable table,
+    FromBackendRow be (table Identity)) =>
+  T.DBConfig beM -> SqlInsert be table -> m (Either Text (table Identity))
+insertRow conf ins = do
+  results <- withDBTransaction conf . insertRowsReturningList $ ins
+  pure $ case results of
+    []      -> Left "Unexpected empty result."
+    (x : _) -> Right x
+
+-- | As 'insertRow', but instead throws the provided exception on failure. Will
+-- also log in such a case.
+--
+-- @since 2.1.0.1
+unsafeInsertRow ::
+  (HasCallStack,
+    L.MonadFlow m,
+    T.BeamRunner beM,
+    T.BeamRuntime be beM,
+    Beamable table,
+    FromBackendRow be (table Identity),
+    Exception e) =>
+  e -> T.DBConfig beM -> SqlInsert be table -> m (table Identity)
+unsafeInsertRow err conf ins = do
+  res <- insertRow conf ins
+  case res of
+    Left err' -> do
+      L.logError @Text "unsafeInsertRow" err'
+      L.throwException err
+    Right x -> pure x
+
+-- | MySQL-specific version of 'insertRow'.
+--
+-- @since 2.1.0.1
+insertRowMySQL ::
+  (HasCallStack,
+    L.MonadFlow m,
+    FromBackendRow MySQL (table Identity)) =>
+  T.DBConfig MySQLM -> SqlInsert MySQL table -> m (Either Text (table Identity))
+insertRowMySQL conf ins = do
+  results <- withDBTransaction conf . insertRowReturningMySQL $ ins
+  pure $ case results of
+    Nothing -> Left "Unexpected empty result."
+    Just x  -> Right x
+
+-- | MySQL-specific version of 'unsafeInsertRow'.
+--
+-- @since 2.1.0.1
+unsafeInsertRowMySQL ::
+  (HasCallStack,
+    L.MonadFlow m,
+    FromBackendRow MySQL (table Identity),
+    Exception e) =>
+  e -> T.DBConfig MySQLM -> SqlInsert MySQL table -> m (table Identity)
+unsafeInsertRowMySQL err conf ins = do
+  res <- insertRowMySQL conf ins
+  case res of
+    Left err' -> do
+      L.logError @Text "unsafeInsertRowMySQL" err'
+      L.throwException err
+    Right x -> pure x
 
 -- | Get existing SQL connection, or init a new connection.
 getOrInitSqlConn :: (HasCallStack, L.MonadFlow m) =>

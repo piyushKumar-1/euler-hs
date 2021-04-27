@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.2.0.1] - 2021-04-26
+
+* Add a range of additional functions to `EulerHS.Extra.Language`, originally 
+  from `euler-webservice`.
+
 ## [2.2.0.0] - 2021-04-23
 
 * Major version bump for `beam-mysql`.

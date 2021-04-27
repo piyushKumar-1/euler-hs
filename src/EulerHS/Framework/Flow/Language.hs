@@ -22,6 +22,8 @@ module EulerHS.Framework.Flow.Language
   , logError
   , logDebug
   , logWarning
+  -- *** PublishSubscribe
+  , unpackLanguagePubSub
   -- *** Other
   , callAPI
   , callAPI'
@@ -29,8 +31,6 @@ module EulerHS.Framework.Flow.Language
   , runIO
   , forkFlow
   , forkFlow'
-  -- *** PublishSubscribe
-  , unpackLanguagePubSub
   -- ** Interpretation
   , foldFlow
   ) where
@@ -406,6 +406,7 @@ callAPI = callServantAPI Nothing
 logInfo :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag) => tag -> T.Message -> m ()
 logInfo tag msg = evalLogger' $ logMessage' T.Info tag msg
+
 
 -- | Log message with Error level.
 --

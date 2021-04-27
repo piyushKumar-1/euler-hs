@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 
-module EulerHS.Core.Types.DB
+module EulerHS.SqlDB.Types
   (
     -- * Core DB
     -- ** Types
@@ -58,10 +58,10 @@ import qualified Database.Beam.Sqlite.Connection as SQLite
 import qualified Database.MySQL.Base as MySQL
 import qualified Database.PostgreSQL.Simple as PGS
 import qualified Database.SQLite.Simple as SQLite
-import           EulerHS.Core.Types.MySQL (MySQLConfig (..), createMySQLConn)
-import           EulerHS.Core.Types.Postgres (PostgresConfig (..),
-                                              createPostgresConn)
 import           EulerHS.Prelude
+import           EulerHS.SqlDB.MySQL (MySQLConfig (..), createMySQLConn)
+import           EulerHS.SqlDB.Postgres (PostgresConfig (..),
+                                         createPostgresConn)
 
 class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   | be -> beM, beM -> be where

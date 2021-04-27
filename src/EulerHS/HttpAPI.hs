@@ -1,10 +1,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module EulerHS.Core.Types.HttpAPI
+module EulerHS.HttpAPI
     (
-    -- * Core Logger
-    -- ** Types
       HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
@@ -36,9 +34,11 @@ import qualified Data.Char as Char
 import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
 import qualified Data.Text.Encoding as Text
-import           EulerHS.Core.Masking
-import qualified EulerHS.Core.Types.BinaryString as T
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig (..))
+import qualified EulerHS.BinaryString as T
+import qualified EulerHS.Logger.Types as Log
+import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
+                                  maskHTTPHeaders, parseRequestResponseBody,
+                                  shouldMaskKey)
 import           EulerHS.Prelude hiding (ord, (.=))
 
 data HTTPRequest

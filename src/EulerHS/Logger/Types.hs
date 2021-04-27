@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module EulerHS.Core.Types.Logger
+module EulerHS.Logger.Types
     (
     -- * Core Logger
     -- ** Types
@@ -28,7 +28,7 @@ module EulerHS.Core.Types.Logger
     , builderToByteString
     ) where
 
-import qualified EulerHS.Core.Types.Common as T
+import qualified EulerHS.Common as T
 import           EulerHS.Prelude
 -- Currently, TinyLogger is highly coupled with the interface.
 -- Reason: unclear current practice of logging that affects design and performance.

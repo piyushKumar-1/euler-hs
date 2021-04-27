@@ -1,11 +1,9 @@
-module EulerHS.Core.Types.BinaryString
+module EulerHS.BinaryString
 ( BinaryString(..)
 , LBinaryString(..)
 , base64Encode
 , base64Decode
 ) where
-
-import           EulerHS.Prelude
 
 import qualified Control.Monad.Fail as MonadFail
 import qualified Data.ByteString as Strict
@@ -14,6 +12,7 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import           EulerHS.Prelude
 
 -- TODO: Move to euler-db
 

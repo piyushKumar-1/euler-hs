@@ -1,22 +1,22 @@
-module EulerHS.Core.PubSub.Language where
+module EulerHS.PubSub.Language where
 
 import qualified Database.Redis as R
+import           EulerHS.KVDB.Types (KVDBReply)
 import           EulerHS.Prelude
-import qualified EulerHS.Types as T
 
 newtype Channel        = Channel        ByteString
 newtype ChannelPattern = ChannelPattern ByteString
 newtype Payload        = Payload        ByteString
 
 data PubSubF next
-  = Publish     Channel         Payload            (Either T.KVDBReply Integer -> next)
+  = Publish     Channel         Payload            (Either KVDBReply Integer -> next)
   | Subscribe  [Channel       ] R.MessageCallback  (IO ()                      -> next)
   | PSubscribe [ChannelPattern] R.PMessageCallback (IO ()                      -> next)
   deriving Functor
 
 type PubSub = F PubSubF
 
-publish :: Channel -> Payload -> PubSub (Either T.KVDBReply Integer)
+publish :: Channel -> Payload -> PubSub (Either KVDBReply Integer)
 publish channel payload = liftFC $ Publish channel payload id
 
 subscribe :: [Channel] -> R.MessageCallback -> PubSub (IO ())

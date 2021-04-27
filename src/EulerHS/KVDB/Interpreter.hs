@@ -1,7 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE RankNTypes          #-}
 
-module EulerHS.Core.KVDB.Interpreter
+module EulerHS.KVDB.Interpreter
   (
     -- * KVDB Interpreter
     runKVDB
@@ -12,9 +12,12 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TE
 import qualified Database.Redis as R
-import qualified EulerHS.Core.KVDB.Language as L
-import qualified EulerHS.Core.Types as D
-import           EulerHS.Core.Types.KVDB
+import qualified EulerHS.KVDB.Language as L
+import           EulerHS.KVDB.Types (KVDBError (KVDBConnectionDoesNotExist),
+                                     KVDBReply, KVDBReplyF (Bulk, KVDBError),
+                                     NativeKVDBConn (NativeKVDB, NativeKVDBMockedConn),
+                                     exceptionToKVDBReply, fromRdStatus,
+                                     fromRdTxResult, hedisReplyToKVDBReply)
 import           EulerHS.Prelude
 
 interpretKeyValueF
@@ -97,10 +100,10 @@ interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest
 
 interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
-  next . fmap D.fromRdStatus <$> R.set k v
+  next . fmap fromRdStatus <$> R.set k v
 
 interpretKeyValueTxF (L.SetEx k e v next) =
-  next . fmap D.fromRdStatus <$> R.setex k e v
+  next . fmap fromRdStatus <$> R.setex k e v
 
 interpretKeyValueTxF (L.SetOpts k v ttl cond next) =
   next . fmap (R.Ok ==) <$> (R.setOpts k v . makeSetOpts ttl $ cond)

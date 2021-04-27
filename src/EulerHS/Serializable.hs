@@ -7,7 +7,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Core.Types.Serializable
+module EulerHS.Serializable
   (
     -- * Core Serializable
     -- ** Class

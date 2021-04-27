@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass  #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module EulerHS.Core.Types.Postgres
+module EulerHS.SqlDB.Postgres
   (
     -- * Core Postgres
     -- ** Types

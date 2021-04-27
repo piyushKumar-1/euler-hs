@@ -63,39 +63,33 @@ library
     EulerHS.Types
 
   other-modules:
-    EulerHS.Core.Api
-    EulerHS.Core.Interpreters
-    EulerHS.Core.KVDB.Interpreter
-    EulerHS.Core.KVDB.Language
-    EulerHS.Core.Language
-    EulerHS.Core.Logger.Impl.TinyLogger
-    EulerHS.Core.Logger.Interpreter
-    EulerHS.Core.Logger.Language
-    EulerHS.Core.Masking
-    EulerHS.Core.PubSub.Interpreter
-    EulerHS.Core.PubSub.Language
-    EulerHS.Core.Runtime
-    EulerHS.Core.SqlDB.Interpreter
-    EulerHS.Core.SqlDB.Language
-    EulerHS.Core.Types
-    EulerHS.Core.Types.BinaryString
-    EulerHS.Core.Types.Common
-    EulerHS.Core.Types.DB
-    EulerHS.Core.Types.Exceptions
-    EulerHS.Core.Types.HttpAPI
-    EulerHS.Core.Types.KVDB
-    EulerHS.Core.Types.Logger
-    EulerHS.Core.Types.MySQL
-    EulerHS.Core.Types.Options
-    EulerHS.Core.Types.Postgres
-    EulerHS.Core.Types.Serializable
+    EulerHS.Api
+    EulerHS.BinaryString
+    EulerHS.Common
     EulerHS.Extra.Aeson
     EulerHS.Extra.Language
-    EulerHS.Framework.Flow.Interpreter
-    EulerHS.Framework.Flow.Language
-    EulerHS.Framework.Interpreters
+    EulerHS.Framework.Interpreter
     EulerHS.Framework.Language
     EulerHS.Framework.Runtime
+    EulerHS.HttpAPI
+    EulerHS.KVDB.Interpreter
+    EulerHS.KVDB.Language
+    EulerHS.KVDB.Types
+    EulerHS.Logger.Interpreter
+    EulerHS.Logger.Language
+    EulerHS.Logger.Runtime
+    EulerHS.Logger.TinyLogger
+    EulerHS.Logger.Types
+    EulerHS.Masking
+    EulerHS.Options
+    EulerHS.PubSub.Interpreter
+    EulerHS.PubSub.Language
+    EulerHS.Serializable
+    EulerHS.SqlDB.Interpreter
+    EulerHS.SqlDB.Language
+    EulerHS.SqlDB.MySQL
+    EulerHS.SqlDB.Postgres
+    EulerHS.SqlDB.Types
 
   build-depends:
     , aeson

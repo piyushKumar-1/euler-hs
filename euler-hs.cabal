@@ -130,6 +130,7 @@ library
     , sequelize             ^>=1.1.0.0
     , servant-client        ^>=0.18.1
     , servant-client-core   ^>=0.18.1
+    , servant-server        ^>=0.18.1
     , sqlite-simple
     , stm
     , string-conversions

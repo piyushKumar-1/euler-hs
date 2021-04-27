@@ -1,8 +1,13 @@
 # Changelog for euler-hs
 
-## [2.3.0.0] - 2021-04-26
+## [2.3.0.0] - 2021-04-28
 
 * Remove `Serializable` module.
+
+## [2.2.0.1] - 2021-04-26
+
+* Add a range of additional functions to `EulerHS.Extra.Language`, originally 
+  from `euler-webservice`.
 
 ## [2.2.0.0] - 2021-04-23
 

@@ -3,6 +3,7 @@
 ## [2.3.0.0] - 2021-04-26
 
 * Remove all `lens` and `generic-lens` usage and exports.
+
 ## [2.2.0.1] - 2021-04-26
 
 * Add a range of additional functions to `EulerHS.Extra.Language`, originally

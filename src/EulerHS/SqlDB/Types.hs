@@ -17,7 +17,7 @@ module EulerHS.SqlDB.Types
   , ConnTag
   , SQliteDBname
   , SqlConn(..)
-  , DBConfig
+  , DBConfig(..) -- NOTE: Ensure this is not exported publically. - Koz
   , PoolConfig(..)
   , DBErrorType(..)
   , DBError(..)

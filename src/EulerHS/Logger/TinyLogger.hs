@@ -22,7 +22,7 @@ import           EulerHS.Logger.Types (BufferSize, FlowFormatter,
                                        LoggerConfig (LoggerConfig),
                                        MessageBuilder (MsgBuilder, MsgTransformer, SimpleBS, SimpleLBS, SimpleString, SimpleText),
                                        PendingMsg (PendingMsg))
-import           EulerHS.Prelude hiding ((.=))
+import           EulerHS.Prelude
 import qualified System.Logger as Log
 
 type LogQueue = (Chan.InChan PendingMsg, Chan.OutChan PendingMsg)

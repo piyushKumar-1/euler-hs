@@ -39,7 +39,7 @@ import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
                                   maskHTTPHeaders, parseRequestResponseBody,
                                   shouldMaskKey)
-import           EulerHS.Prelude hiding (ord, (.=))
+import           EulerHS.Prelude hiding (ord)
 
 data HTTPRequest
   = HTTPRequest

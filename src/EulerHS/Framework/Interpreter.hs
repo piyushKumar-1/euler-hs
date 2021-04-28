@@ -16,7 +16,6 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.DList as DL
 import           Data.Default (def)
 import           Data.Either.Extra (mapLeft)
-import           Data.Generics.Product.Positions (getPosition)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as Map
 import qualified Data.Pool as DP
@@ -47,7 +46,9 @@ import           EulerHS.HttpAPI (HTTPCert (HTTPCert),
                                   getResponseHeaders, getResponseStatus,
                                   maskHTTPRequest, maskHTTPResponse)
 import           EulerHS.KVDB.Interpreter (runKVDB)
-import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
+import           EulerHS.KVDB.Types (KVDBAnswer,
+                                     KVDBConfig (KVDBClusterConfig, KVDBConfig, KVDBMockedConfig),
+                                     KVDBConn (Mocked, Redis),
                                      KVDBError (KVDBConnectionAlreadyExists, KVDBConnectionDoesNotExist, KVDBConnectionFailed),
                                      KVDBReplyF (KVDBError), kvdbToNative,
                                      mkRedisConn, nativeToKVDB)
@@ -58,7 +59,9 @@ import           EulerHS.Logger.Types (LogLevel (Debug, Error))
 import           EulerHS.Prelude
 import           EulerHS.PubSub.Interpreter (runPubSub)
 import           EulerHS.SqlDB.Interpreter (runSqlDB)
-import           EulerHS.SqlDB.Types (DBConfig, DBError (DBError),
+import           EulerHS.SqlDB.Types (ConnTag,
+                                      DBConfig (MockConfig, MySQLPoolConf, PostgresPoolConf, SQLitePoolConf),
+                                      DBError (DBError),
                                       DBErrorType (ConnectionAlreadyExists, ConnectionDoesNotExist, ConnectionFailed, UnrecognizedError),
                                       DBResult,
                                       NativeSqlConn (NativeMySQLConn, NativePGConn, NativeSQLiteConn),
@@ -367,7 +370,7 @@ interpretFlowMethod mbFlowGuid rt (L.RunSafeFlow _ flow next) = fmap next $ do
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
   fmap next $ do
-    let connTag = getPosition @1 cfg
+    let connTag = dbConfigToTag cfg
     connMap <- takeMVar _sqldbConnections
     res <- case Map.lookup connTag connMap of
       Just _ -> pure $ Left $ DBError ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
@@ -379,7 +382,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
   fmap next $ do
-    let connTag = getPosition @1 conn
+    let connTag = sqlConnToTag conn
     connMap <- takeMVar _sqldbConnections
     case Map.lookup connTag connMap of
       Nothing -> putMVar _sqldbConnections connMap
@@ -389,7 +392,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DeInitSqlDBConnection conn next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
   fmap next $ do
-    let connTag = getPosition @1 cfg
+    let connTag = dbConfigToTag cfg
     connMap <- readMVar _sqldbConnections
     pure $ case Map.lookup connTag connMap of
       Just conn -> Right $ nativeToBem connTag conn
@@ -397,7 +400,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
   fmap next $ do
-    let connTag = getPosition @1 cfg
+    let connTag = kvdbConfigToTag cfg
     connections <- takeMVar _kvdbConnections
     res <- case Map.lookup connTag connections of
       Just _  -> pure $ Left $ KVDBError KVDBConnectionAlreadyExists $ "Connection for " +|| connTag ||+ " already created."
@@ -410,7 +413,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
   fmap next $ do
-    let connTag = getPosition @1 conn
+    let connTag = kvdbConnToTag conn
     connections <- takeMVar _kvdbConnections
     case Map.lookup connTag connections of
       Nothing -> putMVar _kvdbConnections connections
@@ -420,7 +423,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DeInitKVDBConnection conn next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
   fmap next $ do
-    let connTag = getPosition @1 cfg
+    let connTag = kvdbConfigToTag cfg
     connMap <- readMVar _kvdbConnections
     pure $ case Map.lookup connTag connMap of
       Just conn -> Right $ nativeToKVDB connTag conn
@@ -500,3 +503,30 @@ runFlow' mbFlowGuid flowRt (L.Flow comp) = foldF (interpretFlowMethod mbFlowGuid
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
 runFlow = runFlow' Nothing
+
+-- Helpers
+
+dbConfigToTag :: DBConfig beM -> ConnTag
+dbConfigToTag = \case
+  MockConfig t           -> t
+  PostgresPoolConf t _ _ -> t
+  MySQLPoolConf t _ _    -> t
+  SQLitePoolConf t _ _   -> t
+
+sqlConnToTag :: SqlConn beM -> ConnTag
+sqlConnToTag = \case
+  MockedPool t     -> t
+  PostgresPool t _ -> t
+  MySQLPool t _    -> t
+  SQLitePool t _   -> t
+
+kvdbConfigToTag :: KVDBConfig -> Text
+kvdbConfigToTag = \case
+  KVDBConfig t _        -> t
+  KVDBClusterConfig t _ -> t
+  KVDBMockedConfig t    -> t
+
+kvdbConnToTag :: KVDBConn -> Text
+kvdbConnToTag = \case
+  Mocked t  -> t
+  Redis t _ -> t

@@ -18,7 +18,7 @@ module EulerHS.Core.Logger.Impl.TinyLogger
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
 import qualified EulerHS.Core.Types as T
-import           EulerHS.Prelude hiding ((.=))
+import           EulerHS.Prelude
 import qualified System.Logger as Log
 
 type LogQueue = (Chan.InChan T.PendingMsg, Chan.OutChan T.PendingMsg)

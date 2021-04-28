@@ -29,11 +29,11 @@ module EulerHS.Extra.AltValidation
   ) where
 
 import           Data.Either.Extra (mapLeft)
-import           Data.Generics.Product.Fields (HasField', getField)
 import qualified Data.Text as T
 import           Data.Validation (Validation, fromEither, toEither)
 import qualified Data.Validation as X
 import           EulerHS.Prelude hiding (or, pred)
+import           GHC.Records.Compat (HasField, getField)
 import           GHC.TypeLits (KnownSymbol, Symbol)
 import qualified Prelude as P
 import           Type.Reflection (typeRep)
@@ -146,7 +146,7 @@ extractMaybeWithDefault d r = ReaderT (\_ -> maybe (Right d) Right r)
 -- | Extract value and run validators on it
 withField
   :: forall (f :: Symbol) v r a
-   . (HasField' f r v, KnownSymbol f)
+   . (HasField f r v, KnownSymbol f)
   => r -> Transformer v a -> Validation Errors a
 withField rec pav = fromEither $ runReaderT (pav $ getField @f rec) $ fieldName_ @f
 

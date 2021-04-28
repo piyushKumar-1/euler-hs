@@ -6,8 +6,6 @@ module EulerHS.Prelude
   , liftFC
   , catchAny
   -- JSON
-  , stripLensPrefixOptions
-  , stripAllLensPrefixOptions
   , jsonSetField
   , encodeJSON
   , decodeJSON
@@ -25,9 +23,6 @@ import           Control.Concurrent.STM.TMVar as X (TMVar, newEmptyTMVar,
                                                     readTMVar, takeTMVar,
                                                     tryReadTMVar)
 import           Control.Concurrent.STM.TVar as X (modifyTVar)
-import           Control.Lens as X (at, (.=))
-import           Control.Lens.TH as X (makeFieldsNoPrefix, makeLenses)
-import           Control.Monad as X (liftM)
 import           Control.Monad.Free as X (Free (..), foldFree, liftF)
 import           Control.Monad.Free.Church as X (F (..), foldF, fromF, iter,
                                                  iterM, retract)
@@ -40,9 +35,7 @@ import           Data.Aeson as X (FromJSON, FromJSONKey, ToJSON, ToJSONKey,
 import           Data.Kind as X (Type)
 import           Data.Maybe as X (fromJust)
 import           Data.Serialize as X (Serialize)
-import           EulerHS.Extra.Aeson (decodeJSON, encodeJSON, jsonSetField,
-                                      stripAllLensPrefixOptions,
-                                      stripLensPrefixOptions)
+import           EulerHS.Extra.Aeson (decodeJSON, encodeJSON, jsonSetField)
 import           Fmt as X ((+|), (+||), (|+), (||+))
 import           GHC.Base as X (until)
 import           Text.Read as X (read, readsPrec)

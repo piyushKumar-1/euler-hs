@@ -39,7 +39,7 @@ import qualified Data.Text.Encoding as Text
 import           EulerHS.Core.Masking
 import qualified EulerHS.Core.Types.BinaryString as T
 import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig (..))
-import           EulerHS.Prelude hiding (ord, (.=))
+import           EulerHS.Prelude hiding (ord)
 
 data HTTPRequest
   = HTTPRequest

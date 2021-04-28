@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 
 module EulerHS.Core.Types.KVDB
@@ -13,8 +12,6 @@ module EulerHS.Core.Types.KVDB
   , TxResult(..)
   , KVDBStatus
   , KVDBStatusF(..)
-  , KVDBMockedValues
-  , KVDBMockedValues'(..)
   , KVDBReplyF(..)
   , NativeKVDBConn (..)
   , KVDBConfig (..)
@@ -38,38 +35,18 @@ import qualified Database.Redis as RD
 import           EulerHS.Prelude
 import qualified GHC.Generics as G
 
-
 type KVDBKey = Text
 
 -- Key-value database connection
-data KVDBConn
-  = Mocked Text -- TODO swap Text with ConnTag type
-  | Redis Text RD.Connection
-  -- ^ Real connection.
-  deriving (Generic)
-
-data KVDBMockedValues' = KVDBMockedValues'
-  { kvdbSet    :: [KVDBStatus]
-  , kvdbGet    :: [(Maybe ByteString)]
-  , kvdbExists :: [Bool]
-  , kvdbDel    :: [Integer]
-  , kvdbExpire :: [Bool]
-  , kvdbIncr   :: [Integer]
-  , kvdbHSet   :: [Bool]
-  , kvdbHGet   :: [(Maybe ByteString)]
-  , kvdbTX     :: [TxResult Any]
-  } deriving (Generic, Typeable)
-
-
-type KVDBMockedValues = MVar (KVDBMockedValues')
-
-----------------------------------------------------------------------
+data KVDBConn = Redis {-# UNPACK #-} !Text
+                      !RD.Connection
+  deriving stock (Generic)
 
 data KVDBError
   = KVDBConnectionAlreadyExists
   | KVDBConnectionDoesNotExist
   | KVDBConnectionFailed
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 data KVDBReplyF bs
   = SingleLine bs
@@ -79,91 +56,63 @@ data KVDBReplyF bs
   | MultiBulk (Maybe [KVDBReplyF bs])
   | ExceptionMessage String
   | KVDBError KVDBError String
-  deriving (Eq, Show, Generic, Functor)
+  deriving stock (Eq, Show, Generic, Functor)
 
 type KVDBReply = KVDBReplyF ByteString
-
--- fromKVDBReply :: KVDBReply -> KVDBReplyF ByteStringS
--- fromKVDBReply = fmap fromByteString
-
--- toKVDBReply :: KVDBReplyF ByteStringS -> KVDBReply
--- toKVDBReply = fmap toByteString
-
-----------------------------------------------------------------------
 
 data KVDBStatusF bs
   = Ok
   | Pong
   | Status bs
-  deriving (Eq, Show, Generic, Functor)
+  deriving stock (Eq, Show, Generic, Functor)
 
 type KVDBStatus = KVDBStatusF ByteString
 
--- fromStatus :: KVDBStatus -> KVDBStatusF ByteStringS
--- fromStatus Ok          = Ok
--- fromStatus Pong        = Pong
--- fromStatus (Status bs) = Status $ fromByteString bs
-
--- toStatus :: KVDBStatusF ByteStringS -> KVDBStatus
--- toStatus Ok          = Ok
--- toStatus Pong        = Pong
--- toStatus (Status bs) = Status $ toByteString bs
-
 fromRdStatus :: RD.Status -> KVDBStatus
-fromRdStatus RD.Ok          = Ok
-fromRdStatus RD.Pong        = Pong
-fromRdStatus (RD.Status bs) = Status $ bs
-
-----------------------------------------------------------------------
+fromRdStatus = \case
+  RD.Ok        -> Ok
+  RD.Pong      -> Pong
+  RD.Status bs -> Status bs
 
 data TxResult a
   = TxSuccess a
   | TxAborted
   | TxError String
-  deriving (Eq, Show, Functor, Generic, G.Generic1)
+  deriving stock (Eq, Show, Functor, Generic, G.Generic1)
 
 fromRdTxResult :: RD.TxResult a -> TxResult a
-fromRdTxResult (RD.TxSuccess a) = TxSuccess a
-fromRdTxResult RD.TxAborted     = TxAborted
-fromRdTxResult (RD.TxError s)   = TxError s
-
-----------------------------------------------------------------------
+fromRdTxResult = \case
+  RD.TxSuccess x -> TxSuccess x
+  RD.TxAborted   -> TxAborted
+  RD.TxError err -> TxError err
 
 type KVDBAnswer = Either KVDBReply
 
 hedisReplyToKVDBReply :: RD.Reply -> KVDBReply
-hedisReplyToKVDBReply (RD.SingleLine s) = SingleLine s
-hedisReplyToKVDBReply (RD.Error s)      = Err s
-hedisReplyToKVDBReply (RD.Integer s)    = Integer s
-hedisReplyToKVDBReply (RD.Bulk s)       = Bulk s
-hedisReplyToKVDBReply (RD.MultiBulk s)  = MultiBulk (map (hedisReplyToKVDBReply <$>) s)
-
+hedisReplyToKVDBReply = \case
+  RD.SingleLine s -> SingleLine s
+  RD.Error err    -> Err err
+  RD.Integer s    -> Integer s
+  RD.Bulk s       -> Bulk s
+  RD.MultiBulk s  -> MultiBulk . fmap (fmap hedisReplyToKVDBReply) $ s
 
 exceptionToKVDBReply :: Exception e => e -> KVDBReply
-exceptionToKVDBReply e = ExceptionMessage $ displayException e
+exceptionToKVDBReply = ExceptionMessage . displayException
 
-----------------------------------------------------------------------
-
-data NativeKVDBConn
-  = NativeKVDB (RD.Connection)
-  | NativeKVDBMockedConn
+newtype NativeKVDBConn = NativeKVDB RD.Connection
 
 -- | Transform 'KVDBConn' to 'NativeKVDBConn'
 kvdbToNative :: KVDBConn -> NativeKVDBConn
-kvdbToNative (Mocked _)     = NativeKVDBMockedConn
 kvdbToNative (Redis _ conn) = NativeKVDB conn
 
 -- | Transforms 'NativeKVDBConn' to 'KVDBConn'
 nativeToKVDB :: Text -> NativeKVDBConn -> KVDBConn
-nativeToKVDB connTag NativeKVDBMockedConn = Mocked connTag
-nativeToKVDB connTag (NativeKVDB conn)    = Redis connTag conn
-
+nativeToKVDB connTag (NativeKVDB conn) = Redis connTag conn
 
 data KVDBConfig
   = KVDBConfig Text RedisConfig
   | KVDBClusterConfig Text RedisConfig
-  | KVDBMockedConfig Text
-  deriving (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic)
 
 data RedisConfig = RedisConfig
     { connectHost           :: String
@@ -173,8 +122,7 @@ data RedisConfig = RedisConfig
     , connectMaxConnections :: Int
     , connectMaxIdleTime    :: NominalDiffTime
     , connectTimeout        :: Maybe NominalDiffTime
-    } deriving (Show, Eq, Ord, Generic)
-
+    } deriving stock (Show, Eq, Ord, Generic)
 
 defaultKVDBConnConfig :: RedisConfig
 defaultKVDBConnConfig = RedisConfig
@@ -210,9 +158,9 @@ mkKVDBClusterConfig = KVDBClusterConfig
 
 -- | Create 'KVDBConn' from 'KVDBConfig'
 mkRedisConn :: KVDBConfig -> IO KVDBConn
-mkRedisConn (KVDBMockedConfig connTag)        = pure $ Mocked connTag
-mkRedisConn (KVDBConfig connTag cfg)          = Redis connTag <$> createRedisConn cfg
-mkRedisConn (KVDBClusterConfig connTag cfg)   = Redis connTag <$> createClusterRedisConn cfg
+mkRedisConn = \case
+  KVDBConfig connTag cfg        -> Redis connTag <$> createRedisConn cfg
+  KVDBClusterConfig connTag cfg -> Redis connTag <$> createClusterRedisConn cfg
 
 -- | Connect with the given config to the database.
 createRedisConn :: RedisConfig -> IO RD.Connection

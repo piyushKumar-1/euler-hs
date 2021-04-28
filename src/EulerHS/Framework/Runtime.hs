@@ -154,12 +154,9 @@ sqlDisconnect = \case
   T.NativePGPool connPool     -> DP.destroyAllResources connPool
   T.NativeMySQLPool connPool  -> DP.destroyAllResources connPool
   T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  T.NativeMockedPool          -> pure ()
 
 kvDisconnect :: T.NativeKVDBConn -> IO ()
-kvDisconnect = \case
-  T.NativeKVDBMockedConn -> pure ()
-  T.NativeKVDB conn      -> RD.disconnect conn
+kvDisconnect (T.NativeKVDB conn) = RD.disconnect conn
 
 -- | Run flow with given logger runtime creation function.
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a

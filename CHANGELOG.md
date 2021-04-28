@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.4.0.0] - 2021-04-29
+
+* Remove `Mocked` constructors everywhere.
+
 ## [2.3.0.0] - 2021-04-26
 
 * Remove all `lens` and `generic-lens` usage and exports.

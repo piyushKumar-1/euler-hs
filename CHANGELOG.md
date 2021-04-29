@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.4.0.0] - 2021-04-28
+
+* Remove `Serializable` module.
+
 ## [2.3.0.0] - 2021-04-26
 
 * Remove all `lens` and `generic-lens` usage and exports.

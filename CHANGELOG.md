@@ -1,8 +1,12 @@
 # Changelog for euler-hs
 
-## [2.4.0.0] - 2021-04-29
+## [2.5.0.0] - 2021-04-29
 
 * Remove `Mocked` constructors everywhere.
+
+## [2.4.0.0] - 2021-04-28
+
+* Remove `Serializable` module.
 
 ## [2.3.0.0] - 2021-04-26
 

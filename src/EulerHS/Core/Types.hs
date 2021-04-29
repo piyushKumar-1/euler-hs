@@ -14,4 +14,3 @@ import           EulerHS.Core.Types.Logger as X
 import           EulerHS.Core.Types.MySQL as X
 import           EulerHS.Core.Types.Options as X
 import           EulerHS.Core.Types.Postgres as X
-import           EulerHS.Core.Types.Serializable as X

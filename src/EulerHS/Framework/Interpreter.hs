@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Framework.Flow.Interpreter
+module EulerHS.Framework.Interpreter
   ( -- * Flow Interpreter
     runFlow
   , runFlow'
@@ -24,14 +24,52 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
-import qualified EulerHS.Core.Interpreters as R
-import qualified EulerHS.Core.Logger.Language as L
-import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Types.KVDB
-import qualified EulerHS.Framework.Flow.Language as L
+import           EulerHS.Api (runEulerClient)
+import           EulerHS.BinaryString (LBinaryString (LBinaryString),
+                                       getLBinaryString)
+import           EulerHS.Common (Awaitable (Awaitable), FlowGUID,
+                                 ManagerSelector (ManagerSelector),
+                                 Microseconds (Microseconds))
+import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
+import           EulerHS.HttpAPI (HTTPCert (HTTPCert),
+                                  HTTPIOException (HTTPIOException),
+                                  HTTPMethod (Delete, Get, Head, Post, Put),
+                                  HTTPRequest,
+                                  HTTPRequestResponse (HTTPRequestResponse),
+                                  HTTPResponse (HTTPResponse), defaultTimeout,
+                                  getCert, getCertChain, getCertHost,
+                                  getCertKey, getRequestBody, getRequestHeaders,
+                                  getRequestMethod, getRequestRedirects,
+                                  getRequestTimeout, getRequestURL,
+                                  getResponseBody, getResponseCode,
+                                  getResponseHeaders, getResponseStatus,
+                                  maskHTTPRequest, maskHTTPResponse)
+import           EulerHS.KVDB.Interpreter (runKVDB)
+import           EulerHS.KVDB.Types (KVDBAnswer,
+                                     KVDBConfig (KVDBClusterConfig, KVDBConfig, KVDBMockedConfig),
+                                     KVDBConn (Mocked, Redis),
+                                     KVDBError (KVDBConnectionAlreadyExists, KVDBConnectionDoesNotExist, KVDBConnectionFailed),
+                                     KVDBReplyF (KVDBError), kvdbToNative,
+                                     mkRedisConn, nativeToKVDB)
+import           EulerHS.Logger.Interpreter (runLogger)
+import qualified EulerHS.Logger.Language as L
+import qualified EulerHS.Logger.Runtime as R
+import           EulerHS.Logger.Types (LogLevel (Debug, Error))
 import           EulerHS.Prelude
+import           EulerHS.PubSub.Interpreter (runPubSub)
+import           EulerHS.SqlDB.Interpreter (runSqlDB)
+import           EulerHS.SqlDB.Types (ConnTag,
+                                      DBConfig (MockConfig, MySQLPoolConf, PostgresPoolConf, SQLitePoolConf),
+                                      DBError (DBError),
+                                      DBErrorType (ConnectionAlreadyExists, ConnectionDoesNotExist, ConnectionFailed, UnrecognizedError),
+                                      DBResult,
+                                      NativeSqlConn (NativeMySQLConn, NativePGConn, NativeSQLiteConn),
+                                      SqlConn (MockedPool, MySQLPool, PostgresPool, SQLitePool),
+                                      bemToNative, mkSqlConn,
+                                      mysqlErrorToDbError, nativeToBem,
+                                      postgresErrorToDbError,
+                                      sqliteErrorToDbError)
 import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
 import           Network.HTTP.Client.Internal
@@ -43,30 +81,30 @@ import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
 
-connect :: T.DBConfig be -> IO (T.DBResult (T.SqlConn be))
+connect :: DBConfig be -> IO (DBResult (SqlConn be))
 connect cfg = do
-  eConn <- try $ T.mkSqlConn cfg
+  eConn <- try $ mkSqlConn cfg
   case eConn of
-    Left (e :: SomeException) -> pure $ Left $ T.DBError T.ConnectionFailed $ show e
+    Left (e :: SomeException) -> pure $ Left $ DBError ConnectionFailed $ show e
     Right conn                -> pure $ Right conn
 
-connectRedis :: T.KVDBConfig -> IO (T.KVDBAnswer T.KVDBConn)
+connectRedis :: KVDBConfig -> IO (KVDBAnswer KVDBConn)
 connectRedis cfg = do
-  eConn <- try $ T.mkRedisConn cfg
+  eConn <- try $ mkRedisConn cfg
   case eConn of
-    Left (e :: SomeException) -> pure $ Left $ T.KVDBError T.KVDBConnectionFailed $ show e
+    Left (e :: SomeException) -> pure $ Left $ KVDBError KVDBConnectionFailed $ show e
     Right conn                -> pure $ Right conn
 
-disconnect :: T.SqlConn beM ->   IO ()
-disconnect (T.MockedPool _)        = pure ()
-disconnect (T.PostgresPool _ pool) = DP.destroyAllResources pool
-disconnect (T.MySQLPool _ pool)    = DP.destroyAllResources pool
-disconnect (T.SQLitePool _ pool)   = DP.destroyAllResources pool
+disconnect :: SqlConn beM ->   IO ()
+disconnect (MockedPool _)        = pure ()
+disconnect (PostgresPool _ pool) = DP.destroyAllResources pool
+disconnect (MySQLPool _ pool)    = DP.destroyAllResources pool
+disconnect (SQLitePool _ pool)   = DP.destroyAllResources pool
 
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
 
-awaitMVarWithTimeout :: MVar (Either Text a) -> Int -> IO (Either T.AwaitingError a)
+awaitMVarWithTimeout :: MVar (Either Text a) -> Int -> IO (Either L.AwaitingError a)
 awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
                               | otherwise = go mcs
   where
@@ -75,48 +113,48 @@ awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
       | rest <= 0 = do
         mValue <- tryReadMVar mvar
         pure $ case mValue of
-          Nothing          -> Left T.AwaitingTimeout
+          Nothing          -> Left L.AwaitingTimeout
           Just (Right val) -> Right val
-          Just (Left err)  -> Left $ T.ForkedFlowError err
+          Just (Left err)  -> Left $ L.ForkedFlowError err
       | otherwise = do
           tryReadMVar mvar >>= \case
             Just (Right val) -> pure $ Right val
-            Just (Left err)  -> pure $ Left $ T.ForkedFlowError err
+            Just (Left err)  -> pure $ Left $ L.ForkedFlowError err
             Nothing          -> threadDelay portion >> go (rest - portion)
 
 -- | Utility function to convert HttpApi HTTPRequests to http-client HTTP
 -- requests
-getHttpLibRequest :: MonadThrow m => T.HTTPRequest -> m HTTP.Request
+getHttpLibRequest :: MonadThrow m => HTTPRequest -> m HTTP.Request
 getHttpLibRequest request = do
-  let url = Text.unpack $ T.getRequestURL request
+  let url = Text.unpack $ getRequestURL request
   httpLibRequest <- HTTP.parseRequest url
   let
-    requestMethod = case T.getRequestMethod request of
-      T.Get    -> "GET"
-      T.Put    -> "PUT"
-      T.Post   -> "POST"
-      T.Delete -> "DELETE"
-      T.Head   -> "HEAD"
+    requestMethod = case getRequestMethod request of
+      Get    -> "GET"
+      Put    -> "PUT"
+      Post   -> "POST"
+      Delete -> "DELETE"
+      Head   -> "HEAD"
   let
-    setBody = case T.getRequestBody request of
+    setBody = case getRequestBody request of
       Just body ->
-        let body' = T.getLBinaryString body
+        let body' = getLBinaryString body
         in  \req -> req { HTTP.requestBody = HTTP.RequestBodyLBS body' }
       Nothing   -> id
 
   -- TODO: Respect "Content-Transfer-Encoding" header
   let
-    headers :: HTTP.RequestHeaders = T.getRequestHeaders request
+    headers :: HTTP.RequestHeaders = getRequestHeaders request
       & Map.toList
       & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
 
   let
-    setTimeout = case T.getRequestTimeout request of
+    setTimeout = case getRequestTimeout request of
       Just x  -> setRequestTimeout x
-      Nothing -> setRequestTimeout T.defaultTimeout
+      Nothing -> setRequestTimeout defaultTimeout
 
   let
-    setRedirects = case T.getRequestRedirects request of
+    setRedirects = case getRequestRedirects request of
       Just x  -> \req -> req {HTTP.redirectCount = x}
       Nothing -> id
 
@@ -133,12 +171,12 @@ setRequestTimeout x req = req {HTTP.responseTimeout = HTTP.responseTimeoutMicro 
 
 -- | Utility function to translate http-client HTTP responses back to HttpAPI
 -- responses
-translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text T.HTTPResponse
+translateHttpResponse :: HTTP.Response Lazy.ByteString -> Either Text HTTPResponse
 translateHttpResponse response = do
   headers <- translateResponseHeaders $ HTTP.responseHeaders response
   status <-  translateResponseStatusMessage . HTTP.statusMessage . HTTP.responseStatus $ response
-  pure $ T.HTTPResponse
-    { getResponseBody    = T.LBinaryString $ HTTP.responseBody response
+  pure $ HTTPResponse
+    { getResponseBody    = LBinaryString $ HTTP.responseBody response
     , getResponseCode    = HTTP.statusCode $ HTTP.responseStatus response
     , getResponseHeaders = headers
     , getResponseStatus  = status
@@ -168,8 +206,8 @@ displayEitherException :: Exception e => Text -> Either e a -> Either Text a
 displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
 -- | Utility function to create a manager from certificate data
-mkManagerFromCert :: T.HTTPCert -> IO (Either String HTTP.Manager)
-mkManagerFromCert T.HTTPCert {..} = do
+mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
+mkManagerFromCert HTTPCert {..} = do
   case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
     Right creds -> do
       let hooks = def { TLS.onCertificateRequest = \_ -> return $ Just creds }
@@ -184,34 +222,34 @@ mkManagerFromCert T.HTTPCert {..} = do
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
-interpretFlowMethod :: Maybe T.FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
+interpretFlowMethod :: Maybe FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
     fmap next $ do
       let mbClientMngr = case mbMgrSel of
             Nothing                           -> Right _defaultHttpClientManager
-            Just (T.ManagerSelector mngrName) ->
+            Just (ManagerSelector mngrName) ->
               maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
       case mbClientMngr of
         Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
-                            then setRequestTimeout T.defaultTimeout req
+                            then setRequestTimeout defaultTimeout req
                             else req {HTTP.responseTimeout = mResponseTimeout mngr}
-          eitherResult <- S.runClientM (T.runEulerClient (dbgLogger T.Debug) getLoggerMaskConfig bUrl clientAct) $
+          eitherResult <- S.runClientM (runEulerClient (dbgLogger Debug) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
-              dbgLogger T.Error $ show err
+              dbgLogger Error $ show err
               pure $ Left err
             Right response ->
               pure $ Right response
         Left name -> do
-          let err = S.ConnectionError $ toException $ T.HttpManagerNotFound name
-          dbgLogger T.Error (show err)
+          let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
+          dbgLogger Error (show err)
           pure $ Left err
   where
     dbgLogger debugLevel =
-      R.runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
+      runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
         . show
     getLoggerMaskConfig =
@@ -235,20 +273,20 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
             Right httpResponse -> do
               case translateHttpResponse httpResponse of
                 Left errMsg -> do
-                  logJsonError errMsg (T.maskHTTPRequest getLoggerMaskConfig request)
+                  logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
                   pure $ Left errMsg
                 Right response -> do
-                  logJson T.Debug
-                    $ T.HTTPRequestResponse
-                      (T.maskHTTPRequest getLoggerMaskConfig request)
-                      (T.maskHTTPResponse getLoggerMaskConfig response)
+                  logJson Debug
+                    $ HTTPRequestResponse
+                      (maskHTTPRequest getLoggerMaskConfig request)
+                      (maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
   where
-    logJsonError :: Text -> T.HTTPRequest -> IO ()
-    logJsonError err = logJson T.Error . T.HTTPIOException err
-    logJson :: ToJSON a => T.LogLevel -> a -> IO ()
+    logJsonError :: Text -> HTTPRequest -> IO ()
+    logJsonError err = logJson Error . HTTPIOException err
+    logJson :: ToJSON a => LogLevel -> a -> IO ()
     logJson debugLevel =
-      R.runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
+      runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
         . encodeJSON
 
@@ -256,7 +294,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
 interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) =
-  next <$> R.runLogger mbFlowGuid (R._loggerRuntime _coreRuntime) loggerAct
+  next <$> runLogger mbFlowGuid (R._loggerRuntime _coreRuntime) loggerAct
 
 interpretFlowMethod _ _ (L.RunIO _ ioAct next) =
   next <$> ioAct
@@ -290,18 +328,18 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.RunSysCmd cmd next) =
 interpretFlowMethod mbFlowGuid rt (L.Fork _desc _newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
   void $ forkIO (suppressErrors (runFlow' mbFlowGuid rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
-  pure $ next $ T.Awaitable awaitableMVar
+  pure $ next $ Awaitable awaitableMVar
 
 ----------------------------------------------------------------------
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.Await mbMcs (T.Awaitable awaitableMVar) next) = do
+interpretFlowMethod _ R.FlowRuntime {..} (L.Await mbMcs (Awaitable awaitableMVar) next) = do
   let act = case mbMcs of
         Nothing -> do
           val <- readMVar awaitableMVar
           case val of
-            Left err  -> pure $ Left $ T.ForkedFlowError err
+            Left err  -> pure $ Left $ L.ForkedFlowError err
             Right res -> pure $ Right res
-        Just (T.Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
+        Just (Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
   next <$> act
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.ThrowException ex _) = do
@@ -335,10 +373,10 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.InitSqlDBConnection cfg next) =
     let connTag = dbConfigToTag cfg
     connMap <- takeMVar _sqldbConnections
     res <- case Map.lookup connTag connMap of
-      Just _ -> pure $ Left $ T.DBError T.ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
+      Just _ -> pure $ Left $ DBError ConnectionAlreadyExists $ "Connection for " <> connTag <> " already created."
       Nothing -> connect cfg
     case res of
-      Right conn -> putMVar _sqldbConnections $ Map.insert connTag (T.bemToNative conn) connMap
+      Right conn -> putMVar _sqldbConnections $ Map.insert connTag (bemToNative conn) connMap
       Left _     -> putMVar _sqldbConnections connMap
     pure res
 
@@ -357,15 +395,15 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetSqlDBConnection cfg next) =
     let connTag = dbConfigToTag cfg
     connMap <- readMVar _sqldbConnections
     pure $ case Map.lookup connTag connMap of
-      Just conn -> Right $ T.nativeToBem connTag conn
-      Nothing   -> Left $ T.DBError T.ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
+      Just conn -> Right $ nativeToBem connTag conn
+      Nothing   -> Left $ DBError ConnectionDoesNotExist $ "Connection for " <> connTag <> " does not exists."
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.InitKVDBConnection cfg next) =
   fmap next $ do
     let connTag = kvdbConfigToTag cfg
     connections <- takeMVar _kvdbConnections
     res <- case Map.lookup connTag connections of
-      Just _  -> pure $ Left $ T.KVDBError T.KVDBConnectionAlreadyExists $ "Connection for " +|| connTag ||+ " already created."
+      Just _  -> pure $ Left $ KVDBError KVDBConnectionAlreadyExists $ "Connection for " +|| connTag ||+ " already created."
       Nothing -> connectRedis cfg
     case res of
       Left _  -> putMVar _kvdbConnections connections
@@ -388,43 +426,41 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetKVDBConnection cfg next) =
     let connTag = kvdbConfigToTag cfg
     connMap <- readMVar _kvdbConnections
     pure $ case Map.lookup connTag connMap of
-      Just conn -> Right $ T.nativeToKVDB connTag conn
+      Just conn -> Right $ nativeToKVDB connTag conn
       Nothing   -> Left $ KVDBError KVDBConnectionDoesNotExist $ "Connection for " +|| connTag ||+ " does not exists."
 
 interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction next) = do
     let dbgLogger =
           if R.shouldFlowLogRawSql flowRt
-          then R.runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' T.Debug ("RunDB Impl" :: String)
+          then runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
+               . L.logMessage' Debug ("RunDB Impl" :: String)
           else const $ pure ()
     rawSqlTVar <- newTVarIO mempty
     -- This function would be used inside beam and write raw sql, generated by beam backend, in TVar.
     let dbgLogAction = \rawSqlStr -> atomically (modifyTVar' rawSqlTVar (`DL.snoc` rawSqlStr)) *> dbgLogger rawSqlStr
     -- TODO: unify the below two branches
-    fmap (next . fst) $ fmap connPoolExceptionWrapper $ tryAny $ case runInTransaction of
-      True ->
-        case conn of
-          (T.MockedPool _) -> error "Mocked Pool not implemented"
-          _ -> do
-            eRes <- R.withTransaction conn $ \nativeConn ->
-              R.runSqlDB nativeConn dbgLogAction sqlDbMethod
-            eRes' <- case eRes of
-                       Left exception -> Left <$> wrapException exception
-                       Right x        -> pure $ Right x
-            rawSql <- DL.toList <$> readTVarIO rawSqlTVar
-            pure (eRes', rawSql)
-      False ->
-        case conn of
-          (T.MockedPool _)        -> error "Mocked Pool not implemented"
-          (T.PostgresPool _ pool) -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . R.runSqlDB (T.NativePGConn conn') dbgLogAction $ sqlDbMethod
-            wrapAndSend rawSqlTVar eRes
-          (T.MySQLPool _ pool)    -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . R.runSqlDB (T.NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
-            wrapAndSend rawSqlTVar eRes
-          (T.SQLitePool _ pool)   -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . R.runSqlDB (T.NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
-            wrapAndSend rawSqlTVar eRes
+    fmap (next . fst . connPoolExceptionWrapper) $ tryAny $ if runInTransaction
+      then case conn of
+        MockedPool _ -> error "Mocked Pool not implemented"
+        _ -> do
+          eRes <- R.withTransaction conn $ \nativeConn ->
+                    runSqlDB nativeConn dbgLogAction sqlDbMethod
+          eRes' <- case eRes of
+                      Left exception -> Left <$> wrapException exception
+                      Right x        -> pure $ Right x
+          rawSql <- DL.toList <$> readTVarIO rawSqlTVar
+          pure (eRes', rawSql)
+      else case conn of
+        MockedPool _        -> error "Mocked Pool not implemented"
+        PostgresPool _ pool -> DP.withResource pool $ \conn' -> do
+          eRes <- try @_ @SomeException . runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
+          wrapAndSend rawSqlTVar eRes
+        MySQLPool _ pool    -> DP.withResource pool $ \conn' -> do
+          eRes <- try @_ @SomeException . runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
+          wrapAndSend rawSqlTVar eRes
+        SQLitePool _ pool   -> DP.withResource pool $ \conn' -> do
+          eRes <- try @_ @SomeException . runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
+          wrapAndSend rawSqlTVar eRes
   where
       wrapAndSend rawSqlLoc eResult = do
         rawSql <- DL.toList <$> readTVarIO rawSqlLoc
@@ -433,36 +469,36 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
           Right x        -> pure $ Right x
         pure (eResult', rawSql)
 
-      wrapException :: HasCallStack => SomeException -> IO T.DBError
+      wrapException :: HasCallStack => SomeException -> IO DBError
       wrapException exception = do
-        R.runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' T.Debug ("CALLSTACK" :: String) $ Text.pack $ prettyCallStack callStack
+        runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
+               . L.logMessage' Debug ("CALLSTACK" :: String) $ Text.pack $ prettyCallStack callStack
         pure (wrapException' exception)
 
-      wrapException' :: SomeException -> T.DBError
-      wrapException' e = fromMaybe (T.DBError T.UnrecognizedError $ show e)
-        (T.sqliteErrorToDbError   (show e) <$> fromException e <|>
-          T.mysqlErrorToDbError    (show e) <$> fromException e <|>
-            T.postgresErrorToDbError (show e) <$> fromException e)
+      wrapException' :: SomeException -> DBError
+      wrapException' e = fromMaybe (DBError UnrecognizedError $ show e)
+        (sqliteErrorToDbError   (show e) <$> fromException e <|>
+          mysqlErrorToDbError    (show e) <$> fromException e <|>
+            postgresErrorToDbError (show e) <$> fromException e)
 
-      connPoolExceptionWrapper :: Either SomeException (Either T.DBError _a1, [Text]) -> (Either T.DBError _a1, [Text])
-      connPoolExceptionWrapper (Left e) = (Left $ T.DBError T.ConnectionFailed $ show e, [])
+      connPoolExceptionWrapper :: Either SomeException (Either DBError _a1, [Text]) -> (Either DBError _a1, [Text])
+      connPoolExceptionWrapper (Left e) = (Left $ DBError ConnectionFailed $ show e, [])
       connPoolExceptionWrapper (Right r) = r
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.RunKVDB cName act next) =
-    next <$> R.runKVDB cName _kvdbConnections act
+    next <$> runKVDB cName _kvdbConnections act
 
 interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_pubSubController, _pubSubConnection} (L.RunPubSub act next) =
     case _pubSubConnection of
       Nothing -> go $ error "Connection to pubSub is not set in FlowRuntime"
       Just cn -> go cn
   where
-    go conn = next <$> R.runPubSub _pubSubController conn
+    go conn = next <$> runPubSub _pubSubController conn
       (L.unpackLanguagePubSub act $ runFlow' mbFlowGuid rt)
 
 interpretFlowMethod _ rt (L.WithModifiedRuntime f flow next) = next <$> runFlow (f rt) flow
 
-runFlow' :: Maybe T.FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
+runFlow' :: Maybe FlowGUID -> R.FlowRuntime -> L.Flow a -> IO a
 runFlow' mbFlowGuid flowRt (L.Flow comp) = foldF (interpretFlowMethod mbFlowGuid flowRt) comp
 
 runFlow :: R.FlowRuntime -> L.Flow a -> IO a
@@ -470,19 +506,19 @@ runFlow = runFlow' Nothing
 
 -- Helpers
 
-dbConfigToTag :: T.DBConfig beM -> T.ConnTag
+dbConfigToTag :: DBConfig beM -> ConnTag
 dbConfigToTag = \case
-  T.MockConfig t           -> t
-  T.PostgresPoolConf t _ _ -> t
-  T.MySQLPoolConf t _ _    -> t
-  T.SQLitePoolConf t _ _   -> t
+  MockConfig t           -> t
+  PostgresPoolConf t _ _ -> t
+  MySQLPoolConf t _ _    -> t
+  SQLitePoolConf t _ _   -> t
 
-sqlConnToTag :: T.SqlConn beM -> T.ConnTag
+sqlConnToTag :: SqlConn beM -> ConnTag
 sqlConnToTag = \case
-  T.MockedPool t     -> t
-  T.PostgresPool t _ -> t
-  T.MySQLPool t _    -> t
-  T.SQLitePool t _   -> t
+  MockedPool t     -> t
+  PostgresPool t _ -> t
+  MySQLPool t _    -> t
+  SQLitePool t _   -> t
 
 kvdbConfigToTag :: KVDBConfig -> Text
 kvdbConfigToTag = \case

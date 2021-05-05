@@ -21,9 +21,11 @@ import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
-import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as T
+import           EulerHS.KVDB.Types (NativeKVDBConn (NativeKVDB, NativeKVDBMockedConn))
+import qualified EulerHS.Logger.Runtime as R
 import           EulerHS.Prelude
+import           EulerHS.SqlDB.Types (ConnTag,
+                                      NativeSqlPool (NativeMockedPool, NativeMySQLPool, NativePGPool, NativeSQLitePool))
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
 import           Network.HTTP.Client.TLS (mkManagerSettings, tlsManagerSettings)
@@ -44,9 +46,9 @@ data FlowRuntime = FlowRuntime
   -- ^ Http managers, used for external api calls
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
-  , _kvdbConnections          :: MVar (Map Text T.NativeKVDBConn)
+  , _kvdbConnections          :: MVar (Map Text NativeKVDBConn)
   -- ^ Connections for key-value databases
-  , _sqldbConnections         :: MVar (Map T.ConnTag T.NativeSqlPool)
+  , _sqldbConnections         :: MVar (Map ConnTag NativeSqlPool)
   -- ^ Connections for SQL databases
   , _pubSubController         :: RD.PubSubController
   -- ^ Subscribe controller
@@ -149,17 +151,17 @@ clearFlowRuntime FlowRuntime{..} = do
 shouldFlowLogRawSql :: FlowRuntime -> Bool
 shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
 
-sqlDisconnect :: T.NativeSqlPool -> IO ()
+sqlDisconnect :: NativeSqlPool -> IO ()
 sqlDisconnect = \case
-  T.NativePGPool connPool     -> DP.destroyAllResources connPool
-  T.NativeMySQLPool connPool  -> DP.destroyAllResources connPool
-  T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  T.NativeMockedPool          -> pure ()
+  NativePGPool connPool     -> DP.destroyAllResources connPool
+  NativeMySQLPool connPool  -> DP.destroyAllResources connPool
+  NativeSQLitePool connPool -> DP.destroyAllResources connPool
+  NativeMockedPool          -> pure ()
 
-kvDisconnect :: T.NativeKVDBConn -> IO ()
+kvDisconnect :: NativeKVDBConn -> IO ()
 kvDisconnect = \case
-  T.NativeKVDBMockedConn -> pure ()
-  T.NativeKVDB conn      -> RD.disconnect conn
+  NativeKVDBMockedConn -> pure ()
+  NativeKVDB conn      -> RD.disconnect conn
 
 -- | Run flow with given logger runtime creation function.
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a

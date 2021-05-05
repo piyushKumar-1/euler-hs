@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module EulerHS.Core.Masking where
+module EulerHS.Masking where
 
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
@@ -9,8 +9,7 @@ import           Data.HashSet (member)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig (..),
-                                                   MaskKeyType (..))
+import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Prelude
 import qualified Network.HTTP.Types as HTTP
 

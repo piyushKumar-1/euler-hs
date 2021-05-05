@@ -1,6 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 
-module EulerHS.Core.Types.Common
+module EulerHS.Common
   (
     -- * Guid for any flow
     FlowGUID

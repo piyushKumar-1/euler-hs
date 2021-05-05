@@ -24,13 +24,16 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
-import qualified EulerHS.Core.SqlDB.Language as DB
-import           EulerHS.Core.Types.DB
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
+import qualified EulerHS.SqlDB.Language as DB
+import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
+                                      DBError (DBError),
+                                      DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
-import           Sequelize
+import           Sequelize (Model, Set, Where, mkExprWithDefault,
+                            modelTableEntity, sqlSelect, sqlUpdate)
 
 -- TODO: What KVDB should be used
 cacheName :: String

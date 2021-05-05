@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Core.SqlDB.Language
+module EulerHS.SqlDB.Language
   (
   -- * SQLDB language
   -- ** Types
@@ -24,8 +24,8 @@ module EulerHS.Core.SqlDB.Language
 import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
-import qualified EulerHS.Core.Types as T
 import           EulerHS.Prelude
+import qualified EulerHS.SqlDB.Types as T
 
 type SqlDB beM = F (SqlDBMethodF beM)
 

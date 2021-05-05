@@ -69,14 +69,19 @@ import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Database.Beam (Beamable, FromBackendRow, SqlInsert)
 import           Database.Beam.MySQL (MySQL, MySQLM)
 import           Database.Redis (keyToSlot)
-import qualified EulerHS.Core.KVDB.Language as L
-import           EulerHS.Core.Language (SqlDB, insertRowReturningMySQL,
-                                        insertRowsReturningList)
-import qualified EulerHS.Core.Types as T
 import qualified EulerHS.Framework.Language as L
+import qualified EulerHS.KVDB.Language as L
+import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
+                                     KVDBError (KVDBConnectionDoesNotExist),
+                                     KVDBReply, KVDBReplyF (KVDBError),
+                                     KVDBStatus)
+import           EulerHS.Logger.Types (LogContext, Message)
 import           EulerHS.Prelude hiding (get, id)
 import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
                                   LoggerRuntime (..))
+import           EulerHS.SqlDB.Language (SqlDB, insertRowReturningMySQL,
+                                         insertRowsReturningList)
+import qualified EulerHS.SqlDB.Types as T
 import           Servant (err500)
 
 type RedisName = Text
@@ -148,28 +153,28 @@ throwOnFailedWithLog res mkException msg = case res of
 --
 -- @since 2.1.0.1
 logInfoT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
 logInfoT = L.logInfo @Text
 
 -- | As 'logError', but specialized for logging 'Text' tags.
 --
 -- @since 2.1.0.1
 logErrorT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
 logErrorT = L.logError @Text
 
 -- | As 'logDebug', but specialized for logging 'Text' tags.
 --
 -- @since 2.1.0.1
 logDebugT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
 logDebugT = L.logDebug @Text
 
 -- | As 'logWarning', but specialized for logging 'Text' tags.
 --
 -- @since 2.1.0.1
 logWarningT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> T.Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
 logWarningT = L.logWarning @Text
 
 -- | Creates a connection and runs a DB operation. Throws on connection failure
@@ -290,23 +295,23 @@ getOrInitSqlConn cfg = do
     res                                         -> pure res
 
 -- | Get existing Redis connection, or init a new connection.
-getOrInitKVDBConn :: (HasCallStack, L.MonadFlow m) => T.KVDBConfig -> m (T.KVDBAnswer T.KVDBConn)
+getOrInitKVDBConn :: (HasCallStack, L.MonadFlow m) => KVDBConfig -> m (KVDBAnswer KVDBConn)
 getOrInitKVDBConn cfg = do
   conn <- L.getKVDBConnection cfg
   case conn of
-    Left (T.KVDBError T.KVDBConnectionDoesNotExist _) -> L.initKVDBConnection cfg
-    res -> pure res
+    Left (KVDBError KVDBConnectionDoesNotExist _) -> L.initKVDBConnection cfg
+    res                                           -> pure res
 
 -- KVDB convenient functions
 
 -- ----------------------------------------------------------------------------
 
 rExpire :: (HasCallStack, Integral t, L.MonadFlow m) =>
-  RedisName -> TextKey -> t -> m (Either T.KVDBReply Bool)
+  RedisName -> TextKey -> t -> m (Either KVDBReply Bool)
 rExpire cName k = rExpireB cName (TE.encodeUtf8 k)
 
 rExpireB :: (HasCallStack, Integral t, L.MonadFlow m) =>
-  RedisName -> ByteKey -> t -> m (Either T.KVDBReply Bool)
+  RedisName -> ByteKey -> t -> m (Either KVDBReply Bool)
 rExpireB cName k t = do
   res <- L.runKVDB cName $ L.expire k $ toInteger t
   case res of
@@ -320,11 +325,11 @@ rExpireB cName k t = do
 -- ----------------------------------------------------------------------------
 
 rDel :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> [TextKey] -> m (Either T.KVDBReply Integer)
+  RedisName -> [TextKey] -> m (Either KVDBReply Integer)
 rDel cName ks = rDelB cName (TE.encodeUtf8 <$> ks)
 
 rDelB :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> [ByteKey] -> m (Either T.KVDBReply Integer)
+  RedisName -> [ByteKey] -> m (Either KVDBReply Integer)
 rDelB cName ks = do
   res <- L.runKVDB cName $ L.del ks
   case res of
@@ -338,11 +343,11 @@ rDelB cName ks = do
 -- ----------------------------------------------------------------------------
 
 rExists :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> TextKey -> m (Either T.KVDBReply Bool)
+  RedisName -> TextKey -> m (Either KVDBReply Bool)
 rExists cName k = rExistsB cName $ TE.encodeUtf8 k
 
 rExistsB :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> ByteKey -> m (Either T.KVDBReply Bool)
+  RedisName -> ByteKey -> m (Either KVDBReply Bool)
 rExistsB cName k = do
   res <- L.runKVDB cName $ L.exists k
   case res of
@@ -354,7 +359,7 @@ rExistsB cName k = do
       pure res
 
 rExistsT :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> TextKey -> m (Either T.KVDBReply Bool)
+  RedisName -> TextKey -> m (Either KVDBReply Bool)
 rExistsT = rExists
 
 -- ----------------------------------------------------------------------------
@@ -394,7 +399,7 @@ rHgetB cName k f = do
 -- ----------------------------------------------------------------------------
 
 rHset :: (HasCallStack, ToJSON v, L.MonadFlow m)
-  => RedisName -> TextKey -> TextField -> v -> m (Either T.KVDBReply Bool)
+  => RedisName -> TextKey -> TextField -> v -> m (Either KVDBReply Bool)
 rHset cName k f v = rHsetB cName k' f' v'
   where
     k' = TE.encodeUtf8 k
@@ -402,7 +407,7 @@ rHset cName k f v = rHsetB cName k' f' v'
     v' = BSL.toStrict $ A.encode v
 
 rHsetB :: (HasCallStack, L.MonadFlow m)
-  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either T.KVDBReply Bool)
+  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either KVDBReply Bool)
 rHsetB cName k f v = do
   res <- L.runKVDB cName $
     L.hset k f v
@@ -417,11 +422,11 @@ rHsetB cName k f v = do
 -- ----------------------------------------------------------------------------
 
 rIncr :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> TextKey -> m (Either T.KVDBReply Integer)
+  RedisName -> TextKey -> m (Either KVDBReply Integer)
 rIncr cName k = rIncrB cName (TE.encodeUtf8 k)
 
 rIncrB :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> ByteKey -> m (Either T.KVDBReply Integer)
+  RedisName -> ByteKey -> m (Either KVDBReply Integer)
 rIncrB cName k = do
   res <- L.runKVDB cName $ L.incr k
   case res of
@@ -435,14 +440,14 @@ rIncrB cName k = do
 -- ----------------------------------------------------------------------------
 
 rSet :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
-  RedisName -> TextKey -> v -> m (Either T.KVDBReply T.KVDBStatus)
+  RedisName -> TextKey -> v -> m (Either KVDBReply KVDBStatus)
 rSet cName k v = rSetB cName k' v'
   where
     k' = TE.encodeUtf8 k
     v' = BSL.toStrict $ A.encode v
 
 rSetB :: (HasCallStack, L.MonadFlow m) =>
-  Text -> ByteKey -> ByteValue -> m (Either T.KVDBReply T.KVDBStatus)
+  Text -> ByteKey -> ByteValue -> m (Either KVDBReply KVDBStatus)
 rSetB cName k v = do
   res <- L.runKVDB cName $ L.set k v
   case res of
@@ -454,7 +459,7 @@ rSetB cName k v = do
       pure res
 
 rSetT :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> TextKey -> Text -> m (Either T.KVDBReply T.KVDBStatus)
+  RedisName -> TextKey -> Text -> m (Either KVDBReply KVDBStatus)
 rSetT cName k v = rSetB cName k' v'
   where
     k' = TE.encodeUtf8 k
@@ -501,14 +506,14 @@ rGetT cName k = do
 -- ----------------------------------------------------------------------------
 
 rSetex :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
-  RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
+  RedisName -> TextKey -> v -> t -> m (Either KVDBReply KVDBStatus)
 rSetex cName k v = rSetexB cName k' v'
   where
     k' = TE.encodeUtf8 k
     v' = BSL.toStrict $ A.encode v
 
 rSetexB :: (HasCallStack, Integral t, L.MonadFlow m) =>
-  RedisName -> ByteKey -> ByteValue -> t -> m (Either T.KVDBReply T.KVDBStatus)
+  RedisName -> ByteKey -> ByteValue -> t -> m (Either KVDBReply KVDBStatus)
 rSetexB cName k v t = do
   res <- L.runKVDB cName $ L.setex k (toInteger t) v
   case res of
@@ -520,7 +525,7 @@ rSetexB cName k v t = do
       pure res
 
 rSetexT :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
-  RedisName -> TextKey -> v -> t -> m (Either T.KVDBReply T.KVDBStatus)
+  RedisName -> TextKey -> v -> t -> m (Either KVDBReply KVDBStatus)
 rSetexT = rSetex
 
 -- ----------------------------------------------------------------------------
@@ -532,7 +537,7 @@ rSetOpts
   -> v
   -> L.KVDBSetTTLOption
   -> L.KVDBSetConditionOption
-  -> m (Either T.KVDBReply Bool)
+  -> m (Either KVDBReply Bool)
 rSetOpts cName k v = rSetOptsB cName k' v'
   where
     k' = TE.encodeUtf8 k
@@ -545,7 +550,7 @@ rSetOptsB
   -> ByteValue
   -> L.KVDBSetTTLOption
   -> L.KVDBSetConditionOption
-  -> m (Either T.KVDBReply Bool)
+  -> m (Either KVDBReply Bool)
 rSetOptsB cName k v ttl cond = do
   res <- L.runKVDB cName $ L.setOpts k v ttl cond
   case res of
@@ -561,7 +566,7 @@ rSetOptsT
   -> Text
   -> L.KVDBSetTTLOption
   -> L.KVDBSetConditionOption
-  -> m (Either T.KVDBReply Bool)
+  -> m (Either KVDBReply Bool)
 rSetOptsT cName k v = rSetOptsB cName k' v'
   where
     k' = TE.encodeUtf8 k
@@ -570,7 +575,7 @@ rSetOptsT cName k v = rSetOptsB cName k' v'
 -- ------------------------------------------------------------------------------
 
 rSadd :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> L.KVDBKey -> [L.KVDBValue] -> m (Either T.KVDBReply Integer)
+  RedisName -> L.KVDBKey -> [L.KVDBValue] -> m (Either KVDBReply Integer)
 rSadd cName k v = do
   res <- L.runKVDB cName $ L.sadd k v
   case res of
@@ -580,7 +585,7 @@ rSadd cName k v = do
       pure res
 
 rSismember :: (HasCallStack, L.MonadFlow m) =>
-  RedisName -> L.KVDBKey -> L.KVDBValue -> m (Either T.KVDBReply Bool)
+  RedisName -> L.KVDBKey -> L.KVDBValue -> m (Either KVDBReply Bool)
 rSismember cName k v = do
   res <- L.runKVDB cName $ L.sismember k v
   case res of
@@ -589,11 +594,11 @@ rSismember cName k v = do
       L.logError @Text "Redis sismember" $ show err
       pure res
 
-withLoggerContext :: (HasCallStack, L.MonadFlow m) => (T.LogContext -> T.LogContext) -> L.Flow a -> m a
+withLoggerContext :: (HasCallStack, L.MonadFlow m) => (LogContext -> LogContext) -> L.Flow a -> m a
 withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
 
 
-updateLoggerContext :: (T.LogContext -> T.LogContext) -> FlowRuntime -> FlowRuntime
+updateLoggerContext :: (LogContext -> LogContext) -> FlowRuntime -> FlowRuntime
 updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
   where
     newLrt :: LoggerRuntime

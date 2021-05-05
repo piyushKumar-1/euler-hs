@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-} -- due to RDP - Koz
 
-module EulerHS.Core.Runtime
+module EulerHS.Logger.Runtime
   (
     -- * Core Runtime
     CoreRuntime(..)
@@ -18,13 +18,12 @@ module EulerHS.Core.Runtime
   , module X
   ) where
 
-import           EulerHS.Core.Types (ShouldLogSQL (SafelyOmitSqlLogs, UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION))
 import           EulerHS.Prelude
 -- Currently, TinyLogger is highly coupled with the Runtime.
 -- Fix it if an interchangable implementations are needed.
-import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
-import qualified EulerHS.Core.Types as T
-import           EulerHS.Core.Types.DB as X (withTransaction)
+import qualified EulerHS.Logger.TinyLogger as Impl
+import qualified EulerHS.Logger.Types as T
+import           EulerHS.SqlDB.Types as X (withTransaction)
 import qualified System.Logger as Log
 
 -- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
@@ -33,7 +32,7 @@ data LoggerRuntime
     { _flowFormatter    :: T.FlowFormatter
     , _logContext       :: T.LogContext
     , _logLevel         :: T.LogLevel
-    , _logRawSql        :: ShouldLogSQL
+    , _logRawSql        :: T.ShouldLogSQL
     , _logCounter       :: !T.LogCounter
     , _logMaskingConfig :: Maybe T.LogMaskingConfig
     , _logLoggerHandle  :: Impl.LoggerHandle
@@ -76,7 +75,7 @@ createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg = do
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
   counter <- initLogCounter
-  LoggerRuntime (const $ pure T.showingMessageFormatter) mempty T.Debug SafelyOmitSqlLogs counter Nothing <$> Impl.createVoidLogger
+  LoggerRuntime (const $ pure T.showingMessageFormatter) mempty T.Debug T.SafelyOmitSqlLogs counter Nothing <$> Impl.createVoidLogger
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ handle) = Impl.disposeLogger flowFormatter handle
@@ -90,8 +89,8 @@ clearCoreRuntime _ = pure ()
 
 shouldLogRawSql :: LoggerRuntime -> Bool
 shouldLogRawSql = \case
-  (LoggerRuntime _ _ _ UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _) -> True
-  _                                                                 -> False
+  (LoggerRuntime _ _ _ T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _) -> True
+  _                                                                   -> False
 
 getLogMaskingConfig :: LoggerRuntime -> Maybe T.LogMaskingConfig
 getLogMaskingConfig = \case

@@ -1,8 +1,7 @@
-{-# OPTIONS_GHC -Werror #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
 
-module EulerHS.Core.Types.MySQL
+module EulerHS.SqlDB.MySQL
   (
     -- * Core MySQL
     -- ** Types

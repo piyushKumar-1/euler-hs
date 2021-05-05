@@ -1,10 +1,13 @@
 {-# LANGUAGE DerivingStrategies #-}
 
-module EulerHS.Core.Api where
+module EulerHS.Api where
+
 import qualified Data.ByteString.Lazy as LBS (toStrict)
 import qualified Data.Text as Text (unpack)
-import           EulerHS.Core.Masking
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig (..))
+import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
+import           EulerHS.Masking (defaultMaskText, getContentTypeForServant,
+                                  maskQueryStrings, maskServantHeaders,
+                                  parseRequestResponseBody, shouldMaskKey)
 import           EulerHS.Prelude
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as SC

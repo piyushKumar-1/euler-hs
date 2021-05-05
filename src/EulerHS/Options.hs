@@ -1,7 +1,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 
-module EulerHS.Core.Types.Options
+module EulerHS.Options
   (
     -- * Options
     -- | Determine the relationship between key & value

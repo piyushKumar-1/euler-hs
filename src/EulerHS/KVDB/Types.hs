@@ -1,7 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 
-module EulerHS.Core.Types.KVDB
+module EulerHS.KVDB.Types
   (
     -- * Core KVDB
     -- ** Types

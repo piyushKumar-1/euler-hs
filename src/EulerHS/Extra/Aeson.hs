@@ -1,14 +1,13 @@
 module EulerHS.Extra.Aeson
-( stripLensPrefixOptions
-, stripAllLensPrefixOptions
-, jsonSetField
+(
+ jsonSetField
 , encodeJSON
 , decodeJSON
 ) where
 
 import           Prelude
 
-import           Data.Aeson (FromJSON, ToJSON, Options, defaultOptions, fieldLabelModifier)
+import           Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
@@ -16,18 +15,6 @@ import qualified Data.HashMap.Strict as HashMap
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LazyText
-
-
-stripLensPrefixOptions :: Options
-stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
-
-stripAllLensPrefixOptions :: Options
-stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
-  where
-    dropPrefix :: String -> String
-    dropPrefix field = if length field > 0
-                         then dropWhile (== head field) field
-                         else field
 
 -- utility functions
 

@@ -1,4 +1,7 @@
-module EulerHS.Core.Types.Options
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+
+module EulerHS.Options
   (
     -- * Options
     -- | Determine the relationship between key & value
@@ -16,4 +19,4 @@ class (Typeable k, ToJSON k)
   => OptionEntity k v |  k -> v
 
 mkOptionKey :: forall k v. OptionEntity k v => k -> Text
-mkOptionKey k = show (typeRep @k) <> (decodeUtf8 $ BSL.toStrict $ encode k)
+mkOptionKey k = show (typeRep @k) <> decodeUtf8 (BSL.toStrict $ encode k)

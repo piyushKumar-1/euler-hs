@@ -1,8 +1,7 @@
-{-# OPTIONS_GHC -Werror #-}
-{-# LANGUAGE DerivingStrategies    #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GADTs              #-}
 
-module EulerHS.Core.KVDB.Language
+module EulerHS.KVDB.Language
   (
   -- * KVDB language
   -- ** Types
@@ -36,7 +35,8 @@ module EulerHS.Core.KVDB.Language
   ) where
 
 import qualified Database.Redis as R
-import qualified EulerHS.Core.Types as T
+import           EulerHS.KVDB.Types (KVDBAnswer, KVDBReply, KVDBStatus,
+                                     TxResult)
 import           EulerHS.Prelude hiding (get)
 
 data KVDBSetTTLOption
@@ -73,8 +73,8 @@ type KVDBStreamItem = (ByteString, ByteString)
 ----------------------------------------------------------------------
 
 data KeyValueF f next where
-  Set     :: KVDBKey -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
-  SetEx   :: KVDBKey -> KVDBDuration -> KVDBValue -> (f T.KVDBStatus -> next) -> KeyValueF f next
+  Set     :: KVDBKey -> KVDBValue -> (f KVDBStatus -> next) -> KeyValueF f next
+  SetEx   :: KVDBKey -> KVDBDuration -> KVDBValue -> (f KVDBStatus -> next) -> KeyValueF f next
   SetOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> (f Bool -> next) -> KeyValueF f next
   Get     :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   Exists  :: KVDBKey -> (f Bool -> next) -> KeyValueF f next
@@ -113,12 +113,12 @@ type KVDBTx = F (KeyValueF R.Queued)
 data TransactionF next where
   MultiExec
     :: KVDBTx (R.Queued a)
-    -> (T.KVDBAnswer (T.TxResult a) -> next)
+    -> (KVDBAnswer (TxResult a) -> next)
     -> TransactionF next
   MultiExecWithHash
     :: ByteString
     -> KVDBTx (R.Queued a)
-    -> (T.KVDBAnswer (T.TxResult a) -> next)
+    -> (KVDBAnswer (TxResult a) -> next)
     -> TransactionF next
 
 instance Functor TransactionF where
@@ -128,19 +128,19 @@ instance Functor TransactionF where
 ----------------------------------------------------------------------
 
 data KVDBF next
-  = KV (KeyValueF T.KVDBAnswer next)
+  = KV (KeyValueF KVDBAnswer next)
   | TX (TransactionF next)
   deriving Functor
 
-type KVDB next = ExceptT T.KVDBReply (F KVDBF) next
+type KVDB next = ExceptT KVDBReply (F KVDBF) next
 
 ----------------------------------------------------------------------
 -- | Set the value of a key. Transaction version.
-setTx :: KVDBKey -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
+setTx :: KVDBKey -> KVDBValue -> KVDBTx (R.Queued KVDBStatus)
 setTx key value = liftFC $ Set key value id
 
 -- | Set the value and ttl of a key. Transaction version.
-setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued T.KVDBStatus)
+setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued KVDBStatus)
 setexTx key ex value = liftFC $ SetEx key ex value id
 
 -- | Set the value of a hash field. Transaction version.
@@ -171,11 +171,11 @@ xlenTx stream = liftFC $ XLen stream id
 
 ---
 -- | Set the value of a key
-set :: KVDBKey -> KVDBValue -> KVDB T.KVDBStatus
+set :: KVDBKey -> KVDBValue -> KVDB KVDBStatus
 set key value = ExceptT $ liftFC $ KV $ Set key value id
 
 -- | Set the value and ttl of a key.
-setex :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDB T.KVDBStatus
+setex :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDB KVDBStatus
 setex key ex value = ExceptT $ liftFC $ KV $ SetEx key ex value id
 
 setOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> KVDB Bool
@@ -223,11 +223,11 @@ sismember :: KVDBKey -> KVDBKey -> KVDB Bool
 sismember key member = ExceptT $ liftFC $ KV $ SMem key member id
 
 -- | Run commands inside a transaction(suited only for standalone redis setup).
-multiExec :: KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExec :: KVDBTx (R.Queued a) -> KVDB (TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
 
 -- | Run commands inside a transaction(suited only for cluster redis setup).
-multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (T.TxResult a)
+multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (TxResult a)
 multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
 
 -- | Perform a raw call against the underlying Redis data store. This is

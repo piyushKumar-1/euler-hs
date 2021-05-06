@@ -1,5 +1,46 @@
 # Changelog for euler-hs
 
+## [2.4.0.0] - 2021-04-28
+
+* Remove `Serializable` module.
+
+## [2.3.0.0] - 2021-04-26
+
+* Remove all `lens` and `generic-lens` usage and exports.
+
+## [2.2.0.1] - 2021-04-26
+
+* Add a range of additional functions to `EulerHS.Extra.Language`, originally
+  from `euler-webservice`.
+
+## [2.2.0.0] - 2021-04-23
+
+* Major version bump for `beam-mysql`.
+
+## [2.1.1.0] - 2021-04-20
+
+* Use RDP plugin
+
+## [2.1.0.0] - 2021-04-12
+
+* `ManagerSelector` is now a newtype.
+* Add `CertificateRegistrationError` data type.
+* Add 'withSelfSignedFlowRuntime` function for registering self-signed
+  certificates in a `FlowRuntime`.
+
+## [2.0.4.4] - 2021-04-13
+
+* Rename `changeLoggerContext` to `withLoggerContext`
+* Add `updateLoggerContext`
+
+## [2.0.4.3] - 2021-04-12
+
+* Add `changeLoggerContext` to EulerHS.Extra.Language
+
+## [2.0.4.2] - 2021-04-07
+
+* Fixed a bug with MVar blocking when disposing `Async` logger.
+
 ## [2.0.4.1] - 2021-03-03
 
 * Remove waste entries.

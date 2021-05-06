@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
-module EulerHS.Core.Types.Logger
+module EulerHS.Logger.Types
     (
     -- * Core Logger
     -- ** Types
@@ -28,16 +28,12 @@ module EulerHS.Core.Types.Logger
     , builderToByteString
     ) where
 
+import qualified EulerHS.Common as T
 import           EulerHS.Prelude
-import           Data.HashSet(HashSet)
-
-import qualified EulerHS.Core.Types.Common as T
-
 -- Currently, TinyLogger is highly coupled with the interface.
 -- Reason: unclear current practice of logging that affects design and performance.
-import qualified System.Logger.Message as LogMsg
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString as BS
+import qualified System.Logger.Message as LogMsg
 
 -- | Logging level.
 data LogLevel = Debug | Info | Warning | Error
@@ -45,9 +41,9 @@ data LogLevel = Debug | Info | Warning | Error
 
 data LogMaskingConfig =
   LogMaskingConfig
-    { _maskKeys      :: HashSet Text -- Check : Better to make this case insensitive
-    , _maskText      :: Maybe Text
-    , _keyType       :: MaskKeyType
+    { _maskKeys :: HashSet Text -- Check : Better to make this case insensitive
+    , _maskText :: Maybe Text
+    , _keyType  :: MaskKeyType
     } deriving (Generic, Show, Read)
 
 data MessageBuilder
@@ -82,13 +78,13 @@ type LogContext = HashMap Text Text
 
 data LoggerConfig
   = LoggerConfig
-    { _isAsync      :: Bool
-    , _logLevel     :: LogLevel
-    , _logFilePath  :: FilePath
-    , _logToConsole :: Bool
-    , _logToFile    :: Bool
-    , _maxQueueSize :: Word
-    , _logRawSql    :: ShouldLogSQL
+    { _isAsync          :: Bool
+    , _logLevel         :: LogLevel
+    , _logFilePath      :: FilePath
+    , _logToConsole     :: Bool
+    , _logToFile        :: Bool
+    , _maxQueueSize     :: Word
+    , _logRawSql        :: ShouldLogSQL
     , _logMaskingConfig :: Maybe LogMaskingConfig
     } deriving (Generic, Show, Read)
 

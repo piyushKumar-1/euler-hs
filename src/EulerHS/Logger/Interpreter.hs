@@ -1,31 +1,30 @@
 {-# LANGUAGE BangPatterns #-}
 
-module EulerHS.Core.Logger.Interpreter
+module EulerHS.Logger.Interpreter
   (
     -- * Core Logger Interpreter
     runLogger
   )
 where
 
-import           EulerHS.Prelude
-
-import qualified EulerHS.Core.Language as L
-import qualified EulerHS.Core.Logger.Impl.TinyLogger as Impl
-import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as T
 import qualified Control.Concurrent.MVar as MVar
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import qualified Data.ByteString.Lazy as LBS
+import           EulerHS.Common (FlowGUID)
+import           EulerHS.Logger.Language (Logger, LoggerMethod (LogMessage))
+import qualified EulerHS.Logger.Runtime as R
+import qualified EulerHS.Logger.TinyLogger as Impl
+import qualified EulerHS.Logger.Types as T
+import           EulerHS.Prelude
 
-
-interpretLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.LoggerMethod a -> IO a
+interpretLogger :: Maybe FlowGUID -> R.LoggerRuntime -> LoggerMethod a -> IO a
 
 -- Memory logger
 interpretLogger
   mbFlowGuid
   (R.MemoryLoggerRuntime flowFormatter logContext logLevel logsVar cntVar)
-  (L.LogMessage msgLogLvl tag msg next) =
+  (LogMessage msgLogLvl tag msg next) =
 
   fmap next $
     case compare logLevel msgLogLvl of
@@ -47,7 +46,7 @@ interpretLogger
 interpretLogger
   mbFlowGuid
   (R.LoggerRuntime flowFormatter logContext logLevel _ cntVar _ handle)
-  (L.LogMessage msgLogLevel tag msg next) =
+  (LogMessage msgLogLevel tag msg next) =
 
   fmap next $
     case compare logLevel msgLogLevel of
@@ -56,5 +55,5 @@ interpretLogger
         msgNum    <- R.incLogCounter cntVar
         Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum logContext
 
-runLogger :: Maybe T.FlowGUID -> R.LoggerRuntime -> L.Logger a -> IO a
+runLogger :: Maybe FlowGUID -> R.LoggerRuntime -> Logger a -> IO a
 runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)

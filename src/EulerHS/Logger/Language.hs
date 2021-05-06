@@ -1,16 +1,15 @@
 {-# LANGUAGE GADTs           #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module EulerHS.Core.Logger.Language
+module EulerHS.Logger.Language
   (
     Logger
   , LoggerMethod(..)
   , logMessage'
   ) where
 
+import qualified EulerHS.Logger.Types as T
 import           EulerHS.Prelude
-
-import qualified EulerHS.Core.Types.Logger as T
 
 -- | Language for logging.
 data LoggerMethod next where

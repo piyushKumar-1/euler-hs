@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingVia     #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module EulerHS.Framework.Runtime
   (
     -- * Framework Runtime
@@ -8,23 +11,30 @@ module EulerHS.Framework.Runtime
   , kvDisconnect
   , runPubSubWorker
   , shouldFlowLogRawSql
+  -- * Registration for self-signed certs
+  , CertificateRegistrationError(..)
+  , withSelfSignedFlowRuntime
   ) where
 
-import           EulerHS.Prelude
-
-import           Network.HTTP.Client (Manager, newManager)
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-
+import           Control.Monad.Trans.Except (throwE)
 import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
+import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
-import qualified System.Mem as SYSM (performGC)
-
+import           EulerHS.KVDB.Types (NativeKVDBConn (NativeKVDB, NativeKVDBMockedConn))
+import qualified EulerHS.Logger.Runtime as R
+import           EulerHS.Prelude
+import           EulerHS.SqlDB.Types (ConnTag,
+                                      NativeSqlPool (NativeMockedPool, NativeMySQLPool, NativePGPool, NativeSQLitePool))
+import           Network.Connection (TLSSettings (TLSSettings))
+import           Network.HTTP.Client (Manager, newManager)
+import           Network.HTTP.Client.TLS (mkManagerSettings, tlsManagerSettings)
+import           Network.TLS (ClientParams (clientShared, clientSupported),
+                              defaultParamsClient, sharedCAStore,
+                              supportedCiphers)
+import           Network.TLS.Extra.Cipher (ciphersuite_default)
 import           System.IO.Unsafe (unsafePerformIO)
-
-import qualified EulerHS.Core.Runtime as R
-import qualified EulerHS.Core.Types as T
-
+import qualified System.Mem as SYSM (performGC)
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
@@ -32,19 +42,73 @@ data FlowRuntime = FlowRuntime
   -- ^ Contains logger settings
   , _defaultHttpClientManager :: Manager
   -- ^ Http default manager, used for external api calls
-  , _httpClientManagers       :: Map String Manager
+  , _httpClientManagers       :: HashMap Text Manager
   -- ^ Http managers, used for external api calls
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
-  , _kvdbConnections          :: MVar (Map Text T.NativeKVDBConn)
+  , _kvdbConnections          :: MVar (Map Text NativeKVDBConn)
   -- ^ Connections for key-value databases
-  , _sqldbConnections         :: MVar (Map T.ConnTag T.NativeSqlPool)
+  , _sqldbConnections         :: MVar (Map ConnTag NativeSqlPool)
   -- ^ Connections for SQL databases
   , _pubSubController         :: RD.PubSubController
   -- ^ Subscribe controller
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
   }
+
+-- | Possible issues that can arise when registering certificates.
+--
+-- @since 2.0.4.3
+newtype CertificateRegistrationError = NoCertificatesAtPath FilePath
+  deriving (Eq) via FilePath
+  deriving stock (Show)
+
+instance Exception CertificateRegistrationError
+
+-- | Works identically to 'withFlowRuntime', but takes an extra parameter. This
+-- parameter is a map of textual identifiers to paths where self-signed
+-- certificates can be found.
+--
+-- You can then use 'callAPI', providing 'Just' the textual identifier to use
+-- the self-signed certificate(s) provided.
+--
+-- The handler is provided an 'Either' to allow for graceful recovery; if you
+-- have nothing you can do with a 'CertificateRegistrationError', you can throw
+-- it.
+--
+-- @since 2.0.4.3
+withSelfSignedFlowRuntime ::
+  HashMap Text FilePath ->
+  Maybe (IO R.LoggerRuntime) ->
+  (Either CertificateRegistrationError FlowRuntime -> IO a) ->
+  IO a
+withSelfSignedFlowRuntime certPathMap mRTF handler = do
+  res <- runExceptT . traverse go $ certPathMap
+  case res of
+    Left err         -> handler . Left $ err
+    Right managerMap ->
+      bracket (fromMaybe R.createVoidLoggerRuntime mRTF) R.clearLoggerRuntime $
+        \loggerRT -> bracket (R.createCoreRuntime loggerRT) R.clearCoreRuntime $
+          \coreRT -> bracket (mkFlowRT coreRT managerMap) clearFlowRuntime $
+            handler . Right
+  where
+    go ::
+      FilePath ->
+      ExceptT CertificateRegistrationError IO Manager
+    go certPath = do
+      mCertStore <- lift . readCertificateStore $ certPath
+      case mCertStore of
+        Nothing    -> throwE . NoCertificatesAtPath $ certPath
+        Just store -> do
+          let defs = defaultParamsClient "localhost" ""
+          let clientParams = defs {
+            clientShared = (clientShared defs) { sharedCAStore = store },
+            clientSupported = (clientSupported defs) { supportedCiphers = ciphersuite_default }}
+          lift . newManager . mkManagerSettings (TLSSettings clientParams) $ Nothing
+    mkFlowRT :: R.CoreRuntime -> HashMap Text Manager -> IO FlowRuntime
+    mkFlowRT coreRT managers = do
+      frt <- createFlowRuntime coreRT
+      pure frt { _httpClientManagers = managers }
 
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
@@ -54,11 +118,10 @@ createFlowRuntime coreRt = do
   kvdbConnections   <- newMVar Map.empty
   sqldbConnections  <- newMVar Map.empty
   pubSubController  <- RD.newPubSubController [] []
-
   pure $ FlowRuntime
     { _coreRuntime              = coreRt
     , _defaultHttpClientManager = defaultManagerVar
-    , _httpClientManagers       = Map.empty
+    , _httpClientManagers       = mempty
     , _options                  = optionsVar
     , _kvdbConnections          = kvdbConnections
     -- , _runMode                  = T.RegularMode
@@ -88,17 +151,17 @@ clearFlowRuntime FlowRuntime{..} = do
 shouldFlowLogRawSql :: FlowRuntime -> Bool
 shouldFlowLogRawSql = R.shouldLogRawSql . R._loggerRuntime . _coreRuntime
 
-sqlDisconnect :: T.NativeSqlPool -> IO ()
+sqlDisconnect :: NativeSqlPool -> IO ()
 sqlDisconnect = \case
-  T.NativePGPool connPool -> DP.destroyAllResources connPool
-  T.NativeMySQLPool connPool -> DP.destroyAllResources connPool
-  T.NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  T.NativeMockedPool -> pure ()
+  NativePGPool connPool     -> DP.destroyAllResources connPool
+  NativeMySQLPool connPool  -> DP.destroyAllResources connPool
+  NativeSQLitePool connPool -> DP.destroyAllResources connPool
+  NativeMockedPool          -> pure ()
 
-kvDisconnect :: T.NativeKVDBConn -> IO ()
+kvDisconnect :: NativeKVDBConn -> IO ()
 kvDisconnect = \case
-  T.NativeKVDBMockedConn -> pure ()
-  T.NativeKVDB conn -> RD.disconnect conn
+  NativeKVDBMockedConn -> pure ()
+  NativeKVDB conn      -> RD.disconnect conn
 
 -- | Run flow with given logger runtime creation function.
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a
@@ -154,4 +217,4 @@ runPubSubWorker rt log = do
     pure $ do
       killThread threadId
       putMVar pubSubWorkerLock ()
-      log $ "Publish/Subscribe worker: Killed"
+      log "Publish/Subscribe worker: Killed"

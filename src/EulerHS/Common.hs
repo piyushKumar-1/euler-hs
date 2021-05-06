@@ -1,4 +1,6 @@
-module EulerHS.Core.Types.Common
+{-# LANGUAGE DerivingVia #-}
+
+module EulerHS.Common
   (
     -- * Guid for any flow
     FlowGUID
@@ -7,7 +9,7 @@ module EulerHS.Core.Types.Common
     -- * Guid for a safe flow
   , SafeFlowGUID
     -- * Network manager selector
-  , ManagerSelector
+  , ManagerSelector(..)
     -- * Description type
   , Description
     -- * A variable for await results from a forked flow
@@ -21,7 +23,11 @@ import           EulerHS.Prelude
 type FlowGUID = Text
 type ForkGUID = Text
 type SafeFlowGUID = Text
-type ManagerSelector = String
+
+newtype ManagerSelector = ManagerSelector Text
+  deriving (Eq, IsString) via Text
+  deriving stock (Show)
+
 type Description = Text
 data Awaitable s = Awaitable (MVar s)
 data Microseconds = Microseconds W.Word32 -- Max timeout ~71 minutes with Word32

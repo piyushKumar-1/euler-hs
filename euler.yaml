@@ -5,17 +5,16 @@ allowed-paths:
 - euler-hs.cabal
 
 disable-tests: false
-
 dependencies:
   euler-build:
     branch: master
-    revision: aa20a46b6ae5d638c23fa009fb1dd9b07727ffa2
+    revision: 90f393f7f91e1bb9d7b3c0ece1aa919797d1987b
   beam:
     branch: master
-    revision: d36b29726570b6c5d228bee44d169282fe99ebdb
+    revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
     branch: master
-    revision: be424eba9576620a1d613e07a310a2c4ebdeca8f
+    revision: 597e4c7bff065644cea74ebc52b2438456f00a39
   haskell-sequelize:
     branch: master
     revision: 70fb0e639a7a571ec130ed5b4137745269cf3304
@@ -27,6 +26,11 @@ overrides:
     commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
     sha256: 1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595
     source: github
+
+  record-dot-preprocessor:
+    version: 0.2.10
+    sha256: 08ad4d3z5rspxcqxl5iv7b3w6m8ik642cxpm5d8a77s03dyp1z75
+    source: hackage
 
   servant:
     version: 0.18.2
@@ -45,6 +49,7 @@ overrides:
     source: hackage
     sha256: 1r0f18npxh9k9ziyc0l216cjpjbm3j6gbzganbxsh7byrym19np0
     enable-profiling: true
+    jailbreak: true
 
   servant-client:
     version: 0.18.2
@@ -60,7 +65,6 @@ overrides:
 
   # disable tests
   beam-mysql: {}
-
 build-tools:
 - redis
 

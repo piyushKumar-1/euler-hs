@@ -1,5 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module EulerHS.Core.KVDB.Interpreter
+{-# LANGUAGE RankNTypes          #-}
+
+module EulerHS.KVDB.Interpreter
   (
     -- * KVDB Interpreter
     runKVDB
@@ -10,14 +12,17 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Encoding.Error as TE
 import qualified Database.Redis as R
-import qualified EulerHS.Core.KVDB.Language as L
-import qualified EulerHS.Core.Types as D
-import           EulerHS.Core.Types.KVDB
+import qualified EulerHS.KVDB.Language as L
+import           EulerHS.KVDB.Types (KVDBError (KVDBConnectionDoesNotExist),
+                                     KVDBReply, KVDBReplyF (Bulk, KVDBError),
+                                     NativeKVDBConn (NativeKVDB, NativeKVDBMockedConn),
+                                     exceptionToKVDBReply, fromRdStatus,
+                                     fromRdTxResult, hedisReplyToKVDBReply)
 import           EulerHS.Prelude
 
 interpretKeyValueF
-  :: HasCallStack
-  => (forall b . R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
+  ::
+  (forall b . R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> L.KeyValueF (Either KVDBReply) a
   -> IO a
 interpretKeyValueF runRedis (L.Set k v next) =
@@ -77,7 +82,8 @@ interpretKeyValueF runRedis (L.XAdd stream entryId items next) =
 
     parseStreamEntryId bs =
       -- "number-number" is redis entry id invariant
-      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
+      let (ms, sq) = bimap (read . T.unpack) (read . T.unpack) .
+                      T.breakOn "-" . TE.decodeUtf8With TE.lenientDecode $ bs
       in L.KVDBStreamEntryID ms sq
 
 interpretKeyValueF runRedis (L.XLen stream next) =
@@ -92,12 +98,12 @@ interpretKeyValueF runRedis (L.SMem k v next) =
 
 interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest args)
 
-interpretKeyValueTxF :: HasCallStack => L.KeyValueF R.Queued a -> R.RedisTx a
+interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
-  next . fmap D.fromRdStatus <$> R.set k v
+  next . fmap fromRdStatus <$> R.set k v
 
 interpretKeyValueTxF (L.SetEx k e v next) =
-  next . fmap D.fromRdStatus <$> R.setex k e v
+  next . fmap fromRdStatus <$> R.setex k e v
 
 interpretKeyValueTxF (L.SetOpts k v ttl cond next) =
   next . fmap (R.Ok ==) <$> (R.setOpts k v . makeSetOpts ttl $ cond)
@@ -137,8 +143,8 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
 
     parseStreamEntryId bs =
       -- "number-number" is redis entry id invariant
-      -- TODO:
-      let [ms, sq] = read . T.unpack <$> T.splitOn "-" (TE.decodeUtf8With TE.lenientDecode bs)
+      let (ms, sq) = bimap (read . T.unpack) (read . T.unpack) .
+                      T.breakOn "-" . TE.decodeUtf8With TE.lenientDecode $ bs
       in L.KVDBStreamEntryID ms sq
 
 interpretKeyValueTxF (L.SAdd k v next) =
@@ -151,8 +157,7 @@ interpretKeyValueTxF (L.Raw args next) = next <$> R.sendRequest args
 
 
 interpretTransactionF
-  :: HasCallStack
-  => (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
+  :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))
   -> L.TransactionF a
   -> IO a
 interpretTransactionF runRedis (L.MultiExec dsl next) =
@@ -189,7 +194,7 @@ runKVDB cName kvdbConnMapMVar =
               error "Result of runRedis with mocked connection should not ever be evaluated"
 
 
-makeSetOpts :: HasCallStack => L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts
+makeSetOpts :: L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts
 makeSetOpts ttl cond =
   R.SetOpts
     { setSeconds =

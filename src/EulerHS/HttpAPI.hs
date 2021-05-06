@@ -1,9 +1,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
-module EulerHS.Core.Types.HttpAPI
+module EulerHS.HttpAPI
     (
-    -- * Core Logger
-    -- ** Types
       HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
@@ -27,20 +26,20 @@ module EulerHS.Core.Types.HttpAPI
     , maskHTTPResponse
     ) where
 
-import           EulerHS.Prelude                 hiding ((.=), ord)
-import qualified EulerHS.Core.Types.BinaryString as T
-
-import qualified Data.ByteString                 as B
-import qualified Data.ByteString.Lazy            as LB
-import           Data.ByteString.Lazy.Builder    (Builder)
-import qualified Data.ByteString.Lazy.Builder    as Builder
-import qualified Data.Char                       as Char
-import qualified Data.Map                        as Map
-import           Data.String.Conversions         (convertString)
-import qualified Data.Text.Encoding              as Text
-import           EulerHS.Core.Masking
-import qualified EulerHS.Core.Types.Logger as Log (LogMaskingConfig(..))
-
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
+import           Data.ByteString.Lazy.Builder (Builder)
+import qualified Data.ByteString.Lazy.Builder as Builder
+import qualified Data.Char as Char
+import qualified Data.Map as Map
+import           Data.String.Conversions (convertString)
+import qualified Data.Text.Encoding as Text
+import qualified EulerHS.BinaryString as T
+import qualified EulerHS.Logger.Types as Log
+import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
+                                  maskHTTPHeaders, parseRequestResponseBody,
+                                  shouldMaskKey)
+import           EulerHS.Prelude hiding (ord)
 
 data HTTPRequest
   = HTTPRequest
@@ -51,7 +50,7 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Generic, ToJSON)
 
 data HTTPResponse
   = HTTPResponse
@@ -60,7 +59,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Generic, ToJSON)
 
 data HTTPCert
   = HTTPCert
@@ -76,7 +75,7 @@ data HTTPMethod
   | Post
   | Delete
   | Head
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic, ToJSON)
 
 type HeaderName = Text
 type HeaderValue = Text
@@ -86,7 +85,7 @@ data HTTPRequestResponse
     { request  :: HTTPRequest
     , response :: HTTPResponse
     }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic, ToJSON)
 
 -- | Used when some IO (or other) exception ocurred during a request
 data HTTPIOException
@@ -94,7 +93,8 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequest
     }
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Generic, ToJSON)
+
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
@@ -148,7 +148,7 @@ defaultTimeout = 9000000
 --  >   & withHeader "Content-Type" "application/json"
 --
 withHeader :: HeaderName -> HeaderValue -> HTTPRequest -> HTTPRequest
-withHeader headerName headerValue (request@HTTPRequest {getRequestHeaders}) =
+withHeader headerName headerValue request@HTTPRequest {getRequestHeaders} =
   let headers = Map.insert headerName headerValue getRequestHeaders
   in  request { getRequestHeaders = headers }
 

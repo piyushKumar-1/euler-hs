@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Werror #-}
 
 module Common
@@ -11,7 +12,6 @@ module Common
 
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
-import qualified Data.Map as Map
 -- import qualified Data.Vector as V
 -- import           EulerHS.Interpreters (runFlow)
 -- import           EulerHS.Language as L
@@ -66,10 +66,7 @@ initRTWithManagers = do
   flowRt <- withFlowRuntime Nothing pure
   m1 <- newManager tlsManagerSettings
   m2 <- newManager tlsManagerSettings
-  let managersMap = Map.fromList
-        [ ("manager1", m1)
-        , ("manager2", m2)
-        ]
+  let managersMap = [("manager1", m1), ("manager2", m2)]
   pure $ flowRt { _httpClientManagers = managersMap }
 
 -- initRegularRT :: IO FlowRuntime

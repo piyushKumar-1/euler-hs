@@ -15,7 +15,7 @@ import qualified Database.Redis as R
 import qualified EulerHS.KVDB.Language as L
 import           EulerHS.KVDB.Types (KVDBError (KVDBConnectionDoesNotExist),
                                      KVDBReply, KVDBReplyF (Bulk, KVDBError),
-                                     NativeKVDBConn (NativeKVDB, NativeKVDBMockedConn),
+                                     NativeKVDBConn (NativeKVDB),
                                      exceptionToKVDBReply, fromRdStatus,
                                      fromRdTxResult, hedisReplyToKVDBReply)
 import           EulerHS.Prelude
@@ -176,8 +176,7 @@ interpretDbF
 interpretDbF runRedis (L.KV f) = interpretKeyValueF    runRedis f
 interpretDbF runRedis (L.TX f) = interpretTransactionF runRedis f
 
-
-runKVDB :: HasCallStack => Text -> MVar (Map Text NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
+runKVDB :: Text -> MVar (Map Text NativeKVDBConn) -> L.KVDB a -> IO (Either KVDBReply a)
 runKVDB cName kvdbConnMapMVar =
   fmap (join . first exceptionToKVDBReply) . try @_ @SomeException .
     foldF (interpretDbF runRedis) . runExceptT
@@ -187,12 +186,7 @@ runKVDB cName kvdbConnMapMVar =
       connections <- readMVar kvdbConnMapMVar
       case Map.lookup cName connections of
         Nothing   -> pure $ Left $ KVDBError KVDBConnectionDoesNotExist "Can't find redis connection"
-        Just conn ->
-          case conn of
-            NativeKVDB c         -> first hedisReplyToKVDBReply <$> R.runRedis c redisDsl
-            NativeKVDBMockedConn -> pure $ Right $
-              error "Result of runRedis with mocked connection should not ever be evaluated"
-
+        Just (NativeKVDB c) -> first hedisReplyToKVDBReply <$> R.runRedis c redisDsl
 
 makeSetOpts :: L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts
 makeSetOpts ttl cond =

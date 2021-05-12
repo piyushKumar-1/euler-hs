@@ -99,7 +99,6 @@ deleteReturningListPG
   -> BP.Pg [table Identity]
 deleteReturningListPG = B.runDeleteReturningList
 
-
 updateReturningListPG
   :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
   => B.SqlUpdate BP.Postgres table
@@ -118,12 +117,10 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
 class BeamRunner beM where
   getBeamDebugRunner :: NativeSqlConn -> beM a -> ((Text -> IO ()) -> IO a)
 
-
 instance BeamRunner BS.SqliteM where
   getBeamDebugRunner (NativeSQLiteConn conn) beM =
     \logger -> SQLite.runBeamSqliteDebug logger conn beM
   getBeamDebugRunner _ _ = \_ -> error "Not a SQLite connection"
-
 
 instance BeamRunner BP.Pg where
   getBeamDebugRunner (NativePGConn conn) beM =
@@ -138,7 +135,6 @@ instance BeamRunner BM.MySQLM where
 withTransaction :: forall beM a .
   SqlConn beM -> (NativeSqlConn -> IO a) -> IO (Either SomeException a)
 withTransaction conn f = case conn of
-  MockedPool _ -> error "Mocked pool connections are not supported."
   PostgresPool _ pool -> DP.withResource pool (go PGS.withTransaction NativePGConn)
   MySQLPool _ pool -> DP.withResource pool (go MySQL.withTransaction NativeMySQLConn)
   SQLitePool _ pool -> DP.withResource pool (go SQLite.withTransaction NativeSQLiteConn)
@@ -151,8 +147,7 @@ data NativeSqlPool
   = NativePGPool (DP.Pool BP.Connection)         -- ^ 'Pool' with Postgres connections
   | NativeMySQLPool (DP.Pool MySQL.MySQLConn)   -- ^ 'Pool' with MySQL connections
   | NativeSQLitePool (DP.Pool SQLite.Connection) -- ^ 'Pool' with SQLite connections
-  | NativeMockedPool
-  deriving Show
+  deriving stock (Show)
 
 -- | Representation of native DB connections that we use in implementation.
 data NativeSqlConn
@@ -162,24 +157,20 @@ data NativeSqlConn
 
 -- | Transform 'SqlConn' to 'NativeSqlPool'
 bemToNative :: SqlConn beM -> NativeSqlPool
-bemToNative (MockedPool _)        = NativeMockedPool
-bemToNative (PostgresPool _ pool) = NativePGPool pool
-bemToNative (MySQLPool _ pool)    = NativeMySQLPool pool
-bemToNative (SQLitePool _ pool)   = NativeSQLitePool pool
+bemToNative = \case
+  PostgresPool _ pool -> NativePGPool pool
+  MySQLPool _ pool    -> NativeMySQLPool pool
+  SQLitePool _ pool   -> NativeSQLitePool pool
 
 -- | Create 'SqlConn' from 'DBConfig'
 mkSqlConn :: DBConfig beM -> IO (SqlConn beM)
-mkSqlConn (PostgresPoolConf connTag cfg PoolConfig {..}) =  PostgresPool connTag
-  <$> DP.createPool (createPostgresConn cfg) BP.close stripes keepAlive resourcesPerStripe
-
-mkSqlConn (MySQLPoolConf connTag cfg PoolConfig {..}) =  MySQLPool connTag
-  <$> DP.createPool (createMySQLConn cfg) MySQL.close stripes keepAlive resourcesPerStripe
-
-mkSqlConn (SQLitePoolConf connTag dbname PoolConfig {..}) =  SQLitePool connTag
-  <$> DP.createPool (SQLite.open dbname) SQLite.close stripes keepAlive resourcesPerStripe
-
-mkSqlConn (MockConfig connTag) = pure $ MockedPool connTag
-
+mkSqlConn = \case
+  PostgresPoolConf connTag cfg PoolConfig {..} -> PostgresPool connTag
+    <$> DP.createPool (createPostgresConn cfg) BP.close stripes keepAlive resourcesPerStripe
+  MySQLPoolConf connTag cfg PoolConfig {..} -> MySQLPool connTag
+    <$> DP.createPool (createMySQLConn cfg) MySQL.close stripes keepAlive resourcesPerStripe
+  SQLitePoolConf connTag dbname PoolConfig {..} -> SQLitePool connTag
+    <$> DP.createPool (SQLite.open dbname) SQLite.close stripes keepAlive resourcesPerStripe
 
 -- | Tag for SQL connections
 type ConnTag = Text
@@ -190,26 +181,24 @@ type SQliteDBname = String
 -- | Represents SQL connection that we use in flow.
 --   Parametrised by BEAM monad corresponding to the certain DB (MySQL, Postgres, SQLite)
 data SqlConn (beM :: Type -> Type)
-  = MockedPool ConnTag
-  | PostgresPool ConnTag (DP.Pool BP.Connection)
+  = PostgresPool ConnTag (DP.Pool BP.Connection)
   -- ^ 'Pool' with Postgres connections
   | MySQLPool ConnTag (DP.Pool MySQL.MySQLConn)
   -- ^ 'Pool' with MySQL connections
   | SQLitePool ConnTag (DP.Pool SQLite.Connection)
   -- ^ 'Pool' with SQLite connections
-  deriving (Generic)
-
+  deriving stock (Generic)
 
 -- | Represents DB configurations
 data DBConfig (beM :: Type -> Type)
-  = MockConfig ConnTag
-  | PostgresPoolConf ConnTag PostgresConfig PoolConfig
+  = PostgresPoolConf ConnTag PostgresConfig PoolConfig
   -- ^ config for 'Pool' with Postgres connections
   | MySQLPoolConf ConnTag MySQLConfig PoolConfig
   -- ^ config for 'Pool' with MySQL connections
   | SQLitePoolConf ConnTag SQliteDBname PoolConfig
   -- ^ config for 'Pool' with SQlite connections
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 -- | Represents 'Pool' parameters
 data PoolConfig = PoolConfig
@@ -220,7 +209,8 @@ data PoolConfig = PoolConfig
   , resourcesPerStripe :: Int
   -- ^ maximum number of connections to be stored in each sub-pool
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 defaultPoolConfig :: PoolConfig
 defaultPoolConfig = PoolConfig
@@ -254,12 +244,10 @@ mkMySQLPoolConfig :: ConnTag -> MySQLConfig -> PoolConfig -> DBConfig BM.MySQLM
 mkMySQLPoolConfig = MySQLPoolConf
 
 getDBName :: DBConfig beM -> String
-getDBName (PostgresPoolConf _ PostgresConfig{..} _) = connectDatabase
-getDBName (MySQLPoolConf _ MySQLConfig{..} _) = connectDatabase
-getDBName (SQLitePoolConf _ dbName _) = dbName
-getDBName (MockConfig _) = error "Can't get DB name of MockConfig"
-
-----------------------------------------------------------------------
+getDBName = \case
+  PostgresPoolConf _ PostgresConfig{..} _ -> connectDatabase
+  MySQLPoolConf _ MySQLConfig{..} _       -> connectDatabase
+  SQLitePoolConf _ dbName _               -> dbName
 
 data SqliteError
   = SqliteErrorOK
@@ -293,7 +281,8 @@ data SqliteError
   | SqliteErrorWarning
   | SqliteErrorRow
   | SqliteErrorDone
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 toSqliteError :: SQLite.Error -> SqliteError
 toSqliteError SQLite.ErrorOK                 = SqliteErrorOK
@@ -334,7 +323,8 @@ data SqliteSqlError
     , sqlErrorDetails :: Text
     , sqlErrorContext :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+    deriving stock (Show, Eq, Ord, Generic)
+    deriving anyclass (ToJSON, FromJSON)
 
 toSqliteSqlError :: SQLite.SQLError -> SqliteSqlError
 toSqliteSqlError sqlErr = SqliteSqlError
@@ -350,9 +340,8 @@ data SQLError
   = PostgresError PostgresSqlError
   | MysqlError    MysqlSqlError
   | SqliteError   SqliteSqlError
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-----------------------------------------------------------------------
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 data MysqlSqlError =
   MysqlSqlError
@@ -370,8 +359,6 @@ mysqlErrorToDbError :: Text -> MySQL.ERRException -> DBError
 mysqlErrorToDbError desc (MySQL.ERRException e) =
   DBError (SQLError . MysqlError . toMysqlSqlError $ e) desc
 
-----------------------------------------------------------------------
-
 data PostgresExecStatus
   = PostgresEmptyQuery
   | PostgresCommandOk
@@ -383,8 +370,8 @@ data PostgresExecStatus
   | PostgresNonfatalError
   | PostgresFatalError
   | PostgresSingleTuple
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 toPostgresExecStatus :: PGS.ExecStatus -> PostgresExecStatus
 toPostgresExecStatus PGS.EmptyQuery    = PostgresEmptyQuery
@@ -398,7 +385,6 @@ toPostgresExecStatus PGS.NonfatalError = PostgresNonfatalError
 toPostgresExecStatus PGS.FatalError    = PostgresFatalError
 toPostgresExecStatus PGS.SingleTuple   = PostgresSingleTuple
 
-
 data PostgresSqlError =
   PostgresSqlError
     { sqlState       :: Text
@@ -407,8 +393,8 @@ data PostgresSqlError =
     , sqlErrorDetail :: Text
     , sqlErrorHint   :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
+    deriving stock (Show, Eq, Ord, Generic)
+    deriving anyclass (ToJSON, FromJSON)
 
 toPostgresSqlError :: PGS.SqlError -> PostgresSqlError
 toPostgresSqlError e = PostgresSqlError
@@ -419,12 +405,8 @@ toPostgresSqlError e = PostgresSqlError
     , sqlErrorHint   = decodeUtf8 $ PGS.sqlErrorHint e
     }
 
-
 postgresErrorToDbError :: Text -> PGS.SqlError -> DBError
 postgresErrorToDbError descr e = DBError (SQLError $ PostgresError $ toPostgresSqlError e) descr
-
-----------------------------------------------------------------------
-
 
 -- TODO: more informative typed error.
 -- | Represents failures that may occur while working with the database
@@ -436,20 +418,21 @@ data DBErrorType
   | SQLError SQLError
   | UnexpectedResult
   | UnrecognizedError
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 -- | Represents DB error
 data DBError
   = DBError DBErrorType Text
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic)
+  deriving anyclass (ToJSON, FromJSON)
 
 -- | Represents resulting type for DB actions
 type DBResult a = Either DBError a
 
-
 -- | Transforms 'NativeSqlPool' to 'SqlConn'
 nativeToBem :: ConnTag -> NativeSqlPool -> SqlConn beM
-nativeToBem connTag NativeMockedPool        = MockedPool connTag
-nativeToBem connTag (NativePGPool conn)     = PostgresPool connTag conn
-nativeToBem connTag (NativeMySQLPool conn)  = MySQLPool connTag conn
-nativeToBem connTag (NativeSQLitePool conn) = SQLitePool connTag conn
+nativeToBem connTag = \case
+  NativePGPool conn     -> PostgresPool connTag conn
+  NativeMySQLPool conn  -> MySQLPool connTag conn
+  NativeSQLitePool conn -> SQLitePool connTag conn

@@ -21,11 +21,11 @@ import qualified Data.Map as Map (empty)
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
-import           EulerHS.KVDB.Types (NativeKVDBConn (NativeKVDB, NativeKVDBMockedConn))
+import           EulerHS.KVDB.Types (NativeKVDBConn (NativeKVDB))
 import qualified EulerHS.Logger.Runtime as R
 import           EulerHS.Prelude
 import           EulerHS.SqlDB.Types (ConnTag,
-                                      NativeSqlPool (NativeMockedPool, NativeMySQLPool, NativePGPool, NativeSQLitePool))
+                                      NativeSqlPool (NativeMySQLPool, NativePGPool, NativeSQLitePool))
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
 import           Network.HTTP.Client.TLS (mkManagerSettings, tlsManagerSettings)
@@ -156,12 +156,9 @@ sqlDisconnect = \case
   NativePGPool connPool     -> DP.destroyAllResources connPool
   NativeMySQLPool connPool  -> DP.destroyAllResources connPool
   NativeSQLitePool connPool -> DP.destroyAllResources connPool
-  NativeMockedPool          -> pure ()
 
 kvDisconnect :: NativeKVDBConn -> IO ()
-kvDisconnect = \case
-  NativeKVDBMockedConn -> pure ()
-  NativeKVDB conn      -> RD.disconnect conn
+kvDisconnect (NativeKVDB conn) = RD.disconnect conn
 
 -- | Run flow with given logger runtime creation function.
 withFlowRuntime :: Maybe (IO R.LoggerRuntime) -> (FlowRuntime -> IO a) -> IO a

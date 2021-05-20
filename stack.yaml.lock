@@ -5,6 +5,17 @@
 
 packages:
 - completed:
+    name: tinylog
+    version: 0.15.0
+    git: https://gitlab.com/aravindvirat/tinylog
+    pantry-tree:
+      size: 727
+      sha256: 2ed7cb6fd0c51e76344847d6a2076c0cb10670a2a2f003e181b2e6a7e11e978c
+    commit: 72a3534c6b28981179038f006f42456eda554b11
+  original:
+    git: https://gitlab.com/aravindvirat/tinylog
+    commit: 72a3534c6b28981179038f006f42456eda554b11
+- completed:
     name: hedis
     version: 0.12.8.1
     git: https://github.com/juspay/hedis

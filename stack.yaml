@@ -4,6 +4,8 @@ resolver: lts-15.15
 packages:
   - .
 
+allow-newer: true
+
 extra-deps:
   - git: https://gitlab.com/aravindvirat/tinylog
     commit: 72a3534c6b28981179038f006f42456eda554b11

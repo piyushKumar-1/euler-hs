@@ -83,6 +83,7 @@ data FlowMethod (next :: Type) where
   CallHTTP
     :: HasCallStack
     => HTTPRequest
+    -> Maybe ManagerSelector
     -> Maybe HTTPCert
     -> (Either Text HTTPResponse -> next)
     -> FlowMethod next
@@ -263,7 +264,7 @@ instance Functor FlowMethod where
   fmap f = \case
     CallServantAPI mSel url client cont ->
       CallServantAPI mSel url client (f . cont)
-    CallHTTP req cert cont -> CallHTTP req cert (f . cont)
+    CallHTTP req mSel cert cont -> CallHTTP req mSel cert (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
     GetOption k cont -> GetOption k (f . cont)
@@ -532,6 +533,20 @@ class (MonadMask m) => MonadFlow m where
     :: HasCallStack
     => HTTPRequest                        -- ^ remote url 'Text'
     -> Maybe HTTPCert                     -- ^ TLS certificate data
+    -> m (Either Text.Text HTTPResponse)  -- ^ result
+
+  -- | Method for calling external HTTP APIs without bothering with types with custom manager.
+  --
+  -- Thread safe, exception free.
+  --
+  -- Takes remote url, optional custom manager selector and returns either client error or result.
+  --
+  -- > myFlow = do
+  -- >   book <- callHTTPWithManager url mSel
+  callHTTPWithManager
+    :: HasCallStack
+    => Maybe ManagerSelector              -- ^ Selector
+    -> HTTPRequest                        -- ^ remote url 'Text'
     -> m (Either Text.Text HTTPResponse)  -- ^ result
 
   -- | Evaluates a logging action.
@@ -820,7 +835,9 @@ instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
   {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url cert = liftFC $ CallHTTP url cert id
+  callHTTPWithCert url cert = liftFC $ CallHTTP url Nothing cert id
+  {-# INLINEABLE callHTTPWithManager #-}
+  callHTTPWithManager mSel url = liftFC $ CallHTTP url mSel Nothing id
   {-# INLINEABLE evalLogger' #-}
   evalLogger' logAct = liftFC $ EvalLogger logAct id
   {-# INLINEABLE runIO' #-}
@@ -880,6 +897,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE callHTTPWithManager #-}
+  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -932,6 +951,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE callHTTPWithManager #-}
+  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -984,6 +1005,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE callHTTPWithManager #-}
+  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1036,6 +1059,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE callHTTPWithManager #-}
+  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1088,6 +1113,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
   {-# INLINEABLE callHTTPWithCert #-}
   callHTTPWithCert url = lift . callHTTPWithCert url
+  {-# INLINEABLE callHTTPWithManager #-}
+  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}

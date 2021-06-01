@@ -254,32 +254,41 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 
-interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request cert next) =
+interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel cert next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
-      _manager <- maybe (pure $ Right _defaultHttpClientManager) mkManagerFromCert cert
-      -- TODO: Refactor
-      case _manager of
-        Left err -> do
-          let errMsg = "Certificate failure: " <> Text.pack err
-          pure $ Left errMsg
-        Right manager -> do
-          eResponse <- try $ HTTP.httpLbs httpLibRequest manager
-          case eResponse of
-            Left (err :: SomeException) -> do
-              let errMsg = Text.pack $ displayException err
+      let mbClientMngr = case mbMgrSel of
+            Nothing                           -> Right _defaultHttpClientManager
+            Just (ManagerSelector mngrName) ->
+              maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
+      case mbClientMngr of
+        Right mngr -> do
+          _manager <- maybe (pure $ Right mngr) mkManagerFromCert cert
+          -- TODO: Refactor
+          case _manager of
+            Left err -> do
+              let errMsg = "Certificate failure: " <> Text.pack err
               pure $ Left errMsg
-            Right httpResponse -> do
-              case translateHttpResponse httpResponse of
-                Left errMsg -> do
-                  logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+            Right manager -> do
+              eResponse <- try $ HTTP.httpLbs httpLibRequest manager
+              case eResponse of
+                Left (err :: SomeException) -> do
+                  let errMsg = Text.pack $ displayException err
                   pure $ Left errMsg
-                Right response -> do
-                  logJson Debug
-                    $ HTTPRequestResponse
-                      (maskHTTPRequest getLoggerMaskConfig request)
-                      (maskHTTPResponse getLoggerMaskConfig response)
-                  pure $ Right response
+                Right httpResponse -> do
+                  case translateHttpResponse httpResponse of
+                    Left errMsg -> do
+                      logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+                      pure $ Left errMsg
+                    Right response -> do
+                      logJson Debug
+                        $ HTTPRequestResponse
+                          (maskHTTPRequest getLoggerMaskConfig request)
+                          (maskHTTPResponse getLoggerMaskConfig response)
+                      pure $ Right response
+        Left name -> do
+          let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
+          pure $ Left $ show err
   where
     logJsonError :: Text -> HTTPRequest -> IO ()
     logJsonError err = logJson Error . HTTPIOException err

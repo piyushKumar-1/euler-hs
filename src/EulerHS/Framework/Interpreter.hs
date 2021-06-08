@@ -446,14 +446,17 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
         rawSql <- DL.toList <$> readTVarIO rawSqlTVar
         pure (eRes', rawSql)
       else case conn of
-          PostgresPool _ pool -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
+          PostgresPool _ pool -> do
+            eRes <-  try @_ @SomeException . DP.withResource pool $ \conn' ->
+                        runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
-          MySQLPool _ pool    -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
+          MySQLPool _ pool    -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' ->
+                        runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
-          SQLitePool _ pool   -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
+          SQLitePool _ pool   -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' ->
+                        runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
   where
       wrapAndSend rawSqlLoc eResult = do

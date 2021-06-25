@@ -3,7 +3,7 @@
 module FlowSpec (spec) where
 
 import           Client (User (User), getBook, getUser, port)
-import           Common (initRTWithManagers, withServer)
+import           Common (initRTWithManagers, withServer, sampleHttpCert)
 import qualified Control.Exception as E
 import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
@@ -93,7 +93,7 @@ spec loggerCfg = do
             case userEither of
               Left e  -> displayException e `shouldBe` err
               Right _ -> fail "Success result not expected"
-          xit "Untyped HTTP API Calls" $ \rt -> do
+          it "Untyped HTTP API Calls" $ \rt -> do
             (statusCode, status, _, _) <- runFlow rt $ do
               eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
               response <- case eResponse of
@@ -122,6 +122,11 @@ spec loggerCfg = do
           let url = BaseUrl Http "localhost" port ""
           userEither <- runFlow rt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isLeft
+      describe "calling external service with a client certificate" $ do
+        it "just works" $ \rt -> do
+          cert <- sampleHttpCert
+          resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://www.google.com") (Just cert)          
+          resEither `shouldSatisfy` isRight
       describe "runIO tests" $ do
         it "RunIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))

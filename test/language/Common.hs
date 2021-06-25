@@ -4,21 +4,23 @@
 module Common
   (
     withServer,
-    initRTWithManagers
+    initRTWithManagers,
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
+    sampleHttpCert
   ) where
 
+import           Data.ByteString (readFile)
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
 -- import qualified Data.Vector as V
 -- import           EulerHS.Interpreters (runFlow)
 -- import           EulerHS.Language as L
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (readFile)
 import           EulerHS.Runtime (FlowRuntime, _httpClientManagers,
                                   withFlowRuntime)
--- import           EulerHS.Types as T
+import           EulerHS.Types as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai.Handler.Warp (run)
@@ -145,4 +147,10 @@ initRTWithManagers = do
 
 --     pure (targetMVar, watch >> takeMVar finalMVar, reset)
 
+
+sampleHttpCert:: IO T.HTTPCert
+sampleHttpCert = do
+  cert <- readFile "test/language/cert/sample1.crt"
+  key <- readFile "test/language/cert/sample1.key"
+  return $ HTTPCert cert [] "localhost" key
 

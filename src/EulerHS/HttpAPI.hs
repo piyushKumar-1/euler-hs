@@ -59,7 +59,7 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Eq, Ord, Generic, ToJSON)
+    deriving (Show, Eq, Ord, Generic, ToJSON)
 
 data HTTPCert
   = HTTPCert

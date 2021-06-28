@@ -5,6 +5,7 @@ module FlowSpec (spec) where
 import           Client (User (User), getBook, getUser, port)
 import           Common (initRTWithManagers, withServer, sampleHttpCert)
 import qualified Control.Exception as E
+import qualified Data.Text as T
 import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
@@ -116,7 +117,7 @@ spec loggerCfg = do
       describe "CallServantAPI tests without server" $ do
         it "Simple request (book)" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          bookEither <- runFlow rt $ callServantAPI Nothing url getBook
+          bookEither <- runFlow rt $ callServantAPI Nothing url getBook 
           bookEither `shouldSatisfy` isLeft
         it "Simple request (user)" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
@@ -125,8 +126,10 @@ spec loggerCfg = do
       describe "calling external service with a client certificate" $ do
         it "just works" $ \rt -> do
           cert <- sampleHttpCert
-          resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://www.google.com") (Just cert)          
-          resEither `shouldSatisfy` isRight
+          resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://www.google.com") (Just cert)
+          resEither `shouldSatisfy` isLeft
+          let msg = either id (const "It's Right!") resEither
+          msg `shouldSatisfy` (\m -> T.count "certificate has unknown CA" m == 1)
       describe "runIO tests" $ do
         it "RunIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))

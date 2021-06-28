@@ -23,7 +23,7 @@ import           EulerHS.Runtime (FlowRuntime, _httpClientManagers,
 import           EulerHS.Types as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import           Network.Wai.Handler.Warp (run)
+import           Network.Wai.Handler.Warp (Settings, runSettings, defaultSettings, setPort, setBeforeMainLoop)
 import           Servant.Server (serve)
 -- import           Test.Hspec (shouldBe)
 
@@ -59,9 +59,24 @@ import           Servant.Server (serve)
 --       pure (errors, result)
 --     _ -> fail "wrong mode"
 
+readyHandlerSetter :: MVar () -> Settings -> Settings
+readyHandlerSetter sem = setBeforeMainLoop $ readyHandler sem
+  where
+    readyHandler = flip putMVar ()
+
+portSetter :: Settings -> Settings
+portSetter = setPort port
+
+mkSettings :: MVar () -> Settings -> Settings
+mkSettings sem = portSetter . (readyHandlerSetter  sem)
+
 withServer :: IO () -> IO ()
-withServer action = withAsync (run port . serve api $ server)
-                              (const action)
+withServer action = do
+  sem <- newEmptyMVar
+  let it = mkSettings sem defaultSettings
+  let callback = \_ -> takeMVar sem >> action
+  let runServer = runSettings it . serve api $ server
+  withAsync runServer callback
 
 initRTWithManagers :: IO FlowRuntime
 initRTWithManagers = do

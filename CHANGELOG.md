@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.6.0.0] - 2021-07-06
+
+* Expand `CallHTTP` with `Maybe ManagerSelector`
+* Add `callHTTPWithManager`
+
 ## [2.5.0.5] - 2021-07-06
 
 * Add dump erroneous value on decoding failure in `rGet`

@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+
+## [2.5.0.4] - 2021-07-06
+
+* Fix resource cleanup on exception inside `withResource`
+
 ## [2.5.0.3] - 2021-07-06
 
 * Add a test-case for callHTTPWithCert

@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.5.0.2] - 2021-07-06
+
+* Adjust `runRedis` errror message when connection not found
+
 ## [2.5.0.1] - 2021-06-21
 
 * Fix uncaught exceptions from runClientM in callAPI

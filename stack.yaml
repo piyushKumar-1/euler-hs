@@ -4,7 +4,11 @@ resolver: lts-15.15
 packages:
   - .
 
+allow-newer: true
+
 extra-deps:
+  - git: https://gitlab.com/aravindvirat/tinylog
+    commit: 72a3534c6b28981179038f006f42456eda554b11
   - git: https://github.com/juspay/hedis
     commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80 #4ea54f16c0057acc99a9f0e9b63ea51ea4bf420e
   - git: https://github.com/juspay/beam-mysql

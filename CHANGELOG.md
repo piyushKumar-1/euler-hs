@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.5.0.1] - 2021-06-21
+
+* Fix uncaught exceptions from runClientM in callAPI
+
 ## [2.5.0.0] - 2021-04-29
 
 * Remove `Mocked` constructors everywhere.

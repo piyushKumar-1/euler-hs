@@ -1,5 +1,54 @@
 # Changelog for euler-hs
 
+
+## [2.5.0.4] - 2021-07-06
+
+* Fix resource cleanup on exception inside `withResource`
+
+## [2.5.0.3] - 2021-07-06
+
+* Add a test-case for callHTTPWithCert
+
+## [2.5.0.2] - 2021-07-06
+
+* Adjust `runRedis` errror message when connection not found
+
+## [2.5.0.1] - 2021-06-21
+
+* Fix uncaught exceptions from runClientM in callAPI
+
+## [2.5.0.0] - 2021-04-29
+
+* Remove `Mocked` constructors everywhere.
+
+## [2.4.0.0] - 2021-04-28
+
+* Remove `Serializable` module.
+
+## [2.3.0.0] - 2021-04-26
+
+* Remove all `lens` and `generic-lens` usage and exports.
+
+## [2.2.0.1] - 2021-04-26
+
+* Add a range of additional functions to `EulerHS.Extra.Language`, originally
+  from `euler-webservice`.
+
+## [2.2.0.0] - 2021-04-23
+
+* Major version bump for `beam-mysql`.
+
+## [2.1.1.0] - 2021-04-20
+
+* Use RDP plugin
+
+## [2.1.0.0] - 2021-04-12
+
+* `ManagerSelector` is now a newtype.
+* Add `CertificateRegistrationError` data type.
+* Add 'withSelfSignedFlowRuntime` function for registering self-signed
+  certificates in a `FlowRuntime`.
+
 ## [2.0.4.4] - 2021-04-13
 
 * Rename `changeLoggerContext` to `withLoggerContext`

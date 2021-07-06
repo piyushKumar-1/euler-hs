@@ -1,27 +1,29 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Werror #-}
 
 module Common
   (
     withServer,
-    initRTWithManagers
+    initRTWithManagers,
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
+    sampleHttpCert
   ) where
 
+import           Data.ByteString (readFile)
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
-import qualified Data.Map as Map
 -- import qualified Data.Vector as V
 -- import           EulerHS.Interpreters (runFlow)
 -- import           EulerHS.Language as L
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (readFile)
 import           EulerHS.Runtime (FlowRuntime, _httpClientManagers,
                                   withFlowRuntime)
--- import           EulerHS.Types as T
+import           EulerHS.Types as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import           Network.Wai.Handler.Warp (run)
+import           Network.Wai.Handler.Warp (Settings, runSettings, defaultSettings, setPort, setBeforeMainLoop)
 import           Servant.Server (serve)
 -- import           Test.Hspec (shouldBe)
 
@@ -57,19 +59,31 @@ import           Servant.Server (serve)
 --       pure (errors, result)
 --     _ -> fail "wrong mode"
 
+readyHandlerSetter :: MVar () -> Settings -> Settings
+readyHandlerSetter sem = setBeforeMainLoop $ readyHandler sem
+  where
+    readyHandler = flip putMVar ()
+
+portSetter :: Settings -> Settings
+portSetter = setPort port
+
+mkSettings :: MVar () -> Settings -> Settings
+mkSettings sem = portSetter . (readyHandlerSetter  sem)
+
 withServer :: IO () -> IO ()
-withServer action = withAsync (run port . serve api $ server)
-                              (const action)
+withServer action = do
+  sem <- newEmptyMVar
+  let it = mkSettings sem defaultSettings
+  let callback = \_ -> takeMVar sem >> action
+  let runServer = runSettings it . serve api $ server
+  withAsync runServer callback
 
 initRTWithManagers :: IO FlowRuntime
 initRTWithManagers = do
   flowRt <- withFlowRuntime Nothing pure
   m1 <- newManager tlsManagerSettings
   m2 <- newManager tlsManagerSettings
-  let managersMap = Map.fromList
-        [ ("manager1", m1)
-        , ("manager2", m2)
-        ]
+  let managersMap = [("manager1", m1), ("manager2", m2)]
   pure $ flowRt { _httpClientManagers = managersMap }
 
 -- initRegularRT :: IO FlowRuntime
@@ -148,4 +162,10 @@ initRTWithManagers = do
 
 --     pure (targetMVar, watch >> takeMVar finalMVar, reset)
 
+
+sampleHttpCert:: IO T.HTTPCert
+sampleHttpCert = do
+  cert <- readFile "test/language/cert/sample1.crt"
+  key <- readFile "test/language/cert/sample1.key"
+  return $ HTTPCert cert [] "localhost" key
 

@@ -59,7 +59,9 @@ module EulerHS.Extra.Language
   ) where
 
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as BSL
+import           Data.Either.Extra (fromEither, mapLeft)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE
 import           Data.Time (LocalTime, addUTCTime, defaultTimeLocale,
@@ -69,6 +71,7 @@ import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Database.Beam (Beamable, FromBackendRow, SqlInsert)
 import           Database.Beam.MySQL (MySQL, MySQLM)
 import           Database.Redis (keyToSlot)
+import           EulerHS.Extra.Aeson (obfuscate)
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.KVDB.Language as L
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
@@ -480,13 +483,23 @@ rGetB cName k = do
 rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
+  L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
   mv <- rGetB cName (TE.encodeUtf8 k)
   case mv of
-    Just val -> case A.eitherDecode' $ BSL.fromStrict val of
+    Just val -> case A.eitherDecode' @A.Value $ BSL.fromStrict val of
       Left err -> do
-        L.logError @Text "Redis rGet json decodeEither error" $ show err
+        L.logError @Text "rGet value is not a valid JSON" $ "error: '" <> toText err
+                                  <> "' while decoding value: "
+                                  <> (fromEither $ mapLeft (toText . displayException) $ TE.decodeUtf8' val)
         pure Nothing
-      Right resp -> pure $ Just resp
+      Right value -> do
+        case (A.parseEither A.parseJSON value) of
+          Left err -> do
+            L.logError @Text "rGet value cannot be decoded to target type" $ "error: '" <> toText err
+                                      <> "' while decoding value: "
+                                      <> (TE.decodeUtf8 . BSL.toStrict . A.encode . obfuscate) value
+            pure Nothing
+          Right v -> pure $ Just v
     Nothing -> pure Nothing
 
 rGetT :: (HasCallStack, L.MonadFlow m) =>

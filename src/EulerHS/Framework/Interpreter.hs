@@ -234,7 +234,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                             then setRequestTimeout defaultTimeout req
                             else req {HTTP.responseTimeout = mResponseTimeout mngr}
-          eitherResult <- S.runClientM (runEulerClient (dbgLogger Debug) getLoggerMaskConfig bUrl clientAct) $
+          eitherResult <- tryRunClient $ S.runClientM (runEulerClient (dbgLogger Debug) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
@@ -253,6 +253,12 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
         . show
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
+    tryRunClient :: IO (Either S.ClientError a) -> IO (Either S.ClientError a)
+    tryRunClient act = do
+      res :: Either S.ClientError (Either S.ClientError a) <- try act
+      case res of
+        Left e -> pure $ Left e
+        Right x -> pure x
 
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel cert next) =
     fmap next $ do
@@ -455,14 +461,17 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
         rawSql <- DL.toList <$> readTVarIO rawSqlTVar
         pure (eRes', rawSql)
       else case conn of
-          PostgresPool _ pool -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
+          PostgresPool _ pool -> do
+            eRes <-  try @_ @SomeException . DP.withResource pool $ \conn' ->
+                        runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
-          MySQLPool _ pool    -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
+          MySQLPool _ pool    -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' ->
+                        runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
-          SQLitePool _ pool   -> DP.withResource pool $ \conn' -> do
-            eRes <- try @_ @SomeException . runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
+          SQLitePool _ pool   -> do
+            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' ->
+                        runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
             wrapAndSend rawSqlTVar eRes
   where
       wrapAndSend rawSqlLoc eResult = do

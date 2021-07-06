@@ -3,11 +3,12 @@ module EulerHS.Extra.Aeson
  jsonSetField
 , encodeJSON
 , decodeJSON
+, obfuscate
 ) where
 
 import           Prelude
 
-import           Data.Aeson (FromJSON, ToJSON)
+import           Data.Aeson (FromJSON, ToJSON, Value (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
 import qualified Data.ByteString.Lazy as LazyByteString
@@ -35,3 +36,14 @@ encodeJSON = LazyText.toStrict . Aeson.encodeToLazyText
 -- | Parse JSON Text into a value
 decodeJSON :: FromJSON a => Text -> Maybe a
 decodeJSON = Aeson.decode . LazyByteString.fromStrict . Text.encodeUtf8
+
+-- | Rip away all values from a Value
+obfuscate :: Value -> Value
+obfuscate v = go v where
+    go (Object o) = Object $ go <$> o
+    go (Array a) = Array $ go <$> a
+    go (String  _) = String "***"
+    go (Number _) = Number 0
+    go (Bool _) = Bool False
+    go Null = Null
+

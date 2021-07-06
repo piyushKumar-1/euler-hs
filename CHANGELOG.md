@@ -1,5 +1,8 @@
 # Changelog for euler-hs
 
+## [2.5.0.5] - 2021-07-06
+
+* Add dump erroneous value on decoding failure in `rGet`
 
 ## [2.5.0.4] - 2021-07-06
 

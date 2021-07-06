@@ -185,7 +185,8 @@ runKVDB cName kvdbConnMapMVar =
     runRedis redisDsl = do
       connections <- readMVar kvdbConnMapMVar
       case Map.lookup cName connections of
-        Nothing   -> pure $ Left $ KVDBError KVDBConnectionDoesNotExist "Can't find redis connection"
+        Nothing -> pure $ Left $ KVDBError KVDBConnectionDoesNotExist
+          $ "Can't find redis connection: " <> T.unpack cName
         Just (NativeKVDB c) -> first hedisReplyToKVDBReply <$> R.runRedis c redisDsl
 
 makeSetOpts :: L.KVDBSetTTLOption -> L.KVDBSetConditionOption -> R.SetOpts

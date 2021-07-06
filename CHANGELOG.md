@@ -1,5 +1,17 @@
 # Changelog for euler-hs
 
+## [2.5.0.3] - 2021-07-06
+
+* Add a test-case for callHTTPWithCert
+
+## [2.5.0.2] - 2021-07-06
+
+* Adjust `runRedis` errror message when connection not found
+
+## [2.5.0.1] - 2021-06-21
+
+* Fix uncaught exceptions from runClientM in callAPI
+
 ## [2.5.0.0] - 2021-04-29
 
 * Remove `Mocked` constructors everywhere.

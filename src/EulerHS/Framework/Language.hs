@@ -826,7 +826,7 @@ class (MonadMask m) => MonadFlow m where
   --
   -- @since 2.0.3.1
   withModifiedRuntime
-    :: (HasCallStack, MonadFlow m)
+    :: HasCallStack
     => (FlowRuntime -> FlowRuntime) -- ^ Temporary modification function for runtime
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a

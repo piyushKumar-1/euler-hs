@@ -1,7 +1,12 @@
 # Changelog for euler-hs
 
-## [2.6.0.1] - 2021-07-20
+## [2.6.0.2] - 2021-07-27
+
 * Add `rSetexBulk`, `rSetexBulkB`
+
+## [2.6.0.1] - 2021-07-07
+
+* Remove `MonadFlow m` constraint from `withModifiedRuntime` method
 
 ## [2.6.0.0] - 2021-07-06
 

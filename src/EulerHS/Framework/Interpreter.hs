@@ -34,7 +34,8 @@ import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.HttpAPI (HTTPCert (HTTPCert),
                                   HTTPIOException (HTTPIOException),
-                                  HTTPMethod (Delete, Get, Head, Post, Put),
+                                  HTTPMethod (Delete, Get, Head, Post, Put,
+                                  Trace, Connect, Options,Patch),
                                   HTTPRequest,
                                   HTTPRequestResponse (HTTPRequestResponse),
                                   HTTPResponse (HTTPResponse), defaultTimeout,
@@ -129,11 +130,15 @@ getHttpLibRequest request = do
   httpLibRequest <- HTTP.parseRequest url
   let
     requestMethod = case getRequestMethod request of
-      Get    -> "GET"
-      Put    -> "PUT"
-      Post   -> "POST"
-      Delete -> "DELETE"
-      Head   -> "HEAD"
+      Get     -> "GET"
+      Put     -> "PUT"
+      Post    -> "POST"
+      Delete  -> "DELETE"
+      Head    -> "HEAD"
+      Trace   -> "TRACE"
+      Connect -> "CONNECT"
+      Options -> "OPTIONS"
+      Patch   -> "PATCH"
   let
     setBody = case getRequestBody request of
       Just body ->

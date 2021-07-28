@@ -29,6 +29,8 @@ module EulerHS.Extra.Language
   , rSetex
   , rSetexB
   , rSetexT  -- alias for rSetex (back compat)
+  , rSetexBulk
+  , rSetexBulkB
   , rSetOpts
   , rSetOptsB
   , rSetOptsT
@@ -62,6 +64,7 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Either.Extra (fromEither, mapLeft)
+import qualified Data.Map as Map
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE
 import           Data.Time (LocalTime, addUTCTime, defaultTimeLocale,
@@ -540,6 +543,28 @@ rSetexB cName k v t = do
 rSetexT :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
   RedisName -> TextKey -> v -> t -> m (Either KVDBReply KVDBStatus)
 rSetexT = rSetex
+
+rSetexBulk :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
+  RedisName -> Map TextKey v -> t -> m (Either KVDBReply ())
+rSetexBulk cName kvMap = rSetexBulkB cName kvMap'
+  where
+    encodeKey = TE.encodeUtf8
+    encodeVal = BSL.toStrict . A.encode
+    kvMap' =
+      Map.fromList . map (\(k, v) -> (encodeKey k, encodeVal v)) $ Map.toList kvMap
+
+rSetexBulkB :: (HasCallStack, Integral t, L.MonadFlow m) =>
+  RedisName -> Map ByteKey ByteValue -> t -> m (Either KVDBReply ())
+rSetexBulkB cName kvMap t = do
+  let t' = toInteger t
+  res <- L.runKVDB cName $ forM_ (Map.toList kvMap) $ \(k, v) -> L.setex k t' v
+  case res of
+    Right _ -> do
+      -- L.logInfo @Text "Redis setexBulk" $ show r
+      pure res
+    Left err -> do
+      L.logError @Text "Redis setexBulk" $ show err
+      pure res
 
 -- ----------------------------------------------------------------------------
 

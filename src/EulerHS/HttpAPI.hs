@@ -75,6 +75,10 @@ data HTTPMethod
   | Post
   | Delete
   | Head
+  | Trace
+  | Connect
+  | Options
+  | Patch
   deriving (Eq, Ord, Generic, ToJSON)
 
 type HeaderName = Text

@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.7.0.0] - 2021-07-27
+
+* Expand `HTTPMethod` with `Trace`, `Connect`, `Options`, `Patch` methods
+
 ## [2.6.0.2] - 2021-07-27
 
 * Add `rSetexBulk`, `rSetexBulkB`

@@ -165,7 +165,7 @@ initRTWithManagers = do
 
 sampleHttpCert:: IO T.HTTPCert
 sampleHttpCert = do
-  cert <- readFile "test/language/cert/sample1.crt"
-  key <- readFile "test/language/cert/sample1.key"
+  cert <- readFile "test/tls/client/client.cert.pem"
+  key <- readFile "test/tls/client/client.key.pem"
   return $ HTTPCert cert [] "localhost" key
 

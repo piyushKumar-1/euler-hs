@@ -124,10 +124,10 @@ spec loggerCfg = do
           userEither <- runFlow rt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isLeft
       describe "calling external service with a client certificate" $ do
-        xit "just works" $ \rt -> do
+        it "just works" $ \rt -> do
           cert <- sampleHttpCert
-          resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://www.google.com") (Just cert)
-          resEither `shouldSatisfy` isLeft
+          resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://server01") (Just cert)
+          resEither `shouldSatisfy` isRight
           let msg = either id (const "It's Right!") resEither
           msg `shouldSatisfy` (\m -> T.count "certificate has unknown CA" m == 1)
       describe "runIO tests" $ do

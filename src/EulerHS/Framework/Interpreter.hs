@@ -40,7 +40,7 @@ import           EulerHS.HttpAPI (HTTPCert (HTTPCert),
                                   HTTPRequestResponse (HTTPRequestResponse),
                                   HTTPResponse (HTTPResponse), defaultTimeout,
                                   getCert, getCertChain, getCertHost,
-                                  getCertKey, getRequestBody, getRequestHeaders,
+                                  getCertKey, getTrustedCAs, getRequestBody, getRequestHeaders,
                                   getRequestMethod, getRequestRedirects,
                                   getRequestTimeout, getRequestURL,
                                   getResponseBody, getResponseCode,
@@ -81,6 +81,8 @@ import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
+import           Data.X509.Validation (validateDefault)
+import           Data.X509.CertificateStore (readCertificateStore)
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
 connect cfg = do
@@ -214,7 +216,21 @@ mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
 mkManagerFromCert HTTPCert {..} = do
   case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
     Right creds -> do
-      let hooks = def { TLS.onCertificateRequest = \_ -> return $ Just creds }
+      let hooks = def { TLS.onCertificateRequest =
+                          \_ -> return $ Just creds
+                      , TLS.onServerCertificate =
+                          \ sysStore cache serviceId certChain -> do
+
+                            store <- case getTrustedCAs of
+                              Just path -> do
+                                mbLocalStore <- readCertificateStore path
+                                case mbLocalStore of
+                                  Just locStore -> pure $ sysStore <> locStore
+                                  Nothing -> pure sysStore
+                              Nothing -> pure sysStore
+
+                            validateDefault store cache serviceId certChain
+                      }
       let clientParams = (TLS.defaultParamsClient getCertHost "")
                          { TLS.clientHooks = hooks
                          , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
@@ -278,7 +294,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel cer
           -- TODO: Refactor
           case _manager of
             Left err -> do
-              let errMsg = "Certificate failure: " <> Text.pack err
+              let errMsg = "cannot create manager from certificate: " <> Text.pack err
               pure $ Left errMsg
             Right manager -> do
               eResponse <- try $ HTTP.httpLbs httpLibRequest manager

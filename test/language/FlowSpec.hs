@@ -3,9 +3,11 @@
 module FlowSpec (spec) where
 
 import           Client (User (User), getBook, getUser, port)
-import           Common (initRTWithManagers, sampleHttpCert, withServer)
+import           Common (initRTWithManagers, clientHttpCert, withServer)
 import qualified Control.Exception as E
+import qualified Data.String.Conversions as DSC
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as Encoding
 import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
@@ -48,7 +50,7 @@ import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithI
                                          mbTestStringKeyAnotherEnc)
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
 import           EulerHS.Testing.Types (FlowMockedValues' (..))
-import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter)
+import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter, getResponseBody, getResponseCode)
 import qualified EulerHS.Types as T
 import           Scenario1 (testScenario1)
 import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
@@ -123,13 +125,21 @@ spec loggerCfg = do
           let url = BaseUrl Http "localhost" port ""
           userEither <- runFlow rt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isLeft
-      describe "calling external service with a client certificate" $ do
-        it "just works" $ \rt -> do
-          cert <- sampleHttpCert
+      describe "calling external services using TLS" $ do
+        -- won't work (no custom CA in sys store)
+        xit "validate server certificate" $ \ rt -> do
+          resEither <- runFlow rt $ callHTTP (T.httpGet "https://server01")
+          resEither `shouldSatisfy` isRight
+          let code = getResponseCode $ fromRight (error "res is left") resEither
+          code `shouldBe` 200
+        it "authenticate client by a certificate" $ \rt -> do
+          cert <- clientHttpCert
           resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://server01") (Just cert)
           resEither `shouldSatisfy` isRight
-          let msg = either id (const "It's Right!") resEither
-          msg `shouldSatisfy` (\m -> T.count "certificate has unknown CA" m == 1)
+          let code = getResponseCode $ fromRight (error "res is left") resEither
+          code `shouldBe` 200
+          let body = either (error "res is left") (Encoding.decodeUtf8 . DSC.convertString . getResponseBody) resEither
+          body `shouldSatisfy` (\m -> T.count "It works!" m == 1)
       describe "runIO tests" $ do
         it "RunIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))
@@ -272,10 +282,11 @@ spec loggerCfg = do
                   , mbNTTestKeyWithIntPayloadAnotherEncS1    = Just 9009
                   , mbNTTestKeyWithIntPayloadAnotherEncS2    = Just 1001
                   }
-      it "RunSysCmd" $ \rt -> do
+      xit "RunSysCmd" $ \rt -> do
         result <- runFlow rt $ runSysCmd "echo test"
         result `shouldBe` "test\n"
-      it "RunSysCmd with bad command" $ \rt -> do
+      xit "RunSysCmd with bad command" $ \rt -> do
+        putStrLn ("" :: Text)
         result <- E.catch
           (runFlow rt $ runSysCmd "badEcho test")
           (\e -> do let err = show (e :: E.SomeException)

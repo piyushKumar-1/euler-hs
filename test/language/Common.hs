@@ -8,16 +8,16 @@ module Common
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
-    sampleHttpCert
+    clientHttpCert
   ) where
 
-import           Data.ByteString (readFile)
+import           Data.ByteString (empty, readFile)
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
 -- import qualified Data.Vector as V
 -- import           EulerHS.Interpreters (runFlow)
 -- import           EulerHS.Language as L
-import           EulerHS.Prelude hiding (readFile)
+import           EulerHS.Prelude hiding (readFile, empty)
 import           EulerHS.Runtime (FlowRuntime, _httpClientManagers,
                                   withFlowRuntime)
 import           EulerHS.Types as T
@@ -163,9 +163,10 @@ initRTWithManagers = do
 --     pure (targetMVar, watch >> takeMVar finalMVar, reset)
 
 
-sampleHttpCert:: IO T.HTTPCert
-sampleHttpCert = do
+clientHttpCert:: IO T.HTTPCert
+clientHttpCert = do
+  let _ = empty
   cert <- readFile "test/tls/client/client.cert.pem"
   key <- readFile "test/tls/client/client.key.pem"
-  return $ HTTPCert cert [] "localhost" key
+  return $ HTTPCert cert [] "localhost123" key (Just "test/tls/ca-certificates")
 

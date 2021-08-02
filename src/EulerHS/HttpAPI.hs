@@ -63,10 +63,12 @@ data HTTPResponse
 
 data HTTPCert
   = HTTPCert
-    { getCert      :: B.ByteString
-    , getCertChain :: [B.ByteString]
-    , getCertHost  :: String
-    , getCertKey   :: B.ByteString
+    { getCert       :: B.ByteString
+    , getCertChain  :: [B.ByteString]
+    , getCertHost   :: String
+    , getCertKey    :: B.ByteString
+    , getTrustedCAs :: Maybe FilePath  -- ^ optional store (either a file with certs in PEM format
+                                       -- ^ or a directory containing such files)
     }
 
 data HTTPMethod

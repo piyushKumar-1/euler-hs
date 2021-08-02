@@ -1,5 +1,8 @@
 # Changelog for euler-hs
 
+## [2.8.0.0] - 2021-08-02
+
+* Add an optional root CAs certificate store to `HTTPCert`
 ## [2.7.0.0] - 2021-07-27
 
 * Expand `HTTPMethod` with `Trace`, `Connect`, `Options`, `Patch` methods

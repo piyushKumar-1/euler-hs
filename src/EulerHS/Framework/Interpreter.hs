@@ -220,14 +220,8 @@ mkManagerFromCert HTTPCert {..} = do
                           \_ -> return $ Just creds
                       , TLS.onServerCertificate =
                           \ sysStore cache serviceId certChain -> do
-
-                            store <- case getTrustedCAs of
-                              Just path -> do
-                                mbLocalStore <- readCertificateStore path
-                                case mbLocalStore of
-                                  Just locStore -> pure $ sysStore <> locStore
-                                  Nothing -> pure sysStore
-                              Nothing -> pure sysStore
+                            store <- fmap (maybe sysStore (sysStore <>)) $ runMaybeT $
+                                hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
 
                             validateDefault store cache serviceId certChain
                       }

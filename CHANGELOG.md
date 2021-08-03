@@ -3,6 +3,8 @@
 ## [2.8.0.0] - 2021-08-03
 
 * Update `beam-mysql` to 1.3.0.1 version
+* Update Servant-* deps and record-dot-preprocessor version
+* Refactor and fix stack config
 
 ## [2.7.0.0] - 2021-07-27
 

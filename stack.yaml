@@ -4,8 +4,6 @@ resolver: lts-15.15
 packages:
   - .
 
-# allow-newer: true
-
   - ../haskell-sequelize
   - ../beam/beam-core
   - ../beam/beam-migrate

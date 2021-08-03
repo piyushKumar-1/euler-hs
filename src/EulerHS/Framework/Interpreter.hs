@@ -82,7 +82,9 @@ import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
 import           Data.X509.Validation (validateDefault)
-import           Data.X509.CertificateStore (readCertificateStore)
+import           Data.X509.CertificateStore (CertificateStore, readCertificateStore)
+import           System.X509 (getSystemCertificateStore)
+import           System.IO.Unsafe (unsafePerformIO)
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
 connect cfg = do
@@ -211,6 +213,10 @@ translateResponseStatusMessage = displayEitherException "Error decoding HTTP res
 displayEitherException :: Exception e => Text -> Either e a -> Either Text a
 displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
+{-# NOINLINE sysStore #-}
+sysStore :: CertificateStore
+sysStore = unsafePerformIO getSystemCertificateStore
+
 -- | Utility function to create a manager from certificate data
 mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
 mkManagerFromCert HTTPCert {..} = do
@@ -219,11 +225,10 @@ mkManagerFromCert HTTPCert {..} = do
       let hooks = def { TLS.onCertificateRequest =
                           \_ -> return $ Just creds
                       , TLS.onServerCertificate =
-                          \ sysStore cache serviceId certChain -> do
-                            store <- fmap (maybe sysStore (sysStore <>)) $ runMaybeT $
+                          \ upstreamStore cache serviceId certChain -> do
+                            store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
                                 hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
-
-                            validateDefault store cache serviceId certChain
+                            validateDefault (sysStore <> store) cache serviceId certChain
                       }
       let clientParams = (TLS.defaultParamsClient getCertHost "")
                          { TLS.clientHooks = hooks

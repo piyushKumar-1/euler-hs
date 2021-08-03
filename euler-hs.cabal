@@ -138,6 +138,7 @@ library
     , uuid
     , validation
     , x509-store
+    , x509-system
     , x509-validation
 
   hs-source-dirs:  src

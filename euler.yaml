@@ -28,8 +28,8 @@ overrides:
     source: github
 
   record-dot-preprocessor:
-    version: 0.2.10
-    sha256: 08ad4d3z5rspxcqxl5iv7b3w6m8ik642cxpm5d8a77s03dyp1z75
+    version: 0.2.11
+    sha256: 1q100j7kcba4i7jfa5wwkv7kssv3k3y3y2xy95ybzsxibr8867hp
     source: hackage
 
   servant:

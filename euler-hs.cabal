@@ -23,7 +23,7 @@ common common-lang
 
   build-depends:
     , base                     >=4.13   && <5
-    , record-dot-preprocessor  ^>=0.2.10
+    , record-dot-preprocessor  ^>=0.2.11
     , record-hasfield
 
   default-extensions:
@@ -120,9 +120,9 @@ library
     , profunctors
     , resource-pool
     , sequelize             ^>=1.1.0.0
-    , servant-client        ^>=0.18.1
-    , servant-client-core   ^>=0.18.1
-    , servant-server        ^>=0.18.1
+    , servant-client        ^>=0.18.2
+    , servant-client-core   ^>=0.18.2
+    , servant-server        ^>=0.18.2
     , sqlite-simple
     , stm
     , string-conversions
@@ -185,10 +185,10 @@ test-suite language
     , random
     , safe-exceptions
     , sequelize
-    , servant               ^>=0.18.1
-    , servant-client        ^>=0.18.1
+    , servant               ^>=0.18.2
+    , servant-client        ^>=0.18.2
     , servant-mock          ^>=0.8.7
-    , servant-server        ^>=0.18.1
+    , servant-server        ^>=0.18.2
     , string-conversions
     , text
     , typed-process

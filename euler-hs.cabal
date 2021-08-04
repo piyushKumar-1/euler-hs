@@ -175,6 +175,7 @@ test-suite language
     , data-default
     , directory
     , euler-hs
+    , extra
     , filepath
     , generic-arbitrary
     , generic-lens
@@ -202,7 +203,7 @@ test-suite language
     , vector
     , warp
     , warp-tls
-
+    , x509-store
     , tls
     , connection
 

@@ -47,7 +47,8 @@ import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.X509.CertificateStore (CertificateStore, readCertificateStore)
+-- import           Data.X509.CertificateStore (CertificateStore, readCertificateStore)
+import           Data.X509.CertificateStore (CertificateStore)
 import           Data.X509.Validation (validateDefault)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
@@ -105,9 +106,10 @@ buildSettings HTTPClientSettings{..} =
                                 \_ -> return $ Just creds
                             , TLS.onServerCertificate =
                                 \ upstreamStore cache serviceId certChain -> do
-                                  store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
-                                      hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
-                                  validateDefault (sysStore <> store) cache serviceId certChain
+                                  let store = sysStore <> upstreamStore <> httpClientSettingsCustomStore
+                                  -- store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
+                                  --     hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
+                                  validateDefault store cache serviceId certChain
                             }
                 clientParams = (TLS.defaultParamsClient getCertHost "")
                               { TLS.clientHooks = hooks
@@ -117,7 +119,21 @@ buildSettings HTTPClientSettings{..} =
             TLS.mkManagerSettings tlsSettings Nothing
           -- TODO?
           Left err -> error $ "cannot load client certificate data: " <> Text.pack err
-      Nothing -> TLS.mkManagerSettings def Nothing
+      Nothing ->
+        -- TLS.mkManagerSettings def Nothing
+
+        let hooks = def { TLS.onServerCertificate =
+                            \ upstreamStore cache serviceId certChain -> do
+                              let store = sysStore <> upstreamStore <> httpClientSettingsCustomStore
+                              validateDefault store cache serviceId certChain
+                        }
+            -- TODO "" "" what about server name here?
+            clientParams = (TLS.defaultParamsClient "" "")
+              { TLS.clientHooks = hooks
+              , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
+              }
+            tlsSettings = Conn.TLSSettings clientParams in
+        TLS.mkManagerSettings tlsSettings Nothing
 
     sysStore = memorizedSysStore
 

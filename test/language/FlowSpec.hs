@@ -3,11 +3,12 @@
 module FlowSpec (spec) where
 
 import           Client (User (User), getBook, getUser, port)
-import           Common (initRTWithManagers, clientHttpCert, withServer, withSecureServer)
+import           Common (initRTWithManagers, withServer, withSecureServer, withClientTlsAuthServer)
 import qualified Control.Exception as E
 -- import qualified Data.String.Conversions as DSC
--- import qualified Data.Text as T
+import qualified Data.Text as Text
 -- import qualified Data.Text.Encoding as Encoding
+import           Data.Either.Extra (fromLeft')
 import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
@@ -73,28 +74,31 @@ spec loggerCfg = do
 
         describe "calling external services using TLS" $ do
 
-          -- it "calling http with TLS manager" $ \ rt -> do
-          --   resEither <- runFlow rt $ callHTTP (T.httpGet "http://server01:8081")
-          --   resEither `shouldSatisfy` isRight
-          --   let code = getResponseCode $ fromRight (error "res is left") resEither
-          --   code `shouldBe` 404
+          it "calling http with TLS manager" $ \ rt -> do
+            resEither <- runFlow rt $ callHTTP (T.httpGet "http://server01:8081")
+            resEither `shouldSatisfy` isRight
+            let code = getResponseCode $ fromRight (error "res is left") resEither
+            code `shouldBe` 426
 
-          it "validate server certificate" $ \ rt -> do
+          it "server certificates with unknown CA gets rejected" $ \ rt -> do
             resEither <- runFlow rt $ callHTTP (T.httpGet "https://server01:8081")
-            resEither `shouldSatisfy` isRight
-            let code = getResponseCode $ fromRight (error "res is left") resEither
-            code `shouldBe` 404
+            resEither `shouldSatisfy` isLeft
+            (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
 
-          xit "validate server certificate with custom manager" $ \ _ -> do
+          it "validate server certificate with custom CA" $ \ _ -> do
             rt <- initRTWithManagers
-            resEither <- runFlow rt $ callHTTPWithManager (Just "tlsNoValidation") (T.httpGet "https://server01:8081")
+            resEither <- runFlow rt $ callHTTPWithManager (Just "tlsWithCustomCA") (T.httpGet "https://server01:8081")
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 404
 
-          xit "authenticate client by a certificate" $ \rt -> do
-            cert <- clientHttpCert
-            resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://server01:8081") (Just cert)
+      around_ withClientTlsAuthServer $ do
+
+        describe "TLS authN" $ do
+
+          it "authenticate client by a certificate" $ \ _ -> do
+            rt <- initRTWithManagers
+            resEither <- runFlow rt $ callHTTPWithManager (Just "tlsWithClientCertAndCustomCA") (T.httpGet "https://server01:8081")
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 404
@@ -168,6 +172,8 @@ spec loggerCfg = do
           let url = BaseUrl Http "localhost" port ""
           userEither <- runFlow rt $ callServantAPI Nothing url getUser
           userEither `shouldSatisfy` isLeft
+      
+      
       describe "calling external services using TLS" $ do
         -- won't work (no custom CA in sys store)
         xit "validate server certificate" $ \ rt -> do
@@ -175,12 +181,15 @@ spec loggerCfg = do
           resEither `shouldSatisfy` isRight
           let code = getResponseCode $ fromRight (error "res is left") resEither
           code `shouldBe` 404
-        it "authenticate client by a certificate" $ \rt -> do
+        xit "authenticate client by a certificate" $ \rt -> do
           -- cert <- clientHttpCert
           resEither <- runFlow rt $ callHTTPWithManager (Just "tlsManager") $ T.httpGet "https://server01"
           resEither `shouldSatisfy` isRight
           let code = getResponseCode $ fromRight (error "res is left") resEither
           code `shouldBe` 404
+      
+      
+      
       describe "runIO tests" $ do
         it "RunIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))

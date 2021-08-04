@@ -5,18 +5,18 @@
 module Common
   ( withServer
   , withSecureServer
+  , withClientTlsAuthServer
   , initRTWithManagers
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
-  , clientHttpCert
   ) where
 
 
 
 
 
-import           Data.ByteString (empty, readFile)
+import           Data.ByteString (readFile)
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
 import           Control.Comonad
@@ -37,17 +37,7 @@ import           Network.TLS (onUnverifiedClientCert)
 import           Data.Default
 import           Servant.Server (serve)
 -- import           Test.Hspec (shouldBe)
-
-import qualified Network.HTTP.Client.TLS as TLS
-import qualified Network.TLS as TLS
-import qualified Network.TLS.Extra.Cipher as TLS
-
-import qualified Network.Connection as Conn
-import qualified Network.HTTP.Client as HTTP
-
-
-
-
+import           Data.X509.CertificateStore (readCertificateStore)
 
 
 
@@ -104,10 +94,24 @@ withServer action = do
   let serverIsUpCallback = \_ -> takeMVar sem >> action
   withAsync runServer serverIsUpCallback
 
-
-
 withSecureServer :: IO () -> IO ()
 withSecureServer action = do
+  sem <- newEmptyMVar
+  let settings = mkSettings sem defaultSettings
+  let tlsSettings = (tlsSettingsChain
+                          "test/tls/server/server.cert.pem"
+                          ["test/tls/intermediate/certs/ca-chain-bundle.cert.pem"]
+                          "test/tls/server/server.key.pem")
+                            { tlsWantClientCert = False
+                            }
+
+  let runServer = runTLS tlsSettings settings . serve api $ server
+  let serverIsUpCallback = \_ -> takeMVar sem >> action
+  withAsync runServer serverIsUpCallback
+
+
+withClientTlsAuthServer :: IO () -> IO ()
+withClientTlsAuthServer action = do
   sem <- newEmptyMVar
   let settings = mkSettings sem defaultSettings
   let tlsSettings = (tlsSettingsChain
@@ -126,42 +130,43 @@ withSecureServer action = do
   withAsync runServer serverIsUpCallback
 
 
-mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
-mkManagerFromCert HTTPCert {getCert, getCertChain, getCertKey, getCertHost, getTrustedCAs} = do
-  case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
-    Right creds -> do
-      let hooks = def { TLS.onCertificateRequest =
-                          \_ -> return $ Just creds
-                      , TLS.onServerCertificate =
-                          \upstreamStore cache serviceId certChain -> do
-                            store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
-                                hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
-                            validateDefault (sysStore <> store) cache serviceId certChain
-                      }
-      let clientParams =
-            (TLS.defaultParamsClient getCertHost "")
-              { TLS.clientHooks = hooks
-              , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
-              }
-
-      let tlsSettings = Conn.TLSSettings clientParams
-      fmap Right $ HTTP.newManager $ TLS.mkManagerSettings tlsSettings Nothing
-    Left err -> pure $ Left err
-
--- validateDefault :: x509-store-1.6.7:Data.X509.CertificateStore.CertificateStore -> TLS.ValidationCache -> x509-validation-1.6.11:Data.X509.Validation.Types.ServiceID -> x509-1.7.5:Data.X509.CertificateChain.CertificateChain -> IO [x509-validation-1.6.11:Data.X509.Validation.FailedReason]
--- validateDefault = error "not implemented"
-
 initRTWithManagers :: IO FlowRuntime
 initRTWithManagers = do
   flowRt <- withFlowRuntime Nothing pure
   -- default managers
   m1 <- newManager tlsManagerSettings
   m2 <- newManager tlsManagerSettings
-  -- custom manager built with euler's builder
+
+  -- custom managers built with euler's builder
+
+  -- sample proxying
   m3 <- newManager $ extract $ buildSettings
           =>> withInsecureProxy "localhost" 3306
+
+  -- custom CA
+  mbStore <- readCertificateStore "test/tls/ca-certificates"
+  let store = fromMaybe (error "cannot read store") mbStore
+
+  m4 <- newManager $ extract $ buildSettings
+          =>> withCustomCA store
+
+  cert <- readFile "test/tls/client/client.cert.pem"
+  key <- readFile "test/tls/client/client.key.pem"
+
+  -- let managerBuilder = newManager $ extract $ buildSettings
+  -- with client certificate
+  m5 <- newManager $ extract $ buildSettings
+          =>> withCustomCA store
+          =>> withClientTls cert [] key "server01"
+
   --
-  let managersMap = [("manager1", m1), ("manager2", m2), ("tlsNoValidation", m3)]
+  let managersMap =
+        [ ("manager1", m1)
+        , ("manager2", m2)
+        , ("proxying", m3)
+        , ("tlsWithCustomCA", m4)
+        , ("tlsWithClientCertAndCustomCA", m5)
+        ]
   pure $ flowRt { _httpClientManagers = managersMap }
 
 -- initRegularRT :: IO FlowRuntime
@@ -241,10 +246,10 @@ initRTWithManagers = do
 --     pure (targetMVar, watch >> takeMVar finalMVar, reset)
 
 
-clientHttpCert:: IO T.HTTPCert
-clientHttpCert = do
-  let _ = empty
-  cert <- readFile "test/tls/client/client.cert.pem"
-  key <- readFile "test/tls/client/client.key.pem"
-  return $ HTTPCert cert [] "server01" key (Just "test/tls/ca-certificates")
+-- clientHttpCert:: IO T.HTTPCert
+-- clientHttpCert = do
+--   let _ = empty
+--   cert <- readFile "test/tls/client/client.cert.pem"
+--   key <- readFile "test/tls/client/client.key.pem"
+--   return $ HTTPCert cert [] "server01" key (Just "test/tls/ca-certificates")
 

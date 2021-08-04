@@ -3,7 +3,7 @@
 module FlowSpec (spec) where
 
 import           Client (User (User), getBook, getUser, port)
-import           Common (initRTWithManagers, clientHttpCert, withServer)
+import           Common (initRTWithManagers, withServer)
 import qualified Control.Exception as E
 import qualified Data.String.Conversions as DSC
 import qualified Data.Text as T
@@ -133,8 +133,8 @@ spec loggerCfg = do
           let code = getResponseCode $ fromRight (error "res is left") resEither
           code `shouldBe` 200
         it "authenticate client by a certificate" $ \rt -> do
-          cert <- clientHttpCert
-          resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "https://server01") (Just cert)
+          -- cert <- clientHttpCert
+          resEither <- runFlow rt $ callHTTPWithManager (Just "tlsManager") $ T.httpGet "https://server01"
           resEither `shouldSatisfy` isRight
           let code = getResponseCode $ fromRight (error "res is left") resEither
           code `shouldBe` 200

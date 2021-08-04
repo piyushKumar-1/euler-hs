@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Werror #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Common
   (
@@ -26,6 +27,19 @@ import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai.Handler.Warp (Settings, runSettings, defaultSettings, setPort, setBeforeMainLoop)
 import           Servant.Server (serve)
 -- import           Test.Hspec (shouldBe)
+
+import qualified Network.HTTP.Client.TLS as TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
+
+import qualified Network.Connection as Conn
+import qualified Network.HTTP.Client as HTTP
+
+
+
+
+
+
 
 -- runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b
 -- runFlowWithArt flow = do
@@ -77,6 +91,32 @@ withServer action = do
   let callback = \_ -> takeMVar sem >> action
   let runServer = runSettings it . serve api $ server
   withAsync runServer callback
+
+
+mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
+mkManagerFromCert HTTPCert {getCert, getCertChain, getCertKey, getCertHost, getTrustedCAs} = do
+  case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+    Right creds -> do
+      let hooks = def { TLS.onCertificateRequest =
+                          \_ -> return $ Just creds
+                      , TLS.onServerCertificate =
+                          \upstreamStore cache serviceId certChain -> do
+                            store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
+                                hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
+                            validateDefault (sysStore <> store) cache serviceId certChain
+                      }
+      let clientParams =
+            (TLS.defaultParamsClient getCertHost "")
+              { TLS.clientHooks = hooks
+              , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
+              }
+
+      let tlsSettings = Conn.TLSSettings clientParams
+      fmap Right $ HTTP.newManager $ TLS.mkManagerSettings tlsSettings Nothing
+    Left err -> pure $ Left err
+
+-- validateDefault :: x509-store-1.6.7:Data.X509.CertificateStore.CertificateStore -> TLS.ValidationCache -> x509-validation-1.6.11:Data.X509.Validation.Types.ServiceID -> x509-1.7.5:Data.X509.CertificateChain.CertificateChain -> IO [x509-validation-1.6.11:Data.X509.Validation.FailedReason]
+-- validateDefault = error "not implemented"
 
 initRTWithManagers :: IO FlowRuntime
 initRTWithManagers = do

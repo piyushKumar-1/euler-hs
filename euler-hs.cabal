@@ -199,6 +199,9 @@ test-suite language
     , vector
     , warp
 
+    , tls
+    , connection
+
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language
 

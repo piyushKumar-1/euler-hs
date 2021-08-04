@@ -113,7 +113,6 @@ library
     , http-client
     , http-client-tls
     , http-types
-    , lens
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics

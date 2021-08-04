@@ -3,18 +3,23 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Common
-  (
-    withServer,
-    initRTWithManagers,
+  ( withServer
+  , withSecureServer
+  , initRTWithManagers
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
-    clientHttpCert
+  , clientHttpCert
   ) where
+
+
+
+
 
 import           Data.ByteString (empty, readFile)
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
+import           Control.Comonad
 -- import qualified Data.Vector as V
 -- import           EulerHS.Interpreters (runFlow)
 -- import           EulerHS.Language as L
@@ -25,6 +30,11 @@ import           EulerHS.Types as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai.Handler.Warp (Settings, runSettings, defaultSettings, setPort, setBeforeMainLoop)
+import           Network.Wai.Handler.WarpTLS (runTLS, tlsSettingsChain, tlsWantClientCert, tlsServerHooks)
+-- import           Network.TLS (CertificateUsage (..), onClientCertificate, onUnverifiedClientCert)
+-- import           Network.TLS (onClientCertificate, onUnverifiedClientCert)
+import           Network.TLS (onUnverifiedClientCert)
+import           Data.Default
 import           Servant.Server (serve)
 -- import           Test.Hspec (shouldBe)
 
@@ -84,13 +94,36 @@ portSetter = setPort port
 mkSettings :: MVar () -> Settings -> Settings
 mkSettings sem = portSetter . (readyHandlerSetter  sem)
 
+
+
 withServer :: IO () -> IO ()
 withServer action = do
   sem <- newEmptyMVar
-  let it = mkSettings sem defaultSettings
-  let callback = \_ -> takeMVar sem >> action
-  let runServer = runSettings it . serve api $ server
-  withAsync runServer callback
+  let settings = mkSettings sem defaultSettings
+  let runServer = runSettings settings . serve api $ server
+  let serverIsUpCallback = \_ -> takeMVar sem >> action
+  withAsync runServer serverIsUpCallback
+
+
+
+withSecureServer :: IO () -> IO ()
+withSecureServer action = do
+  sem <- newEmptyMVar
+  let settings = mkSettings sem defaultSettings
+  let tlsSettings = (tlsSettingsChain
+                          "test/tls/server/server.cert.pem"
+                          ["test/tls/intermediate/certs/ca-chain-bundle.cert.pem"]
+                          "test/tls/server/server.key.pem")
+                            { tlsWantClientCert = True
+                            , tlsServerHooks = def
+                              { onUnverifiedClientCert = pure False
+                              -- , onClientCertificate = \ _ -> pure CertificateUsageAccept
+                              }
+                            }
+
+  let runServer = runTLS tlsSettings settings . serve api $ server
+  let serverIsUpCallback = \_ -> takeMVar sem >> action
+  withAsync runServer serverIsUpCallback
 
 
 mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
@@ -121,9 +154,14 @@ mkManagerFromCert HTTPCert {getCert, getCertChain, getCertKey, getCertHost, getT
 initRTWithManagers :: IO FlowRuntime
 initRTWithManagers = do
   flowRt <- withFlowRuntime Nothing pure
+  -- default managers
   m1 <- newManager tlsManagerSettings
   m2 <- newManager tlsManagerSettings
-  let managersMap = [("manager1", m1), ("manager2", m2)]
+  -- custom manager built with euler's builder
+  m3 <- newManager $ extract $ buildSettings
+          =>> withInsecureProxy "localhost" 3306
+  --
+  let managersMap = [("manager1", m1), ("manager2", m2), ("tlsNoValidation", m3)]
   pure $ flowRt { _httpClientManagers = managersMap }
 
 -- initRegularRT :: IO FlowRuntime
@@ -208,5 +246,5 @@ clientHttpCert = do
   let _ = empty
   cert <- readFile "test/tls/client/client.cert.pem"
   key <- readFile "test/tls/client/client.key.pem"
-  return $ HTTPCert cert [] "localhost123" key (Just "test/tls/ca-certificates")
+  return $ HTTPCert cert [] "server01" key (Just "test/tls/ca-certificates")
 

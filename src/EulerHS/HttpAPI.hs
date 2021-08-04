@@ -1,9 +1,20 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module EulerHS.HttpAPI
     (
-      HTTPRequest(..)
+      -- * HTTP manager builder stuff
+      HTTPClientSettings(..)
+    -- remove
+    , ProxySettings (..)
+    , buildSettings
+    , withInsecureProxy
+    , withClientTls
+    , withCustomCA
+
+
+    , HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
     , HTTPCert(..)
@@ -31,15 +42,113 @@ import qualified Data.ByteString.Lazy as LB
 import           Data.ByteString.Lazy.Builder (Builder)
 import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.Char as Char
+import           Data.Default
 import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import           Data.X509.CertificateStore (CertificateStore, readCertificateStore)
+import           Data.X509.Validation (validateDefault)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
                                   maskHTTPHeaders, parseRequestResponseBody,
                                   shouldMaskKey)
 import           EulerHS.Prelude hiding (ord)
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.Connection as Conn
+import qualified Network.HTTP.Client.TLS as TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
+import           System.IO.Unsafe (unsafePerformIO)
+import           System.X509 (getSystemCertificateStore)
+
+
+-- "Creating a new Manager is a relatively expensive operation, you are advised to share a single Manager between requests instead."
+
+-- |
+data HTTPClientSettings = HTTPClientSettings
+  { httpClientSettingsProxy             :: Last ProxySettings
+  , httpClientSettingsClientCertificate :: Last HTTPCert
+  , httpClientSettingsCustomStore       :: CertificateStore
+  }
+
+data ProxySettings
+  = InsecureProxy
+  { proxySettingsHost :: Text
+  , proxySettingsPort :: Int
+  }
+
+instance Semigroup HTTPClientSettings where
+  (HTTPClientSettings a1 b1 c1) <> (HTTPClientSettings a2 b2 c2) =
+    HTTPClientSettings (a1 <> a2) (b1 <> b2) (c1 <> c2)
+
+instance Monoid HTTPClientSettings where
+  mempty = HTTPClientSettings mempty mempty mempty
+
+type ManagerSettingsBuilder = HTTPClientSettings -> HTTP.ManagerSettings
+
+-- | The simplest builder
+buildSettings :: ManagerSettingsBuilder
+buildSettings HTTPClientSettings{..} =
+    HTTP.managerSetProxy proxyOverride $ tlsManagerSettings
+  where
+    proxyOverride = case getLast httpClientSettingsProxy of
+      Just (InsecureProxy host port) -> HTTP.useProxy $ HTTP.Proxy (Text.encodeUtf8 host) port
+      Nothing -> HTTP.noProxy
+
+    tlsManagerSettings = case getLast httpClientSettingsClientCertificate of
+      Just HTTPCert{..} ->
+        case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+          Right creds ->
+            let hooks = def { TLS.onCertificateRequest =
+                                \_ -> return $ Just creds
+                            , TLS.onServerCertificate =
+                                \ upstreamStore cache serviceId certChain -> do
+                                  store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
+                                      hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
+                                  validateDefault (sysStore <> store) cache serviceId certChain
+                            }
+                clientParams = (TLS.defaultParamsClient getCertHost "")
+                              { TLS.clientHooks = hooks
+                              , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
+                              }
+                tlsSettings = Conn.TLSSettings clientParams in
+            TLS.mkManagerSettings tlsSettings Nothing
+          -- TODO?
+          Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+      Nothing -> TLS.mkManagerSettings def Nothing
+
+    sysStore = memorizedSysStore
+
+{-# NOINLINE memorizedSysStore #-}
+memorizedSysStore :: CertificateStore
+memorizedSysStore = unsafePerformIO getSystemCertificateStore
+
+-- | Add unconditional proxying (for both http/https, regardless request )
+withInsecureProxy :: Text -> Int -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withInsecureProxy host port builder = builder $ mempty {httpClientSettingsProxy = Last $ Just $ InsecureProxy host port}
+
+type ClientCert = B.ByteString
+type CertChain = [B.ByteString]
+type ClientKey = B.ByteString
+
+-- | Define the name of the server, along with an extra service identification blob.
+-- this is important that the hostname part is properly filled for security reason,
+-- as it allow to properly associate the remote side with the given certificate
+-- during a handshake.
+type ServerName = Text
+
+-- | Adds the client certificate to use client TLS authentication
+withClientTls :: ClientCert -> CertChain -> ClientKey -> ServerName -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withClientTls cert chain key serverName builder =
+    builder $ mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
+  where
+    httpCert = HTTPCert cert chain (Text.unpack serverName) key Nothing
+
+-- | Adds an additional store with trusted CA certificates
+withCustomCA :: CertificateStore -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withCustomCA store builder = builder mempty {httpClientSettingsCustomStore = store}
 
 data HTTPRequest
   = HTTPRequest

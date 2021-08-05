@@ -30,6 +30,7 @@ module EulerHS.Framework.Language
   , callAPI
   , callAPI'
   , callHTTP
+  , callHTTP'
   , runIO
   , forkFlow
   , forkFlow'
@@ -464,7 +465,7 @@ logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
 runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
 
--- | The same as callHTTPWithCert but does not need certificate data.
+-- | The same as callHTTPWithManager but does not need certificate data.
 --
 -- Thread safe, exception free.
 --
@@ -475,6 +476,11 @@ runIO = runIO' ""
 callHTTP :: (HasCallStack, MonadFlow m) =>
   HTTPRequest -> m (Either Text.Text HTTPResponse)
 callHTTP url = callHTTPWithManager Nothing url
+
+-- | Alias for callHTTPWithManager
+callHTTP' :: (HasCallStack, MonadFlow m) =>
+  Maybe ManagerSelector  -> HTTPRequest -> m (Either Text.Text HTTPResponse)
+callHTTP' = callHTTPWithManager
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
 -- `ReaderT` and other monad transformers.
@@ -534,6 +540,8 @@ class (MonadMask m) => MonadFlow m where
   --   => HTTPRequest                        -- ^ remote url 'Text'
   --   -> Maybe HTTPCert                     -- ^ TLS certificate data
   --   -> m (Either Text.Text HTTPResponse)  -- ^ result
+
+
 
   -- | Method for calling external HTTP APIs without bothering with types with custom manager.
   --

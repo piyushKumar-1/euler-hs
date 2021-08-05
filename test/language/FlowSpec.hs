@@ -57,139 +57,127 @@ import           Scenario1 (testScenario1)
 import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
 import           Servant.Server (err403, errBody)
 import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
-                             shouldSatisfy, xit)
+                             shouldSatisfy)
 import           Unsafe.Coerce (unsafeCoerce)
 
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do
-  around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter) loggerCfg)) $ do
-    describe "EulerHS flow language tests" $ do
+  describe "EulerHS flow language tests" $ do
+    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter) loggerCfg)) $ do
+
       describe "TestInterpreters" $ do
         it "testScenario1" $ \rt -> do
           mv <- newMVar scenario1MockedValues
           res <- runFlowWithTestInterpreter mv rt testScenario1
           res `shouldBe` User "John" "Snow" "00000000-0000-0000-0000-000000000000"
-      
-      around_ withSecureServer $ do
-
-        describe "calling external services using TLS" $ do
-
-          it "calling http with TLS manager" $ \ rt -> do
-            resEither <- runFlow rt $ callHTTP (T.httpGet "http://server01:8081")
-            resEither `shouldSatisfy` isRight
-            let code = getResponseCode $ fromRight (error "res is left") resEither
-            code `shouldBe` 426
-
-          it "server certificates with unknown CA gets rejected" $ \ rt -> do
-            resEither <- runFlow rt $ callHTTP (T.httpGet "https://server01:8081")
-            resEither `shouldSatisfy` isLeft
-            (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
-
-          it "validate server certificate with custom CA" $ \ _ -> do
-            rt <- initRTWithManagers
-            resEither <- runFlow rt $ callHTTPWithManager (Just "tlsWithCustomCA") (T.httpGet "https://server01:8081")
-            resEither `shouldSatisfy` isRight
-            let code = getResponseCode $ fromRight (error "res is left") resEither
-            code `shouldBe` 404
-
-      around_ withClientTlsAuthServer $ do
-
-        describe "TLS authN" $ do
-
-          it "authenticate client by a certificate" $ \ _ -> do
-            rt <- initRTWithManagers
-            resEither <- runFlow rt $ callHTTPWithManager (Just "tlsWithClientCertAndCustomCA") (T.httpGet "https://server01:8081")
-            resEither `shouldSatisfy` isRight
-            let code = getResponseCode $ fromRight (error "res is left") resEither
-            code `shouldBe` 404
-
-      -- around_ withServer $ do
-      --     it "calling http with TLS manager" $ \rt -> do
-      --       cert <- clientHttpCert
-      --       resEither <- runFlow rt $ callHTTPWithCert (T.httpGet "http://server01:8081") (Just cert)
-      --       resEither `shouldSatisfy` isRight
-      --       let code = getResponseCode $ fromRight (error "res is left") resEither
-      --       code `shouldBe` 404
-      --       -- let body = either (error "res is left") (Encoding.decodeUtf8 . DSC.convertString . getResponseBody) resEither
-      --       -- body `shouldSatisfy` (\m -> T.count "It works!" m == 1)
-
-
 
       around_ withServer $ do
-        describe "CallServantAPI tests with server" $ do
+        describe "callAPI tests with server" $ do
           it "Simple request (book) with default manager" $ \rt -> do
             let url = BaseUrl Http "127.0.0.1" port ""
-            bookEither <- runFlow rt $ callServantAPI Nothing url getBook
+            bookEither <- runFlow rt $ callAPI url getBook
             bookEither `shouldSatisfy` isRight
           it "Simple request (user) with default manager" $ \rt -> do
             let url = BaseUrl Http "127.0.0.1" port ""
-            userEither <- runFlow rt $ callServantAPI Nothing url getUser
+            userEither <- runFlow rt $ callAPI url getUser
             userEither `shouldSatisfy` isRight
           it "Simple request (book) with manager1" $ \_ -> do
             rt <- initRTWithManagers
             let url = BaseUrl Http "127.0.0.1" port ""
-            bookEither <- runFlow rt $ callServantAPI (Just "manager1") url getBook
+            bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
             bookEither `shouldSatisfy` isRight
           it "Simple request (user) with manager2" $ \_ -> do
             rt <- initRTWithManagers
             let url = BaseUrl Http "127.0.0.1" port ""
-            userEither <- runFlow rt $ callServantAPI (Just "manager2") url getUser
+            userEither <- runFlow rt $ callAPI' (Just "manager2") url getUser
             userEither `shouldSatisfy` isRight
           it "Simple request with not existing manager" $ \_ -> do
             rt <- initRTWithManagers
             let url = BaseUrl Http "127.0.0.1" port ""
             let err = displayException (ConnectionError (toException $ HttpManagerNotFound "notexist"))
-            userEither <- runFlow rt $ callServantAPI (Just "notexist") url getUser
+            userEither <- runFlow rt $ callAPI' (Just "notexist") url getUser
             case userEither of
               Left e  -> displayException e `shouldBe` err
               Right _ -> fail "Success result not expected"
-          xit "Untyped HTTP API Calls" $ \rt -> do
-            (statusCode, status, _, _) <- runFlow rt $ do
-              eResponse <- L.callHTTP $ T.httpGet "https://google.com" :: Flow (Either Text T.HTTPResponse)
-              response <- case eResponse of
-                Left _ -> throwException err403 {errBody = "Expected a response"}
-                Right response -> pure response
-              return
-                ( T.getResponseCode    response
-                , T.getResponseStatus  response
-                , T.getResponseBody    response
-                , T.getResponseHeaders response
-                )
-            -- check status code
-            statusCode `shouldBe` 200
-            status `shouldBe` "OK"
-          xit "Untyped HTTP API Calls" $ \rt -> do
-            let url = "https://127.0.0.1:666/fourohhhfour"
-            _ <- runFlow rt $ do
-              L.callHTTP $ T.httpGet url :: Flow (Either Text T.HTTPResponse)
-            pure ()
-      describe "CallServantAPI tests without server" $ do
+
+      describe "callAPI tests without server" $ do
         it "Simple request (book)" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          bookEither <- runFlow rt $ callServantAPI Nothing url getBook
+          bookEither <- runFlow rt $ callAPI url getBook
           bookEither `shouldSatisfy` isLeft
         it "Simple request (user)" $ \rt -> do
           let url = BaseUrl Http "localhost" port ""
-          userEither <- runFlow rt $ callServantAPI Nothing url getUser
+          userEither <- runFlow rt $ callAPI url getUser
           userEither `shouldSatisfy` isLeft
-      
-      
-      describe "calling external services using TLS" $ do
-        -- won't work (no custom CA in sys store)
-        xit "validate server certificate" $ \ rt -> do
-          resEither <- runFlow rt $ callHTTP (T.httpGet "https://server01")
-          resEither `shouldSatisfy` isRight
-          let code = getResponseCode $ fromRight (error "res is left") resEither
-          code `shouldBe` 404
-        xit "authenticate client by a certificate" $ \rt -> do
-          -- cert <- clientHttpCert
-          resEither <- runFlow rt $ callHTTPWithManager (Just "tlsManager") $ T.httpGet "https://server01"
-          resEither `shouldSatisfy` isRight
-          let code = getResponseCode $ fromRight (error "res is left") resEither
-          code `shouldBe` 404
-      
-      
-      
+
+      describe "calling external TLS services with untyped API" $ do
+        around_ withSecureServer $ do
+          it "calling http with TLS manager" $ \ rt -> do
+            let req = T.httpGet $ "http://server01:" <> show port
+            resEither <- runFlow rt $ callHTTP req
+            resEither `shouldSatisfy` isRight
+            let code = getResponseCode $ fromRight (error "res is left") resEither
+            code `shouldBe` 426
+          it "server certificates with unknown CA gets rejected" $ \ rt -> do
+            let req = T.httpGet $ "https://server01:" <> show port
+            resEither <- runFlow rt $ callHTTP req
+            resEither `shouldSatisfy` isLeft
+            (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
+          it "validate server certificate with custom CA" $ \ _ -> do
+            rt <- initRTWithManagers
+            let req = T.httpGet $ "https://server01:" <> show port
+            resEither <- runFlow rt $ callHTTP' (Just "tlsWithCustomCA") req
+            resEither `shouldSatisfy` isRight
+            let code = getResponseCode $ fromRight (error "res is left") resEither
+            code `shouldBe` 404
+
+      describe "TLS client authentication with untyped API" $ do
+        around_ withClientTlsAuthServer $ do
+          it "server rejects clients without a certificate" $ \ _ -> do
+            rt <- initRTWithManagers
+            let req = T.httpGet $ "https://server01:" <> show port
+            resEither <- runFlow rt $ callHTTP' (Just "manager1") req
+            resEither `shouldSatisfy` isLeft
+          it "authenticate client by a certificate" $ \ _ -> do
+            rt <- initRTWithManagers
+            let req = T.httpGet $ "https://server01:" <> show port
+            resEither <- runFlow rt $ callHTTP' (Just "tlsWithClientCertAndCustomCA")  req
+            resEither `shouldSatisfy` isRight
+            let code = getResponseCode $ fromRight (error "res is left") resEither
+            code `shouldBe` 404
+
+      describe "calling external TLS services with well-typed API" $ do
+        around_ withSecureServer $ do
+          it "calling http with TLS manager" $ \ _ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Http "server01" port ""
+            bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
+            bookEither `shouldSatisfy` isLeft
+          it "server certificates with unknown CA gets rejected" $ \ _ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Https "server01" port ""
+            bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
+            bookEither `shouldSatisfy` isLeft
+          it "validate server certificate with custom CA" $ \ _ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Https "server01" port ""
+            bookEither <- runFlow rt $ callAPI' (Just "tlsWithCustomCA") url getBook
+            bookEither `shouldSatisfy` isRight
+
+      describe "TLS client authentication" $ do
+        around_ withClientTlsAuthServer $ do
+
+          it "server rejects clients without a certificate" $ \ _ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Https "server01" port ""
+            bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
+            bookEither `shouldSatisfy` isLeft
+          it "authenticate client by a certificate" $ \ _ -> do
+            rt <- initRTWithManagers
+            let url = BaseUrl Https "server01" port ""
+            bookEither <- runFlow rt $ callAPI' (Just "tlsWithClientCertAndCustomCA") url getBook
+            bookEither `shouldSatisfy` isRight
+
       describe "runIO tests" $ do
         it "RunIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))
@@ -213,6 +201,7 @@ spec loggerCfg = do
         it "RunUntracedIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))
           result `shouldBe` "hi"
+
       describe "STM tests" $ do
         it "STM Test" $ \rt -> do
           result <- runFlow rt $ do
@@ -233,6 +222,7 @@ spec loggerCfg = do
             _ <- await Nothing awaitable1 >> await Nothing awaitable2
             runIO $ readTVarIO countVar
           result `shouldBe` 100
+
       describe "Options" $ do
         it "One key" $ \rt -> do
           result <- runFlow rt $ do
@@ -332,10 +322,10 @@ spec loggerCfg = do
                   , mbNTTestKeyWithIntPayloadAnotherEncS1    = Just 9009
                   , mbNTTestKeyWithIntPayloadAnotherEncS2    = Just 1001
                   }
-      xit "RunSysCmd" $ \rt -> do
+      it "RunSysCmd" $ \rt -> do
         result <- runFlow rt $ runSysCmd "echo test"
         result `shouldBe` "test\n"
-      xit "RunSysCmd with bad command" $ \rt -> do
+      it "RunSysCmd with bad command" $ \rt -> do
         putStrLn ("" :: Text)
         result <- E.catch
           (runFlow rt $ runSysCmd "badEcho test")
@@ -354,6 +344,7 @@ spec loggerCfg = do
           (\e -> do let err = show (e :: E.AssertionFailed)
                     pure err)
         result `shouldBe` "Exception message"
+      
       describe "ForkFlow" $ do
         let i :: Int = 101
         it "Fork and successful await infinitely" $ \rt -> do

@@ -204,33 +204,6 @@ translateResponseStatusMessage = displayEitherException "Error decoding HTTP res
 displayEitherException :: Exception e => Text -> Either e a -> Either Text a
 displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
---{-# NOINLINE sysStore #-}
--- sysStore :: CertificateStore
--- sysStore = unsafePerformIO getSystemCertificateStore
-
--- | Utility function to create a manager from certificate data
--- mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
--- mkManagerFromCert HTTPCert {..} = do
---   case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
---     Right creds -> do
---       let hooks = def { TLS.onCertificateRequest =
---                           \_ -> return $ Just creds
---                       , TLS.onServerCertificate =
---                           \ upstreamStore cache serviceId certChain -> do
---                             store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
---                                 hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
---                             validateDefault (sysStore <> store) cache serviceId certChain
---                       }
---       let clientParams =
---             (TLS.defaultParamsClient getCertHost "")
---               { TLS.clientHooks = hooks
---               , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
---               }
-
---       let tlsSettings = Conn.TLSSettings clientParams
---       fmap Right $ HTTP.newManager $ TLS.mkManagerSettings tlsSettings Nothing
---     Left err -> pure $ Left err
-
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 

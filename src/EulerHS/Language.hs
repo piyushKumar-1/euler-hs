@@ -13,6 +13,7 @@ module EulerHS.Language
     Y.callAPI,
     Y.callAPI',
     Y.callHTTP,
+    Y.callHTTP',
     Y.runIO,
     Y.forkFlow,
     Y.forkFlow',

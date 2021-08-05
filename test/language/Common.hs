@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Werror #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Common
@@ -11,9 +11,6 @@ module Common
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
   ) where
-
-
-
 
 
 import           Data.ByteString (readFile)
@@ -30,15 +27,12 @@ import           EulerHS.Types as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai.Handler.Warp (Settings, runSettings, defaultSettings, setPort, setBeforeMainLoop)
-import           Network.Wai.Handler.WarpTLS (runTLS, tlsSettingsChain, tlsWantClientCert, tlsServerHooks)
--- import           Network.TLS (CertificateUsage (..), onClientCertificate, onUnverifiedClientCert)
--- import           Network.TLS (onClientCertificate, onUnverifiedClientCert)
-import           Network.TLS (onUnverifiedClientCert)
+import           Network.Wai.Handler.WarpTLS (TLSSettings, runTLS, tlsSettingsChain, tlsWantClientCert, tlsServerHooks)
+import           Network.TLS (CertificateUsage (..), onClientCertificate)
 import           Data.Default
 import           Servant.Server (serve)
 -- import           Test.Hspec (shouldBe)
 import           Data.X509.CertificateStore (readCertificateStore)
-
 
 
 -- runFlowWithArt :: (Show b, Eq b) => Flow b -> IO b
@@ -84,8 +78,6 @@ portSetter = setPort port
 mkSettings :: MVar () -> Settings -> Settings
 mkSettings sem = portSetter . (readyHandlerSetter  sem)
 
-
-
 withServer :: IO () -> IO ()
 withServer action = do
   sem <- newEmptyMVar
@@ -94,36 +86,34 @@ withServer action = do
   let serverIsUpCallback = \_ -> takeMVar sem >> action
   withAsync runServer serverIsUpCallback
 
+tlsSettingsWithCert :: TLSSettings
+tlsSettingsWithCert = tlsSettingsChain
+                          "test/tls/server/server.cert.pem"
+                          ["test/tls/intermediate/certs/ca-chain-bundle.cert.pem"]
+                          "test/tls/server/server.key.pem"
+
 withSecureServer :: IO () -> IO ()
 withSecureServer action = do
   sem <- newEmptyMVar
   let settings = mkSettings sem defaultSettings
-  let tlsSettings = (tlsSettingsChain
-                          "test/tls/server/server.cert.pem"
-                          ["test/tls/intermediate/certs/ca-chain-bundle.cert.pem"]
-                          "test/tls/server/server.key.pem")
-                            { tlsWantClientCert = False
-                            }
-
+  let tlsSettings = tlsSettingsWithCert
+                      { tlsWantClientCert = False
+                      }
   let runServer = runTLS tlsSettings settings . serve api $ server
   let serverIsUpCallback = \_ -> takeMVar sem >> action
   withAsync runServer serverIsUpCallback
-
 
 withClientTlsAuthServer :: IO () -> IO ()
 withClientTlsAuthServer action = do
   sem <- newEmptyMVar
   let settings = mkSettings sem defaultSettings
-  let tlsSettings = (tlsSettingsChain
-                          "test/tls/server/server.cert.pem"
-                          ["test/tls/intermediate/certs/ca-chain-bundle.cert.pem"]
-                          "test/tls/server/server.key.pem")
-                            { tlsWantClientCert = True
-                            , tlsServerHooks = def
-                              { onUnverifiedClientCert = pure False
-                              -- , onClientCertificate = \ _ -> pure CertificateUsageAccept
-                              }
-                            }
+  let tlsSettings = tlsSettingsWithCert
+                      { tlsWantClientCert = True
+                      , tlsServerHooks = def
+                        -- test server doesn't validate client's certificates
+                        { onClientCertificate = \ _ -> pure $ CertificateUsageAccept
+                        }
+                      }
 
   let runServer = runTLS tlsSettings settings . serve api $ server
   let serverIsUpCallback = \_ -> takeMVar sem >> action
@@ -141,7 +131,7 @@ initRTWithManagers = do
 
   -- sample proxying
   m3 <- newManager $ extract $ buildSettings
-          =>> withInsecureProxy "localhost" 3306
+          =>> withProxy "localhost" 3306
 
   -- custom CA
   mbStore <- readCertificateStore "test/tls/ca-certificates"
@@ -252,4 +242,3 @@ initRTWithManagers = do
 --   cert <- readFile "test/tls/client/client.cert.pem"
 --   key <- readFile "test/tls/client/client.key.pem"
 --   return $ HTTPCert cert [] "server01" key (Just "test/tls/ca-certificates")
-

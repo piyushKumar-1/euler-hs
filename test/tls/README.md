@@ -1,17 +1,20 @@
+Folder layout:
 
 test/tls/
-|-- certs        -- ^ copies of all of the certificates that we issue with our CA
-|-- cient
-|-- intermediate -- ^ intermediate CA
+|-- ca
+|   |-- certs        -- ^ copies of all of the certificates that we issue with our CA
+|   |-- private      -- ^ a copy of the CA certificate’s private key
+|-- ca-certificates  -- ^ all CAs' certificates (get loaded into CertificateStore)
+|-- cient            -- ^ client cert and key
+|-- intermediate     -- ^ intermediate CA (same as `ca`)
 |   |-- certs
-|   |-- csr      -- ^ CSRs
+|   |-- csr          -- ^ CSRs
 |   `-- private
-|-- private      -- ^ a copy of the CA certificate’s private key
-|-- server
-
+|-- server           -- ^ server cert and key
 
 password (the only one): welcome
 
+> Following commands need to be fixed in terms of paths!
 # CA
 
 common name: ca01

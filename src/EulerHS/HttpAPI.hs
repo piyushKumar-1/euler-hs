@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.HttpAPI
     (
@@ -9,10 +10,9 @@ module EulerHS.HttpAPI
     -- remove
     , ProxySettings (..)
     , buildSettings
-    , withInsecureProxy
+    , withProxy
     , withClientTls
     , withCustomCA
-
 
     , HTTPRequest(..)
     , HTTPResponse(..)
@@ -63,6 +63,7 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.X509 (getSystemCertificateStore)
+import           Generics.Deriving.Monoid (memptydefault, mappenddefault)
 
 
 -- "Creating a new Manager is a relatively expensive operation, you are advised to share a single Manager between requests instead."
@@ -73,6 +74,9 @@ data HTTPClientSettings = HTTPClientSettings
   , httpClientSettingsClientCertificate :: Last HTTPCert
   , httpClientSettingsCustomStore       :: CertificateStore
   }
+  deriving stock (Generic)
+  -- use DeriveVia?
+  -- see https://hackage.haskell.org/package/generic-deriving-1.14/docs/Generics-Deriving-Default.html
 
 data ProxySettings
   = InsecureProxy
@@ -80,17 +84,16 @@ data ProxySettings
   , proxySettingsPort :: Int
   }
 
-instance Semigroup HTTPClientSettings where
-  (HTTPClientSettings a1 b1 c1) <> (HTTPClientSettings a2 b2 c2) =
-    HTTPClientSettings (a1 <> a2) (b1 <> b2) (c1 <> c2)
+instance Semigroup (HTTPClientSettings) where
+  (<>)  = mappenddefault
 
-instance Monoid HTTPClientSettings where
-  mempty = HTTPClientSettings mempty mempty mempty
+instance Monoid (HTTPClientSettings) where
+  mempty  = memptydefault
 
 type ManagerSettingsBuilder = HTTPClientSettings -> HTTP.ManagerSettings
 
 -- | The simplest builder
-buildSettings :: ManagerSettingsBuilder
+buildSettings :: HTTPClientSettings -> HTTP.ManagerSettings
 buildSettings HTTPClientSettings{..} =
     HTTP.managerSetProxy proxyOverride $ tlsManagerSettings
   where
@@ -142,8 +145,14 @@ memorizedSysStore :: CertificateStore
 memorizedSysStore = unsafePerformIO getSystemCertificateStore
 
 -- | Add unconditional proxying (for both http/https, regardless request )
-withInsecureProxy :: Text -> Int -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withInsecureProxy host port builder = builder $ mempty {httpClientSettingsProxy = Last $ Just $ InsecureProxy host port}
+withProxy
+  :: Text
+  -> Int
+  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withProxy host port builder =
+    builder $ mempty {httpClientSettingsProxy = Last $ proxySettings}
+  where
+    proxySettings = Just $ InsecureProxy host port
 
 type ClientCert = B.ByteString
 type CertChain = [B.ByteString]
@@ -156,14 +165,21 @@ type ClientKey = B.ByteString
 type ServerName = Text
 
 -- | Adds the client certificate to use client TLS authentication
-withClientTls :: ClientCert -> CertChain -> ClientKey -> ServerName -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withClientTls 
+  :: ClientCert
+  -> CertChain
+  -> ClientKey
+  -> ServerName
+  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
 withClientTls cert chain key serverName builder =
     builder $ mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
   where
     httpCert = HTTPCert cert chain (Text.unpack serverName) key Nothing
 
 -- | Adds an additional store with trusted CA certificates
-withCustomCA :: CertificateStore -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withCustomCA 
+  :: CertificateStore
+  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
 withCustomCA store builder = builder mempty {httpClientSettingsCustomStore = store}
 
 data HTTPRequest
@@ -192,6 +208,7 @@ data HTTPCert
     , getCertChain  :: [B.ByteString]
     , getCertHost   :: String
     , getCertKey    :: B.ByteString
+    -- TODO remove
     , getTrustedCAs :: Maybe FilePath  -- ^ optional store (either a file with certs in PEM format
                                        -- ^ or a directory containing such files)
     }
@@ -226,7 +243,6 @@ data HTTPIOException
     }
   deriving (Eq, Ord, Generic, ToJSON)
 
-
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
 -- getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
@@ -234,8 +250,6 @@ data HTTPIOException
 --   Left e -> Nothing
 --   -- return request body as UTF-8 decoded text
 --   Right utf8Body -> Just utf8Body
-
-
 
 --------------------------------------------------------------------------
 -- Convenience functions

@@ -106,6 +106,7 @@ library
     , dlist
     , exceptions
     , extra
+    , generic-deriving
     , fmt
     , free
     , hedis                 ^>=0.12.8.1

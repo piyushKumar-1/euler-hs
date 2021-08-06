@@ -1,8 +1,15 @@
 # Changelog for euler-hs
 
-## [2.8.0.0] - 2021-08-02
+## [2.9.0.0] - 2021-08-02
 
-* Add an optional root CAs certificate store to `HTTPCert`
+* HTTP ManagerSettings builders
+* Remove 'callHTTPWithCert'
+
+## [2.8.0.0] - 2021-08-03
+
+* Update `beam-mysql` to 1.3.0.1 version
+
+>>>>>>> origin/master
 ## [2.7.0.0] - 2021-07-27
 
 * Expand `HTTPMethod` with `Trace`, `Connect`, `Options`, `Patch` methods

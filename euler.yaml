@@ -14,7 +14,7 @@ dependencies:
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
     branch: master
-    revision: 597e4c7bff065644cea74ebc52b2438456f00a39
+    revision: a6099ddc0cbeb67e1ed3adf22483c2758bf54843
   haskell-sequelize:
     branch: master
     revision: 7acc05c59853f1ef7fbf2715db66b5cdf03edfea
@@ -28,8 +28,8 @@ overrides:
     source: github
 
   record-dot-preprocessor:
-    version: 0.2.10
-    sha256: 08ad4d3z5rspxcqxl5iv7b3w6m8ik642cxpm5d8a77s03dyp1z75
+    version: 0.2.11
+    sha256: 1q100j7kcba4i7jfa5wwkv7kssv3k3y3y2xy95ybzsxibr8867hp
     source: hackage
 
   servant:

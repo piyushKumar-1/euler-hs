@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.0.0] - 2021-08-04
+
+* Added `generic-lens`, reverted `withField` method to old declaration, changed New `withField` to `withField'`, added `checkFailedWithLog` from webservice.
+
 ## [2.8.0.0] - 2021-08-03
 
 * Update `beam-mysql` to 1.3.0.1 version

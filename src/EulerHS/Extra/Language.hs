@@ -40,6 +40,7 @@ module EulerHS.Extra.Language
   -- * Logging
   , AppException(..)
   , throwOnFailedWithLog
+  , checkFailedWithLog
   , updateLoggerContext
   , withLoggerContext
   , logInfoT
@@ -154,6 +155,10 @@ throwOnFailedWithLog res mkException msg = case res of
     L.logError @Text "" errMsg
     L.throwException . mkException $ errMsg
   Right _  -> pure ()
+
+checkFailedWithLog :: (HasCallStack, Show e, L.MonadFlow m) => Either e a -> Text -> m ()
+checkFailedWithLog (Left err) msg = L.logError @Text "" $ msg <> " " <> show err <> ""
+checkFailedWithLog _ _ = pure ()
 
 -- | As 'logInfo', but specialized for logging 'Text' tags.
 --

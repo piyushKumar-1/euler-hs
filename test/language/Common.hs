@@ -131,7 +131,7 @@ initRTWithManagers = do
 
   -- sample proxying
   m3 <- newManager $ extract $ buildSettings
-          =>> withProxy "localhost" 3306
+          =>> withProxy ("localhost", 3306)
 
   -- custom CA
   mbStore <- readCertificateStore "test/tls/ca-certificates"
@@ -147,7 +147,7 @@ initRTWithManagers = do
   -- with client certificate
   m5 <- newManager $ extract $ buildSettings
           =>> withCustomCA store
-          =>> withClientTls cert [] key "server01"
+          =>> withClientTls (HTTPCert cert [] "server01" key)
 
   --
   let managersMap =

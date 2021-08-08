@@ -11,7 +11,9 @@ module EulerHS.HttpAPI
     , ProxySettings (..)
     , buildSettings
     , withProxy
+    , withMbProxy
     , withClientTls
+    , withMbClientTls
     , withCustomCA
 
     , HTTPRequest(..)
@@ -47,9 +49,7 @@ import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
--- import           Data.X509.CertificateStore (CertificateStore, readCertificateStore)
 import           Data.X509.CertificateStore (CertificateStore)
-import           Data.X509.Validation (validateDefault)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
@@ -93,49 +93,45 @@ instance Monoid (HTTPClientSettings) where
 type ManagerSettingsBuilder = HTTPClientSettings -> HTTP.ManagerSettings
 
 -- | The simplest builder
+-- TODO refactor using sharedCAStore
 buildSettings :: HTTPClientSettings -> HTTP.ManagerSettings
 buildSettings HTTPClientSettings{..} =
-    HTTP.managerSetProxy proxyOverride $ tlsManagerSettings
+    applyProxySettings $ baseSettings
   where
+    applyProxySettings = HTTP.managerSetProxy proxyOverride
+
     proxyOverride = case getLast httpClientSettingsProxy of
       Just (InsecureProxy host port) -> HTTP.useProxy $ HTTP.Proxy (Text.encodeUtf8 host) port
       Nothing -> HTTP.noProxy
 
-    tlsManagerSettings = case getLast httpClientSettingsClientCertificate of
+    baseSettings = case getLast httpClientSettingsClientCertificate of
       Just HTTPCert{..} ->
         case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
           Right creds ->
             let hooks = def { TLS.onCertificateRequest =
                                 \_ -> return $ Just creds
-                            , TLS.onServerCertificate =
-                                \ upstreamStore cache serviceId certChain -> do
-                                  let store = sysStore <> upstreamStore <> httpClientSettingsCustomStore
-                                  -- store <- fmap (maybe upstreamStore (upstreamStore <>)) $ runMaybeT $
-                                  --     hoistMaybe getTrustedCAs >>= MaybeT . readCertificateStore
-                                  validateDefault store cache serviceId certChain
                             }
-                clientParams = (TLS.defaultParamsClient getCertHost "")
-                              { TLS.clientHooks = hooks
-                              , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
-                              }
-                tlsSettings = Conn.TLSSettings clientParams in
-            TLS.mkManagerSettings tlsSettings Nothing
+                clientParams = mkClientParams hooks
+            in mkSettings clientParams
           -- TODO?
           Left err -> error $ "cannot load client certificate data: " <> Text.pack err
       Nothing ->
-        -- TLS.mkManagerSettings def Nothing
+        let clientParams = mkClientParams def
+        in mkSettings clientParams
 
-        let hooks = def { TLS.onServerCertificate =
-                            \ upstreamStore cache serviceId certChain -> do
-                              let store = sysStore <> upstreamStore <> httpClientSettingsCustomStore
-                              validateDefault store cache serviceId certChain
-                        }
-            -- TODO "" "" what about server name here?
-            clientParams = (TLS.defaultParamsClient "" "")
-              { TLS.clientHooks = hooks
-              , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
-              }
-            tlsSettings = Conn.TLSSettings clientParams in
+    mkClientParams hooks =
+      -- TODO "" "" what about server name here?
+      let defs = TLS.defaultParamsClient "localhost" ""
+      in
+        defs
+          { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> httpClientSettingsCustomStore }
+          , TLS.clientSupported = (TLS.clientSupported defs) { TLS.supportedCiphers = TLS.ciphersuite_default }
+          , TLS.clientHooks = hooks
+          }
+
+    mkSettings clientParams = let
+        tlsSettings = Conn.TLSSettings clientParams
+      in
         TLS.mkManagerSettings tlsSettings Nothing
 
     sysStore = memorizedSysStore
@@ -144,40 +140,40 @@ buildSettings HTTPClientSettings{..} =
 memorizedSysStore :: CertificateStore
 memorizedSysStore = unsafePerformIO getSystemCertificateStore
 
--- | Add unconditional proxying (for both http/https, regardless request )
+type SimpleProxySettings = (Text, Int)
+
+-- | Add unconditional proxying (for both http/https, regardless request's settings).
 withProxy
-  :: Text
-  -> Int
+  :: SimpleProxySettings
   -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withProxy host port builder =
+withProxy (host, port) builder =
     builder $ mempty {httpClientSettingsProxy = Last $ proxySettings}
   where
     proxySettings = Just $ InsecureProxy host port
 
-type ClientCert = B.ByteString
-type CertChain = [B.ByteString]
-type ClientKey = B.ByteString
-
--- | Define the name of the server, along with an extra service identification blob.
--- this is important that the hostname part is properly filled for security reason,
--- as it allow to properly associate the remote side with the given certificate
--- during a handshake.
-type ServerName = Text
+-- | The same as 'withProxy' but to use with optionally existsting settings.
+withMbProxy
+  :: Maybe SimpleProxySettings
+  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withMbProxy (Just s) b = withProxy s b
+withMbProxy Nothing b = b mempty
 
 -- | Adds the client certificate to use client TLS authentication
-withClientTls 
-  :: ClientCert
-  -> CertChain
-  -> ClientKey
-  -> ServerName
+withClientTls
+  :: HTTPCert
   -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withClientTls cert chain key serverName builder =
+withClientTls httpCert builder =
     builder $ mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
-  where
-    httpCert = HTTPCert cert chain (Text.unpack serverName) key Nothing
 
--- | Adds an additional store with trusted CA certificates
-withCustomCA 
+withMbClientTls
+  :: Maybe HTTPCert
+  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
+withMbClientTls (Just cert) b = withClientTls cert b
+withMbClientTls Nothing b = b mempty
+
+-- | Adds an additional store with trusted CA certificates. There is no Maybe version
+-- since 'CertificateStore` is a monoid.
+withCustomCA
   :: CertificateStore
   -> ManagerSettingsBuilder -> HTTP.ManagerSettings
 withCustomCA store builder = builder mempty {httpClientSettingsCustomStore = store}
@@ -206,11 +202,13 @@ data HTTPCert
   = HTTPCert
     { getCert       :: B.ByteString
     , getCertChain  :: [B.ByteString]
-    , getCertHost   :: String
+    , getCertHost   :: String        -- ^ Define the name of the server, along with an extra
+                                     -- ^ service identification blob (not supported in Euler ATM).
+                                     -- ^ This is important that the hostname part is properly
+                                     -- ^ filled for security reason, as it allows to properly
+                                     -- ^ as it allow to properly associate the remote side
+                                     -- ^ with the given certificate during a handshake.
     , getCertKey    :: B.ByteString
-    -- TODO remove
-    , getTrustedCAs :: Maybe FilePath  -- ^ optional store (either a file with certs in PEM format
-                                       -- ^ or a directory containing such files)
     }
 
 data HTTPMethod

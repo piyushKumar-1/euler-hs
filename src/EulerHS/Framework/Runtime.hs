@@ -66,7 +66,7 @@ newtype CertificateRegistrationError = NoCertificatesAtPath FilePath
 instance Exception CertificateRegistrationError
 
 -- | Works identically to 'withFlowRuntime', but takes an extra parameter. This
--- parameter is a map of textual identifiers to paths where self-signed
+-- parameter is a map of textual identifiers to paths where custom CA
 -- certificates can be found.
 --
 -- You can then use 'callAPI', providing 'Just' the textual identifier to use
@@ -77,6 +77,7 @@ instance Exception CertificateRegistrationError
 -- it.
 --
 -- @since 2.0.4.3
+{-# DEPRECATED withSelfSignedFlowRuntime "use manager builders instead, see buildSettings" #-}
 withSelfSignedFlowRuntime ::
   HashMap Text FilePath ->
   Maybe (IO R.LoggerRuntime) ->

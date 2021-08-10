@@ -10,10 +10,15 @@ module EulerHS.Language
     Y.logError,
     Y.logDebug,
     Y.logWarning,
+
     Y.callAPI,
     Y.callAPI',
     Y.callHTTP,
     Y.callHTTP',
+    Y.callHTTPWithCert,
+    Y.callHTTPWithManager,
+    Y.callHTTPWithManagerSelector,
+
     Y.runIO,
     Y.forkFlow,
     Y.forkFlow',

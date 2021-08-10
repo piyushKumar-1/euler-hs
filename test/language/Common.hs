@@ -7,6 +7,7 @@ module Common
   , withSecureServer
   , withClientTlsAuthServer
   , initRTWithManagers
+  , clientHttpCert
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
     -- withServer, runFlowRecording, initRTWithManagers, replayRecording,
     -- emptyMVarWithWatchDog
@@ -236,9 +237,9 @@ initRTWithManagers = do
 --     pure (targetMVar, watch >> takeMVar finalMVar, reset)
 
 
--- clientHttpCert:: IO T.HTTPCert
--- clientHttpCert = do
---   let _ = empty
---   cert <- readFile "test/tls/client/client.cert.pem"
---   key <- readFile "test/tls/client/client.key.pem"
---   return $ HTTPCert cert [] "server01" key (Just "test/tls/ca-certificates")
+clientHttpCert:: IO T.HTTPCert
+clientHttpCert = do
+  -- let _ = empty
+  cert <- readFile "test/tls/client/client.cert.pem"
+  key  <- readFile "test/tls/client/client.key.pem"
+  return $ HTTPCert cert [] "server01" key -- (Just "test/tls/ca-certificates")

@@ -10,6 +10,7 @@ module EulerHS.Framework.Interpreter
 
 import           Control.Exception (throwIO)
 import qualified Control.Exception as Exception
+import           Control.Concurrent.MVar (modifyMVar)
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
@@ -17,6 +18,7 @@ import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as Map
+import qualified Data.Cache.LRU as LRU
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
 import qualified Data.Text as Text
@@ -210,14 +212,19 @@ displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Excepti
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
 interpretFlowMethod :: Maybe FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
-interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
+interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientManager} (L.Foo mbMgrSel next) =
+    pure $ next $ case mbMgrSel of
+      Just (ManagerSelector mngrName) -> HM.lookup mngrName _httpClientManagers
+      Nothing -> Just _defaultHttpClientManager
+
+interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
-      let mbClientMngr = case mbMgrSel of
-            Nothing                           -> Right _defaultHttpClientManager
-            Just (ManagerSelector mngrName) ->
-              maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
-      case mbClientMngr of
-        Right mngr -> do
+      -- let mbClientMngr = case mbMgrSel of
+      --       Nothing                           -> Right _defaultHttpClientManager
+      --       Just (ManagerSelector mngrName) ->
+      --         maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
+      -- case mbClientMngr of
+        -- Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                             then setRequestTimeout defaultTimeout req
@@ -230,10 +237,10 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
               pure $ Left err
             Right response ->
               pure $ Right response
-        Left name -> do
-          let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
-          dbgLogger Error (show err)
-          pure $ Left err
+        -- Left name -> do
+        --   let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
+        --   dbgLogger Error (show err)
+        --   pure $ Left err
   where
     dbgLogger debugLevel =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
@@ -248,26 +255,33 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
         Left e -> pure $ Left e
         Right x -> pure x
 
-interpretFlowMethod _ _ (L.GetHttpManager settings next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetHttpManager settings next) =
   fmap next $ do
-    HTTP.newManager $ buildSettings $ settings
+    modifyMVar _dynHttpClientManagers $ \_cache -> do
+      let (cache, mMgr) = LRU.lookup settings _cache
+      case mMgr of
+        Just mgr -> pure (cache, mgr)
+        Nothing  -> do
+          mgr <- HTTP.newManager $ buildSettings settings
+          pure (LRU.insert settings mgr cache, mgr)
 
-interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel next) =
+
+interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =
     fmap next $ do
-      httpLibRequest <- getHttpLibRequest request
-      -- let mbClientMngr = case mbMgrSel of
-      --       Nothing                         -> Right _defaultHttpClientManager
+          httpLibRequest <- getHttpLibRequest request
+      -- -- let mbClientMngr = case mbMgrSel of
+      -- --       Nothing                         -> Right _defaultHttpClientManager
+      -- --       Just (ManagerSelector mngrName) ->
+      -- --         maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
+      -- -- let err = show . S.ConnectionError . toException . L.HttpManagerNotFound
+
+      -- let eClientManager = case mbMgrSel of
+      --       Nothing -> Right _defaultHttpClientManager
       --       Just (ManagerSelector mngrName) ->
       --         maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
-      -- let err = show . S.ConnectionError . toException . L.HttpManagerNotFound
 
-      let eClientManager = case mbMgrSel of
-            Nothing -> Right _defaultHttpClientManager
-            Just (ManagerSelector mngrName) ->
-              maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
-
-      case eClientManager of
-        Right manager -> do
+      -- case eClientManager of
+      --   Right manager -> do
           -- _manager <- maybe (pure $ Right mngr) mkManagerFromCert cert
           -- TODO: Refactor
           -- case mngr of
@@ -292,8 +306,8 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel nex
                       (maskHTTPResponse getLoggerMaskConfig response)
                   pure $ Right response
 
-        Left err -> pure $ Left $
-          show $ S.ConnectionError $ toException $ L.HttpManagerNotFound err
+        -- Left err -> pure $ Left $
+        --   show $ S.ConnectionError $ toException $ L.HttpManagerNotFound err
   where
     logJsonError :: Text -> HTTPRequest -> IO ()
     logJsonError err = logJson Error . HTTPIOException err

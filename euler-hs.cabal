@@ -113,12 +113,14 @@ library
     , http-client
     , http-client-tls
     , http-types
+    , lrucache
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics
     , postgresql-simple
     , process
     , profunctors
+    , random
     , resource-pool
     , sequelize             ^>=1.1.0.0
     , servant-client        ^>=0.18.2

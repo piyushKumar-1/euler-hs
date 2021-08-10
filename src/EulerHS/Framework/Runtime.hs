@@ -18,6 +18,7 @@ module EulerHS.Framework.Runtime
 
 import           Control.Monad.Trans.Except (throwE)
 import qualified Data.Map as Map (empty)
+import qualified Data.Cache.LRU as LRU
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
@@ -35,6 +36,7 @@ import           Network.TLS (ClientParams (clientShared, clientSupported),
 import           Network.TLS.Extra.Cipher (ciphersuite_default)
 import           System.IO.Unsafe (unsafePerformIO)
 import qualified System.Mem as SYSM (performGC)
+import           EulerHS.HttpAPI
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
@@ -44,6 +46,8 @@ data FlowRuntime = FlowRuntime
   -- ^ Http default manager, used for external api calls
   , _httpClientManagers       :: HashMap Text Manager
   -- ^ Http managers, used for external api calls
+  , _dynHttpClientManagers    :: MVar (LRU.LRU HTTPClientSettings Manager)
+  -- ^ usefull thing
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
   , _kvdbConnections          :: MVar (Map Text NativeKVDBConn)
@@ -116,10 +120,11 @@ withSelfSignedFlowRuntime certPathMap mRTF handler = do
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
-  defaultManagerVar <- newManager tlsManagerSettings
-  optionsVar        <- newMVar mempty
-  kvdbConnections   <- newMVar Map.empty
-  sqldbConnections  <- newMVar Map.empty
+  defaultManagerVar     <- newManager tlsManagerSettings
+  optionsVar            <- newMVar mempty
+  kvdbConnections       <- newMVar Map.empty
+  sqldbConnections      <- newMVar Map.empty
+  dynHttpClientManagers <- newMVar $ LRU.newLRU $ Just 100
   pubSubController  <- RD.newPubSubController [] []
   pure $ FlowRuntime
     { _coreRuntime              = coreRt
@@ -131,6 +136,7 @@ createFlowRuntime coreRt = do
     , _sqldbConnections         = sqldbConnections
     , _pubSubController         = pubSubController
     , _pubSubConnection         = Nothing
+    , _dynHttpClientManagers    = dynHttpClientManagers
     }
 
 createFlowRuntime' :: Maybe (IO R.LoggerRuntime) -> IO FlowRuntime

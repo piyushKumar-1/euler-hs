@@ -6,9 +6,7 @@
 module EulerHS.HttpAPI
     (
       -- * HTTP manager builder stuff
-      HTTPClientSettings(..)
-    -- remove
-    , ProxySettings (..)
+      HTTPClientSettings
     , buildSettings
     , withProxy
     , withMbProxy
@@ -65,6 +63,19 @@ import           System.IO.Unsafe (unsafePerformIO)
 import           System.X509 (getSystemCertificateStore)
 import           Generics.Deriving.Monoid (memptydefault, mappenddefault)
 
+newtype CertificateStore'
+  = CertificateStore'
+    { getCertificateStore :: CertificateStore
+    }
+  deriving newtype (Semigroup, Monoid)
+
+instance Eq CertificateStore' where
+  -- TODO
+  (==) a b = (==) a b
+
+instance Ord CertificateStore' where
+  -- TODO
+  compare a b = compare a b
 
 -- "Creating a new Manager is a relatively expensive operation, you are advised to share a single Manager between requests instead."
 
@@ -72,9 +83,9 @@ import           Generics.Deriving.Monoid (memptydefault, mappenddefault)
 data HTTPClientSettings = HTTPClientSettings
   { httpClientSettingsProxy             :: Last ProxySettings
   , httpClientSettingsClientCertificate :: Last HTTPCert
-  , httpClientSettingsCustomStore       :: CertificateStore
+  , httpClientSettingsCustomStore       :: CertificateStore'
   }
-  deriving stock (Generic)
+  deriving stock (Eq, Ord, Generic)
   -- use DeriveVia?
   -- see https://hackage.haskell.org/package/generic-deriving-1.14/docs/Generics-Deriving-Default.html
 
@@ -83,6 +94,7 @@ data ProxySettings
   { proxySettingsHost :: Text
   , proxySettingsPort :: Int
   }
+  deriving stock (Eq, Ord)
 
 instance Semigroup (HTTPClientSettings) where
   (<>)  = mappenddefault
@@ -90,10 +102,7 @@ instance Semigroup (HTTPClientSettings) where
 instance Monoid (HTTPClientSettings) where
   mempty  = memptydefault
 
-type ManagerSettingsBuilder = HTTPClientSettings -> HTTP.ManagerSettings
-
--- | The simplest builder
--- TODO refactor using sharedCAStore
+-- | The simplest settings builder
 buildSettings :: HTTPClientSettings -> HTTP.ManagerSettings
 buildSettings HTTPClientSettings{..} =
     applyProxySettings $ baseSettings
@@ -124,7 +133,7 @@ buildSettings HTTPClientSettings{..} =
       let defs = TLS.defaultParamsClient "localhost" ""
       in
         defs
-          { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> httpClientSettingsCustomStore }
+          { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }
           , TLS.clientSupported = (TLS.clientSupported defs) { TLS.supportedCiphers = TLS.ciphersuite_default }
           , TLS.clientHooks = hooks
           }
@@ -142,41 +151,32 @@ memorizedSysStore = unsafePerformIO getSystemCertificateStore
 
 type SimpleProxySettings = (Text, Int)
 
--- | Add unconditional proxying (for both http/https, regardless request's settings).
-withProxy
-  :: SimpleProxySettings
-  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withProxy (host, port) builder =
-    builder $ mempty {httpClientSettingsProxy = Last $ proxySettings}
+-- | Add unconditional proxying (for both http/https, regardless 
+-- HTTP.Client's request proxy settings).
+withProxy :: SimpleProxySettings -> HTTPClientSettings
+withProxy (host, port) =
+    mempty {httpClientSettingsProxy = Last $ proxySettings}
   where
     proxySettings = Just $ InsecureProxy host port
 
 -- | The same as 'withProxy' but to use with optionally existsting settings.
-withMbProxy
-  :: Maybe SimpleProxySettings
-  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withMbProxy (Just s) b = withProxy s b
-withMbProxy Nothing b = b mempty
+withMbProxy :: Maybe SimpleProxySettings -> HTTPClientSettings
+withMbProxy (Just s) = withProxy s
+withMbProxy Nothing = mempty
 
--- | Adds the client certificate to use client TLS authentication
-withClientTls
-  :: HTTPCert
-  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withClientTls httpCert builder =
-    builder $ mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
+-- | Adds a client certificate to do client's TLS authentication
+withClientTls :: HTTPCert -> HTTPClientSettings
+withClientTls httpCert =
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
 
-withMbClientTls
-  :: Maybe HTTPCert
-  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withMbClientTls (Just cert) b = withClientTls cert b
-withMbClientTls Nothing b = b mempty
+withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
+withMbClientTls (Just cert) = withClientTls cert
+withMbClientTls Nothing = mempty
 
 -- | Adds an additional store with trusted CA certificates. There is no Maybe version
 -- since 'CertificateStore` is a monoid.
-withCustomCA
-  :: CertificateStore
-  -> ManagerSettingsBuilder -> HTTP.ManagerSettings
-withCustomCA store builder = builder mempty {httpClientSettingsCustomStore = store}
+withCustomCA :: CertificateStore -> HTTPClientSettings
+withCustomCA store = mempty {httpClientSettingsCustomStore = CertificateStore' store}
 
 data HTTPRequest
   = HTTPRequest
@@ -202,7 +202,7 @@ data HTTPCert
   = HTTPCert
     { getCert       :: B.ByteString
     , getCertChain  :: [B.ByteString]
-    , getCertHost   :: String        -- ^ Define the name of the server, along with an extra
+    , getCertHost   :: String        -- ^ Defines the name of the server, along with an extra
                                      -- ^ service identification blob (not supported in Euler ATM).
                                      -- ^ This is important that the hostname part is properly
                                      -- ^ filled for security reason, as it allows to properly
@@ -210,6 +210,7 @@ data HTTPCert
                                      -- ^ with the given certificate during a handshake.
     , getCertKey    :: B.ByteString
     }
+    deriving stock (Eq, Ord)
 
 data HTTPMethod
   = Get

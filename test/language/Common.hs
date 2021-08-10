@@ -16,7 +16,7 @@ module Common
 import           Data.ByteString (readFile)
 import           Client (api, port, server)
 import           Control.Concurrent.Async (withAsync)
-import           Control.Comonad
+-- import           Control.Comonad
 -- import qualified Data.Vector as V
 -- import           EulerHS.Interpreters (runFlow)
 -- import           EulerHS.Language as L
@@ -130,24 +130,24 @@ initRTWithManagers = do
   -- custom managers built with euler's builder
 
   -- sample proxying
-  m3 <- newManager $ extract $ buildSettings
-          =>> withProxy ("localhost", 3306)
+  m3 <- newManager $ buildSettings $
+          withProxy ("localhost", 3306)
 
   -- custom CA
   mbStore <- readCertificateStore "test/tls/ca-certificates"
   let store = fromMaybe (error "cannot read store") mbStore
 
-  m4 <- newManager $ extract $ buildSettings
-          =>> withCustomCA store
+  m4 <- newManager $  buildSettings $
+          withCustomCA store
 
   cert <- readFile "test/tls/client/client.cert.pem"
   key <- readFile "test/tls/client/client.key.pem"
 
   -- let managerBuilder = newManager $ extract $ buildSettings
   -- with client certificate
-  m5 <- newManager $ extract $ buildSettings
-          =>> withCustomCA store
-          =>> withClientTls (HTTPCert cert [] "server01" key)
+  m5 <- newManager $ buildSettings $
+             withCustomCA store
+          <> withClientTls (HTTPCert cert [] "server01" key)
 
   --
   let managersMap =

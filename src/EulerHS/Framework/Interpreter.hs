@@ -36,7 +36,9 @@ import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   Trace, Connect, Options,Patch),
                                   HTTPRequest,
                                   HTTPRequestResponse (HTTPRequestResponse),
-                                  HTTPResponse (HTTPResponse), defaultTimeout,
+                                  HTTPResponse (HTTPResponse),
+                                  buildSettings,
+                                  defaultTimeout,
                                   -- getCert, getCertChain, getCertHost,
                                   -- getCertKey, getTrustedCAs,
                                   getRequestBody, getRequestHeaders,
@@ -245,6 +247,10 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
       case res of
         Left e -> pure $ Left e
         Right x -> pure x
+
+interpretFlowMethod _ _ (L.GetHttpManager settings next) =
+  fmap next $ do
+    HTTP.newManager $ buildSettings $ settings
 
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel next) =
     fmap next $ do

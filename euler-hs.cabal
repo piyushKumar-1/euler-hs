@@ -171,7 +171,6 @@ test-suite language
     , beam-core
     , beam-sqlite
     , bytestring
-    , comonad
     , containers
     , data-default
     , directory

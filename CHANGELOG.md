@@ -1,5 +1,13 @@
 # Changelog for euler-hs
 
+## [2.9.0.2] - 2021-08-010
+
+* Add `withRunFlow`
+
+## [2.9.0.1] - 2021-08-010
+
+* Fix adding mask config to `LoggerRuntime`
+
 ## [2.9.0.0] - 2021-08-04
 
 * Added `generic-lens`, reverted `withField` method to old declaration, changed New `withField` to `withField'`, added `checkFailedWithLog` from webservice.

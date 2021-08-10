@@ -33,7 +33,7 @@ spec =
       let mbMaskConfig = Nothing
       let maskedValue = CType.parseRequestResponseBody (CType.shouldMaskKey mbMaskConfig) maskText (Just (encodeUtf8 ("application/html" :: Text))) (LBS.toStrict rawRequest)
       maskedValue `shouldBe` expectedOutput'''
-  
+
 expectedOutput :: Text
 expectedOutput = "{\"status\":\"INIT\",\"txnId\":\"paypal-tatapay_740-1\",\"txnDetailId\":\"2148428442\",\"responseAttempted\":{\"lastUpdated\":\"2020-09-25T05:58:13Z\",\"gatewayAuthReqParams\":\"{\\\"euler-api-gateway\\\":\\\"fehfioe\\\"}\",\"dateCreated\":\"2020-09-25T05:58:13Z\",\"challengesAttempted\":0,\"canAcceptResponse\":true,\"id\":\"$$$\"},\"version\":0,\"url1\":\"$$$\",\"type\":\"VBV\"}"
 

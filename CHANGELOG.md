@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.0.2] - 2021-08-010
+
+* Add `withRunFlow`
+
 ## [2.9.0.1] - 2021-08-010
 
 * Fix adding mask config to `LoggerRuntime`

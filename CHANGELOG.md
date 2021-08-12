@@ -1,6 +1,5 @@
 # Changelog for euler-hs
 
-<<<<<<< HEAD
 ## [2.9.1.0] - 2021-08-12
 
 * HTTP ManagerSettings builders
@@ -25,7 +24,6 @@
 * Update Servant-* deps and record-dot-preprocessor version
 * Refactor and fix stack config
 
->>>>>>> origin/master
 ## [2.7.0.0] - 2021-07-27
 
 * Expand `HTTPMethod` with `Trace`, `Connect`, `Options`, `Patch` methods

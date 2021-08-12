@@ -26,18 +26,15 @@ module EulerHS.Framework.Language
   , logWarning
   -- *** PublishSubscribe
   , unpackLanguagePubSub
-
   -- *** Working with external services
   , callAPI
   , callAPI'
-  , callAPIUsingManager
   , callHTTP
   , callHTTP'
   -- *** Legacy
   , callHTTPWithCert
   , callHTTPWithManager
-
-  -- *** Other
+  -- *** Others
   , runIO
   , withRunFlow
   , forkFlow
@@ -81,9 +78,10 @@ newtype HttpManagerNotFound = HttpManagerNotFound Text
  deriving (Eq) via Text
 
 instance Exception HttpManagerNotFound
+
 -- | Flow language.
 data FlowMethod (next :: Type) where
-  Foo
+  LookupHTTPManager
     :: HasCallStack
     => (Maybe ManagerSelector)
     -> (Maybe Manager -> next)
@@ -289,7 +287,7 @@ data FlowMethod (next :: Type) where
 instance Functor FlowMethod where
   {-# INLINEABLE fmap #-}
   fmap f = \case
-    Foo mSel cont -> Foo mSel (f . cont)
+    LookupHTTPManager mSel cont -> LookupHTTPManager mSel (f . cont)
     CallServantAPI mgr url client cont -> CallServantAPI mgr url client (f . cont)
     GetHTTPManager settings cont -> GetHTTPManager settings (f . cont)
     CallHTTP req mgr cont -> CallHTTP req mgr (f . cont)
@@ -342,128 +340,6 @@ instance MonadMask Flow where
   generalBracket acquire release act =
     liftFC . GeneralBracket acquire release act $ id
 
-foldFlow :: (Monad m) => (forall b . FlowMethod b -> m b) -> Flow a -> m a
-foldFlow f (Flow comp) = foldF f comp
-
-type ReaderFlow r = ReaderT r Flow
-
-newtype PubSub a = PubSub {
-  unpackLanguagePubSub :: HasCallStack => (forall b . Flow b -> IO b) -> PSL.PubSub a
-  }
-
-type MessageCallback
-    =  ByteString  -- ^ Message payload
-    -> Flow ()
-
-type PMessageCallback
-    =  ByteString  -- ^ Channel name
-    -> ByteString  -- ^ Message payload
-    -> Flow ()
-
--- | MonadBaseControl/UnliftIO-like interface for flow.
---
--- > withSomeResourceFromIO :: (SomeRes -> IO a) -> IO a
--- > someFlowAction :: SomeRes -> Flow Result
--- >
--- > example :: Flow Result
--- > example = do
--- >   withRunFlow \runFlow -> do
--- >     withSomeResourceFromIO \res -> do
--- >       runFlow (someFlowAction res)
-withRunFlow :: ((forall x. Flow x -> IO x) -> IO a) -> Flow a
-withRunFlow ioAct = liftFC $ WithRunFlow ioAct
-
--- | Fork a unit-returning flow.
---
--- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
---
--- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
--- All the rules applied to forked threads in Haskell can be applied to forked flows.
---
--- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
--- There is no possibility to kill a thread at the moment.
---
--- Thread safe, exception free.
---
--- > myFlow1 = do
--- >   logInfoT "myflow1" "logFromMyFlow1"
--- >   someAction
--- >
--- > myFlow2 = do
--- >   _ <- runIO someAction
--- >   forkFlow "myFlow1 fork" myFlow1
--- >   pure ()
---
-forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
-forkFlow description flow = void $ forkFlow' description $ do
-  eitherResult <- runSafeFlow flow
-  case eitherResult of
-    Left msg -> logError ("forkFlow" :: Text) msg
-    Right _  -> pure ()
-
--- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
--- to reap results from the flow being forked.
---
--- > myFlow1 = do
--- >   logInfoT "myflow1" "logFromMyFlow1"
--- >   pure 10
--- >
--- > myFlow2 = do
--- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
--- >   await Nothing awaitable
---
-forkFlow' :: HasCallStack =>
-  Description -> Flow a -> Flow (Awaitable (Either Text a))
-forkFlow' description flow = do
-    flowGUID <- generateGUID
-    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
-      Nothing ->
-        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
-      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
-    liftFC $ Fork description flowGUID flow id
-
-
--- | Log message with Info level.
---
--- Thread safe.
-logInfo :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logInfo tag msg = evalLogger' $ logMessage' Info tag msg
-
--- | Log message with Error level.
---
--- Thread safe.
-logError :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logError tag msg = do
-  logCallStack
-  evalLogger' $ logMessage' Error tag msg
-
--- | Log message with Debug level.
---
--- Thread safe.
-logDebug :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logDebug tag msg = evalLogger' $ logMessage' Debug tag msg
-
--- | Log message with Warning level.
---
--- Thread safe.
-logWarning :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
-
--- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
--- because we have to collect it in recordings for ART system.
---
--- Warning. This method is dangerous and should be used wisely.
---
--- > myFlow = do
--- >   content <- runIO $ readFromFile file
--- >   logDebugT "content id" $ extractContentId content
--- >   pure content
-runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
-runIO = runIO' ""
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
 -- `ReaderT` and other monad transformers.
@@ -505,12 +381,18 @@ class (MonadMask m) => MonadFlow m where
   callServantAPI
     :: HasCallStack
     => Maybe ManagerSelector     -- ^ name of the connection manager to be used
-    -> BaseUrl                     -- ^ remote url 'BaseUrl'
+    -> BaseUrl                   -- ^ remote url 'BaseUrl'
     -> EulerClient a             -- ^ servant client 'EulerClient'
-    -> m (Either ClientError a) -- ^ result
+    -> m (Either ClientError a)  -- ^ result
 
+  callAPIUsingManager
+    :: HasCallStack
+    => Manager
+    -> BaseUrl
+    -> EulerClient a
+    -> m (Either ClientError a)
 
-  foo
+  lookupHTTPManager
     :: (HasCallStack, MonadFlow m)
     => Maybe ManagerSelector
     -> m (Maybe Manager)
@@ -523,17 +405,6 @@ class (MonadMask m) => MonadFlow m where
   -- | Method for calling external HTTP APIs without bothering with types.
   --
   -- Thread safe, exception free.
-  --
-  -- Takes remote url, optional certificate data and returns either client error or result.
-  --
-  -- > myFlow = do
-  -- >   book <- callHTTPWithCert url cert
-  -- callHTTPWithCert
-  --   :: HasCallStack
-  --   => HTTPRequest                        -- ^ remote url 'Text'
-  --   -> Maybe HTTPCert                     -- ^ TLS certificate data
-  --   -> m (Either Text.Text HTTPResponse)  -- ^ result
-
   callHTTPUsingManager
     :: HasCallStack
     => Manager
@@ -822,16 +693,382 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+instance MonadFlow Flow where
+  {-# INLINEABLE callServantAPI #-}
+  callServantAPI mgrSel url cl = do
+    let _callServantApi mgr = ExceptT $ liftFC $ CallServantAPI mgr url cl id
+    runExceptT $ getMgr mgrSel >>= _callServantApi
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url cl = liftFC $ CallServantAPI mgr url cl id
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager mMgrSel = liftFC $ LookupHTTPManager mMgrSel id
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager settings = liftFC $ GetHTTPManager settings id
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = liftFC $ CallHTTP url mgr id
+  {-# INLINEABLE evalLogger' #-}
+  evalLogger' logAct = liftFC $ EvalLogger logAct id
+  {-# INLINEABLE runIO' #-}
+  runIO' descr ioAct = liftFC $ RunIO descr ioAct id
+  {-# INLINEABLE getOption #-}
+  getOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
+  getOption k = liftFC $ GetOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE setOption #-}
+  setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
+  setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
+  {-# INLINEABLE delOption #-}
+  delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
+  delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE generateGUID #-}
+  generateGUID = liftFC $ GenerateGUID id
+  {-# INLINEABLE runSysCmd #-}
+  runSysCmd cmd = liftFC $ RunSysCmd cmd id
+  {-# INLINEABLE initSqlDBConnection #-}
+  initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
+  {-# INLINEABLE deinitSqlDBConnection #-}
+  deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
+  {-# INLINEABLE getSqlDBConnection #-}
+  getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id
+  {-# INLINEABLE initKVDBConnection #-}
+  initKVDBConnection cfg = liftFC $ InitKVDBConnection cfg id
+  {-# INLINEABLE deinitKVDBConnection #-}
+  deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
+  {-# INLINEABLE getKVDBConnection #-}
+  getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
+  {-# INLINEABLE runDB #-}
+  runDB conn dbAct = liftFC $ RunDB conn dbAct False id
+  {-# INLINEABLE runTransaction #-}
+  runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
+  {-# INLINEABLE await #-}
+  await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
+  {-# INLINEABLE runSafeFlow #-}
+  runSafeFlow flow = do
+    safeFlowGUID <- generateGUID
+    liftFC $ RunSafeFlow safeFlowGUID flow id
+  {-# INLINEABLE runKVDB #-}
+  runKVDB cName act = liftFC $ RunKVDB cName act id
+  {-# INLINEABLE runPubSub #-}
+  runPubSub act = liftFC $ RunPubSub act id
+  {-# INLINEABLE publish #-}
+  publish channel payload = runPubSub $ PubSub $ const $ PSL.publish channel payload
+  {-# INLINEABLE subscribe #-}
+  subscribe channels cb = fmap (runIO' "subscribe") $
+    runPubSub $ PubSub $ \runFlow -> PSL.subscribe channels (runFlow . cb)
+  {-# INLINEABLE psubscribe #-}
+  psubscribe channels cb = fmap (runIO' "psubscribe") $
+    runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+
+instance MonadFlow m => MonadFlow (ReaderT r m) where
+  {-# INLINEABLE callServantAPI #-}
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  {-# INLINEABLE evalLogger' #-}
+  evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
+  runIO' descr = lift . runIO' descr
+  {-# INLINEABLE getOption #-}
+  getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
+  setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
+  delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
+  generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
+  runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
+  initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
+  getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
+  initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
+  getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
+  runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
+  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
+  await mbMcs = lift . await mbMcs
+  {-# INLINEABLE runSafeFlow #-}
+  runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
+  runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
+  runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
+  publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
+  subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
+  psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
+
+instance MonadFlow m => MonadFlow (StateT s m) where
+  {-# INLINEABLE callServantAPI #-}
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  {-# INLINEABLE evalLogger' #-}
+  evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
+  runIO' descr = lift . runIO' descr
+  {-# INLINEABLE getOption #-}
+  getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
+  setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
+  delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
+  generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
+  runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
+  initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
+  getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
+  initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
+  getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
+  runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
+  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
+  await mbMcs = lift . await mbMcs
+  {-# INLINEABLE runSafeFlow #-}
+  runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
+  runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
+  runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
+  publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
+  subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
+  psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
+
+instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
+  {-# INLINEABLE callServantAPI #-}
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  {-# INLINEABLE evalLogger' #-}
+  evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
+  runIO' descr = lift . runIO' descr
+  {-# INLINEABLE getOption #-}
+  getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
+  setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
+  delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
+  generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
+  runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
+  initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
+  getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
+  initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
+  getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
+  runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
+  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
+  await mbMcs = lift . await mbMcs
+  {-# INLINEABLE runSafeFlow #-}
+  runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
+  runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
+  runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
+  publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
+  subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
+  psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
+
+instance MonadFlow m => MonadFlow (ExceptT e m) where
+  {-# INLINEABLE callServantAPI #-}
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  {-# INLINEABLE evalLogger' #-}
+  evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
+  runIO' descr = lift . runIO' descr
+  {-# INLINEABLE getOption #-}
+  getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
+  setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
+  delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
+  generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
+  runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
+  initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
+  getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
+  initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
+  getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
+  runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
+  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
+  await mbMcs = lift . await mbMcs
+  {-# INLINEABLE runSafeFlow #-}
+  runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
+  runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
+  runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
+  publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
+  subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
+  psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
+
+instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
+  {-# INLINEABLE callServantAPI #-}
+  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  {-# INLINEABLE evalLogger' #-}
+  evalLogger' = lift . evalLogger'
+  {-# INLINEABLE runIO' #-}
+  runIO' descr = lift . runIO' descr
+  {-# INLINEABLE getOption #-}
+  getOption = lift . getOption
+  {-# INLINEABLE setOption #-}
+  setOption k = lift . setOption k
+  {-# INLINEABLE delOption #-}
+  delOption = lift . delOption
+  {-# INLINEABLE generateGUID #-}
+  generateGUID = lift generateGUID
+  {-# INLINEABLE runSysCmd #-}
+  runSysCmd = lift . runSysCmd
+  {-# INLINEABLE initSqlDBConnection #-}
+  initSqlDBConnection = lift . initSqlDBConnection
+  {-# INLINEABLE deinitSqlDBConnection #-}
+  deinitSqlDBConnection = lift . deinitSqlDBConnection
+  {-# INLINEABLE getSqlDBConnection #-}
+  getSqlDBConnection = lift . getSqlDBConnection
+  {-# INLINEABLE initKVDBConnection #-}
+  initKVDBConnection = lift . initKVDBConnection
+  {-# INLINEABLE deinitKVDBConnection #-}
+  deinitKVDBConnection = lift . deinitKVDBConnection
+  {-# INLINEABLE getKVDBConnection #-}
+  getKVDBConnection = lift . getKVDBConnection
+  {-# INLINEABLE runDB #-}
+  runDB conn = lift . runDB conn
+  {-# INLINEABLE runTransaction #-}
+  runTransaction conn = lift . runTransaction conn
+  {-# INLINEABLE await #-}
+  await mbMcs = lift . await mbMcs
+  {-# INLINEABLE runSafeFlow #-}
+  runSafeFlow = lift . runSafeFlow
+  {-# INLINEABLE runKVDB #-}
+  runKVDB cName = lift . runKVDB cName
+  {-# INLINEABLE runPubSub #-}
+  runPubSub = lift . runPubSub
+  {-# INLINEABLE publish #-}
+  publish channel = lift . publish channel
+  {-# INLINEABLE subscribe #-}
+  subscribe channels = lift . subscribe channels
+  {-# INLINEABLE psubscribe #-}
+  psubscribe channels = lift . psubscribe channels
+  {-# INLINEABLE withModifiedRuntime #-}
+  withModifiedRuntime f = lift . withModifiedRuntime f
+
+
+--
+--
+-- Additional actions
+--
+--
+
+
+
 
 --
 -- HTTP managers
 --
 
 selectManager :: MonadFlow m => ManagerSelector -> m (Maybe Manager)
-selectManager m = foo $ Just m
+selectManager m = lookupHTTPManager $ Just m
 
 getDefaultManager :: MonadFlow m => m Manager
-getDefaultManager = fromJust <$> foo Nothing
+getDefaultManager = fromJust <$> lookupHTTPManager Nothing
 
 getMgr :: MonadFlow m => Maybe ManagerSelector -> ExceptT ClientError m Manager
 getMgr mgrSel =
@@ -938,379 +1175,7 @@ callAPI :: (HasCallStack, MonadFlow m) =>
   BaseUrl -> EulerClient a -> m (Either ClientError a)
 callAPI = callServantAPI Nothing
 
-callAPIUsingManager :: (HasCallStack, MonadFlow m) =>
-  Manager -> BaseUrl -> EulerClient a -> m (Either ClientError a)
--- TODO
-callAPIUsingManager = callAPIUsingManager
 
-
-
-
-
-
-
-
-
-
-
-
-
-instance MonadFlow Flow where
-  {-# INLINEABLE callServantAPI #-}
-  callServantAPI mgrSel url cl = do
-    let _callServantApi mgr = ExceptT $ liftFC $ CallServantAPI mgr url cl id
-    runExceptT $ getMgr mgrSel >>= _callServantApi
-
-  {-# INLINEABLE foo #-}
-  foo mMgrSel = liftFC $ Foo mMgrSel id
-  {-# INLINEABLE getHTTPManager #-}
-  getHTTPManager settings = liftFC $ GetHTTPManager settings id
-  {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = liftFC $ CallHTTP url mgr id
-
-  {-# INLINEABLE evalLogger' #-}
-  evalLogger' logAct = liftFC $ EvalLogger logAct id
-  {-# INLINEABLE runIO' #-}
-  runIO' descr ioAct = liftFC $ RunIO descr ioAct id
-  {-# INLINEABLE getOption #-}
-  getOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
-  getOption k = liftFC $ GetOption (mkOptionKey @k @v k) id
-  {-# INLINEABLE setOption #-}
-  setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
-  setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
-  {-# INLINEABLE delOption #-}
-  delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
-  delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
-  {-# INLINEABLE generateGUID #-}
-  generateGUID = liftFC $ GenerateGUID id
-  {-# INLINEABLE runSysCmd #-}
-  runSysCmd cmd = liftFC $ RunSysCmd cmd id
-  {-# INLINEABLE initSqlDBConnection #-}
-  initSqlDBConnection cfg = liftFC $ InitSqlDBConnection cfg id
-  {-# INLINEABLE deinitSqlDBConnection #-}
-  deinitSqlDBConnection conn = liftFC $ DeInitSqlDBConnection conn id
-  {-# INLINEABLE getSqlDBConnection #-}
-  getSqlDBConnection cfg = liftFC $ GetSqlDBConnection cfg id
-  {-# INLINEABLE initKVDBConnection #-}
-  initKVDBConnection cfg = liftFC $ InitKVDBConnection cfg id
-  {-# INLINEABLE deinitKVDBConnection #-}
-  deinitKVDBConnection conn = liftFC $ DeInitKVDBConnection conn id
-  {-# INLINEABLE getKVDBConnection #-}
-  getKVDBConnection cfg = liftFC $ GetKVDBConnection cfg id
-  {-# INLINEABLE runDB #-}
-  runDB conn dbAct = liftFC $ RunDB conn dbAct False id
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn dbAct = liftFC $ RunDB conn dbAct True id
-  {-# INLINEABLE await #-}
-  await mbMcs awaitable = liftFC $ Await mbMcs awaitable id
-  {-# INLINEABLE runSafeFlow #-}
-  runSafeFlow flow = do
-    safeFlowGUID <- generateGUID
-    liftFC $ RunSafeFlow safeFlowGUID flow id
-  {-# INLINEABLE runKVDB #-}
-  runKVDB cName act = liftFC $ RunKVDB cName act id
-  {-# INLINEABLE runPubSub #-}
-  runPubSub act = liftFC $ RunPubSub act id
-  {-# INLINEABLE publish #-}
-  publish channel payload = runPubSub $ PubSub $ const $ PSL.publish channel payload
-  {-# INLINEABLE subscribe #-}
-  subscribe channels cb = fmap (runIO' "subscribe") $
-    runPubSub $ PubSub $ \runFlow -> PSL.subscribe channels (runFlow . cb)
-  {-# INLINEABLE psubscribe #-}
-  psubscribe channels cb = fmap (runIO' "psubscribe") $
-    runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
-  {-# INLINEABLE withModifiedRuntime #-}
-  withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
-
-instance MonadFlow m => MonadFlow (ReaderT r m) where
-  {-# INLINEABLE callServantAPI #-}
-  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-
-  {-# INLINEABLE foo #-}
-  foo = lift . foo
-  {-# INLINEABLE getHTTPManager #-}
-  getHTTPManager = lift . getHTTPManager
-  {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
-
-  {-# INLINEABLE evalLogger' #-}
-  evalLogger' = lift . evalLogger'
-  {-# INLINEABLE runIO' #-}
-  runIO' descr = lift . runIO' descr
-  {-# INLINEABLE getOption #-}
-  getOption = lift . getOption
-  {-# INLINEABLE setOption #-}
-  setOption k = lift . setOption k
-  {-# INLINEABLE delOption #-}
-  delOption = lift . delOption
-  {-# INLINEABLE generateGUID #-}
-  generateGUID = lift generateGUID
-  {-# INLINEABLE runSysCmd #-}
-  runSysCmd = lift . runSysCmd
-  {-# INLINEABLE initSqlDBConnection #-}
-  initSqlDBConnection = lift . initSqlDBConnection
-  {-# INLINEABLE deinitSqlDBConnection #-}
-  deinitSqlDBConnection = lift . deinitSqlDBConnection
-  {-# INLINEABLE getSqlDBConnection #-}
-  getSqlDBConnection = lift . getSqlDBConnection
-  {-# INLINEABLE initKVDBConnection #-}
-  initKVDBConnection = lift . initKVDBConnection
-  {-# INLINEABLE deinitKVDBConnection #-}
-  deinitKVDBConnection = lift . deinitKVDBConnection
-  {-# INLINEABLE getKVDBConnection #-}
-  getKVDBConnection = lift . getKVDBConnection
-  {-# INLINEABLE runDB #-}
-  runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
-  {-# INLINEABLE await #-}
-  await mbMcs = lift . await mbMcs
-  {-# INLINEABLE runSafeFlow #-}
-  runSafeFlow = lift . runSafeFlow
-  {-# INLINEABLE runKVDB #-}
-  runKVDB cName = lift . runKVDB cName
-  {-# INLINEABLE runPubSub #-}
-  runPubSub = lift . runPubSub
-  {-# INLINEABLE publish #-}
-  publish channel = lift . publish channel
-  {-# INLINEABLE subscribe #-}
-  subscribe channels = lift . subscribe channels
-  {-# INLINEABLE psubscribe #-}
-  psubscribe channels = lift . psubscribe channels
-  {-# INLINEABLE withModifiedRuntime #-}
-  withModifiedRuntime f = lift . withModifiedRuntime f
-
-instance MonadFlow m => MonadFlow (StateT s m) where
-  {-# INLINEABLE callServantAPI #-}
-  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-
-  {-# INLINEABLE foo #-}
-  foo = lift . foo
-  {-# INLINEABLE getHTTPManager #-}
-  getHTTPManager = lift . getHTTPManager
-  {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
-
-  {-# INLINEABLE evalLogger' #-}
-  evalLogger' = lift . evalLogger'
-  {-# INLINEABLE runIO' #-}
-  runIO' descr = lift . runIO' descr
-  {-# INLINEABLE getOption #-}
-  getOption = lift . getOption
-  {-# INLINEABLE setOption #-}
-  setOption k = lift . setOption k
-  {-# INLINEABLE delOption #-}
-  delOption = lift . delOption
-  {-# INLINEABLE generateGUID #-}
-  generateGUID = lift generateGUID
-  {-# INLINEABLE runSysCmd #-}
-  runSysCmd = lift . runSysCmd
-  {-# INLINEABLE initSqlDBConnection #-}
-  initSqlDBConnection = lift . initSqlDBConnection
-  {-# INLINEABLE deinitSqlDBConnection #-}
-  deinitSqlDBConnection = lift . deinitSqlDBConnection
-  {-# INLINEABLE getSqlDBConnection #-}
-  getSqlDBConnection = lift . getSqlDBConnection
-  {-# INLINEABLE initKVDBConnection #-}
-  initKVDBConnection = lift . initKVDBConnection
-  {-# INLINEABLE deinitKVDBConnection #-}
-  deinitKVDBConnection = lift . deinitKVDBConnection
-  {-# INLINEABLE getKVDBConnection #-}
-  getKVDBConnection = lift . getKVDBConnection
-  {-# INLINEABLE runDB #-}
-  runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
-  {-# INLINEABLE await #-}
-  await mbMcs = lift . await mbMcs
-  {-# INLINEABLE runSafeFlow #-}
-  runSafeFlow = lift . runSafeFlow
-  {-# INLINEABLE runKVDB #-}
-  runKVDB cName = lift . runKVDB cName
-  {-# INLINEABLE runPubSub #-}
-  runPubSub = lift . runPubSub
-  {-# INLINEABLE publish #-}
-  publish channel = lift . publish channel
-  {-# INLINEABLE subscribe #-}
-  subscribe channels = lift . subscribe channels
-  {-# INLINEABLE psubscribe #-}
-  psubscribe channels = lift . psubscribe channels
-  {-# INLINEABLE withModifiedRuntime #-}
-  withModifiedRuntime f = lift . withModifiedRuntime f
-
-instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
-  {-# INLINEABLE callServantAPI #-}
-  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-
-  {-# INLINEABLE foo #-}
-  foo = lift . foo
-  {-# INLINEABLE getHTTPManager #-}
-  getHTTPManager = lift . getHTTPManager
-  {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
-
-  {-# INLINEABLE evalLogger' #-}
-  evalLogger' = lift . evalLogger'
-  {-# INLINEABLE runIO' #-}
-  runIO' descr = lift . runIO' descr
-  {-# INLINEABLE getOption #-}
-  getOption = lift . getOption
-  {-# INLINEABLE setOption #-}
-  setOption k = lift . setOption k
-  {-# INLINEABLE delOption #-}
-  delOption = lift . delOption
-  {-# INLINEABLE generateGUID #-}
-  generateGUID = lift generateGUID
-  {-# INLINEABLE runSysCmd #-}
-  runSysCmd = lift . runSysCmd
-  {-# INLINEABLE initSqlDBConnection #-}
-  initSqlDBConnection = lift . initSqlDBConnection
-  {-# INLINEABLE deinitSqlDBConnection #-}
-  deinitSqlDBConnection = lift . deinitSqlDBConnection
-  {-# INLINEABLE getSqlDBConnection #-}
-  getSqlDBConnection = lift . getSqlDBConnection
-  {-# INLINEABLE initKVDBConnection #-}
-  initKVDBConnection = lift . initKVDBConnection
-  {-# INLINEABLE deinitKVDBConnection #-}
-  deinitKVDBConnection = lift . deinitKVDBConnection
-  {-# INLINEABLE getKVDBConnection #-}
-  getKVDBConnection = lift . getKVDBConnection
-  {-# INLINEABLE runDB #-}
-  runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
-  {-# INLINEABLE await #-}
-  await mbMcs = lift . await mbMcs
-  {-# INLINEABLE runSafeFlow #-}
-  runSafeFlow = lift . runSafeFlow
-  {-# INLINEABLE runKVDB #-}
-  runKVDB cName = lift . runKVDB cName
-  {-# INLINEABLE runPubSub #-}
-  runPubSub = lift . runPubSub
-  {-# INLINEABLE publish #-}
-  publish channel = lift . publish channel
-  {-# INLINEABLE subscribe #-}
-  subscribe channels = lift . subscribe channels
-  {-# INLINEABLE psubscribe #-}
-  psubscribe channels = lift . psubscribe channels
-  {-# INLINEABLE withModifiedRuntime #-}
-  withModifiedRuntime f = lift . withModifiedRuntime f
-
-instance MonadFlow m => MonadFlow (ExceptT e m) where
-  {-# INLINEABLE callServantAPI #-}
-  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-
-  {-# INLINEABLE foo #-}
-  foo = lift . foo
-  {-# INLINEABLE getHTTPManager #-}
-  getHTTPManager = lift . getHTTPManager
-  {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
-
-  {-# INLINEABLE evalLogger' #-}
-  evalLogger' = lift . evalLogger'
-  {-# INLINEABLE runIO' #-}
-  runIO' descr = lift . runIO' descr
-  {-# INLINEABLE getOption #-}
-  getOption = lift . getOption
-  {-# INLINEABLE setOption #-}
-  setOption k = lift . setOption k
-  {-# INLINEABLE delOption #-}
-  delOption = lift . delOption
-  {-# INLINEABLE generateGUID #-}
-  generateGUID = lift generateGUID
-  {-# INLINEABLE runSysCmd #-}
-  runSysCmd = lift . runSysCmd
-  {-# INLINEABLE initSqlDBConnection #-}
-  initSqlDBConnection = lift . initSqlDBConnection
-  {-# INLINEABLE deinitSqlDBConnection #-}
-  deinitSqlDBConnection = lift . deinitSqlDBConnection
-  {-# INLINEABLE getSqlDBConnection #-}
-  getSqlDBConnection = lift . getSqlDBConnection
-  {-# INLINEABLE initKVDBConnection #-}
-  initKVDBConnection = lift . initKVDBConnection
-  {-# INLINEABLE deinitKVDBConnection #-}
-  deinitKVDBConnection = lift . deinitKVDBConnection
-  {-# INLINEABLE getKVDBConnection #-}
-  getKVDBConnection = lift . getKVDBConnection
-  {-# INLINEABLE runDB #-}
-  runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
-  {-# INLINEABLE await #-}
-  await mbMcs = lift . await mbMcs
-  {-# INLINEABLE runSafeFlow #-}
-  runSafeFlow = lift . runSafeFlow
-  {-# INLINEABLE runKVDB #-}
-  runKVDB cName = lift . runKVDB cName
-  {-# INLINEABLE runPubSub #-}
-  runPubSub = lift . runPubSub
-  {-# INLINEABLE publish #-}
-  publish channel = lift . publish channel
-  {-# INLINEABLE subscribe #-}
-  subscribe channels = lift . subscribe channels
-  {-# INLINEABLE psubscribe #-}
-  psubscribe channels = lift . psubscribe channels
-  {-# INLINEABLE withModifiedRuntime #-}
-  withModifiedRuntime f = lift . withModifiedRuntime f
-
-instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
-  {-# INLINEABLE callServantAPI #-}
-  callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-
-  {-# INLINEABLE foo #-}
-  foo = lift . foo
-  {-# INLINEABLE getHTTPManager #-}
-  getHTTPManager = lift . getHTTPManager
-  {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
-
-  {-# INLINEABLE evalLogger' #-}
-  evalLogger' = lift . evalLogger'
-  {-# INLINEABLE runIO' #-}
-  runIO' descr = lift . runIO' descr
-  {-# INLINEABLE getOption #-}
-  getOption = lift . getOption
-  {-# INLINEABLE setOption #-}
-  setOption k = lift . setOption k
-  {-# INLINEABLE delOption #-}
-  delOption = lift . delOption
-  {-# INLINEABLE generateGUID #-}
-  generateGUID = lift generateGUID
-  {-# INLINEABLE runSysCmd #-}
-  runSysCmd = lift . runSysCmd
-  {-# INLINEABLE initSqlDBConnection #-}
-  initSqlDBConnection = lift . initSqlDBConnection
-  {-# INLINEABLE deinitSqlDBConnection #-}
-  deinitSqlDBConnection = lift . deinitSqlDBConnection
-  {-# INLINEABLE getSqlDBConnection #-}
-  getSqlDBConnection = lift . getSqlDBConnection
-  {-# INLINEABLE initKVDBConnection #-}
-  initKVDBConnection = lift . initKVDBConnection
-  {-# INLINEABLE deinitKVDBConnection #-}
-  deinitKVDBConnection = lift . deinitKVDBConnection
-  {-# INLINEABLE getKVDBConnection #-}
-  getKVDBConnection = lift . getKVDBConnection
-  {-# INLINEABLE runDB #-}
-  runDB conn = lift . runDB conn
-  {-# INLINEABLE runTransaction #-}
-  runTransaction conn = lift . runTransaction conn
-  {-# INLINEABLE await #-}
-  await mbMcs = lift . await mbMcs
-  {-# INLINEABLE runSafeFlow #-}
-  runSafeFlow = lift . runSafeFlow
-  {-# INLINEABLE runKVDB #-}
-  runKVDB cName = lift . runKVDB cName
-  {-# INLINEABLE runPubSub #-}
-  runPubSub = lift . runPubSub
-  {-# INLINEABLE publish #-}
-  publish channel = lift . publish channel
-  {-# INLINEABLE subscribe #-}
-  subscribe channels = lift . subscribe channels
-  {-# INLINEABLE psubscribe #-}
-  psubscribe channels = lift . psubscribe channels
-  {-# INLINEABLE withModifiedRuntime #-}
-  withModifiedRuntime f = lift . withModifiedRuntime f
 
 -- TODO: save a builder in some state for using `hPutBuilder`?
 --
@@ -1329,3 +1194,125 @@ logCallStack = logDebug ("CALLSTACK" :: Text) $ Text.pack $ prettyCallStack call
 logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
 logExceptionCallStack ex = logError ("EXCEPTION" :: Text) $ Text.pack $ displayException ex
 
+foldFlow :: (Monad m) => (forall b . FlowMethod b -> m b) -> Flow a -> m a
+foldFlow f (Flow comp) = foldF f comp
+
+type ReaderFlow r = ReaderT r Flow
+
+newtype PubSub a = PubSub {
+  unpackLanguagePubSub :: HasCallStack => (forall b . Flow b -> IO b) -> PSL.PubSub a
+  }
+
+type MessageCallback
+    =  ByteString  -- ^ Message payload
+    -> Flow ()
+
+type PMessageCallback
+    =  ByteString  -- ^ Channel name
+    -> ByteString  -- ^ Message payload
+    -> Flow ()
+
+-- | MonadBaseControl/UnliftIO-like interface for flow.
+--
+-- > withSomeResourceFromIO :: (SomeRes -> IO a) -> IO a
+-- > someFlowAction :: SomeRes -> Flow Result
+-- >
+-- > example :: Flow Result
+-- > example = do
+-- >   withRunFlow \runFlow -> do
+-- >     withSomeResourceFromIO \res -> do
+-- >       runFlow (someFlowAction res)
+withRunFlow :: ((forall x. Flow x -> IO x) -> IO a) -> Flow a
+withRunFlow ioAct = liftFC $ WithRunFlow ioAct
+
+-- | Fork a unit-returning flow.
+--
+-- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
+--
+-- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
+-- All the rules applied to forked threads in Haskell can be applied to forked flows.
+--
+-- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
+-- There is no possibility to kill a thread at the moment.
+--
+-- Thread safe, exception free.
+--
+-- > myFlow1 = do
+-- >   logInfoT "myflow1" "logFromMyFlow1"
+-- >   someAction
+-- >
+-- > myFlow2 = do
+-- >   _ <- runIO someAction
+-- >   forkFlow "myFlow1 fork" myFlow1
+-- >   pure ()
+--
+forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
+forkFlow description flow = void $ forkFlow' description $ do
+  eitherResult <- runSafeFlow flow
+  case eitherResult of
+    Left msg -> logError ("forkFlow" :: Text) msg
+    Right _  -> pure ()
+
+-- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
+-- to reap results from the flow being forked.
+--
+-- > myFlow1 = do
+-- >   logInfoT "myflow1" "logFromMyFlow1"
+-- >   pure 10
+-- >
+-- > myFlow2 = do
+-- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
+-- >   await Nothing awaitable
+--
+forkFlow' :: HasCallStack =>
+  Description -> Flow a -> Flow (Awaitable (Either Text a))
+forkFlow' description flow = do
+    flowGUID <- generateGUID
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+    liftFC $ Fork description flowGUID flow id
+
+
+-- | Log message with Info level.
+--
+-- Thread safe.
+logInfo :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logInfo tag msg = evalLogger' $ logMessage' Info tag msg
+
+-- | Log message with Error level.
+--
+-- Thread safe.
+logError :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logError tag msg = do
+  logCallStack
+  evalLogger' $ logMessage' Error tag msg
+
+-- | Log message with Debug level.
+--
+-- Thread safe.
+logDebug :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logDebug tag msg = evalLogger' $ logMessage' Debug tag msg
+
+-- | Log message with Warning level.
+--
+-- Thread safe.
+logWarning :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
+
+-- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
+-- because we have to collect it in recordings for ART system.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runIO $ readFromFile file
+-- >   logDebugT "content id" $ extractContentId content
+-- >   pure content
+runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
+runIO = runIO' ""

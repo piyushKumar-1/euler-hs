@@ -13,7 +13,6 @@ module EulerHS.Language
     -- *** Calling external services
     Y.callAPI,
     Y.callAPI',
-    Y.callAPIUsingManager,
     Y.callHTTP,
     Y.callHTTP',
     Y.callHTTPWithCert,

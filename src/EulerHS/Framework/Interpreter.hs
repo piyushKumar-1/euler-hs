@@ -212,7 +212,7 @@ displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Excepti
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
 interpretFlowMethod :: Maybe FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
-interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientManager} (L.Foo mbMgrSel next) =
+interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientManager} (L.LookupHTTPManager mbMgrSel next) =
     pure $ next $ case mbMgrSel of
       Just (ManagerSelector mngrName) -> HM.lookup mngrName _httpClientManagers
       Nothing -> Just _defaultHttpClientManager

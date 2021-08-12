@@ -220,7 +220,22 @@ spec loggerCfg = do
         it "RunUntracedIO" $ \rt -> do
           result <- runFlow rt $ runIO (pure ("hi" :: String))
           result `shouldBe` "hi"
+      describe "withRunFlow" $ do
+        it "works" $ \rt -> do
+          let withResource :: (Int -> IO a) -> IO a
+              withResource act = do
+                threadDelay 10
+                act 42
 
+              action :: Int -> Flow Int
+              action res = runIO $ do
+                threadDelay 10
+                pure res
+          result <- runFlow rt $ do
+            L.withRunFlow $ \run -> do
+              withResource $ \res -> do
+                run (action res)
+          result `shouldBe` 42
       describe "STM tests" $ do
         it "STM Test" $ \rt -> do
           result <- runFlow rt $ do
@@ -363,7 +378,7 @@ spec loggerCfg = do
           (\e -> do let err = show (e :: E.AssertionFailed)
                     pure err)
         result `shouldBe` "Exception message"
-      
+
       describe "ForkFlow" $ do
         let i :: Int = 101
         it "Fork and successful await infinitely" $ \rt -> do

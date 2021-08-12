@@ -20,6 +20,7 @@ module EulerHS.Language
     Y.callHTTPWithManager,
     -- *** other
     Y.runIO,
+    Y.withRunFlow,
     Y.forkFlow,
     Y.forkFlow',
     Y.foldFlow

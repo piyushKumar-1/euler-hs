@@ -39,6 +39,7 @@ module EulerHS.Framework.Language
 
   -- *** Other
   , runIO
+  , withRunFlow
   , forkFlow
   , forkFlow'
   -- ** Interpretation
@@ -120,6 +121,11 @@ data FlowMethod (next :: Type) where
     => Text
     -> IO a
     -> (a -> next)
+    -> FlowMethod next
+
+  WithRunFlow
+    :: HasCallStack
+    => ((forall x. Flow x -> IO x) -> IO next)
     -> FlowMethod next
 
   GetOption
@@ -289,6 +295,7 @@ instance Functor FlowMethod where
     CallHTTP req mgr cont -> CallHTTP req mgr (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
+    WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
@@ -352,6 +359,19 @@ type PMessageCallback
     =  ByteString  -- ^ Channel name
     -> ByteString  -- ^ Message payload
     -> Flow ()
+
+-- | MonadBaseControl/UnliftIO-like interface for flow.
+--
+-- > withSomeResourceFromIO :: (SomeRes -> IO a) -> IO a
+-- > someFlowAction :: SomeRes -> Flow Result
+-- >
+-- > example :: Flow Result
+-- > example = do
+-- >   withRunFlow \runFlow -> do
+-- >     withSomeResourceFromIO \res -> do
+-- >       runFlow (someFlowAction res)
+withRunFlow :: ((forall x. Flow x -> IO x) -> IO a) -> Flow a
+withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 
 -- | Fork a unit-returning flow.
 --

@@ -326,6 +326,9 @@ interpretFlowMethod mbFlowGuid R.FlowRuntime {..} (L.EvalLogger loggerAct next) 
 interpretFlowMethod _ _ (L.RunIO _ ioAct next) =
   next <$> ioAct
 
+interpretFlowMethod _ flowRt (L.WithRunFlow ioAct) =
+  ioAct (runFlow flowRt)
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetOption k next) =
   fmap next $ do
     m <- readMVar _options

@@ -1,13 +1,29 @@
 # Changelog for euler-hs
 
-## [2.9.0.0] - 2021-08-02
+<<<<<<< HEAD
+## [2.9.1.0] - 2021-08-12
 
 * HTTP ManagerSettings builders
-* Remove 'callHTTPWithCert'
+* Dynamic HTTP managers
+* Unify callHTTP* and callAPI* actions
+
+## [2.9.0.2] - 2021-08-10
+
+* Add `withRunFlow`
+
+## [2.9.0.1] - 2021-08-10
+
+* Fix adding mask config to `LoggerRuntime`
+
+## [2.9.0.0] - 2021-08-04
+
+* Added `generic-lens`, reverted `withField` method to old declaration, changed New `withField` to `withField'`, added `checkFailedWithLog` from webservice.
 
 ## [2.8.0.0] - 2021-08-03
 
 * Update `beam-mysql` to 1.3.0.1 version
+* Update Servant-* deps and record-dot-preprocessor version
+* Refactor and fix stack config
 
 >>>>>>> origin/master
 ## [2.7.0.0] - 2021-07-27

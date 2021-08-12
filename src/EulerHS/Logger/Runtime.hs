@@ -70,7 +70,14 @@ createLoggerRuntime'
 createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg = do
   counter <- initLogCounter
   loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
-  pure $ LoggerRuntime flowFormatter mempty (T._logLevel cfg) (T._logRawSql cfg) counter Nothing loggerHandle
+  pure $ LoggerRuntime
+    flowFormatter
+    mempty
+    (T._logLevel cfg)
+    (T._logRawSql cfg)
+    counter
+    (T._logMaskingConfig cfg)
+    loggerHandle
 
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do

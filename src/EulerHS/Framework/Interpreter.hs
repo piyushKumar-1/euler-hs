@@ -255,7 +255,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
         Left e -> pure $ Left e
         Right x -> pure x
 
-interpretFlowMethod _ R.FlowRuntime {..} (L.GetHttpManager settings next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
   fmap next $ do
     modifyMVar _dynHttpClientManagers $ \_cache -> do
       let (cache, mMgr) = LRU.lookup settings _cache

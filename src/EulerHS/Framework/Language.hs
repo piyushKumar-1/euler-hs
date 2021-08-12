@@ -26,16 +26,18 @@ module EulerHS.Framework.Language
   , logWarning
   -- *** PublishSubscribe
   , unpackLanguagePubSub
-  -- *** Other
 
+  -- *** Working with external services
   , callAPI
   , callAPI'
+  , callAPIUsingManager
   , callHTTP
   , callHTTP'
+  -- *** Legacy
   , callHTTPWithCert
   , callHTTPWithManager
-  , callHTTPWithManagerSelector
 
+  -- *** Other
   , runIO
   , forkFlow
   , forkFlow'
@@ -86,7 +88,7 @@ data FlowMethod (next :: Type) where
     -> (Maybe Manager -> next)
     -> FlowMethod next
 
-  GetHttpManager
+  GetHTTPManager
     :: HasCallStack
     => HTTPClientSettings
     -> (Manager -> next)
@@ -283,7 +285,7 @@ instance Functor FlowMethod where
   fmap f = \case
     Foo mSel cont -> Foo mSel (f . cont)
     CallServantAPI mgr url client cont -> CallServantAPI mgr url client (f . cont)
-    GetHttpManager settings cont -> GetHttpManager settings (f . cont)
+    GetHTTPManager settings cont -> GetHTTPManager settings (f . cont)
     CallHTTP req mgr cont -> CallHTTP req mgr (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
@@ -400,47 +402,6 @@ forkFlow' description flow = do
       Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
     liftFC $ Fork description flowGUID flow id
 
--- | Method for calling external HTTP APIs using the facilities of servant-client.
--- Allows to specify what manager should be used. If no manager found,
--- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
---
--- Thread safe, exception free.
---
--- Alias for callServantAPI.
---
--- | Takes remote url, servant client for this endpoint
--- and returns either client error or result.
---
--- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
--- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- >
--- > data Book = Book { author :: String, name :: String }
--- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- >
--- > type API = "user" :> Get '[JSON] User
--- >       :<|> "book" :> Get '[JSON] Book
--- >
--- > api :: HasCallStack => Proxy API
--- > api = Proxy
--- >
--- > getUser :: HasCallStack => EulerClient User
--- > getBook :: HasCallStack => EulerClient Book
--- > (getUser :<|> getBook) = client api
--- >
--- > url = BaseUrl Http "localhost" port ""
--- >
--- >
--- > myFlow = do
--- >   book <- callAPI url getBook
--- >   user <- callAPI url getUser
-callAPI' :: (HasCallStack, MonadFlow m) =>
-  Maybe ManagerSelector -> BaseUrl -> EulerClient a -> m (Either ClientError a)
-callAPI' = callServantAPI
-
--- | The same as `callAPI'` but with default manager to be used.
-callAPI :: (HasCallStack, MonadFlow m) =>
-  BaseUrl -> EulerClient a -> m (Either ClientError a)
-callAPI = callServantAPI Nothing
 
 -- | Log message with Info level.
 --
@@ -483,27 +444,6 @@ logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
 -- >   pure content
 runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
-
--- | The same as callHTTPWithManager but does not need certificate data.
---
--- Thread safe, exception free.
---
--- Takes remote url and returns either client error or result.
---
--- > myFlow = do
--- >   book <- callHTTP url
-callHTTP :: (HasCallStack, MonadFlow m) =>
-  HTTPRequest -> m (Either Text.Text HTTPResponse)
-callHTTP url = callHTTPWithManager Nothing url
-
--- | Alias for callHTTPWithManager
-callHTTP' :: (HasCallStack, MonadFlow m) =>
-  Maybe ManagerSelector  -> HTTPRequest -> m (Either Text.Text HTTPResponse)
-callHTTP' = callHTTPWithManager
-
-callHTTPWithManagerSelector :: (HasCallStack, MonadFlow m) =>
-  Maybe ManagerSelector  -> HTTPRequest -> m (Either Text.Text HTTPResponse)
-callHTTPWithManagerSelector = callHTTPWithManager
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
 -- `ReaderT` and other monad transformers.
@@ -555,7 +495,7 @@ class (MonadMask m) => MonadFlow m where
     => Maybe ManagerSelector
     -> m (Maybe Manager)
 
-  getHttpManager
+  getHTTPManager
     :: HasCallStack
     => HTTPClientSettings
     -> m Manager
@@ -579,17 +519,6 @@ class (MonadMask m) => MonadFlow m where
     => Manager
     -> HTTPRequest
     -> m (Either Text.Text HTTPResponse)
-
-  -- | Method for calling external HTTP APIs without bothering with types with custom manager.
-  --
-  -- Thread safe, exception free.
-  --
-  -- Takes remote url, optional custom manager selector and returns either client error or result.
-  --
-  -- > myFlow = do
-  -- >   book <- callHTTPWithManager url mSel
-  
-  -- {-# DEPRECATED callHTTPWithManager "use callHTTPWithManagerSelector instead" #-}
 
   -- | Evaluates a logging action.
   evalLogger' :: HasCallStack => Logger a -> m a
@@ -873,9 +802,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
--- foo :: MonadFlow m => Maybe ManagerSelector -> m (Maybe Manager)
--- foo mMgrSel = liftFC $ Foo mMgrSel id
 
+--
+-- HTTP managers
+--
 
 selectManager :: MonadFlow m => ManagerSelector -> m (Maybe Manager)
 selectManager m = foo $ Just m
@@ -894,23 +824,115 @@ getMgr mgrSel =
         Nothing  -> pure $ Left $
           ConnectionError $ toException $ HttpManagerNotFound name
 
+--
+-- Untyped HTTP calls
+--
 
+-- | Method for calling external HTTP APIs without bothering with types with custom manager.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url, optional custom manager selector and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHTTPWithManager url mSel
+callHTTP'
+  :: (HasCallStack, MonadFlow m)
+  => Maybe ManagerSelector              -- ^ Selector
+  -> HTTPRequest                        -- ^ remote url 'Text'
+  -> m (Either Text.Text HTTPResponse)  -- ^ result
+callHTTP' mSel req=
+    runExceptT $ withExceptT show (getMgr mSel) >>=
+    ExceptT . flip callHTTPUsingManager req
 
-{-# DEPRECATED callHTTPWithCert    "Use TODO instead. This method does not allow custom CA store." #-}
-callHTTPWithCert :: MonadFlow m => HTTPRequest -> HTTPCert -> m (Either Text HTTPResponse)
-callHTTPWithCert req cert = do
-  mgr <- getHttpManager $ withClientTls cert
-  callHTTPUsingManager mgr req
-
-{-# DEPRECATED callHTTPWithManager "Use callHTTPWithManagerSelector instead. This method has confusing name, as it accepst selector instead of manager." #-}
+{-# DEPRECATED callHTTPWithManager "Use callHTTP' instead. This method has a confusing name, as it accepts a selector not a manager." #-}
 callHTTPWithManager
   :: (HasCallStack, MonadFlow m)
   => Maybe ManagerSelector              -- ^ Selector
   -> HTTPRequest                        -- ^ remote url 'Text'
   -> m (Either Text.Text HTTPResponse)  -- ^ result
-callHTTPWithManager mSel req =
-  runExceptT $ withExceptT show (getMgr mSel) >>=
-    ExceptT . flip callHTTPUsingManager req
+callHTTPWithManager = callHTTP'
+
+-- | The same as callHTTP' but uses the default HTTP manager.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHTTP url
+callHTTP :: (HasCallStack, MonadFlow m) =>
+  HTTPRequest -> m (Either Text.Text HTTPResponse)
+callHTTP url = callHTTPWithManager Nothing url
+
+{-# DEPRECATED callHTTPWithCert    "Use getHTTPManager/callHTTPUsingManager instead. This method does not allow custom CA store." #-}
+callHTTPWithCert :: MonadFlow m => HTTPRequest -> HTTPCert -> m (Either Text HTTPResponse)
+callHTTPWithCert req cert = do
+  mgr <- getHTTPManager $ withClientTls cert
+  callHTTPUsingManager mgr req
+
+
+--
+-- Well-typed HTTP calls
+--
+
+-- | Method for calling external HTTP APIs using the facilities of servant-client.
+-- Allows to specify what manager should be used. If no manager found,
+-- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
+--
+-- Thread safe, exception free.
+--
+-- Alias for callServantAPI.
+--
+-- | Takes remote url, servant client for this endpoint
+-- and returns either client error or result.
+--
+-- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > data Book = Book { author :: String, name :: String }
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > type API = "user" :> Get '[JSON] User
+-- >       :<|> "book" :> Get '[JSON] Book
+-- >
+-- > api :: HasCallStack => Proxy API
+-- > api = Proxy
+-- >
+-- > getUser :: HasCallStack => EulerClient User
+-- > getBook :: HasCallStack => EulerClient Book
+-- > (getUser :<|> getBook) = client api
+-- >
+-- > url = BaseUrl Http "localhost" port ""
+-- >
+-- >
+-- > myFlow = do
+-- >   book <- callAPI url getBook
+-- >   user <- callAPI url getUser
+callAPI' :: (HasCallStack, MonadFlow m) =>
+  Maybe ManagerSelector -> BaseUrl -> EulerClient a -> m (Either ClientError a)
+callAPI' = callServantAPI
+
+-- | The same as `callAPI'` but with default manager to be used.
+callAPI :: (HasCallStack, MonadFlow m) =>
+  BaseUrl -> EulerClient a -> m (Either ClientError a)
+callAPI = callServantAPI Nothing
+
+callAPIUsingManager :: (HasCallStack, MonadFlow m) =>
+  Manager -> BaseUrl -> EulerClient a -> m (Either ClientError a)
+-- TODO
+callAPIUsingManager = callAPIUsingManager
+
+
+
+
+
+
+
+
+
+
+
 
 
 instance MonadFlow Flow where
@@ -921,8 +943,8 @@ instance MonadFlow Flow where
 
   {-# INLINEABLE foo #-}
   foo mMgrSel = liftFC $ Foo mMgrSel id
-  {-# INLINEABLE getHttpManager #-}
-  getHttpManager settings = liftFC $ GetHttpManager settings id
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager settings = liftFC $ GetHTTPManager settings id
   {-# INLINEABLE callHTTPUsingManager #-}
   callHTTPUsingManager mgr url = liftFC $ CallHTTP url mgr id
 
@@ -986,8 +1008,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
 
   {-# INLINEABLE foo #-}
   foo = lift . foo
-  {-# INLINEABLE getHttpManager #-}
-  getHttpManager = lift . getHttpManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
   callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
 
@@ -1044,8 +1066,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
 
   {-# INLINEABLE foo #-}
   foo = lift . foo
-  {-# INLINEABLE getHttpManager #-}
-  getHttpManager = lift . getHttpManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
   callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
 
@@ -1102,8 +1124,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
 
   {-# INLINEABLE foo #-}
   foo = lift . foo
-  {-# INLINEABLE getHttpManager #-}
-  getHttpManager = lift . getHttpManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
   callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
 
@@ -1160,8 +1182,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
 
   {-# INLINEABLE foo #-}
   foo = lift . foo
-  {-# INLINEABLE getHttpManager #-}
-  getHttpManager = lift . getHttpManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
   callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
 
@@ -1218,8 +1240,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
 
   {-# INLINEABLE foo #-}
   foo = lift . foo
-  {-# INLINEABLE getHttpManager #-}
-  getHttpManager = lift . getHttpManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
   callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
 

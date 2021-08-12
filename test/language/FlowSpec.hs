@@ -115,19 +115,19 @@ spec loggerCfg = do
       describe "calling external TLS services with untyped API" $ do
         around_ withSecureServer $ do
           it "calling http with TLS manager" $ \ rt -> do
-            let req = T.httpGet $ "http://server01:" <> show port
+            let req = T.httpGet $ "http://localhost:" <> show port
             resEither <- runFlow rt $ callHTTP req
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 426
           it "server certificates with unknown CA gets rejected" $ \ rt -> do
-            let req = T.httpGet $ "https://server01:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show port
             resEither <- runFlow rt $ callHTTP req
             resEither `shouldSatisfy` isLeft
             (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
           it "validate server certificate with custom CA" $ \ _ -> do
             rt <- initRTWithManagers
-            let req = T.httpGet $ "https://server01:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show port
             resEither <- runFlow rt $ callHTTP' (Just "tlsWithCustomCA") req
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
@@ -137,12 +137,12 @@ spec loggerCfg = do
         around_ withClientTlsAuthServer $ do
           it "server rejects clients without a certificate" $ \ _ -> do
             rt <- initRTWithManagers
-            let req = T.httpGet $ "https://server01:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show port
             resEither <- runFlow rt $ callHTTP' (Just "manager1") req
             resEither `shouldSatisfy` isLeft
           it "authenticate client by a certificate" $ \ _ -> do
             rt <- initRTWithManagers
-            let req = T.httpGet $ "https://server01:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show port
             resEither <- runFlow rt $ callHTTP' (Just "tlsWithClientCertAndCustomCA")  req
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
@@ -152,17 +152,17 @@ spec loggerCfg = do
         around_ withSecureServer $ do
           it "calling http with TLS manager" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "server01" port ""
+            let url = BaseUrl Http "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
             bookEither `shouldSatisfy` isLeft
           it "server certificates with unknown CA gets rejected" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Https "server01" port ""
+            let url = BaseUrl Https "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
             bookEither `shouldSatisfy` isLeft
           it "validate server certificate with custom CA" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Https "server01" port ""
+            let url = BaseUrl Https "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "tlsWithCustomCA") url getBook
             bookEither `shouldSatisfy` isRight
 
@@ -170,31 +170,38 @@ spec loggerCfg = do
         around_ withClientTlsAuthServer $ do
           it "server rejects clients without a certificate" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Https "server01" port ""
+            let url = BaseUrl Https "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
             bookEither `shouldSatisfy` isLeft
           it "authenticate client by a certificate" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Https "server01" port ""
+            let url = BaseUrl Https "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "tlsWithClientCertAndCustomCA") url getBook
             bookEither `shouldSatisfy` isRight
 
           it "authenticate client by a ad-hoc certificate using callHTTPWithCert without custom CA store" $ \ rt -> do
-            let req = T.httpGet $ "https://server01:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show port
             cert  <- clientHttpCert
             resEither <- runFlow rt $ L.callHTTPWithCert req cert -- getBook
             resEither `shouldSatisfy` isLeft
             (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
 
-          it "authenticate client by a ad-hoc certificate" $ \ rt -> do
-            let req = T.httpGet $ "https://server01:" <> show port
-
+          it "authenticate client by an ad-hoc certificate with callHTTP" $ \ rt -> do
+            let req = T.httpGet $ "https://localhost:" <> show port
             cert  <- clientHttpCert
             store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
             resEither <- runFlow rt $ do
               mgr <- L.getHTTPManager $ T.withClientTls cert <> T.withCustomCA store
               L.callHTTPUsingManager mgr req
+            resEither `shouldSatisfy` isRight
 
+          it "authenticate client by an ad-hoc certificate with callAPI" $ \ rt -> do
+            cert  <- clientHttpCert
+            store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
+            resEither <- runFlow rt $ do
+              mgr <- L.getHTTPManager $ T.withClientTls cert <> T.withCustomCA store
+              let url = BaseUrl Https "localhost" port ""
+              L.callAPIUsingManager mgr url getBook
             resEither `shouldSatisfy` isRight
 
       describe "runIO tests" $ do

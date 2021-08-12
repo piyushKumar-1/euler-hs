@@ -191,7 +191,11 @@ spec loggerCfg = do
             cert  <- clientHttpCert
             store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
             resEither <- runFlow rt $ do
-              mgr <- L.getHTTPManager $ T.withClientTls cert <> T.withCustomCA store
+              -- Here we call getHTTPManager twice as a smoke test for LRU cache,
+              -- Eq and Ord insatnces for CertificateStore'
+              let settings = T.withClientTls cert <> T.withCustomCA store
+              mgr <- L.getHTTPManager settings
+              _ <- L.getHTTPManager settings
               L.callHTTPUsingManager mgr req
             resEither `shouldSatisfy` isRight
 
@@ -199,6 +203,8 @@ spec loggerCfg = do
             cert  <- clientHttpCert
             store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
             resEither <- runFlow rt $ do
+              -- Here we call getHTTPManager twice as a smoke test for LRU cache,
+              -- Eq and Ord insatnces for CertificateStore'
               let settings = T.withClientTls cert <> T.withCustomCA store
               mgr <- L.getHTTPManager settings
               _ <- L.getHTTPManager settings

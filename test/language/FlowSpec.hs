@@ -192,7 +192,7 @@ spec loggerCfg = do
             cert  <- clientHttpCert
             store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
             resEither <- runFlow rt $ do
-              mgr <- L.getHttpManager $ T.withClientTls cert <> T.withCustomCA store
+              mgr <- L.getHTTPManager $ T.withClientTls cert <> T.withCustomCA store
               L.callHTTPUsingManager mgr req
 
             resEither `shouldSatisfy` isRight

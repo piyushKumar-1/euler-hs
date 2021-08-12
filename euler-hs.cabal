@@ -141,6 +141,7 @@ library
     , utf8-string
     , uuid
     , validation
+    , x509
     , x509-store
     , x509-system
     , x509-validation

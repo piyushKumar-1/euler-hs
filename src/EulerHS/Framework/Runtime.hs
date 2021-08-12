@@ -82,8 +82,7 @@ instance Exception CertificateRegistrationError
 --
 -- @since 2.0.4.3
 
--- TODO !!!
-{-# DEPRECATED withSelfSignedFlowRuntime "use manager builders instead, see buildSettings" #-}
+{-# DEPRECATED withSelfSignedFlowRuntime "use manager builders instead, see HttpAPI.hs" #-}
 withSelfSignedFlowRuntime ::
   HashMap Text FilePath ->
   Maybe (IO R.LoggerRuntime) ->

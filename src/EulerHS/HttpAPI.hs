@@ -13,7 +13,7 @@ module EulerHS.HttpAPI
     , withClientTls
     , withMbClientTls
     , withCustomCA
-
+      -- * Common types and convenience methods
     , HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
@@ -47,7 +47,8 @@ import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.X509.CertificateStore (CertificateStore)
+import           Data.X509 (encodeSignedObject)
+import           Data.X509.CertificateStore (CertificateStore, listCertificates)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
@@ -70,14 +71,17 @@ newtype CertificateStore'
   deriving newtype (Semigroup, Monoid)
 
 instance Eq CertificateStore' where
-  -- TODO
-  (==) a b = (==) a b
+  (==) a b = a' == b' where
+    a' = sortedSignedObjects a
+    b' = sortedSignedObjects b
+
+sortedSignedObjects :: CertificateStore' -> [ByteString]
+sortedSignedObjects store = sort $ map encodeSignedObject $ listCertificates $ getCertificateStore store
 
 instance Ord CertificateStore' where
-  -- TODO
-  compare a b = compare a b
-
--- "Creating a new Manager is a relatively expensive operation, you are advised to share a single Manager between requests instead."
+  compare a b = a' `compare` b' where
+    a' = sortedSignedObjects a
+    b' = sortedSignedObjects b
 
 -- |
 data HTTPClientSettings = HTTPClientSettings
@@ -129,8 +133,7 @@ buildSettings HTTPClientSettings{..} =
         in mkSettings clientParams
 
     mkClientParams hooks =
-      -- TODO "" "" what about server name here?
-      let defs = TLS.defaultParamsClient "localhost" ""
+      let defs = TLS.defaultParamsClient empty ""
       in
         defs
           { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }

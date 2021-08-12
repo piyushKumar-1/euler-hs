@@ -199,7 +199,9 @@ spec loggerCfg = do
             cert  <- clientHttpCert
             store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
             resEither <- runFlow rt $ do
-              mgr <- L.getHTTPManager $ T.withClientTls cert <> T.withCustomCA store
+              let settings = T.withClientTls cert <> T.withCustomCA store
+              mgr <- L.getHTTPManager settings
+              _ <- L.getHTTPManager settings
               let url = BaseUrl Https "localhost" port ""
               L.callAPIUsingManager mgr url getBook
             resEither `shouldSatisfy` isRight

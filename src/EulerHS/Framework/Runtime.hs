@@ -18,7 +18,7 @@ module EulerHS.Framework.Runtime
 
 import           Control.Monad.Trans.Except (throwE)
 import qualified Data.Map as Map (empty)
-import qualified Data.Cache.LRU as LRU
+import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
@@ -46,7 +46,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Http default manager, used for external api calls
   , _httpClientManagers       :: HashMap Text Manager
   -- ^ Http managers, used for external api calls
-  , _dynHttpClientManagers    :: MVar (LRU.LRU HTTPClientSettings Manager)
+  , _dynHttpClientManagers    :: MVar (LRU.LruCache HTTPClientSettings Manager)
   -- ^ usefull thing
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
@@ -123,7 +123,7 @@ createFlowRuntime coreRt = do
   optionsVar            <- newMVar mempty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty
-  dynHttpClientManagers <- newMVar $ LRU.newLRU $ Just 100
+  dynHttpClientManagers <- newMVar $ LRU.empty 100
   pubSubController  <- RD.newPubSubController [] []
   pure $ FlowRuntime
     { _coreRuntime              = coreRt

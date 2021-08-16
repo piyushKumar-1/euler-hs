@@ -47,7 +47,7 @@ import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.X509 (encodeSignedObject)
+import           Data.X509 (encodeSignedObject, getCertificate, Certificate (certSerial))
 import           Data.X509.CertificateStore (CertificateStore, listCertificates)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
@@ -76,12 +76,17 @@ instance Eq CertificateStore' where
     b' = sortedSignedObjects b
 
 sortedSignedObjects :: CertificateStore' -> [ByteString]
-sortedSignedObjects store = sort $ map encodeSignedObject $ listCertificates $ getCertificateStore store
+sortedSignedObjects = sort . fmap encodeSignedObject . listCertificates . getCertificateStore
 
 instance Ord CertificateStore' where
   compare a b = a' `compare` b' where
     a' = sortedSignedObjects a
     b' = sortedSignedObjects b
+
+instance Hashable CertificateStore' where
+  hashWithSalt salt = hashWithSalt salt .
+    fmap (certSerial . getCertificate) . listCertificates . getCertificateStore
+
 
 -- |
 data HTTPClientSettings = HTTPClientSettings
@@ -93,12 +98,26 @@ data HTTPClientSettings = HTTPClientSettings
   -- use DeriveVia?
   -- see https://hackage.haskell.org/package/generic-deriving-1.14/docs/Generics-Deriving-Default.html
 
+instance Hashable HTTPClientSettings where
+  hashWithSalt salt settings = hashWithSalt salt $
+    ( getLast $ httpClientSettingsProxy             settings
+    , getLast $ httpClientSettingsClientCertificate settings
+    , httpClientSettingsCustomStore settings
+    )
+
+
+-- instance Hashable a => Hashable (Last a) where
+--   hashWithSalt salt = hashWithSalt salt . getLast
+
 data ProxySettings
   = InsecureProxy
   { proxySettingsHost :: Text
   , proxySettingsPort :: Int
   }
-  deriving stock (Eq, Ord)
+  deriving stock (Eq, Ord, Generic)
+
+instance Hashable ProxySettings
+
 
 instance Semigroup (HTTPClientSettings) where
   (<>)  = mappenddefault
@@ -213,7 +232,9 @@ data HTTPCert
                                      -- ^ with the given certificate during a handshake.
     , getCertKey    :: B.ByteString
     }
-    deriving stock (Eq, Ord)
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable HTTPCert
 
 data HTTPMethod
   = Get

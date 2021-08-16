@@ -18,7 +18,7 @@ import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as Map
-import qualified Data.Cache.LRU as LRU
+import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
 import qualified Data.Text as Text
@@ -258,12 +258,12 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
   fmap next $ do
     modifyMVar _dynHttpClientManagers $ \_cache -> do
-      let (cache, mMgr) = LRU.lookup settings _cache
-      case mMgr of
-        Just mgr -> pure (cache, mgr)
+      let mCacheMgr = LRU.lookup settings _cache
+      case mCacheMgr of
+        Just (mgr, cache) -> pure (cache, mgr)
         Nothing  -> do
           mgr <- HTTP.newManager $ buildSettings settings
-          pure (LRU.insert settings mgr cache, mgr)
+          pure (LRU.insert settings mgr _cache, mgr)
 
 
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =

@@ -15,12 +15,8 @@ module Common
 
 
 import           Data.ByteString (readFile)
-import           Client (api, port, server)
+import           Client (api, serverPort, server)
 import           Control.Concurrent.Async (withAsync)
--- import           Control.Comonad
--- import qualified Data.Vector as V
--- import           EulerHS.Interpreters (runFlow)
--- import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (readFile, empty)
 import           EulerHS.Runtime (FlowRuntime, _httpClientManagers,
                                   withFlowRuntime)
@@ -74,7 +70,7 @@ readyHandlerSetter sem = setBeforeMainLoop $ readyHandler sem
     readyHandler = flip putMVar ()
 
 portSetter :: Settings -> Settings
-portSetter = setPort port
+portSetter = setPort serverPort
 
 mkSettings :: MVar () -> Settings -> Settings
 mkSettings sem = portSetter . (readyHandlerSetter  sem)

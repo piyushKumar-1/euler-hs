@@ -3,7 +3,7 @@
 
 module FlowSpec (spec) where
 
-import           Client (User (User), getBook, getUser, port)
+import           Client (User (User), getBook, getUser, port, externalServerPort)
 import           Common (initRTWithManagers, withServer, withSecureServer, withClientTlsAuthServer, clientHttpCert)
 import qualified Control.Exception as E
 -- import qualified Data.String.Conversions as DSC
@@ -76,26 +76,26 @@ spec loggerCfg = do
       around_ withServer $ do
         describe "callAPI tests with server" $ do
           it "Simple request (book) with default manager" $ \rt -> do
-            let url = BaseUrl Http "127.0.0.1" port ""
+            let url = BaseUrl Http "localhost" port ""
             bookEither <- runFlow rt $ callAPI url getBook
             bookEither `shouldSatisfy` isRight
           it "Simple request (user) with default manager" $ \rt -> do
-            let url = BaseUrl Http "127.0.0.1" port ""
+            let url = BaseUrl Http "localhost" port ""
             userEither <- runFlow rt $ callAPI url getUser
             userEither `shouldSatisfy` isRight
           it "Simple request (book) with manager1" $ \_ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "127.0.0.1" port ""
+            let url = BaseUrl Http "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
             bookEither `shouldSatisfy` isRight
           it "Simple request (user) with manager2" $ \_ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "127.0.0.1" port ""
+            let url = BaseUrl Http "localhost" port ""
             userEither <- runFlow rt $ callAPI' (Just "manager2") url getUser
             userEither `shouldSatisfy` isRight
           it "Simple request with not existing manager" $ \_ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Http "127.0.0.1" port ""
+            let url = BaseUrl Http "localhost" port ""
             let err = displayException (ConnectionError (toException $ HttpManagerNotFound "notexist"))
             userEither <- runFlow rt $ callAPI' (Just "notexist") url getUser
             case userEither of
@@ -170,24 +170,24 @@ spec loggerCfg = do
         around_ withClientTlsAuthServer $ do
           it "server rejects clients without a certificate" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Https "localhost" port ""
+            let url = BaseUrl Https "localhost" externalServerPort ""
             bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook
             bookEither `shouldSatisfy` isLeft
           it "authenticate client by a certificate" $ \ _ -> do
             rt <- initRTWithManagers
-            let url = BaseUrl Https "localhost" port ""
+            let url = BaseUrl Https "localhost" externalServerPort ""
             bookEither <- runFlow rt $ callAPI' (Just "tlsWithClientCertAndCustomCA") url getBook
             bookEither `shouldSatisfy` isRight
 
           it "authenticate client by a ad-hoc certificate using callHTTPWithCert without custom CA store" $ \ rt -> do
-            let req = T.httpGet $ "https://localhost:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show externalServerPort
             cert  <- clientHttpCert
             resEither <- runFlow rt $ L.callHTTPWithCert req cert -- getBook
             resEither `shouldSatisfy` isLeft
             (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
 
           it "authenticate client by an ad-hoc certificate with callHTTP" $ \ rt -> do
-            let req = T.httpGet $ "https://localhost:" <> show port
+            let req = T.httpGet $ "https://localhost:" <> show externalServerPort
             cert  <- clientHttpCert
             store <- fromJust <$> readCertificateStore "test/tls/ca-certificates"
             resEither <- runFlow rt $ do
@@ -208,7 +208,7 @@ spec loggerCfg = do
               let settings = T.withClientTls cert <> T.withCustomCA store
               mgr <- L.getHTTPManager settings
               _ <- L.getHTTPManager settings
-              let url = BaseUrl Https "localhost" port ""
+              let url = BaseUrl Https "localhost" externalServerPort ""
               L.callAPIUsingManager mgr url getBook
             resEither `shouldSatisfy` isRight
 

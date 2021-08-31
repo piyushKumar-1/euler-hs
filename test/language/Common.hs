@@ -6,6 +6,7 @@ module Common
   ( withServer
   , withSecureServer
   , withClientTlsAuthServer
+  , withCertV1SecureServer
   , initRTWithManagers
   , clientHttpCert
     -- runFlowWithArt, initPlayerRT, initRecorderRT, initRegularRT,
@@ -88,6 +89,23 @@ tlsSettingsWithCert = tlsSettingsChain
                           "test/tls/server/server.cert.pem"
                           ["test/tls/intermediate/certs/ca-chain-bundle.cert.pem"]
                           "test/tls/server/server.key.pem"
+
+tlsSettingsWithCertV1 :: TLSSettings
+tlsSettingsWithCertV1 = tlsSettingsChain
+                          "test/tls/server/server.v1.cert.pem"
+                          ["test/tls/intermediate/certs/ca-chain-bundle.v1.cert.pem"]
+                          "test/tls/server/server.v1.key.pem"
+
+withCertV1SecureServer :: IO () -> IO ()
+withCertV1SecureServer action = do
+  sem <- newEmptyMVar
+  let settings = mkSettings sem defaultSettings
+  let tlsSettings = tlsSettingsWithCertV1
+                      { tlsWantClientCert = False
+                      }
+  let runServer = runTLS tlsSettings settings . serve api $ server
+  let serverIsUpCallback = \_ -> takeMVar sem >> action
+  withAsync runServer serverIsUpCallback
 
 withSecureServer :: IO () -> IO ()
 withSecureServer action = do

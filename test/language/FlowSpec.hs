@@ -4,7 +4,8 @@
 module FlowSpec (spec) where
 
 import           Client (User (User), getBook, getUser, port, externalServerPort)
-import           Common (initRTWithManagers, withServer, withSecureServer, withClientTlsAuthServer, clientHttpCert)
+import           Common (initRTWithManagers, withServer, withSecureServer, 
+                         withCertV1SecureServer, withClientTlsAuthServer, clientHttpCert)
 import qualified Control.Exception as E
 -- import qualified Data.String.Conversions as DSC
 import qualified Data.Text as Text
@@ -72,6 +73,21 @@ spec loggerCfg = do
           mv <- newMVar scenario1MockedValues
           res <- runFlowWithTestInterpreter mv rt testScenario1
           res `shouldBe` User "John" "Snow" "00000000-0000-0000-0000-000000000000"
+
+      around_ withCertV1SecureServer $ do
+        describe "support for V1 certificates" $ do
+          it "manager with V1 support connects well" $ \ _ -> do
+            rt <- initRTWithManagers
+            let req = T.httpGet $ "https://localhost:" <> show port
+            -- TODO use correct manager
+            resEither <- runFlow rt $ callHTTP' (Just "tlsWithCustomCA") req
+            resEither `shouldSatisfy` isRight
+            let code = getResponseCode $ fromRight (error "res is left") resEither
+            code `shouldBe` 404
+          it "by default there is no support for V1 certificates" $ \ rt -> do
+            let req = T.httpGet $ "https://localhost:" <> show port
+            resEither <- runFlow rt $ callHTTP req
+            resEither `shouldSatisfy` isLeft
 
       around_ withServer $ do
         describe "callAPI tests with server" $ do

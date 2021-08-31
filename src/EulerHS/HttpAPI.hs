@@ -154,13 +154,14 @@ buildSettings HTTPClientSettings{..} =
 
     mkClientParams hooks =
       let defs = TLS.defaultParamsClient empty ""
+          _ = hooks {
+                  TLS.onServerCertificate = validate HashSHA256 defaultHooks (defaultChecks { checkLeafV3 = False})
+              }
       in
         defs
           { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }
           , TLS.clientSupported = (TLS.clientSupported defs) { TLS.supportedCiphers = TLS.ciphersuite_default }
-          , TLS.clientHooks = hooks {
-                  TLS.onServerCertificate = validate HashSHA256 defaultHooks (defaultChecks { checkLeafV3 = False})
-              }
+          , TLS.clientHooks = hooks
           }
 
     mkSettings clientParams = let

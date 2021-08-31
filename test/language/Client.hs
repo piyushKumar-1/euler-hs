@@ -51,7 +51,7 @@ serverPort = 8081
 
 -- | external server for some tests (for local use only)
 externalServerPort :: Int
-externalServerPort = 443
+externalServerPort = serverPort
 
 -- | port to connect to when running tests
 port :: Int

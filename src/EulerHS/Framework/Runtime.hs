@@ -47,7 +47,7 @@ data FlowRuntime = FlowRuntime
   , _httpClientManagers       :: HashMap Text Manager
   -- ^ Http managers, used for external api calls
   , _dynHttpClientManagers    :: MVar (LRU.LruCache HTTPClientSettings Manager)
-  -- ^ usefull thing
+  -- ^ LRU cache of Managers.
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
   , _kvdbConnections          :: MVar (Map Text NativeKVDBConn)

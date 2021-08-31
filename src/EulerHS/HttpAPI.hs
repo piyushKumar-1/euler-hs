@@ -33,6 +33,7 @@ module EulerHS.HttpAPI
     , withBody
     , withTimeout
     , withRedirects
+    , withNoCheckLeafV3
     , maskHTTPRequest
     , maskHTTPResponse
     ) where
@@ -94,6 +95,7 @@ data HTTPClientSettings = HTTPClientSettings
   { httpClientSettingsProxy             :: Last ProxySettings
   , httpClientSettingsClientCertificate :: Last HTTPCert
   , httpClientSettingsCustomStore       :: CertificateStore'
+  , httpClientSettingsCheckLeafV3       :: Any
   }
   deriving stock (Eq, Ord, Generic)
   -- use DeriveVia?
@@ -124,7 +126,7 @@ instance Semigroup (HTTPClientSettings) where
   (<>)  = mappenddefault
 
 instance Monoid (HTTPClientSettings) where
-  mempty  = memptydefault
+  mempty  = memptydefault { httpClientSettingsCheckLeafV3 = Any True }
 
 -- | The simplest settings builder
 buildSettings :: HTTPClientSettings -> HTTP.ManagerSettings
@@ -156,10 +158,14 @@ buildSettings HTTPClientSettings{..} =
       let defs = TLS.defaultParamsClient empty ""
       in
         defs
-          { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }
-          , TLS.clientSupported = (TLS.clientSupported defs) { TLS.supportedCiphers = TLS.ciphersuite_default }
-          , TLS.clientHooks = hooks {
-                  TLS.onServerCertificate = validate HashSHA256 defaultHooks (defaultChecks { checkLeafV3 = False})
+          { TLS.clientShared = (TLS.clientShared defs)
+              { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }
+          , TLS.clientSupported = (TLS.clientSupported defs)
+              { TLS.supportedCiphers = TLS.ciphersuite_default }
+          , TLS.clientHooks = hooks
+              { TLS.onServerCertificate =
+                  validate HashSHA256 defaultHooks $ defaultChecks
+                    { checkLeafV3 = getAny httpClientSettingsCheckLeafV3 }
               }
           }
 
@@ -202,6 +208,9 @@ withMbClientTls Nothing = mempty
 -- since 'CertificateStore` is a monoid.
 withCustomCA :: CertificateStore -> HTTPClientSettings
 withCustomCA store = mempty {httpClientSettingsCustomStore = CertificateStore' store}
+
+withNoCheckLeafV3 :: HTTPClientSettings
+withNoCheckLeafV3 = mempty { httpClientSettingsCheckLeafV3 = Any False }
 
 data HTTPRequest
   = HTTPRequest

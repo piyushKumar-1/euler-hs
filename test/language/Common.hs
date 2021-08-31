@@ -144,7 +144,7 @@ initRTWithManagers = do
   -- with client certificate
   m5 <- newManager $ buildSettings $
              withCustomCA store
-          <> withClientTls (HTTPCert cert [] "server01" key)
+          <> withClientTls (HTTPCert cert [] "localhost" key)
 
   --
   let managersMap =

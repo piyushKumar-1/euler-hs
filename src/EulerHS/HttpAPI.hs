@@ -47,8 +47,9 @@ import qualified Data.Map as Map
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.X509 (encodeSignedObject, getCertificate, Certificate (certSerial))
+import           Data.X509 (encodeSignedObject, getCertificate, Certificate (certSerial), HashALG(..))
 import           Data.X509.CertificateStore (CertificateStore, listCertificates)
+import           Data.X509.Validation (validate, defaultHooks, defaultChecks, checkLeafV3)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
@@ -157,7 +158,9 @@ buildSettings HTTPClientSettings{..} =
         defs
           { TLS.clientShared = (TLS.clientShared defs) { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }
           , TLS.clientSupported = (TLS.clientSupported defs) { TLS.supportedCiphers = TLS.ciphersuite_default }
-          , TLS.clientHooks = hooks
+          , TLS.clientHooks = hooks {
+                  TLS.onServerCertificate = validate HashSHA256 defaultHooks (defaultChecks { checkLeafV3 = False})
+              }
           }
 
     mkSettings clientParams = let

@@ -8,11 +8,11 @@ import           Data.Map (singleton)
 
 type FlowRtInitializer = IO FlowRuntime
 
-initDefaultFlowRt :: FlowRtInitializer
-initDefaultFlowRt = do
- manager <- newMVar =<< newManager defaultManagerSettings
- options <- newMVar mempty
- coreRuntime <- createCoreRuntime =<< createVoidLoggerRuntime
- conn <- checkedConnect defaultConnectInfo
- connPool <- newMVar (singleton "redis" $ T.Redis  conn)
- pure $ FlowRuntime coreRuntime manager options connPool
+-- initDefaultFlowRt :: FlowRtInitializer
+-- initDefaultFlowRt = do
+--  manager <- newMVar =<< newManager defaultManagerSettings
+--  options <- newMVar mempty
+--  coreRuntime <- createCoreRuntime =<< createVoidLoggerRuntime
+--  conn <- checkedConnect defaultConnectInfo
+--  connPool <- newMVar (singleton "redis" $ T.Redis  conn)
+--  pure $ FlowRuntime coreRuntime manager options connPool

@@ -29,7 +29,7 @@ import           EulerHS.SqlDB.Types (ConnTag,
                                       NativeSqlPool (NativeMySQLPool, NativePGPool, NativeSQLitePool))
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
-import           Network.HTTP.Client.TLS (mkManagerSettings, tlsManagerSettings)
+import           Network.HTTP.Client.TLS (mkManagerSettings)
 import           Network.TLS (ClientParams (clientShared, clientSupported),
                               defaultParamsClient, sharedCAStore,
                               supportedCiphers)
@@ -119,7 +119,7 @@ withSelfSignedFlowRuntime certPathMap mRTF handler = do
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
-  defaultManagerVar     <- newManager tlsManagerSettings
+  defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty

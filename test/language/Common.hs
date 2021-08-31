@@ -164,6 +164,10 @@ initRTWithManagers = do
              withCustomCA store
           <> withClientTls (HTTPCert cert [] "localhost" key)
 
+  m6 <- newManager $ buildSettings $
+             withCustomCA store
+          <> withNoCheckLeafV3
+
   --
   let managersMap =
         [ ("manager1", m1)
@@ -171,6 +175,7 @@ initRTWithManagers = do
         , ("proxying", m3)
         , ("tlsWithCustomCA", m4)
         , ("tlsWithClientCertAndCustomCA", m5)
+        , ("v1CertsSupport", m6)
         ]
   pure $ flowRt { _httpClientManagers = managersMap }
 

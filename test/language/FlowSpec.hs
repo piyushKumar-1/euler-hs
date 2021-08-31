@@ -80,7 +80,7 @@ spec loggerCfg = do
             rt <- initRTWithManagers
             let req = T.httpGet $ "https://localhost:" <> show port
             -- TODO use correct manager
-            resEither <- runFlow rt $ callHTTP' (Just "tlsWithCustomCA") req
+            resEither <- runFlow rt $ callHTTP' (Just "v1CertsSupport") req
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 404

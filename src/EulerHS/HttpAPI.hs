@@ -45,6 +45,7 @@ import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.Char as Char
 import           Data.Default
 import qualified Data.Map as Map
+import           Data.Monoid (All(..))
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -95,7 +96,7 @@ data HTTPClientSettings = HTTPClientSettings
   { httpClientSettingsProxy             :: Last ProxySettings
   , httpClientSettingsClientCertificate :: Last HTTPCert
   , httpClientSettingsCustomStore       :: CertificateStore'
-  , httpClientSettingsCheckLeafV3       :: Any
+  , httpClientSettingsCheckLeafV3       :: All
   }
   deriving stock (Eq, Ord, Generic)
   -- use DeriveVia?
@@ -126,7 +127,7 @@ instance Semigroup (HTTPClientSettings) where
   (<>)  = mappenddefault
 
 instance Monoid (HTTPClientSettings) where
-  mempty  = memptydefault { httpClientSettingsCheckLeafV3 = Any True }
+  mempty  = memptydefault { httpClientSettingsCheckLeafV3 = All True }
 
 -- | The simplest settings builder
 buildSettings :: HTTPClientSettings -> HTTP.ManagerSettings
@@ -165,7 +166,7 @@ buildSettings HTTPClientSettings{..} =
           , TLS.clientHooks = hooks
               { TLS.onServerCertificate =
                   validate HashSHA256 defaultHooks $ defaultChecks
-                    { checkLeafV3 = getAny httpClientSettingsCheckLeafV3 }
+                    { checkLeafV3 = getAll httpClientSettingsCheckLeafV3 }
               }
           }
 
@@ -210,7 +211,7 @@ withCustomCA :: CertificateStore -> HTTPClientSettings
 withCustomCA store = mempty {httpClientSettingsCustomStore = CertificateStore' store}
 
 withNoCheckLeafV3 :: HTTPClientSettings
-withNoCheckLeafV3 = mempty { httpClientSettingsCheckLeafV3 = Any False }
+withNoCheckLeafV3 = mempty { httpClientSettingsCheckLeafV3 = All False }
 
 data HTTPRequest
   = HTTPRequest

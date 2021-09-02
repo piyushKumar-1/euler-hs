@@ -219,7 +219,7 @@ withCustomCA store = mempty {httpClientSettingsCustomStore = CertificateStore' s
 makeCertificateStoreFromMemory :: [ByteString] -> Either String CertificateStore
 makeCertificateStoreFromMemory es =
   fmap makeCertificateStore
-    $ sequence . fmap decodeSignedCertificate
+    $ mapM decodeSignedCertificate
        =<< (fmap (fmap pemContent . join) $ mapM pemParseBS es)
 
 -- | Turns off the check that all certs are X509 v3 ones

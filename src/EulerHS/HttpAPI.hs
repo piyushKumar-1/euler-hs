@@ -1,9 +1,22 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.HttpAPI
     (
-      HTTPRequest(..)
+      -- * HTTP manager builder stuff
+      HTTPClientSettings
+    , buildSettings
+    , withProxy
+    , withMbProxy
+    , withClientTls
+    , withMbClientTls
+    , withCustomCA
+      -- * X509 utilities
+    , makeCertificateStoreFromMemory
+      -- * Common types and convenience methods
+    , HTTPRequest(..)
     , HTTPResponse(..)
     , HTTPMethod(..)
     , HTTPCert(..)
@@ -22,6 +35,7 @@ module EulerHS.HttpAPI
     , withBody
     , withTimeout
     , withRedirects
+    , withNoCheckLeafV3
     , maskHTTPRequest
     , maskHTTPResponse
     ) where
@@ -31,15 +45,186 @@ import qualified Data.ByteString.Lazy as LB
 import           Data.ByteString.Lazy.Builder (Builder)
 import qualified Data.ByteString.Lazy.Builder as Builder
 import qualified Data.Char as Char
+import           Data.Default
 import qualified Data.Map as Map
+import           Data.Monoid (All(..))
+import           Data.PEM (pemContent, pemParseBS)
 import           Data.String.Conversions (convertString)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import           Data.X509 (decodeSignedCertificate, encodeSignedObject,
+                           getCertificate, Certificate (certSerial),
+                           HashALG(..))
+import           Data.X509.CertificateStore (CertificateStore, listCertificates, makeCertificateStore)
+import           Data.X509.Validation (validate, defaultHooks, defaultChecks, checkLeafV3)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
                                   maskHTTPHeaders, parseRequestResponseBody,
                                   shouldMaskKey)
 import           EulerHS.Prelude hiding (ord)
+import qualified Network.HTTP.Client as HTTP
+import qualified Network.Connection as Conn
+import qualified Network.HTTP.Client.TLS as TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
+import           System.IO.Unsafe (unsafePerformIO)
+import           System.X509 (getSystemCertificateStore)
+import           Generics.Deriving.Monoid (memptydefault, mappenddefault)
+
+newtype CertificateStore'
+  = CertificateStore'
+    { getCertificateStore :: CertificateStore
+    }
+  deriving newtype (Semigroup, Monoid)
+
+instance Eq CertificateStore' where
+  (==) a b = a' == b' where
+    a' = sortedSignedObjects a
+    b' = sortedSignedObjects b
+
+sortedSignedObjects :: CertificateStore' -> [ByteString]
+sortedSignedObjects = sort . fmap encodeSignedObject . listCertificates . getCertificateStore
+
+instance Ord CertificateStore' where
+  compare a b = a' `compare` b' where
+    a' = sortedSignedObjects a
+    b' = sortedSignedObjects b
+
+instance Hashable CertificateStore' where
+  hashWithSalt salt = hashWithSalt salt .
+    fmap (certSerial . getCertificate) . listCertificates . getCertificateStore
+
+
+-- |
+data HTTPClientSettings = HTTPClientSettings
+  { httpClientSettingsProxy             :: Last ProxySettings
+  , httpClientSettingsClientCertificate :: Last HTTPCert
+  , httpClientSettingsCustomStore       :: CertificateStore'
+  , httpClientSettingsCheckLeafV3       :: All
+  }
+  deriving stock (Eq, Ord, Generic)
+  -- use DeriveVia?
+  -- see https://hackage.haskell.org/package/generic-deriving-1.14/docs/Generics-Deriving-Default.html
+
+instance Hashable HTTPClientSettings where
+  hashWithSalt salt settings = hashWithSalt salt $
+    ( getLast $ httpClientSettingsProxy             settings
+    , getLast $ httpClientSettingsClientCertificate settings
+    , httpClientSettingsCustomStore settings
+    )
+
+
+-- instance Hashable a => Hashable (Last a) where
+--   hashWithSalt salt = hashWithSalt salt . getLast
+
+data ProxySettings
+  = InsecureProxy
+  { proxySettingsHost :: Text
+  , proxySettingsPort :: Int
+  }
+  deriving stock (Eq, Ord, Generic)
+
+instance Hashable ProxySettings
+
+
+instance Semigroup (HTTPClientSettings) where
+  (<>)  = mappenddefault
+
+instance Monoid (HTTPClientSettings) where
+  mempty  = memptydefault { httpClientSettingsCheckLeafV3 = All True }
+
+-- | The simplest settings builder
+buildSettings :: HTTPClientSettings -> HTTP.ManagerSettings
+buildSettings HTTPClientSettings{..} =
+    applyProxySettings $ baseSettings
+  where
+    applyProxySettings = HTTP.managerSetProxy proxyOverride
+
+    proxyOverride = case getLast httpClientSettingsProxy of
+      Just (InsecureProxy host port) -> HTTP.useProxy $ HTTP.Proxy (Text.encodeUtf8 host) port
+      Nothing -> HTTP.noProxy
+
+    baseSettings = case getLast httpClientSettingsClientCertificate of
+      Just HTTPCert{..} ->
+        case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+          Right creds ->
+            let hooks = def { TLS.onCertificateRequest =
+                                \_ -> return $ Just creds
+                            }
+                clientParams = mkClientParams hooks
+            in mkSettings clientParams
+          -- TODO?
+          Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+      Nothing ->
+        let clientParams = mkClientParams def
+        in mkSettings clientParams
+
+    mkClientParams hooks =
+      let defs = TLS.defaultParamsClient empty ""
+      in
+        defs
+          { TLS.clientShared = (TLS.clientShared defs)
+              { TLS.sharedCAStore = sysStore <> getCertificateStore httpClientSettingsCustomStore }
+          , TLS.clientSupported = (TLS.clientSupported defs)
+              { TLS.supportedCiphers = TLS.ciphersuite_default }
+          , TLS.clientHooks = hooks
+              { TLS.onServerCertificate =
+                  validate HashSHA256 defaultHooks $ defaultChecks
+                    { checkLeafV3 = getAll httpClientSettingsCheckLeafV3 }
+              }
+          }
+
+    mkSettings clientParams = let
+        tlsSettings = Conn.TLSSettings clientParams
+      in
+        TLS.mkManagerSettings tlsSettings Nothing
+
+    sysStore = memorizedSysStore
+
+{-# NOINLINE memorizedSysStore #-}
+memorizedSysStore :: CertificateStore
+memorizedSysStore = unsafePerformIO getSystemCertificateStore
+
+type SimpleProxySettings = (Text, Int)
+
+-- | Add unconditional proxying (for both http/https, regardless 
+-- HTTP.Client's request proxy settings).
+withProxy :: SimpleProxySettings -> HTTPClientSettings
+withProxy (host, port) =
+    mempty {httpClientSettingsProxy = Last $ proxySettings}
+  where
+    proxySettings = Just $ InsecureProxy host port
+
+-- | The same as 'withProxy' but to use with optionally existsting settings.
+withMbProxy :: Maybe SimpleProxySettings -> HTTPClientSettings
+withMbProxy (Just s) = withProxy s
+withMbProxy Nothing = mempty
+
+-- | Adds a client certificate to do client's TLS authentication
+withClientTls :: HTTPCert -> HTTPClientSettings
+withClientTls httpCert =
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
+
+withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
+withMbClientTls (Just cert) = withClientTls cert
+withMbClientTls Nothing = mempty
+
+-- | Adds an additional store with trusted CA certificates. There is no Maybe version
+-- since 'CertificateStore` is a monoid.
+withCustomCA :: CertificateStore -> HTTPClientSettings
+withCustomCA store = mempty {httpClientSettingsCustomStore = CertificateStore' store}
+
+-- | Make a store from in-memory certs
+makeCertificateStoreFromMemory :: [ByteString] -> Either String CertificateStore
+makeCertificateStoreFromMemory =
+  fmap makeCertificateStore . mapM decodeSignedCertificate
+       <=< fmap (fmap pemContent . join) . mapM pemParseBS
+
+-- | Turns off the check that all certs are X509 v3 ones
+{-# WARNING withNoCheckLeafV3 "Don't use in production code, use X509 v3 certs instead." #-}
+withNoCheckLeafV3 :: HTTPClientSettings
+withNoCheckLeafV3 = mempty { httpClientSettingsCheckLeafV3 = All False }
 
 data HTTPRequest
   = HTTPRequest
@@ -63,11 +248,19 @@ data HTTPResponse
 
 data HTTPCert
   = HTTPCert
-    { getCert      :: B.ByteString
-    , getCertChain :: [B.ByteString]
-    , getCertHost  :: String
-    , getCertKey   :: B.ByteString
+    { getCert       :: B.ByteString
+    , getCertChain  :: [B.ByteString]
+    , getCertHost   :: String        -- ^ Defines the name of the server, along with an extra
+                                     -- ^ service identification blob (not supported in Euler ATM).
+                                     -- ^ This is important that the hostname part is properly
+                                     -- ^ filled for security reason, as it allows to properly
+                                     -- ^ as it allow to properly associate the remote side
+                                     -- ^ with the given certificate during a handshake.
+    , getCertKey    :: B.ByteString
     }
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable HTTPCert
 
 data HTTPMethod
   = Get
@@ -99,7 +292,6 @@ data HTTPIOException
     }
   deriving (Eq, Ord, Generic, ToJSON)
 
-
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
 -- getMaybeUtf8 body = case LazyText.decodeUtf8' (T.getLBinaryString body) of
@@ -107,8 +299,6 @@ data HTTPIOException
 --   Left e -> Nothing
 --   -- return request body as UTF-8 decoded text
 --   Right utf8Body -> Just utf8Body
-
-
 
 --------------------------------------------------------------------------
 -- Convenience functions

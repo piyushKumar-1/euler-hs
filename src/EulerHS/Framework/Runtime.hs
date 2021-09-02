@@ -18,6 +18,7 @@ module EulerHS.Framework.Runtime
 
 import           Control.Monad.Trans.Except (throwE)
 import qualified Data.Map as Map (empty)
+import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
@@ -28,13 +29,14 @@ import           EulerHS.SqlDB.Types (ConnTag,
                                       NativeSqlPool (NativeMySQLPool, NativePGPool, NativeSQLitePool))
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
-import           Network.HTTP.Client.TLS (mkManagerSettings, tlsManagerSettings)
+import           Network.HTTP.Client.TLS (mkManagerSettings)
 import           Network.TLS (ClientParams (clientShared, clientSupported),
                               defaultParamsClient, sharedCAStore,
                               supportedCiphers)
 import           Network.TLS.Extra.Cipher (ciphersuite_default)
 import           System.IO.Unsafe (unsafePerformIO)
 import qualified System.Mem as SYSM (performGC)
+import           EulerHS.HttpAPI
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
@@ -44,6 +46,8 @@ data FlowRuntime = FlowRuntime
   -- ^ Http default manager, used for external api calls
   , _httpClientManagers       :: HashMap Text Manager
   -- ^ Http managers, used for external api calls
+  , _dynHttpClientManagers    :: MVar (LRU.LruCache HTTPClientSettings Manager)
+  -- ^ LRU cache of Managers.
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
   , _kvdbConnections          :: MVar (Map Text NativeKVDBConn)
@@ -66,7 +70,7 @@ newtype CertificateRegistrationError = NoCertificatesAtPath FilePath
 instance Exception CertificateRegistrationError
 
 -- | Works identically to 'withFlowRuntime', but takes an extra parameter. This
--- parameter is a map of textual identifiers to paths where self-signed
+-- parameter is a map of textual identifiers to paths where custom CA
 -- certificates can be found.
 --
 -- You can then use 'callAPI', providing 'Just' the textual identifier to use
@@ -77,6 +81,8 @@ instance Exception CertificateRegistrationError
 -- it.
 --
 -- @since 2.0.4.3
+
+{-# DEPRECATED withSelfSignedFlowRuntime "use manager builders instead, see HttpAPI.hs" #-}
 withSelfSignedFlowRuntime ::
   HashMap Text FilePath ->
   Maybe (IO R.LoggerRuntime) ->
@@ -113,10 +119,11 @@ withSelfSignedFlowRuntime certPathMap mRTF handler = do
 -- | Create default FlowRuntime.
 createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
-  defaultManagerVar <- newManager tlsManagerSettings
-  optionsVar        <- newMVar mempty
-  kvdbConnections   <- newMVar Map.empty
-  sqldbConnections  <- newMVar Map.empty
+  defaultManagerVar     <- newManager $ buildSettings mempty
+  optionsVar            <- newMVar mempty
+  kvdbConnections       <- newMVar Map.empty
+  sqldbConnections      <- newMVar Map.empty
+  dynHttpClientManagers <- newMVar $ LRU.empty 100
   pubSubController  <- RD.newPubSubController [] []
   pure $ FlowRuntime
     { _coreRuntime              = coreRt
@@ -128,6 +135,7 @@ createFlowRuntime coreRt = do
     , _sqldbConnections         = sqldbConnections
     , _pubSubController         = pubSubController
     , _pubSubConnection         = Nothing
+    , _dynHttpClientManagers    = dynHttpClientManagers
     }
 
 createFlowRuntime' :: Maybe (IO R.LoggerRuntime) -> IO FlowRuntime

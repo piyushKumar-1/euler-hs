@@ -10,9 +10,14 @@ module EulerHS.Language
     Y.logError,
     Y.logDebug,
     Y.logWarning,
+    -- *** Calling external services
     Y.callAPI,
     Y.callAPI',
     Y.callHTTP,
+    Y.callHTTP',
+    Y.callHTTPWithCert,
+    Y.callHTTPWithManager,
+    -- *** other
     Y.runIO,
     Y.withRunFlow,
     Y.forkFlow,

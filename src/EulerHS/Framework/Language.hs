@@ -26,10 +26,15 @@ module EulerHS.Framework.Language
   , logWarning
   -- *** PublishSubscribe
   , unpackLanguagePubSub
-  -- *** Other
+  -- *** Working with external services
   , callAPI
   , callAPI'
   , callHTTP
+  , callHTTP'
+  -- *** Legacy
+  , callHTTPWithCert
+  , callHTTPWithManager
+  -- *** Others
   , runIO
   , withRunFlow
   , forkFlow
@@ -43,12 +48,13 @@ import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
 import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
+import           Control.Monad.Trans.Except (withExceptT)
 import qualified Data.Text as Text
 import           EulerHS.Api (EulerClient)
 import           EulerHS.Common (Awaitable, Description, ForkGUID,
-                                 ManagerSelector, Microseconds, SafeFlowGUID)
+                                 ManagerSelector(ManagerSelector), Microseconds, SafeFlowGUID)
 import           EulerHS.Framework.Runtime (FlowRuntime)
-import           EulerHS.HttpAPI (HTTPCert, HTTPRequest, HTTPResponse)
+import           EulerHS.HttpAPI (HTTPRequest, HTTPResponse, HTTPClientSettings, withClientTls, HTTPCert)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
@@ -61,7 +67,8 @@ import qualified EulerHS.PubSub.Language as PSL
 import           EulerHS.SqlDB.Language (SqlDB)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBResult, SqlConn)
-import           Servant.Client (BaseUrl, ClientError)
+import           Network.HTTP.Client (Manager)
+import           Servant.Client (BaseUrl, ClientError (ConnectionError))
 
 data AwaitingError = AwaitingTimeout | ForkedFlowError Text
   deriving stock (Show, Eq, Ord, Generic)
@@ -71,11 +78,24 @@ newtype HttpManagerNotFound = HttpManagerNotFound Text
  deriving (Eq) via Text
 
 instance Exception HttpManagerNotFound
+
 -- | Flow language.
 data FlowMethod (next :: Type) where
+  LookupHTTPManager
+    :: HasCallStack
+    => (Maybe ManagerSelector)
+    -> (Maybe Manager -> next)
+    -> FlowMethod next
+
+  GetHTTPManager
+    :: HasCallStack
+    => HTTPClientSettings
+    -> (Manager -> next)
+    -> FlowMethod next
+
   CallServantAPI
     :: HasCallStack
-    => Maybe ManagerSelector
+    => Manager
     -> BaseUrl
     -> EulerClient a
     -> (Either ClientError a -> next)
@@ -84,8 +104,7 @@ data FlowMethod (next :: Type) where
   CallHTTP
     :: HasCallStack
     => HTTPRequest
-    -> Maybe ManagerSelector
-    -> Maybe HTTPCert
+    -> Manager
     -> (Either Text HTTPResponse -> next)
     -> FlowMethod next
 
@@ -268,9 +287,10 @@ data FlowMethod (next :: Type) where
 instance Functor FlowMethod where
   {-# INLINEABLE fmap #-}
   fmap f = \case
-    CallServantAPI mSel url client cont ->
-      CallServantAPI mSel url client (f . cont)
-    CallHTTP req mSel cert cont -> CallHTTP req mSel cert (f . cont)
+    LookupHTTPManager mSel cont -> LookupHTTPManager mSel (f . cont)
+    CallServantAPI mgr url client cont -> CallServantAPI mgr url client (f . cont)
+    GetHTTPManager settings cont -> GetHTTPManager settings (f . cont)
+    CallHTTP req mgr cont -> CallHTTP req mgr (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
     WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
@@ -320,181 +340,6 @@ instance MonadMask Flow where
   generalBracket acquire release act =
     liftFC . GeneralBracket acquire release act $ id
 
-foldFlow :: (Monad m) => (forall b . FlowMethod b -> m b) -> Flow a -> m a
-foldFlow f (Flow comp) = foldF f comp
-
-type ReaderFlow r = ReaderT r Flow
-
-newtype PubSub a = PubSub {
-  unpackLanguagePubSub :: HasCallStack => (forall b . Flow b -> IO b) -> PSL.PubSub a
-  }
-
-type MessageCallback
-    =  ByteString  -- ^ Message payload
-    -> Flow ()
-
-type PMessageCallback
-    =  ByteString  -- ^ Channel name
-    -> ByteString  -- ^ Message payload
-    -> Flow ()
-
--- | MonadBaseControl/UnliftIO-like interface for flow.
---
--- > withSomeResourceFromIO :: (SomeRes -> IO a) -> IO a
--- > someFlowAction :: SomeRes -> Flow Result
--- >
--- > example :: Flow Result
--- > example = do
--- >   withRunFlow \runFlow -> do
--- >     withSomeResourceFromIO \res -> do
--- >       runFlow (someFlowAction res)
-withRunFlow :: ((forall x. Flow x -> IO x) -> IO a) -> Flow a
-withRunFlow ioAct = liftFC $ WithRunFlow ioAct
-
--- | Fork a unit-returning flow.
---
--- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
---
--- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
--- All the rules applied to forked threads in Haskell can be applied to forked flows.
---
--- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
--- There is no possibility to kill a thread at the moment.
---
--- Thread safe, exception free.
---
--- > myFlow1 = do
--- >   logInfoT "myflow1" "logFromMyFlow1"
--- >   someAction
--- >
--- > myFlow2 = do
--- >   _ <- runIO someAction
--- >   forkFlow "myFlow1 fork" myFlow1
--- >   pure ()
---
-forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
-forkFlow description flow = void $ forkFlow' description $ do
-  eitherResult <- runSafeFlow flow
-  case eitherResult of
-    Left msg -> logError ("forkFlow" :: Text) msg
-    Right _  -> pure ()
-
--- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
--- to reap results from the flow being forked.
---
--- > myFlow1 = do
--- >   logInfoT "myflow1" "logFromMyFlow1"
--- >   pure 10
--- >
--- > myFlow2 = do
--- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
--- >   await Nothing awaitable
---
-forkFlow' :: HasCallStack =>
-  Description -> Flow a -> Flow (Awaitable (Either Text a))
-forkFlow' description flow = do
-    flowGUID <- generateGUID
-    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
-      Nothing ->
-        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
-      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
-    liftFC $ Fork description flowGUID flow id
-
--- | Method for calling external HTTP APIs using the facilities of servant-client.
--- Allows to specify what manager should be used. If no manager found,
--- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
---
--- Thread safe, exception free.
---
--- Alias for callServantAPI.
---
--- | Takes remote url, servant client for this endpoint
--- and returns either client error or result.
---
--- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
--- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- >
--- > data Book = Book { author :: String, name :: String }
--- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
--- >
--- > type API = "user" :> Get '[JSON] User
--- >       :<|> "book" :> Get '[JSON] Book
--- >
--- > api :: HasCallStack => Proxy API
--- > api = Proxy
--- >
--- > getUser :: HasCallStack => EulerClient User
--- > getBook :: HasCallStack => EulerClient Book
--- > (getUser :<|> getBook) = client api
--- >
--- > url = BaseUrl Http "localhost" port ""
--- >
--- >
--- > myFlow = do
--- >   book <- callAPI url getBook
--- >   user <- callAPI url getUser
-callAPI' :: (HasCallStack, MonadFlow m) =>
-  Maybe ManagerSelector -> BaseUrl -> EulerClient a -> m (Either ClientError a)
-callAPI' = callServantAPI
-
--- | The same as `callAPI'` but with default manager to be used.
-callAPI :: (HasCallStack, MonadFlow m) =>
-  BaseUrl -> EulerClient a -> m (Either ClientError a)
-callAPI = callServantAPI Nothing
-
--- | Log message with Info level.
---
--- Thread safe.
-logInfo :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logInfo tag msg = evalLogger' $ logMessage' Info tag msg
-
--- | Log message with Error level.
---
--- Thread safe.
-logError :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logError tag msg = do
-  logCallStack
-  evalLogger' $ logMessage' Error tag msg
-
--- | Log message with Debug level.
---
--- Thread safe.
-logDebug :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logDebug tag msg = evalLogger' $ logMessage' Debug tag msg
-
--- | Log message with Warning level.
---
--- Thread safe.
-logWarning :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
-
--- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
--- because we have to collect it in recordings for ART system.
---
--- Warning. This method is dangerous and should be used wisely.
---
--- > myFlow = do
--- >   content <- runIO $ readFromFile file
--- >   logDebugT "content id" $ extractContentId content
--- >   pure content
-runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
-runIO = runIO' ""
-
--- | The same as callHTTPWithCert but does not need certificate data.
---
--- Thread safe, exception free.
---
--- Takes remote url and returns either client error or result.
---
--- > myFlow = do
--- >   book <- callHTTP url
-callHTTP :: (HasCallStack, MonadFlow m) =>
-  HTTPRequest -> m (Either Text.Text HTTPResponse)
-callHTTP url = callHTTPWithCert url Nothing
 
 -- | MonadFlow implementation for the `Flow` Monad. This allows implementation of MonadFlow for
 -- `ReaderT` and other monad transformers.
@@ -502,7 +347,6 @@ callHTTP url = callHTTPWithCert url Nothing
 -- Omit `forkFlow` as this will break some monads like StateT (you can lift this manually if you
 -- know what you're doing)
 class (MonadMask m) => MonadFlow m where
-
   -- | Method for calling external HTTP APIs using the facilities of servant-client.
   -- Allows to specify what manager should be used. If no manager found,
   -- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
@@ -537,37 +381,35 @@ class (MonadMask m) => MonadFlow m where
   callServantAPI
     :: HasCallStack
     => Maybe ManagerSelector     -- ^ name of the connection manager to be used
-    -> BaseUrl                     -- ^ remote url 'BaseUrl'
+    -> BaseUrl                   -- ^ remote url 'BaseUrl'
     -> EulerClient a             -- ^ servant client 'EulerClient'
-    -> m (Either ClientError a) -- ^ result
+    -> m (Either ClientError a)  -- ^ result
+
+  callAPIUsingManager
+    :: HasCallStack
+    => Manager
+    -> BaseUrl
+    -> EulerClient a
+    -> m (Either ClientError a)
+
+  lookupHTTPManager
+    :: (HasCallStack, MonadFlow m)
+    => Maybe ManagerSelector
+    -> m (Maybe Manager)
+
+  getHTTPManager
+    :: HasCallStack
+    => HTTPClientSettings
+    -> m Manager
 
   -- | Method for calling external HTTP APIs without bothering with types.
   --
   -- Thread safe, exception free.
-  --
-  -- Takes remote url, optional certificate data and returns either client error or result.
-  --
-  -- > myFlow = do
-  -- >   book <- callHTTPWithCert url cert
-  callHTTPWithCert
+  callHTTPUsingManager
     :: HasCallStack
-    => HTTPRequest                        -- ^ remote url 'Text'
-    -> Maybe HTTPCert                     -- ^ TLS certificate data
-    -> m (Either Text.Text HTTPResponse)  -- ^ result
-
-  -- | Method for calling external HTTP APIs without bothering with types with custom manager.
-  --
-  -- Thread safe, exception free.
-  --
-  -- Takes remote url, optional custom manager selector and returns either client error or result.
-  --
-  -- > myFlow = do
-  -- >   book <- callHTTPWithManager url mSel
-  callHTTPWithManager
-    :: HasCallStack
-    => Maybe ManagerSelector              -- ^ Selector
-    -> HTTPRequest                        -- ^ remote url 'Text'
-    -> m (Either Text.Text HTTPResponse)  -- ^ result
+    => Manager
+    -> HTTPRequest
+    -> m (Either Text.Text HTTPResponse)
 
   -- | Evaluates a logging action.
   evalLogger' :: HasCallStack => Logger a -> m a
@@ -853,11 +695,17 @@ class (MonadMask m) => MonadFlow m where
 
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
-  callServantAPI mbMgrSel url cl = liftFC $ CallServantAPI mbMgrSel url cl id
-  {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url cert = liftFC $ CallHTTP url Nothing cert id
-  {-# INLINEABLE callHTTPWithManager #-}
-  callHTTPWithManager mSel url = liftFC $ CallHTTP url mSel Nothing id
+  callServantAPI mgrSel url cl = do
+    let _callServantApi mgr = ExceptT $ liftFC $ CallServantAPI mgr url cl id
+    runExceptT $ getMgr mgrSel >>= _callServantApi
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url cl = liftFC $ CallServantAPI mgr url cl id
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager mMgrSel = liftFC $ LookupHTTPManager mMgrSel id
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager settings = liftFC $ GetHTTPManager settings id
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = liftFC $ CallHTTP url mgr id
   {-# INLINEABLE evalLogger' #-}
   evalLogger' logAct = liftFC $ EvalLogger logAct id
   {-# INLINEABLE runIO' #-}
@@ -915,10 +763,14 @@ instance MonadFlow Flow where
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url = lift . callHTTPWithCert url
-  {-# INLINEABLE callHTTPWithManager #-}
-  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -969,10 +821,14 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url = lift . callHTTPWithCert url
-  {-# INLINEABLE callHTTPWithManager #-}
-  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1023,10 +879,14 @@ instance MonadFlow m => MonadFlow (StateT s m) where
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url = lift . callHTTPWithCert url
-  {-# INLINEABLE callHTTPWithManager #-}
-  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1077,10 +937,14 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url = lift . callHTTPWithCert url
-  {-# INLINEABLE callHTTPWithManager #-}
-  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1131,10 +995,14 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mbMgrSel url = lift . callServantAPI mbMgrSel url
-  {-# INLINEABLE callHTTPWithCert #-}
-  callHTTPWithCert url = lift . callHTTPWithCert url
-  {-# INLINEABLE callHTTPWithManager #-}
-  callHTTPWithManager mSel = lift . callHTTPWithManager mSel
+  {-# INLINEABLE callAPIUsingManager #-}
+  callAPIUsingManager mgr url = lift . callAPIUsingManager mgr url
+  {-# INLINEABLE lookupHTTPManager #-}
+  lookupHTTPManager = lift . lookupHTTPManager
+  {-# INLINEABLE getHTTPManager #-}
+  getHTTPManager = lift . getHTTPManager
+  {-# INLINEABLE callHTTPUsingManager #-}
+  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1182,6 +1050,133 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
 
+
+--
+--
+-- Additional actions
+--
+--
+
+
+
+
+--
+-- HTTP managers
+--
+
+selectManager :: MonadFlow m => ManagerSelector -> m (Maybe Manager)
+selectManager m = lookupHTTPManager $ Just m
+
+getDefaultManager :: MonadFlow m => m Manager
+getDefaultManager = fromJust <$> lookupHTTPManager Nothing
+
+getMgr :: MonadFlow m => Maybe ManagerSelector -> ExceptT ClientError m Manager
+getMgr mgrSel =
+  ExceptT $ case mgrSel of
+    Nothing  -> Right <$> getDefaultManager
+    Just sel@(ManagerSelector name) -> do
+      mmgr <- selectManager sel
+      case mmgr of
+        Just mgr -> pure $ Right mgr
+        Nothing  -> pure $ Left $
+          ConnectionError $ toException $ HttpManagerNotFound name
+
+--
+-- Untyped HTTP calls
+--
+
+-- | Method for calling external HTTP APIs without bothering with types with custom manager.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url, optional custom manager selector and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHTTPWithManager url mSel
+callHTTP'
+  :: (HasCallStack, MonadFlow m)
+  => Maybe ManagerSelector              -- ^ Selector
+  -> HTTPRequest                        -- ^ remote url 'Text'
+  -> m (Either Text.Text HTTPResponse)  -- ^ result
+callHTTP' mSel req=
+    runExceptT $ withExceptT show (getMgr mSel) >>=
+    ExceptT . flip callHTTPUsingManager req
+
+{-# DEPRECATED callHTTPWithManager "Use callHTTP' instead. This method has a confusing name, as it accepts a selector not a manager." #-}
+callHTTPWithManager
+  :: (HasCallStack, MonadFlow m)
+  => Maybe ManagerSelector              -- ^ Selector
+  -> HTTPRequest                        -- ^ remote url 'Text'
+  -> m (Either Text.Text HTTPResponse)  -- ^ result
+callHTTPWithManager = callHTTP'
+
+-- | The same as callHTTP' but uses the default HTTP manager.
+--
+-- Thread safe, exception free.
+--
+-- Takes remote url and returns either client error or result.
+--
+-- > myFlow = do
+-- >   book <- callHTTP url
+callHTTP :: (HasCallStack, MonadFlow m) =>
+  HTTPRequest -> m (Either Text.Text HTTPResponse)
+callHTTP url = callHTTPWithManager Nothing url
+
+{-# DEPRECATED callHTTPWithCert    "Use getHTTPManager/callHTTPUsingManager instead. This method does not allow custom CA store." #-}
+callHTTPWithCert :: MonadFlow m => HTTPRequest -> HTTPCert -> m (Either Text HTTPResponse)
+callHTTPWithCert req cert = do
+  mgr <- getHTTPManager $ withClientTls cert
+  callHTTPUsingManager mgr req
+
+
+--
+-- Well-typed HTTP calls
+--
+
+-- | Method for calling external HTTP APIs using the facilities of servant-client.
+-- Allows to specify what manager should be used. If no manager found,
+-- `HttpManagerNotFound` will be returne (as part of `ClientError.ConnectionError`).
+--
+-- Thread safe, exception free.
+--
+-- Alias for callServantAPI.
+--
+-- | Takes remote url, servant client for this endpoint
+-- and returns either client error or result.
+--
+-- > data User = User { firstName :: String, lastName :: String , userGUID :: String}
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > data Book = Book { author :: String, name :: String }
+-- >   deriving (Generic, Show, Eq, ToJSON, FromJSON )
+-- >
+-- > type API = "user" :> Get '[JSON] User
+-- >       :<|> "book" :> Get '[JSON] Book
+-- >
+-- > api :: HasCallStack => Proxy API
+-- > api = Proxy
+-- >
+-- > getUser :: HasCallStack => EulerClient User
+-- > getBook :: HasCallStack => EulerClient Book
+-- > (getUser :<|> getBook) = client api
+-- >
+-- > url = BaseUrl Http "localhost" port ""
+-- >
+-- >
+-- > myFlow = do
+-- >   book <- callAPI url getBook
+-- >   user <- callAPI url getUser
+callAPI' :: (HasCallStack, MonadFlow m) =>
+  Maybe ManagerSelector -> BaseUrl -> EulerClient a -> m (Either ClientError a)
+callAPI' = callServantAPI
+
+-- | The same as `callAPI'` but with default manager to be used.
+callAPI :: (HasCallStack, MonadFlow m) =>
+  BaseUrl -> EulerClient a -> m (Either ClientError a)
+callAPI = callServantAPI Nothing
+
+
+
 -- TODO: save a builder in some state for using `hPutBuilder`?
 --
 -- Doubts:
@@ -1199,3 +1194,125 @@ logCallStack = logDebug ("CALLSTACK" :: Text) $ Text.pack $ prettyCallStack call
 logExceptionCallStack :: (HasCallStack, Exception e, MonadFlow m) => e -> m ()
 logExceptionCallStack ex = logError ("EXCEPTION" :: Text) $ Text.pack $ displayException ex
 
+foldFlow :: (Monad m) => (forall b . FlowMethod b -> m b) -> Flow a -> m a
+foldFlow f (Flow comp) = foldF f comp
+
+type ReaderFlow r = ReaderT r Flow
+
+newtype PubSub a = PubSub {
+  unpackLanguagePubSub :: HasCallStack => (forall b . Flow b -> IO b) -> PSL.PubSub a
+  }
+
+type MessageCallback
+    =  ByteString  -- ^ Message payload
+    -> Flow ()
+
+type PMessageCallback
+    =  ByteString  -- ^ Channel name
+    -> ByteString  -- ^ Message payload
+    -> Flow ()
+
+-- | MonadBaseControl/UnliftIO-like interface for flow.
+--
+-- > withSomeResourceFromIO :: (SomeRes -> IO a) -> IO a
+-- > someFlowAction :: SomeRes -> Flow Result
+-- >
+-- > example :: Flow Result
+-- > example = do
+-- >   withRunFlow \runFlow -> do
+-- >     withSomeResourceFromIO \res -> do
+-- >       runFlow (someFlowAction res)
+withRunFlow :: ((forall x. Flow x -> IO x) -> IO a) -> Flow a
+withRunFlow ioAct = liftFC $ WithRunFlow ioAct
+
+-- | Fork a unit-returning flow.
+--
+-- __Note__: to fork a flow which yields a value use 'forkFlow\'' instead.
+--
+-- __Warning__: With forked flows, race coniditions and dead / live blocking become possible.
+-- All the rules applied to forked threads in Haskell can be applied to forked flows.
+--
+-- Generally, the method is thread safe. Doesn't do anything to bookkeep the threads.
+-- There is no possibility to kill a thread at the moment.
+--
+-- Thread safe, exception free.
+--
+-- > myFlow1 = do
+-- >   logInfoT "myflow1" "logFromMyFlow1"
+-- >   someAction
+-- >
+-- > myFlow2 = do
+-- >   _ <- runIO someAction
+-- >   forkFlow "myFlow1 fork" myFlow1
+-- >   pure ()
+--
+forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
+forkFlow description flow = void $ forkFlow' description $ do
+  eitherResult <- runSafeFlow flow
+  case eitherResult of
+    Left msg -> logError ("forkFlow" :: Text) msg
+    Right _  -> pure ()
+
+-- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
+-- to reap results from the flow being forked.
+--
+-- > myFlow1 = do
+-- >   logInfoT "myflow1" "logFromMyFlow1"
+-- >   pure 10
+-- >
+-- > myFlow2 = do
+-- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
+-- >   await Nothing awaitable
+--
+forkFlow' :: HasCallStack =>
+  Description -> Flow a -> Flow (Awaitable (Either Text a))
+forkFlow' description flow = do
+    flowGUID <- generateGUID
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+    liftFC $ Fork description flowGUID flow id
+
+
+-- | Log message with Info level.
+--
+-- Thread safe.
+logInfo :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logInfo tag msg = evalLogger' $ logMessage' Info tag msg
+
+-- | Log message with Error level.
+--
+-- Thread safe.
+logError :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logError tag msg = do
+  logCallStack
+  evalLogger' $ logMessage' Error tag msg
+
+-- | Log message with Debug level.
+--
+-- Thread safe.
+logDebug :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logDebug tag msg = evalLogger' $ logMessage' Debug tag msg
+
+-- | Log message with Warning level.
+--
+-- Thread safe.
+logWarning :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
+logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
+
+-- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
+-- because we have to collect it in recordings for ART system.
+--
+-- Warning. This method is dangerous and should be used wisely.
+--
+-- > myFlow = do
+-- >   content <- runIO $ readFromFile file
+-- >   logDebugT "content id" $ extractContentId content
+-- >   pure content
+runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
+runIO = runIO' ""

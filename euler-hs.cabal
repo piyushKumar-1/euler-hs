@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.9.0.2
+version:       2.9.1.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -106,6 +106,7 @@ library
     , dlist
     , exceptions
     , extra
+    , generic-deriving
     , fmt
     , free
     , generic-lens
@@ -113,12 +114,15 @@ library
     , http-client
     , http-client-tls
     , http-types
+    , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics
+    , pem
     , postgresql-simple
     , process
     , profunctors
+    , random
     , resource-pool
     , sequelize             ^>=1.1.0.0
     , servant-client        ^>=0.18.2
@@ -138,7 +142,10 @@ library
     , utf8-string
     , uuid
     , validation
+    , x509
     , x509-store
+    , x509-system
+    , x509-validation
 
   hs-source-dirs:  src
 
@@ -170,8 +177,10 @@ test-suite language
     , beam-sqlite
     , bytestring
     , containers
+    , data-default
     , directory
     , euler-hs
+    , extra
     , filepath
     , generic-arbitrary
     , generic-lens
@@ -192,11 +201,16 @@ test-suite language
     , servant-server        ^>=0.18.2
     , string-conversions
     , text
+    , tls
     , typed-process
     , unordered-containers
     , uuid
     , vector
     , warp
+    , warp-tls
+    , x509-store
+    , tls
+    , connection
 
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language

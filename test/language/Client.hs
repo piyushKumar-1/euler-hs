@@ -5,7 +5,7 @@
 module Client
   (
     Book(..), User(..),
-    port, api, server,
+    port, externalServerPort, serverPort, api, server,
     getUser, getBook
   ) where
 
@@ -45,8 +45,17 @@ instance Arbitrary Book where
 type API = "user" :> Get '[JSON] User
       :<|> "book" :> Get '[JSON] Book
 
+-- | port number to bind test server's socket
+serverPort :: Int
+serverPort = 8081
+
+-- | external server for some tests (for local use only)
+externalServerPort :: Int
+externalServerPort = serverPort
+
+-- | port to connect to when running tests
 port :: Int
-port = 8081
+port = serverPort
 
 api :: Proxy API
 api = Proxy

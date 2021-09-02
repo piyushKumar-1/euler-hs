@@ -10,14 +10,15 @@ module EulerHS.Framework.Interpreter
 
 import           Control.Exception (throwIO)
 import qualified Control.Exception as Exception
+import           Control.Concurrent.MVar (modifyMVar)
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
 import qualified Data.DList as DL
-import           Data.Default (def)
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as Map
+import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
 import qualified Data.Text as Text
@@ -32,15 +33,17 @@ import           EulerHS.Common (Awaitable (Awaitable), FlowGUID,
                                  Microseconds (Microseconds))
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
-import           EulerHS.HttpAPI (HTTPCert (HTTPCert),
-                                  HTTPIOException (HTTPIOException),
+import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   HTTPMethod (Delete, Get, Head, Post, Put,
                                   Trace, Connect, Options,Patch),
                                   HTTPRequest,
                                   HTTPRequestResponse (HTTPRequestResponse),
-                                  HTTPResponse (HTTPResponse), defaultTimeout,
-                                  getCert, getCertChain, getCertHost,
-                                  getCertKey, getRequestBody, getRequestHeaders,
+                                  HTTPResponse (HTTPResponse),
+                                  buildSettings,
+                                  defaultTimeout,
+                                  -- getCert, getCertChain, getCertHost,
+                                  -- getCertKey, getTrustedCAs,
+                                  getRequestBody, getRequestHeaders,
                                   getRequestMethod, getRequestRedirects,
                                   getRequestTimeout, getRequestURL,
                                   getResponseBody, getResponseCode,
@@ -71,13 +74,9 @@ import           EulerHS.SqlDB.Types (ConnTag,
                                       mysqlErrorToDbError, nativeToBem,
                                       postgresErrorToDbError,
                                       sqliteErrorToDbError)
-import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
 import           Network.HTTP.Client.Internal
-import qualified Network.HTTP.Client.TLS as TLS
 import qualified Network.HTTP.Types as HTTP
-import qualified Network.TLS as TLS
-import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
@@ -209,32 +208,23 @@ translateResponseStatusMessage = displayEitherException "Error decoding HTTP res
 displayEitherException :: Exception e => Text -> Either e a -> Either Text a
 displayEitherException prefix = either (Left . (prefix <>) . Text.pack . Exception.displayException) Right
 
--- | Utility function to create a manager from certificate data
-mkManagerFromCert :: HTTPCert -> IO (Either String HTTP.Manager)
-mkManagerFromCert HTTPCert {..} = do
-  case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
-    Right creds -> do
-      let hooks = def { TLS.onCertificateRequest = \_ -> return $ Just creds }
-      let clientParams = (TLS.defaultParamsClient getCertHost "")
-                         { TLS.clientHooks = hooks
-                         , TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_default }
-                         }
-      let tlsSettings = Conn.TLSSettings clientParams
-      fmap Right $ HTTP.newManager $ TLS.mkManagerSettings tlsSettings Nothing
-    Left err -> pure $ Left err
-
 -- translateHeaderName :: CI.CI Strict.ByteString -> Text.Text
 -- translateHeaderName = Encoding.decodeUtf8' . CI.original
 
 interpretFlowMethod :: Maybe FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
-interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgrSel bUrl clientAct next) =
+interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientManager} (L.LookupHTTPManager mbMgrSel next) =
+    pure $ next $ case mbMgrSel of
+      Just (ManagerSelector mngrName) -> HM.lookup mngrName _httpClientManagers
+      Nothing -> Just _defaultHttpClientManager
+
+interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
-      let mbClientMngr = case mbMgrSel of
-            Nothing                           -> Right _defaultHttpClientManager
-            Just (ManagerSelector mngrName) ->
-              maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
-      case mbClientMngr of
-        Right mngr -> do
+      -- let mbClientMngr = case mbMgrSel of
+      --       Nothing                           -> Right _defaultHttpClientManager
+      --       Just (ManagerSelector mngrName) ->
+      --         maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
+      -- case mbClientMngr of
+        -- Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                             then setRequestTimeout defaultTimeout req
@@ -247,10 +237,10 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
               pure $ Left err
             Right response ->
               pure $ Right response
-        Left name -> do
-          let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
-          dbgLogger Error (show err)
-          pure $ Left err
+        -- Left name -> do
+        --   let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
+        --   dbgLogger Error (show err)
+        --   pure $ Left err
   where
     dbgLogger debugLevel =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
@@ -265,41 +255,36 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mbMgr
         Left e -> pure $ Left e
         Right x -> pure x
 
-interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request mbMgrSel cert next) =
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
+  fmap next $ do
+    modifyMVar _dynHttpClientManagers $ \_cache -> do
+      let mCacheMgr = LRU.lookup settings _cache
+      case mCacheMgr of
+        Just (mgr, cache) -> pure (cache, mgr)
+        Nothing  -> do
+          mgr <- HTTP.newManager $ buildSettings settings
+          pure (LRU.insert settings mgr _cache, mgr)
+
+
+interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
-      let mbClientMngr = case mbMgrSel of
-            Nothing                           -> Right _defaultHttpClientManager
-            Just (ManagerSelector mngrName) ->
-              maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
-      case mbClientMngr of
-        Right mngr -> do
-          _manager <- maybe (pure $ Right mngr) mkManagerFromCert cert
-          -- TODO: Refactor
-          case _manager of
-            Left err -> do
-              let errMsg = "Certificate failure: " <> Text.pack err
+      eResponse <- try $ HTTP.httpLbs httpLibRequest manager
+      case eResponse of
+        Left (err :: SomeException) -> do
+          let errMsg = Text.pack $ displayException err
+          pure $ Left errMsg
+        Right httpResponse -> do
+          case translateHttpResponse httpResponse of
+            Left errMsg -> do
+              logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
-            Right manager -> do
-              eResponse <- try $ HTTP.httpLbs httpLibRequest manager
-              case eResponse of
-                Left (err :: SomeException) -> do
-                  let errMsg = Text.pack $ displayException err
-                  pure $ Left errMsg
-                Right httpResponse -> do
-                  case translateHttpResponse httpResponse of
-                    Left errMsg -> do
-                      logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
-                      pure $ Left errMsg
-                    Right response -> do
-                      logJson Debug
-                        $ HTTPRequestResponse
-                          (maskHTTPRequest getLoggerMaskConfig request)
-                          (maskHTTPResponse getLoggerMaskConfig response)
-                      pure $ Right response
-        Left name -> do
-          let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
-          pure $ Left $ show err
+            Right response -> do
+              logJson Debug
+                $ HTTPRequestResponse
+                  (maskHTTPRequest getLoggerMaskConfig request)
+                  (maskHTTPResponse getLoggerMaskConfig response)
+              pure $ Right response
   where
     logJsonError :: Text -> HTTPRequest -> IO ()
     logJsonError err = logJson Error . HTTPIOException err

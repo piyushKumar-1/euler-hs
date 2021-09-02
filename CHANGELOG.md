@@ -1,10 +1,16 @@
 # Changelog for euler-hs
 
-## [2.9.0.2] - 2021-08-010
+## [2.9.1.0] - 2021-08-12
+
+* HTTP ManagerSettings builders
+* Dynamic HTTP managers
+* Unify callHTTP* and callAPI* actions
+
+## [2.9.0.2] - 2021-08-10
 
 * Add `withRunFlow`
 
-## [2.9.0.1] - 2021-08-010
+## [2.9.0.1] - 2021-08-10
 
 * Fix adding mask config to `LoggerRuntime`
 

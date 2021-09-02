@@ -130,7 +130,7 @@ spec loggerCfg = do
 
       describe "calling external TLS services with untyped API" $ do
         around_ withSecureServer $ do
-          it "calling http with TLS manager" $ \ rt -> do
+          it "calling secure service using unsecured protocol fails" $ \ rt -> do
             let req = T.httpGet $ "http://localhost:" <> show port
             resEither <- runFlow rt $ callHTTP req
             resEither `shouldSatisfy` isRight
@@ -166,7 +166,7 @@ spec loggerCfg = do
 
       describe "calling external TLS services with well-typed API" $ do
         around_ withSecureServer $ do
-          it "calling http with TLS manager" $ \ _ -> do
+          it "calling secure service using unsecured protocol fails" $ \ _ -> do
             rt <- initRTWithManagers
             let url = BaseUrl Http "localhost" port ""
             bookEither <- runFlow rt $ callAPI' (Just "manager1") url getBook

@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Werror #-}
+{-# OPTIONS_GHC -Werror -Wwarn=deprecations #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE NamedFieldPuns #-}
 

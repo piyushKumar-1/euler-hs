@@ -13,6 +13,8 @@ module EulerHS.HttpAPI
     , withClientTls
     , withMbClientTls
     , withCustomCA
+      -- * X509 utilities
+    , makeCertificateStoreFromMemory
       -- * Common types and convenience methods
     , HTTPRequest(..)
     , HTTPResponse(..)
@@ -46,11 +48,14 @@ import qualified Data.Char as Char
 import           Data.Default
 import qualified Data.Map as Map
 import           Data.Monoid (All(..))
+import           Data.PEM (pemContent, pemParseBS)
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.X509 (encodeSignedObject, getCertificate, Certificate (certSerial), HashALG(..))
-import           Data.X509.CertificateStore (CertificateStore, listCertificates)
+import           Data.X509 (decodeSignedCertificate, encodeSignedObject,
+                           getCertificate, Certificate (certSerial),
+                           HashALG(..))
+import           Data.X509.CertificateStore (CertificateStore, listCertificates, makeCertificateStore)
 import           Data.X509.Validation (validate, defaultHooks, defaultChecks, checkLeafV3)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
@@ -210,6 +215,15 @@ withMbClientTls Nothing = mempty
 withCustomCA :: CertificateStore -> HTTPClientSettings
 withCustomCA store = mempty {httpClientSettingsCustomStore = CertificateStore' store}
 
+-- | Make a store from in-memory certs
+makeCertificateStoreFromMemory :: [ByteString] -> Either String CertificateStore
+makeCertificateStoreFromMemory es =
+  fmap makeCertificateStore
+    $ sequence . fmap decodeSignedCertificate
+       =<< (fmap (fmap pemContent . join) $ mapM pemParseBS es)
+
+-- | Turns off the check that all certs are X509 v3 ones
+{-# WARNING withNoCheckLeafV3 "Don't use in production code, use X509 v3 certs instead." #-}
 withNoCheckLeafV3 :: HTTPClientSettings
 withNoCheckLeafV3 = mempty { httpClientSettingsCheckLeafV3 = All False }
 

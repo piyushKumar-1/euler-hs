@@ -118,6 +118,7 @@ library
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics
+    , pem
     , postgresql-simple
     , process
     , profunctors

@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.1.1] - 2021-09-03
+
+* Keep previous (as in 2.9.0.2) callHTTPWithCert interface
+
 ## [2.9.1.0] - 2021-08-12
 
 * HTTP ManagerSettings builders

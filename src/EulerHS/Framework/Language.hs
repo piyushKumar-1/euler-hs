@@ -1123,9 +1123,9 @@ callHTTP :: (HasCallStack, MonadFlow m) =>
 callHTTP url = callHTTPWithManager Nothing url
 
 {-# DEPRECATED callHTTPWithCert    "Use getHTTPManager/callHTTPUsingManager instead. This method does not allow custom CA store." #-}
-callHTTPWithCert :: MonadFlow m => HTTPRequest -> HTTPCert -> m (Either Text HTTPResponse)
+callHTTPWithCert :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> m (Either Text HTTPResponse)
 callHTTPWithCert req cert = do
-  mgr <- getHTTPManager $ withClientTls cert
+  mgr <- maybe getDefaultManager (getHTTPManager . withClientTls) cert
   callHTTPUsingManager mgr req
 
 

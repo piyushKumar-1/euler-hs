@@ -195,10 +195,16 @@ spec loggerCfg = do
             bookEither <- runFlow rt $ callAPI' (Just "tlsWithClientCertAndCustomCA") url getBook
             bookEither `shouldSatisfy` isRight
 
-          it "authenticate client by a ad-hoc certificate using callHTTPWithCert without custom CA store" $ \ rt -> do
+          it "authenticate client by a ad-hoc certificate using callHTTPWithCert without custom CA store, with cert" $ \ rt -> do
             let req = T.httpGet $ "https://localhost:" <> show externalServerPort
             cert  <- clientHttpCert
-            resEither <- runFlow rt $ L.callHTTPWithCert req cert -- getBook
+            resEither <- runFlow rt $ L.callHTTPWithCert req $ Just cert
+            resEither `shouldSatisfy` isLeft
+            (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
+
+          it "authenticate client by a ad-hoc certificate using callHTTPWithCert without custom CA store, without cert" $ \ rt -> do
+            let req = T.httpGet $ "https://localhost:" <> show externalServerPort
+            resEither <- runFlow rt $ L.callHTTPWithCert req Nothing
             resEither `shouldSatisfy` isLeft
             (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
 

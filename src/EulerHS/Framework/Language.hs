@@ -24,6 +24,17 @@ module EulerHS.Framework.Language
   , logError
   , logDebug
   , logWarning
+  , logM
+  , log
+  , logV
+  , logInfoM
+  , logInfoV
+  , logErrorM
+  , logErrorV
+  , logDebugM
+  , logDebugV
+  , logWarningM
+  , logWarningV
   -- *** PublishSubscribe
   , unpackLanguagePubSub
   -- *** Working with external services
@@ -49,6 +60,7 @@ import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
 import           Control.Monad.Trans.Except (withExceptT)
+import qualified Data.Aeson as A
 import qualified Data.Text as Text
 import           EulerHS.Api (EulerClient)
 import           EulerHS.Common (Awaitable, Description, ForkGUID,
@@ -60,7 +72,7 @@ import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
 import           EulerHS.Logger.Language (Logger, logMessage')
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
-                                       Message)
+                                       Message(Message))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import qualified EulerHS.PubSub.Language as PSL
@@ -1275,35 +1287,78 @@ forkFlow' description flow = do
     liftFC $ Fork description flowGUID flow id
 
 
+logM :: forall (tag :: Type) (m :: Type -> Type) msg .
+  (HasCallStack, MonadFlow m, Show tag, ToJSON msg) => LogLevel -> tag -> msg -> A.Value -> m ()
+logM logLvl tag m v = evalLogger' $ logMessage' logLvl tag $ Message (Just $ toJSON m) (Just v)
+
+log :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => LogLevel -> tag -> Text -> m ()
+log logLvl tag msg = evalLogger' $ logMessage' logLvl tag $ Message (Just $ A.toJSON msg) Nothing
+
+logV :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => LogLevel -> tag -> A.Value -> m ()
+logV logLvl tag v = evalLogger' $ logMessage' logLvl tag $ Message Nothing (Just v)
+
 -- | Log message with Info level.
 --
 -- Thread safe.
+
+logInfoM :: forall (tag :: Type) (m :: Type -> Type) msg .
+  (HasCallStack, MonadFlow m, Show tag, ToJSON msg) => tag -> msg -> A.Value -> m ()
+logInfoM = logM Info
+
 logInfo :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logInfo tag msg = evalLogger' $ logMessage' Info tag msg
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+logInfo = log Info
+
+logInfoV :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> A.Value -> m ()
+logInfoV = logV Info
+
 
 -- | Log message with Error level.
 --
 -- Thread safe.
-logError :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logError tag msg = do
-  logCallStack
-  evalLogger' $ logMessage' Error tag msg
+logErrorM :: forall (tag :: Type) (m :: Type -> Type) msg .
+  (HasCallStack, MonadFlow m, Show tag, ToJSON msg) => tag -> msg -> A.Value -> m ()
+logErrorM = logM Error
 
+logError :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+logError = log Error
+
+logErrorV :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> A.Value -> m ()
+logErrorV = logV Error
 -- | Log message with Debug level.
 --
 -- Thread safe.
+logDebugM :: forall (tag :: Type) (m :: Type -> Type) msg .
+  (HasCallStack, MonadFlow m, Show tag, ToJSON msg) => tag -> msg -> A.Value -> m ()
+logDebugM = logM Debug
+
 logDebug :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logDebug tag msg = evalLogger' $ logMessage' Debug tag msg
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+logDebug = log Debug
+
+logDebugV :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> A.Value -> m ()
+logDebugV = logV Debug
 
 -- | Log message with Warning level.
 --
 -- Thread safe.
+logWarningM :: forall (tag :: Type) (m :: Type -> Type) msg .
+  (HasCallStack, MonadFlow m, Show tag, ToJSON msg) => tag -> msg -> A.Value -> m ()
+logWarningM = logM Warning
+
 logWarning :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Message -> m ()
-logWarning tag msg = evalLogger' $ logMessage' Warning tag msg
+  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+logWarning = log Warning
+
+logWarningV :: forall (tag :: Type) (m :: Type -> Type) .
+  (HasCallStack, MonadFlow m, Show tag) => tag -> A.Value -> m ()
+logWarningV = logV Warning
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.

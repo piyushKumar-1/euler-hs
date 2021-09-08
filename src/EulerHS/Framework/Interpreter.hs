@@ -234,7 +234,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
-              dbgLogger Error $ show err
+              dbgLogger Error $  show @Text err
               pure $ Left err
             Right response ->
               pure $ Right response
@@ -243,6 +243,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
         --   dbgLogger Error (show err)
         --   pure $ Left err
   where
+    dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger debugLevel msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)

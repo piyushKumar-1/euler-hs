@@ -47,13 +47,13 @@ maskQueryStrings shouldMask maskText queryStrings = maskQueryString <$> queryStr
         then (key,Just $ encodeUtf8 maskText)
         else (key,value)
 
-parseRequestResponseBody :: (Text -> Bool) -> Text -> Maybe ByteString -> ByteString -> Text
+parseRequestResponseBody :: (Text -> Bool) -> Text -> Maybe ByteString -> ByteString -> Aeson.Value
 parseRequestResponseBody shouldMask maskText mbContentType req
-  | isContentTypeBlockedForLogging mbContentType = notSupportedPlaceHolder
+  | isContentTypeBlockedForLogging mbContentType = notSupportedPlaceHolder mbContentType
   | otherwise =
       case Aeson.eitherDecodeStrict req of
-        Right value ->  decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText value
-        Left _ -> decodeUtf8 . Aeson.encode $ maskJSON shouldMask maskText $ handleQueryString req
+        Right value -> maskJSON shouldMask maskText value
+        Left _ -> maskJSON shouldMask maskText $ handleQueryString req
 
 maskJSON :: (Text -> Bool) -> Text -> Aeson.Value -> Aeson.Value
 maskJSON shouldMask maskText (Aeson.Object r) = Aeson.Object $ handleObject shouldMask maskText r
@@ -69,8 +69,9 @@ handleObject shouldMask maskText = HashMap.mapWithKey maskingFn
 handleQueryString :: ByteString -> Aeson.Value
 handleQueryString strg = Aeson.Object . fmap (Aeson.String . fromMaybe "") . HashMap.fromList $ HTTP.parseQueryText strg
 
-notSupportedPlaceHolder :: Text
-notSupportedPlaceHolder = "Logging Not Support For this content"
+notSupportedPlaceHolder :: Maybe ByteString -> Aeson.Value
+notSupportedPlaceHolder (Just bs) = Aeson.String $ "Logging Not Support For this content " <> decodeUtf8 bs
+notSupportedPlaceHolder Nothing = Aeson.String "Logging Not Support For this content "
 
 isContentTypeBlockedForLogging :: Maybe ByteString -> Bool
 isContentTypeBlockedForLogging Nothing = False

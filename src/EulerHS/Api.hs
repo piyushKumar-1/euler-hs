@@ -7,7 +7,6 @@ module EulerHS.Api where
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS (toStrict)
 import qualified Data.CaseInsensitive as CI
-import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TE (decodeUtf8)
 import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
@@ -28,7 +27,7 @@ data LogServantRequest
   = LogServantRequest
     { url         :: SCF.BaseUrl
     , method      :: Text
-    , body        :: String
+    , body        :: A.Value
     , headers     :: Seq (Text, Text)
     , queryString :: Seq (Text, Maybe Text)
     }
@@ -40,7 +39,7 @@ data LogServantResponse
     { statusCode  :: String
     , headers     :: Seq (Text,Text)
     , httpVersion :: String
-    , body        :: String
+    , body        :: A.Value
     }
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
@@ -72,8 +71,8 @@ logServantRequest log mbMaskConfig url' req = do
     body' = case SCC.requestBody req of
       Just (reqbody, _) ->
         case reqbody of
-          SCC.RequestBodyBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) s
-          SCC.RequestBodyLBS s -> Text.unpack $ parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
+          SCC.RequestBodyBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) s
+          SCC.RequestBodyLBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
           SCC.RequestBodySource sr -> show $ SCC.RequestBodySource sr
       Nothing -> "body = (empty)"
     method' = TE.decodeUtf8 $ SCC.requestMethod req
@@ -95,8 +94,7 @@ logServantResponse log mbMaskConfig res =
       responseheaders = fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8) $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.responseHeaders res
       version = show $ SCC.responseHttpVersion res
       responseBody =
-          Text.unpack
-        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
+          parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
         . LBS.toStrict
         $ SCC.responseBody res
 

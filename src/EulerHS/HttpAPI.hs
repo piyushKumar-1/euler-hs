@@ -40,6 +40,7 @@ module EulerHS.HttpAPI
     , maskHTTPResponse
     ) where
 
+import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import           Data.ByteString.Lazy.Builder (Builder)
@@ -188,7 +189,7 @@ memorizedSysStore = unsafePerformIO getSystemCertificateStore
 
 type SimpleProxySettings = (Text, Int)
 
--- | Add unconditional proxying (for both http/https, regardless 
+-- | Add unconditional proxying (for both http/https, regardless
 -- HTTP.Client's request proxy settings).
 withProxy :: SimpleProxySettings -> HTTPClientSettings
 withProxy (host, port) =
@@ -431,7 +432,7 @@ maskHTTPRequest mbMaskConfig request =
 
     maskedRequestBody =
       T.LBinaryString
-        . encodeUtf8
+        . A.encode
         . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
         . LB.toStrict
         . T.getLBinaryString <$> requestBody
@@ -451,7 +452,7 @@ maskHTTPResponse mbMaskConfig response =
 
     maskedResponseBody =
       T.LBinaryString
-        . encodeUtf8
+        . A.encode
         . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
         . LB.toStrict
         $ T.getLBinaryString responseBody

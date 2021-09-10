@@ -85,9 +85,7 @@ expectedOutput'' =  A.object
 
 expectedOutput''' :: A.Value
 expectedOutput''' =  A.String  "Logging Not Support For this content application/html"
---
--- expectedOutput''' :: Text
--- expectedOutput''' = "Logging Not Support For this content"
+
 
 inputJSON :: LBS.ByteString
 inputJSON = "{\"version\": 0,\"url1\": [{\"a\":\"b\"},\"wefojoefwj\"],\"type\": \"VBV\",\"txnId\": \"paypal-tatapay_740-1\",\"txnDetailId\": \"2148428442\",\"status\": \"INIT\",\"responseAttempted\": {\"lastUpdated\": \"2020-09-25T05:58:13Z\",\"id\": \"2148361678\",\"gatewayAuthReqParams\": \"{\\\"euler-api-gateway\\\":\\\"fehfioe\\\"}\",\"dateCreated\": \"2020-09-25T05:58:13Z\",\"challengesAttempted\": 0,\"canAcceptResponse\": true}}"

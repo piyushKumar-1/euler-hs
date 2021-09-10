@@ -7,6 +7,9 @@ module EulerHS.Api where
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS (toStrict)
 import qualified Data.CaseInsensitive as CI
+import           Data.Time.Clock (diffTimeToPicoseconds)
+import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
+import           Data.Time.Clock.TAI (diffAbsoluteTime)
 import qualified Data.Text.Encoding as TE (decodeUtf8)
 import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
@@ -44,59 +47,66 @@ data LogServantResponse
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
 
+data ServantApiCallLogEntry = ServantApiCallLogEntry
+  { url :: SCF.BaseUrl
+  , method :: Text
+  , req_headers :: Seq (Text, Text)
+  , req_body :: A.Value
+  , req_query_string :: Seq (Text, Maybe Text)
+  , res_code :: String
+  , res_body :: A.Value
+  , res_headers :: Seq (Text,Text)
+  , latency :: Integer
+  }
+    deriving stock (Show,Generic)
+    deriving anyclass A.ToJSON
+
+mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
+mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
+  { url = bUrl
+  , method = method'
+  , req_headers = req_headers'
+  , req_body = req_body'
+  , req_query_string = req_query_string'
+  , res_code = res_code'
+  , res_body = res_body'
+  , res_headers = res_headers'
+  , latency = lat
+  }
+  where
+    method' = TE.decodeUtf8 $ SCC.requestMethod req
+    req_headers' = fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8) $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestHeaders req
+    req_body' = case SCC.requestBody req of
+      Just (reqbody, _) ->
+        case reqbody of
+          SCC.RequestBodyBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) s
+          SCC.RequestBodyLBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
+          SCC.RequestBodySource sr -> A.String $ show $ SCC.RequestBodySource sr
+      Nothing -> A.String "body = (empty)"
+    req_query_string' = fmap (bimap TE.decodeUtf8 (fmap TE.decodeUtf8)) $ maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestQueryString req
+    res_code' = show $ SCC.responseStatusCode res
+    res_body' = parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
+        . LBS.toStrict
+        $ SCC.responseBody res
+    res_headers' = fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8) $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.responseHeaders res
+    getMaskText :: Text
+    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
 
 interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
 interpretClientF _   _   _ (SCF.Throw e)             = throwM e
 interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
-  liftIO $ logServantRequest log mbMaskConfig bUrl req
+  start <- liftIO $ systemToTAITime <$> getSystemTime
   res <- SCC.runRequestAcceptStatus Nothing req
-  liftIO $ logServantResponse log mbMaskConfig res
+  end <- liftIO $ systemToTAITime <$> getSystemTime
+  let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
+  let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
+  liftIO $ log logEntry
   pure $ next res
+  where
+    picoMilliDiff = 1000000000
 
 runEulerClient :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
 runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClientF log mbMaskConfig bUrl) f
-
-logServantRequest :: (forall a . A.ToJSON a => a -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> SCC.Request -> IO ()
-logServantRequest log mbMaskConfig url' req = do
-  log $ LogServantRequest
-    { url = url'
-    , method = method'
-    , body = body'
-    , headers = headers'
-    , queryString = queryString'
-    }
-  where
-    body' = case SCC.requestBody req of
-      Just (reqbody, _) ->
-        case reqbody of
-          SCC.RequestBodyBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) s
-          SCC.RequestBodyLBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
-          SCC.RequestBodySource sr -> show $ SCC.RequestBodySource sr
-      Nothing -> "body = (empty)"
-    method' = TE.decodeUtf8 $ SCC.requestMethod req
-    headers' = fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8) $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestHeaders req
-    queryString' = fmap (bimap TE.decodeUtf8 (fmap TE.decodeUtf8)) $ maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestQueryString req
-    getMaskText :: Text
-    getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-
-logServantResponse :: (forall a . A.ToJSON a => a -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.Response -> IO ()
-logServantResponse log mbMaskConfig res =
-  log $ LogServantResponse
-    { statusCode = status
-    , headers = responseheaders
-    , httpVersion = version
-    , body = responseBody
-    }
-    where
-      status = show $ SCC.responseStatusCode res
-      responseheaders = fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8) $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText $ SCC.responseHeaders res
-      version = show $ SCC.responseHttpVersion res
-      responseBody =
-          parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
-        . LBS.toStrict
-        $ SCC.responseBody res
-
-      getMaskText :: Text
-      getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig

@@ -271,7 +271,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
-      eResponse <- try $ HTTP.httpLbs httpLibRequest manager
+      eResponse <- try $! HTTP.httpLbs httpLibRequest manager
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err

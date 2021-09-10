@@ -8,9 +8,9 @@ module EulerHS.Framework.Interpreter
   , runFlow'
   ) where
 
+import           Control.Concurrent.MVar (modifyMVar)
 import           Control.Exception (throwIO)
 import qualified Control.Exception as Exception
-import           Control.Concurrent.MVar (modifyMVar)
 import qualified Data.Aeson as A
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
@@ -18,12 +18,15 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map as Map
 import qualified Data.LruCache as LRU
+import qualified Data.Map as Map
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import           Data.Time.Clock (diffTimeToPicoseconds)
+import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
+import           Data.Time.Clock.TAI (diffAbsoluteTime)
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import           EulerHS.Api (runEulerClient)
@@ -35,21 +38,16 @@ import           EulerHS.Common (Awaitable (Awaitable), FlowGUID,
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
-                                  HTTPMethod (Delete, Get, Head, Post, Put,
-                                  Trace, Connect, Options,Patch),
-                                  HTTPRequest,
-                                  HTTPRequestResponse (HTTPRequestResponse),
-                                  HTTPResponse (HTTPResponse),
-                                  buildSettings,
-                                  defaultTimeout,
-                                  -- getCert, getCertChain, getCertHost,
-                                  -- getCertKey, getTrustedCAs,
-                                  getRequestBody, getRequestHeaders,
-                                  getRequestMethod, getRequestRedirects,
-                                  getRequestTimeout, getRequestURL,
-                                  getResponseBody, getResponseCode,
-                                  getResponseHeaders, getResponseStatus,
-                                  maskHTTPRequest, maskHTTPResponse)
+                                  HTTPMethod (Connect, Delete, Get, Head, Options, Patch, Post, Put, Trace),
+                                  HTTPRequest(..), HTTPRequestMasked,
+                                  HTTPResponse (HTTPResponse), buildSettings,
+                                  defaultTimeout, getRequestBody,
+                                  getRequestHeaders, getRequestMethod,
+                                  getRequestRedirects, getRequestTimeout,
+                                  getRequestURL, getResponseBody,
+                                  getResponseCode, getResponseHeaders,
+                                  getResponseStatus, maskHTTPRequest,
+                                  maskHTTPResponse, mkHttpApiCallLogEntry)
 import           EulerHS.KVDB.Interpreter (runKVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer,
                                      KVDBConfig (KVDBClusterConfig, KVDBConfig),
@@ -60,7 +58,8 @@ import           EulerHS.KVDB.Types (KVDBAnswer,
 import           EulerHS.Logger.Interpreter (runLogger)
 import qualified EulerHS.Logger.Language as L
 import qualified EulerHS.Logger.Runtime as R
-import           EulerHS.Logger.Types (LogLevel (Debug, Error), Message(Message))
+import           EulerHS.Logger.Types (LogLevel (Debug, Error),
+                                       Message (Message))
 import           EulerHS.Prelude
 import           EulerHS.PubSub.Interpreter (runPubSub)
 import           EulerHS.SqlDB.Interpreter (runSqlDB)
@@ -216,7 +215,7 @@ interpretFlowMethod :: Maybe FlowGUID -> R.FlowRuntime -> L.FlowMethod a -> IO a
 interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientManager} (L.LookupHTTPManager mbMgrSel next) =
     pure $ next $ case mbMgrSel of
       Just (ManagerSelector mngrName) -> HM.lookup mngrName _httpClientManagers
-      Nothing -> Just _defaultHttpClientManager
+      Nothing                         -> Just _defaultHttpClientManager
 
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
@@ -247,14 +246,14 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
     dbgLogger debugLevel msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
-        $ Message (Just $ A.toJSON msg) Nothing
+        $ Message Nothing (Just $ A.toJSON msg)
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
     tryRunClient :: IO (Either S.ClientError a) -> IO (Either S.ClientError a)
     tryRunClient act = do
       res :: Either S.ClientError (Either S.ClientError a) <- try act
       case res of
-        Left e -> pure $ Left e
+        Left e  -> pure $ Left e
         Right x -> pure x
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
@@ -271,7 +270,10 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
+      start <- systemToTAITime <$> getSystemTime
       eResponse <- try $! HTTP.httpLbs httpLibRequest manager
+      end <- liftIO $ systemToTAITime <$> getSystemTime
+      let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
@@ -282,19 +284,21 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
               logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
-              logJson Debug
-                $ HTTPRequestResponse
-                  (maskHTTPRequest getLoggerMaskConfig request)
-                  (maskHTTPResponse getLoggerMaskConfig response)
+              let logEntry = mkHttpApiCallLogEntry lat
+                     (maskHTTPRequest getLoggerMaskConfig request)
+                     (maskHTTPResponse getLoggerMaskConfig response)
+              logJson Debug logEntry
               pure $ Right response
   where
-    logJsonError :: Text -> HTTPRequest -> IO ()
+    picoMilliDiff :: Integer
+    picoMilliDiff = 1000000000
+    logJsonError :: Text -> HTTPRequestMasked -> IO ()
     logJsonError err = logJson Error . HTTPIOException err
     logJson :: ToJSON a => LogLevel -> a -> IO ()
     logJson debugLevel msg =
       runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("callHTTP" :: String)
-        $ Message (Just $ A.toJSON msg) Nothing
+        $ Message Nothing (Just $ A.toJSON msg)
 
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt

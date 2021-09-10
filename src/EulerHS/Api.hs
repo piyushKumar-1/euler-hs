@@ -14,7 +14,7 @@ import qualified Data.Text.Encoding as TE (decodeUtf8)
 import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
 import           EulerHS.Masking (defaultMaskText, getContentTypeForServant,
-                                  maskQueryStrings, maskServantHeaders,
+                                  maskServantHeaders,
                                   parseRequestResponseBody, shouldMaskKey)
 import           EulerHS.Prelude
 import qualified Servant.Client as SC
@@ -52,7 +52,6 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
   , method :: Text
   , req_headers :: Seq (Text, Text)
   , req_body :: A.Value
-  , req_query_string :: Seq (Text, Maybe Text)
   , res_code :: String
   , res_body :: A.Value
   , res_headers :: Seq (Text,Text)
@@ -67,7 +66,6 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
   , method = method'
   , req_headers = req_headers'
   , req_body = req_body'
-  , req_query_string = req_query_string'
   , res_code = res_code'
   , res_body = res_body'
   , res_headers = res_headers'
@@ -83,7 +81,6 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
           SCC.RequestBodyLBS s -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.requestHeaders req) $ LBS.toStrict s
           SCC.RequestBodySource sr -> A.String $ show $ SCC.RequestBodySource sr
       Nothing -> A.String "body = (empty)"
-    req_query_string' = fmap (bimap TE.decodeUtf8 (fmap TE.decodeUtf8)) $ maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText $ SCC.requestQueryString req
     res_code' = show $ SCC.responseStatusCode res
     res_body' = parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
         . LBS.toStrict
@@ -106,6 +103,7 @@ interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   liftIO $ log logEntry
   pure $ next res
   where
+    picoMilliDiff :: Integer
     picoMilliDiff = 1000000000
 
 runEulerClient :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a

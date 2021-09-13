@@ -305,11 +305,11 @@ type HeaderValue = Text
 data HttpApiCallLogEntry = HttpApiCallLogEntry
   { url         :: Text
   , method      :: Text
-  , req_headers :: [(Text, Text)]
+  , req_headers :: A.Value
   , req_body    :: Maybe A.Value
-  , res_code    :: Text
+  , res_code    :: Int
   , res_body    :: A.Value
-  , res_headers :: [(Text,Text)]
+  , res_headers :: A.Value
   , latency     :: Integer
   }
   deriving stock (Show,Generic)
@@ -319,11 +319,11 @@ mkHttpApiCallLogEntry :: Integer -> HTTPRequestMasked -> HTTPResponseMasked -> H
 mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
   { url = req.getRequestURL
   , method = show $ req.getRequestMethod
-  , req_headers = Map.toList $ req.getRequestHeaders
+  , req_headers = A.toJSON $ req.getRequestHeaders
   , req_body = req.getRequestBody
-  , res_code = res.getResponseStatus
+  , res_code = res.getResponseCode
   , res_body = res.getResponseBody
-  , res_headers = Map.toList $ res.getResponseHeaders
+  , res_headers = A.toJSON $ res.getResponseHeaders
   , latency = lat
   }
 

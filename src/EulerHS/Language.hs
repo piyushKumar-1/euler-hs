@@ -4,20 +4,31 @@ module EulerHS.Language
     Y.FlowMethod (..),
     Y.MonadFlow (..),
     Y.ReaderFlow,
+    -- * logging
     Y.logCallStack,
     Y.logExceptionCallStack,
+    --
     Y.logInfo,
     Y.logError,
     Y.logDebug,
     Y.logWarning,
-    -- *** Calling external services
+    --
+    Y.logInfoM,
+    Y.logErrorM,
+    Y.logDebugM,
+    Y.logWarningM,
+    Y.logInfoV,
+    Y.logErrorV,
+    Y.logDebugV,
+    Y.logWarningV,
+    -- * Calling external services
     Y.callAPI,
     Y.callAPI',
     Y.callHTTP,
     Y.callHTTP',
     Y.callHTTPWithCert,
     Y.callHTTPWithManager,
-    -- *** other
+    -- * other
     Y.runIO,
     Y.withRunFlow,
     Y.forkFlow,

@@ -251,7 +251,7 @@ data HTTPRequestMasked
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Eq, Ord, Generic, ToJSON)
+    deriving (Eq, Generic, ToJSON)
 
 data HTTPResponse
   = HTTPResponse
@@ -269,7 +269,7 @@ data HTTPResponseMasked
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON)
+    deriving (Show, Eq, Generic, ToJSON)
 
 data HTTPCert
   = HTTPCert
@@ -334,7 +334,7 @@ data HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequestMasked
     }
-  deriving (Eq, Ord, Generic, ToJSON)
+  deriving (Eq, Generic, ToJSON)
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text

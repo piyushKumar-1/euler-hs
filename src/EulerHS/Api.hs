@@ -30,7 +30,7 @@ newtype EulerClient a = EulerClient (Free SCF.ClientF a)
 
 data LogServantRequest
   = LogServantRequest
-    { url         :: SCF.BaseUrl
+    { url         :: String
     , method      :: Text
     , body        :: A.Value
     , headers     :: Seq (Text, Text)
@@ -50,7 +50,7 @@ data LogServantResponse
     deriving anyclass A.ToJSON
 
 data ServantApiCallLogEntry = ServantApiCallLogEntry
-  { url :: SCF.BaseUrl
+  { url :: String
   , method :: Text
   , req_headers :: A.Value
   , req_body :: A.Value
@@ -64,7 +64,7 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
 
 mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
 mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
-  { url = bUrl
+  { url = SCF.showBaseUrl bUrl
   , method = method'
   , req_headers = req_headers'
   , req_body = req_body'

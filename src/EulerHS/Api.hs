@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE  RankNTypes #-}
+{-# LANGUAGE  ScopedTypeVariables #-}
 
 module EulerHS.Api where
 
@@ -75,7 +76,7 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
   }
   where
     method' = TE.decodeUtf8 $ SCC.requestMethod req
-    req_headers' = foldHeaders
+    req_headers' = headersToJson
       $ fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8)
       $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText
       $ SCC.requestHeaders req
@@ -90,14 +91,14 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
     res_body' = parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForServant . toList $ SCC.responseHeaders res)
         . LBS.toStrict
         $ SCC.responseBody res
-    res_headers' = foldHeaders
+    res_headers' = headersToJson
       $ fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8)
       $ maskServantHeaders (shouldMaskKey mbMaskConfig) getMaskText
       $ SCC.responseHeaders res
     getMaskText :: Text
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-    foldHeaders :: Seq (Text, Text) -> A.Value
-    foldHeaders = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
+    headersToJson :: Seq (Text, Text) -> A.Value
+    headersToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
 
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
@@ -106,12 +107,23 @@ interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogM
 interpretClientF _   _   _ (SCF.Throw e)             = throwM e
 interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   start <- liftIO $ systemToTAITime <$> getSystemTime
-  res <- SCC.runRequestAcceptStatus Nothing req
+  eRes <- try $! SCC.runRequestAcceptStatus Nothing req
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
-  let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
-  liftIO $ log logEntry
-  pure $ next res
+  case eRes of
+    Right res -> do
+      let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
+      liftIO $ log logEntry
+      pure $ next res
+    Left (e :: SCF.ClientError) -> do
+      maybeErrorRes <- case e of
+        SCF.FailureResponse _ r -> pure $ Just r
+        SCF.DecodeFailure _ r -> pure $ Just r
+        SCF.UnsupportedContentType _ r -> pure $ Just r
+        SCF.InvalidContentTypeHeader r -> pure $ Just r
+        SCF.ConnectionError _ -> pure Nothing
+      maybe (pure ()) (\r -> liftIO $ log $ mkServantApiCallLogEntry mbMaskConfig bUrl req r lat) maybeErrorRes
+      throwM e
   where
     picoMilliDiff :: Integer
     picoMilliDiff = 1000000000

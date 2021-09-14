@@ -219,12 +219,6 @@ interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientMana
 
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
-      -- let mbClientMngr = case mbMgrSel of
-      --       Nothing                           -> Right _defaultHttpClientManager
-      --       Just (ManagerSelector mngrName) ->
-      --         maybeToRight mngrName . HM.lookup mngrName $ _httpClientManagers
-      -- case mbClientMngr of
-        -- Right mngr -> do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                             then setRequestTimeout defaultTimeout req
@@ -237,10 +231,6 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
               pure $ Left err
             Right response ->
               pure $ Right response
-        -- Left name -> do
-        --   let err = S.ConnectionError $ toException $ L.HttpManagerNotFound name
-        --   dbgLogger Error (show err)
-        --   pure $ Left err
   where
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger debugLevel msg =

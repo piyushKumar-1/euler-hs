@@ -242,9 +242,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
     tryRunClient :: IO (Either S.ClientError a) -> IO (Either S.ClientError a)
     tryRunClient act = do
       res :: Either S.ClientError (Either S.ClientError a) <- try act
-      case res of
-        Left e  -> pure $ Left e
-        Right x -> pure x
+      pure $ join res
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
   fmap next $ do

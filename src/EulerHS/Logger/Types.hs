@@ -83,6 +83,8 @@ instance Buildable Message where
   build = fromText . decodeUtf8 . showMessage
     where
       showMessage msg = case (msgMessage msg, msgValue msg) of
+        -- This is compatibility code, so we added values as an extesnsion
+        -- and we can safely ignore it here if needed.
         (Just message, _) -> A.encode message
         (_, Just value) -> A.encode value
         (_, _) -> ""

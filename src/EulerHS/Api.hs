@@ -104,26 +104,15 @@ client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
 
 interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
-interpretClientF _   _   _ (SCF.Throw e)             = throwM e
+interpretClientF _   _   _ (SCF.Throw e) = throwM e
 interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   start <- liftIO $ systemToTAITime <$> getSystemTime
-  eRes <- try $! SCC.runRequestAcceptStatus Nothing req
+  res <- SCC.runRequestAcceptStatus (Just [minBound .. maxBound]) req
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
-  case eRes of
-    Right res -> do
-      let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
-      liftIO $ log logEntry
-      pure $ next res
-    Left (e :: SCF.ClientError) -> do
-      maybeErrorRes <- case e of
-        SCF.FailureResponse _ r -> pure $ Just r
-        SCF.DecodeFailure _ r -> pure $ Just r
-        SCF.UnsupportedContentType _ r -> pure $ Just r
-        SCF.InvalidContentTypeHeader r -> pure $ Just r
-        SCF.ConnectionError _ -> pure Nothing
-      maybe (pure ()) (\r -> liftIO $ log $ mkServantApiCallLogEntry mbMaskConfig bUrl req r lat) maybeErrorRes
-      throwM e
+  let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
+  liftIO $ log logEntry
+  pure $ next res
   where
     picoMilliDiff :: Integer
     picoMilliDiff = 1000000000

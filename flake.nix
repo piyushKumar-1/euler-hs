@@ -33,6 +33,7 @@
         ];
         shellTools = with nixpkgs; [
           redis
+          haskell-language-server
         ];
         # shellAttrs = {
         # };

@@ -108,6 +108,7 @@ library
     , extra
     , generic-deriving
     , fmt
+    , formatting
     , free
     , generic-lens
     , hedis                 ^>=0.12.8.1

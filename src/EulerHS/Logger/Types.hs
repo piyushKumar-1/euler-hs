@@ -34,7 +34,9 @@ import           EulerHS.Prelude
 -- Reason: unclear current practice of logging that affects design and performance.
 import qualified Data.Aeson as A
 import qualified Data.Text.Lazy.Encoding as TE
+import Data.Text.Lazy.Builder
 import qualified Data.ByteString.Lazy as LBS
+import Formatting.Buildable (Buildable(..))
 import qualified System.Logger.Message as LogMsg
 
 -- | Logging level.
@@ -76,6 +78,16 @@ data Message = Message
   , msgValue :: Maybe A.Value
   }
   deriving (Show)
+
+instance Buildable Message where
+  build = fromText . showMessage
+    where
+      showMessage msg = case (msgMessage msg, msgValue msg) of
+        (Just _, Just _) -> show msg
+        (Just message, Nothing) -> show message
+        (Nothing, Just value) -> show value
+        (Nothing, Nothing) -> ""
+  {-# INLINE build #-}
 
 type Tag = Text
 type MessageNumber = Int

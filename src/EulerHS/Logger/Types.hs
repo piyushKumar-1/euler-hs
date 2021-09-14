@@ -80,13 +80,12 @@ data Message = Message
   deriving (Show)
 
 instance Buildable Message where
-  build = fromText . showMessage
+  build = fromText . decodeUtf8 . showMessage
     where
       showMessage msg = case (msgMessage msg, msgValue msg) of
-        (Just _, Just _) -> show msg
-        (Just message, Nothing) -> show message
-        (Nothing, Just value) -> show value
-        (Nothing, Nothing) -> ""
+        (Just message, _) -> A.encode message
+        (_, Just value) -> A.encode value
+        (_, _) -> ""
   {-# INLINE build #-}
 
 type Tag = Text

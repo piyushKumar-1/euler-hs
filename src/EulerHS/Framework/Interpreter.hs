@@ -223,7 +223,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                             then setRequestTimeout defaultTimeout req
                             else req {HTTP.responseTimeout = mResponseTimeout mngr}
-          eitherResult <- tryRunClient $ S.runClientM (runEulerClient (dbgLogger Debug) getLoggerMaskConfig bUrl clientAct) $
+          eitherResult <- tryRunClient $! S.runClientM (runEulerClient (dbgLogger Debug) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do

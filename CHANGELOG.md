@@ -1,5 +1,12 @@
 # Changelog for euler-hs
 
+## [2.9.2.0] - 2021-09-22
+
+* Add logger functions `logM`  , `log` , `logV` , `logInfoM` , `logInfoV`
+  , `logErrorM` , `logErrorV` , `logDebugM` , `logDebugV` , `logWarningM`
+  ,  ability to log jsonable values as message.
+* Adjust log messages from `callHTTP` and `callAPI` methods
+
 ## [2.9.1.2] - 2021-09-22
 
 * Use `Data.ByteString.Builder` instead of deprecated `Data.ByteString.Lazy.Builder`

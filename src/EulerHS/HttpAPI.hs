@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DerivingStrategies    #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE RecordWildCards       #-}
 
 module EulerHS.HttpAPI
     (
@@ -17,10 +18,10 @@ module EulerHS.HttpAPI
     , makeCertificateStoreFromMemory
       -- * Common types and convenience methods
     , HTTPRequest(..)
+    , HTTPRequestMasked
     , HTTPResponse(..)
     , HTTPMethod(..)
     , HTTPCert(..)
-    , HTTPRequestResponse(HTTPRequestResponse)
     , HTTPIOException(HTTPIOException)
     , defaultTimeout
     , extractBody
@@ -38,8 +39,10 @@ module EulerHS.HttpAPI
     , withNoCheckLeafV3
     , maskHTTPRequest
     , maskHTTPResponse
+    , mkHttpApiCallLogEntry
     ) where
 
+import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import           Data.ByteString.Builder (Builder)
@@ -47,30 +50,32 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.Char as Char
 import           Data.Default
 import qualified Data.Map as Map
-import           Data.Monoid (All(..))
+import           Data.Monoid (All (..))
 import           Data.PEM (pemContent, pemParseBS)
 import           Data.String.Conversions (convertString)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import           Data.X509 (decodeSignedCertificate, encodeSignedObject,
-                           getCertificate, Certificate (certSerial),
-                           HashALG(..))
-import           Data.X509.CertificateStore (CertificateStore, listCertificates, makeCertificateStore)
-import           Data.X509.Validation (validate, defaultHooks, defaultChecks, checkLeafV3)
+import           Data.X509 (Certificate (certSerial), HashALG (..),
+                            decodeSignedCertificate, encodeSignedObject,
+                            getCertificate)
+import           Data.X509.CertificateStore (CertificateStore, listCertificates,
+                                             makeCertificateStore)
+import           Data.X509.Validation (checkLeafV3, defaultChecks, defaultHooks,
+                                       validate)
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
                                   maskHTTPHeaders, parseRequestResponseBody,
                                   shouldMaskKey)
 import           EulerHS.Prelude hiding (ord)
-import qualified Network.HTTP.Client as HTTP
+import           Generics.Deriving.Monoid (mappenddefault, memptydefault)
 import qualified Network.Connection as Conn
+import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as TLS
 import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.X509 (getSystemCertificateStore)
-import           Generics.Deriving.Monoid (memptydefault, mappenddefault)
 
 newtype CertificateStore'
   = CertificateStore'
@@ -188,7 +193,7 @@ memorizedSysStore = unsafePerformIO getSystemCertificateStore
 
 type SimpleProxySettings = (Text, Int)
 
--- | Add unconditional proxying (for both http/https, regardless 
+-- | Add unconditional proxying (for both http/https, regardless
 -- HTTP.Client's request proxy settings).
 withProxy :: SimpleProxySettings -> HTTPClientSettings
 withProxy (host, port) =
@@ -199,7 +204,7 @@ withProxy (host, port) =
 -- | The same as 'withProxy' but to use with optionally existsting settings.
 withMbProxy :: Maybe SimpleProxySettings -> HTTPClientSettings
 withMbProxy (Just s) = withProxy s
-withMbProxy Nothing = mempty
+withMbProxy Nothing  = mempty
 
 -- | Adds a client certificate to do client's TLS authentication
 withClientTls :: HTTPCert -> HTTPClientSettings
@@ -208,7 +213,7 @@ withClientTls httpCert =
 
 withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
 withMbClientTls (Just cert) = withClientTls cert
-withMbClientTls Nothing = mempty
+withMbClientTls Nothing     = mempty
 
 -- | Adds an additional store with trusted CA certificates. There is no Maybe version
 -- since 'CertificateStore` is a monoid.
@@ -237,6 +242,17 @@ data HTTPRequest
     }
     deriving (Eq, Ord, Generic, ToJSON)
 
+data HTTPRequestMasked
+  = HTTPRequestMasked
+    { getRequestMethod    :: HTTPMethod
+    , getRequestHeaders   :: Map.Map HeaderName HeaderValue
+    , getRequestBody      :: Maybe A.Value
+    , getRequestURL       :: Text
+    , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
+    , getRequestRedirects :: Maybe Int
+    }
+    deriving (Eq, Generic, ToJSON)
+
 data HTTPResponse
   = HTTPResponse
     { getResponseBody    :: T.LBinaryString
@@ -246,17 +262,26 @@ data HTTPResponse
     }
     deriving (Show, Eq, Ord, Generic, ToJSON)
 
+data HTTPResponseMasked
+  = HTTPResponseMasked
+    { getResponseBody    :: A.Value
+    , getResponseCode    :: Int
+    , getResponseHeaders :: Map.Map HeaderName HeaderValue
+    , getResponseStatus  :: Text
+    }
+    deriving (Show, Eq, Generic, ToJSON)
+
 data HTTPCert
   = HTTPCert
-    { getCert       :: B.ByteString
-    , getCertChain  :: [B.ByteString]
-    , getCertHost   :: String        -- ^ Defines the name of the server, along with an extra
+    { getCert      :: B.ByteString
+    , getCertChain :: [B.ByteString]
+    , getCertHost  :: String        -- ^ Defines the name of the server, along with an extra
                                      -- ^ service identification blob (not supported in Euler ATM).
                                      -- ^ This is important that the hostname part is properly
                                      -- ^ filled for security reason, as it allows to properly
                                      -- ^ as it allow to properly associate the remote side
                                      -- ^ with the given certificate during a handshake.
-    , getCertKey    :: B.ByteString
+    , getCertKey   :: B.ByteString
     }
     deriving stock (Eq, Ord, Generic)
 
@@ -272,25 +297,44 @@ data HTTPMethod
   | Connect
   | Options
   | Patch
-  deriving (Eq, Ord, Generic, ToJSON)
+  deriving (Eq, Ord, Show, Generic, ToJSON)
 
 type HeaderName = Text
 type HeaderValue = Text
 
-data HTTPRequestResponse
-  = HTTPRequestResponse
-    { request  :: HTTPRequest
-    , response :: HTTPResponse
-    }
-  deriving (Eq, Ord, Generic, ToJSON)
+data HttpApiCallLogEntry = HttpApiCallLogEntry
+  { url         :: Text
+  , method      :: Text
+  , req_headers :: A.Value
+  , req_body    :: Maybe A.Value
+  , res_code    :: Int
+  , res_body    :: A.Value
+  , res_headers :: A.Value
+  , latency     :: Integer
+  }
+  deriving stock (Show,Generic)
+  deriving anyclass A.ToJSON
+
+mkHttpApiCallLogEntry :: Integer -> HTTPRequestMasked -> HTTPResponseMasked -> HttpApiCallLogEntry
+mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
+  { url = req.getRequestURL
+  , method = show $ req.getRequestMethod
+  , req_headers = A.toJSON $ req.getRequestHeaders
+  , req_body = req.getRequestBody
+  , res_code = res.getResponseCode
+  , res_body = res.getResponseBody
+  , res_headers = A.toJSON $ res.getResponseHeaders
+  , latency = lat
+  }
+
 
 -- | Used when some IO (or other) exception ocurred during a request
 data HTTPIOException
   = HTTPIOException
     { errorMessage :: Text
-    , request      :: HTTPRequest
+    , request      :: HTTPRequestMasked
     }
-  deriving (Eq, Ord, Generic, ToJSON)
+  deriving (Eq, Generic, ToJSON)
 
 -- Not Used anywhere
 -- getMaybeUtf8 :: T.LBinaryString -> Maybe LazyText.Text
@@ -416,42 +460,42 @@ formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encod
           | n < 10    = 48
           | otherwise = 55
 
-maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequest
-maskHTTPRequest mbMaskConfig request =
-  request
+maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequestMasked
+maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
+    , getRequestMethod = request.getRequestMethod
+    , getRequestURL = request.getRequestURL
+    , getRequestTimeout = request.getRequestTimeout
+    , getRequestRedirects = request.getRequestRedirects
     }
   where
-    requestHeaders = getRequestHeaders request
+    requestHeaders = request.getRequestHeaders
 
-    requestBody = getRequestBody request
+    requestBody = request.getRequestBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
     maskedRequestBody =
-      T.LBinaryString
-        . encodeUtf8
-        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
+          parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
         . LB.toStrict
         . T.getLBinaryString <$> requestBody
 
-maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponse
-maskHTTPResponse mbMaskConfig response =
-  response
-    { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
-    , getResponseBody = maskedResponseBody
-    }
+maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponseMasked
+maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
+  { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
+  , getResponseBody = maskedResponseBody
+  , getResponseCode = response.getResponseCode
+  , getResponseStatus = response.getResponseStatus
+  }
   where
-    responseHeaders = getResponseHeaders response
+    responseHeaders = response.getResponseHeaders
 
-    responseBody = getResponseBody response
+    responseBody = response.getResponseBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
     maskedResponseBody =
-      T.LBinaryString
-        . encodeUtf8
-        . parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
+      parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
         . LB.toStrict
         $ T.getLBinaryString responseBody

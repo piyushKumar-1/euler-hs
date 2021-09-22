@@ -70,6 +70,7 @@ build-tools:
 
 nix-shell-tools:
 - redis
+- haskell-language-server
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883

@@ -82,7 +82,7 @@ import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBError (KVDBConnectionDoesNotExist),
                                      KVDBReply, KVDBReplyF (KVDBError),
                                      KVDBStatus)
-import           EulerHS.Logger.Types (LogContext, Message)
+import           EulerHS.Logger.Types (LogContext)
 import           EulerHS.Prelude hiding (get, id)
 import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
                                   LoggerRuntime (..))
@@ -164,28 +164,28 @@ checkFailedWithLog _ _ = pure ()
 --
 -- @since 2.1.0.1
 logInfoT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Text -> m ()
 logInfoT = L.logInfo @Text
 
 -- | As 'logError', but specialized for logging 'Text' tags.
 --
 -- @since 2.1.0.1
 logErrorT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Text -> m ()
 logErrorT = L.logError @Text
 
 -- | As 'logDebug', but specialized for logging 'Text' tags.
 --
 -- @since 2.1.0.1
 logDebugT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Text -> m ()
 logDebugT = L.logDebug @Text
 
 -- | As 'logWarning', but specialized for logging 'Text' tags.
 --
 -- @since 2.1.0.1
 logWarningT :: forall (m :: Type -> Type) .
-  (HasCallStack, L.MonadFlow m) => Text -> Message -> m ()
+  (HasCallStack, L.MonadFlow m) => Text -> Text -> m ()
 logWarningT = L.logWarning @Text
 
 -- | Creates a connection and runs a DB operation. Throws on connection failure

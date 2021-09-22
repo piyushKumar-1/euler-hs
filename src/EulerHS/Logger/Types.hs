@@ -10,7 +10,7 @@ module EulerHS.Logger.Types
     , MessageFormatter
     , FlowFormatter
     , LoggerConfig(..)
-    , Message
+    , Message(..)
     , Tag
     , PendingMsg(..)
     , ShouldLogSQL(..)
@@ -32,7 +32,11 @@ import qualified EulerHS.Common as T
 import           EulerHS.Prelude
 -- Currently, TinyLogger is highly coupled with the interface.
 -- Reason: unclear current practice of logging that affects design and performance.
+import qualified Data.Aeson as A
+import qualified Data.Text.Lazy.Encoding as TE
+import Data.Text.Lazy.Builder
 import qualified Data.ByteString.Lazy as LBS
+import Formatting.Buildable (Buildable(..))
 import qualified System.Logger.Message as LogMsg
 
 -- | Logging level.
@@ -68,7 +72,24 @@ data ShouldLogSQL
   deriving (Generic, Show, Read)
 
 type LogCounter = IORef Int         -- No race condition: atomicModifyIORef' is used.
-type Message = Text
+
+data Message = Message
+  { msgMessage :: Maybe A.Value
+  , msgValue :: Maybe A.Value
+  }
+  deriving (Show)
+
+instance Buildable Message where
+  build = fromText . decodeUtf8 . showMessage
+    where
+      showMessage msg = case (msgMessage msg, msgValue msg) of
+        -- This is compatibility code, so we added values as an extesnsion
+        -- and we can safely ignore it here if needed.
+        (Just message, _) -> A.encode message
+        (_, Just value) -> A.encode value
+        (_, _) -> ""
+  {-# INLINE build #-}
+
 type Tag = Text
 type MessageNumber = Int
 type BufferSize = Int
@@ -102,7 +123,7 @@ type Log = [LogEntry]
 
 defaultMessageFormatter :: MessageFormatter
 defaultMessageFormatter (PendingMsg _ lvl tag msg _ _) =
-  SimpleString $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| msg |+ ""
+  SimpleString $ "[" +|| lvl ||+ "] <" +| tag |+ "> " +| TE.decodeUtf8 (A.encode (msgMessage msg)) |+ ""
 
 showingMessageFormatter :: MessageFormatter
 showingMessageFormatter = SimpleString . show

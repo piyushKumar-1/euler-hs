@@ -42,8 +42,8 @@ module EulerHS.HttpAPI
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import           Data.ByteString.Lazy.Builder (Builder)
-import qualified Data.ByteString.Lazy.Builder as Builder
+import           Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.Char as Char
 import           Data.Default
 import qualified Data.Map as Map

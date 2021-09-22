@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.9.1.2] - 2021-09-22
+
+* Use `Data.ByteString.Builder` instead of deprecated `Data.ByteString.Lazy.Builder`
+  in `EulerHS.HttpAPI`
+
 ## [2.9.1.1] - 2021-09-03
 
 * Keep previous (as in 2.9.0.2) callHTTPWithCert interface

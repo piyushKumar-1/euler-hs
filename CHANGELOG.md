@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.3.0] - 2021-10-18
+
+* Treat `Text` and `String` tags in logging entries without show'ing them
+
 ## [2.9.2.0] - 2021-09-22
 
 * Add logger functions `logM`  , `log` , `logV` , `logInfoM` , `logInfoV`

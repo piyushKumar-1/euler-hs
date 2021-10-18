@@ -1288,15 +1288,15 @@ forkFlow' description flow = do
 
 
 logM :: forall (tag :: Type) (m :: Type -> Type) msg val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON msg, ToJSON val) => LogLevel -> tag -> msg -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => LogLevel -> tag -> msg -> val -> m ()
 logM logLvl tag m v = evalLogger' $ logMessage' logLvl tag $ Message (Just $ toJSON m) (Just $ toJSON v)
 
 log :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => LogLevel -> tag -> Text -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag) => LogLevel -> tag -> Text -> m ()
 log logLvl tag msg = evalLogger' $ logMessage' logLvl tag $ Message (Just $ A.toJSON msg) Nothing
 
 logV :: forall (tag :: Type) (m :: Type -> Type) val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON val) => LogLevel -> tag -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => LogLevel -> tag -> val -> m ()
 logV logLvl tag v = evalLogger' $ logMessage' logLvl tag $ Message Nothing (Just $ toJSON v)
 
 -- | Log message with Info level.
@@ -1304,15 +1304,15 @@ logV logLvl tag v = evalLogger' $ logMessage' logLvl tag $ Message Nothing (Just
 -- Thread safe.
 
 logInfoM :: forall (tag :: Type) (m :: Type -> Type) msg val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
 logInfoM = logM Info
 
 logInfo :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag) => tag -> Text -> m ()
 logInfo = log Info
 
 logInfoV :: forall (tag :: Type) (m :: Type -> Type) val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON val) => tag -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logInfoV = logV Info
 
 
@@ -1320,44 +1320,44 @@ logInfoV = logV Info
 --
 -- Thread safe.
 logErrorM :: forall (tag :: Type) (m :: Type -> Type) msg val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
 logErrorM = logM Error
 
 logError :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag) => tag -> Text -> m ()
 logError = log Error
 
 logErrorV :: forall (tag :: Type) (m :: Type -> Type) val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON val) => tag -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logErrorV = logV Error
 -- | Log message with Debug level.
 --
 -- Thread safe.
 logDebugM :: forall (tag :: Type) (m :: Type -> Type) msg val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
 logDebugM = logM Debug
 
 logDebug :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag) => tag -> Text -> m ()
 logDebug = log Debug
 
 logDebugV :: forall (tag :: Type) (m :: Type -> Type) val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON val) => tag -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logDebugV = logV Debug
 
 -- | Log message with Warning level.
 --
 -- Thread safe.
 logWarningM :: forall (tag :: Type) (m :: Type -> Type) msg val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => tag -> msg -> val -> m ()
 logWarningM = logM Warning
 
 logWarning :: forall (tag :: Type) (m :: Type -> Type) .
-  (HasCallStack, MonadFlow m, Show tag) => tag -> Text -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag) => tag -> Text -> m ()
 logWarning = log Warning
 
 logWarningV :: forall (tag :: Type) (m :: Type -> Type) val .
-  (HasCallStack, MonadFlow m, Show tag, ToJSON val) => tag -> val -> m ()
+  (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logWarningV = logV Warning
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),

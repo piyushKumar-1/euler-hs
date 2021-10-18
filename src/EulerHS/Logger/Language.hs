@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs           #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Logger.Language
   (
@@ -10,6 +11,7 @@ module EulerHS.Logger.Language
 
 import qualified EulerHS.Logger.Types as T
 import           EulerHS.Prelude
+import           Type.Reflection
 
 -- | Language for logging.
 data LoggerMethod next where
@@ -21,14 +23,11 @@ instance Functor LoggerMethod where
 
 type Logger = F LoggerMethod
 
-logMessage' :: Show tag => T.LogLevel -> tag -> T.Message -> Logger ()
-logMessage' lvl tag msg = liftFC $ LogMessage lvl (show tag) msg id
--- {-# NOINLINE logMessage' #-}
--- {-# RULES
---
---     "Specialise Text Tag logMessage'" forall (tag :: Text) (lvl :: T.LogLevel) (msg :: T.Message) .
---        logMessage' lvl tag msg = liftFC $ LogMessage lvl tag msg id ;
---
---     "Specialise String Tag logMessage'" forall (tag :: String) (lvl :: T.LogLevel) (msg :: T.Message) .
---        logMessage' lvl tag msg = liftFC $ LogMessage lvl (toText tag) msg id
--- #-}
+logMessage' :: forall tag . (Typeable tag, Show tag) => T.LogLevel -> tag -> T.Message -> Logger ()
+logMessage' lvl tag msg = liftFC $ LogMessage lvl textTag msg id
+  where
+    textTag :: Text
+    textTag
+      | Just HRefl <- eqTypeRep (typeRep @tag) (typeRep @Text  ) = tag
+      | Just HRefl <- eqTypeRep (typeRep @tag) (typeRep @String) = toText tag
+      | otherwise = show tag

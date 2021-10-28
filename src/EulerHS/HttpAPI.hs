@@ -34,6 +34,8 @@ module EulerHS.HttpAPI
     , withHeader
     , withOptionalHeader
     , withBody
+    , withFormBody
+    , withJSONBody
     , withTimeout
     , withRedirects
     , withNoCheckLeafV3
@@ -240,7 +242,8 @@ data HTTPRequest
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Eq, Ord, Generic, ToJSON)
+    deriving stock (Eq, Ord, Generic, Show)
+    deriving anyclass (ToJSON)
 
 data HTTPRequestMasked
   = HTTPRequestMasked
@@ -251,7 +254,8 @@ data HTTPRequestMasked
     , getRequestTimeout   :: Maybe Int                        -- ^ timeout, in microseconds
     , getRequestRedirects :: Maybe Int
     }
-    deriving (Eq, Generic, ToJSON)
+    deriving stock (Eq, Generic)
+    deriving anyclass (ToJSON)
 
 data HTTPResponse
   = HTTPResponse
@@ -260,7 +264,8 @@ data HTTPResponse
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Ord, Generic, ToJSON)
+    deriving stock (Show, Eq, Ord, Generic)
+    deriving anyclass (ToJSON)
 
 data HTTPResponseMasked
   = HTTPResponseMasked
@@ -269,7 +274,8 @@ data HTTPResponseMasked
     , getResponseHeaders :: Map.Map HeaderName HeaderValue
     , getResponseStatus  :: Text
     }
-    deriving (Show, Eq, Generic, ToJSON)
+    deriving stock (Show, Eq, Generic)
+    deriving anyclass (ToJSON)
 
 data HTTPCert
   = HTTPCert
@@ -399,15 +405,31 @@ withTimeout :: Int -> HTTPRequest -> HTTPRequest
 withTimeout timeout request =
   request {getRequestTimeout = Just timeout}
 
+-- | Sets the maximum number of redirects
 withRedirects :: Int -> HTTPRequest -> HTTPRequest
 withRedirects redirects request =
   request {getRequestRedirects = Just redirects}
 
+{-# DEPRECATED withBody "use withFormBody and withJSONBody instead" #-}
 -- TODO: Rename to `withFormData` or some such?
 withBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
 withBody pairs request = request {getRequestBody = Just body}
   where
     body = T.LBinaryString $ formUrlEncode pairs
+
+-- | Sets an http form-based body
+withFormBody :: [(Text, Text)] -> HTTPRequest -> HTTPRequest
+withFormBody = withBody
+
+-- | Sets a JSON body
+withJSONBody :: ToJSON b => b -> HTTPRequest -> HTTPRequest
+withJSONBody body req@HTTPRequest{getRequestHeaders} =
+  let json = A.encode body
+      headers = Map.insert "content-type" "application/json" getRequestHeaders
+  in req
+    { getRequestBody = Just $ convertString json
+    , getRequestHeaders = headers
+    }
 
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody

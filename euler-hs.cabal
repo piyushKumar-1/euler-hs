@@ -163,6 +163,7 @@ test-suite language
     EulerHS.TestData.Types
     EulerHS.Testing.Flow.Interpreter
     EulerHS.Testing.Types
+    HttpAPISpec
     FlowSpec
     KVDBArtSpec
     MaskingSpec

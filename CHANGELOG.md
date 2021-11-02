@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.9.4.0] - 2021-11-02
+
+* Moved `NonEmptyText` from euler-db/euler-types
+* Moved `Secret` from euler-db/euler-types + additional constraint
+
 ## [2.9.3.0] - 2021-10-18
 
 * Treat `Text` and `String` tags in logging entries without show'ing them

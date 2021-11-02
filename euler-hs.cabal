@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.9.3.0
+version:       2.9.4.0
 synopsis:      The Flow framework for Euler.
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
@@ -54,6 +54,8 @@ library
   exposed-modules:
     EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
+    EulerHS.Extra.NonEmptyText
+    EulerHS.Extra.Secret
     EulerHS.Extra.Test
     EulerHS.Extra.Validation
     EulerHS.Interpreters
@@ -91,6 +93,7 @@ library
     EulerHS.SqlDB.Types
 
   build-depends:
+    , QuickCheck
     , aeson
     , base64-bytestring
     , beam-core             ^>=0.9.0.0
@@ -106,31 +109,37 @@ library
     , dlist
     , exceptions
     , extra
-    , generic-deriving
     , fmt
     , formatting
     , free
+    , generic-deriving
     , generic-lens
     , hedis                 ^>=0.12.8.1
+    , http-api-data
     , http-client
     , http-client-tls
+    , http-media
     , http-types
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics
+    , optics-core
     , pem
     , postgresql-simple
     , process
     , profunctors
     , random
+    , reflection
     , resource-pool
     , sequelize             ^>=1.1.0.0
+    , servant
     , servant-client        ^>=0.18.2
     , servant-client-core   ^>=0.18.2
     , servant-server        ^>=0.18.2
     , sqlite-simple
     , stm
+    , store
     , string-conversions
     , text
     , time

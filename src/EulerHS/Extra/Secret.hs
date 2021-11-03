@@ -1,50 +1,58 @@
-{-
-{-#OPTIONS_GHC  -Wno-redundant-constraints #-}
-{-#OPTIONS_GHC  -Wno-unused-imports #-}
--}
 {-#OPTIONS_GHC -fclear-plugins            #-}
 {-#OPTIONS_GHC -Wno-unused-top-binds      #-}
 {-#OPTIONS_GHC -Wno-redundant-constraints #-}
+{-#LANGUAGE ConstraintKinds               #-}
 {-#LANGUAGE DerivingStrategies            #-}
 {-#LANGUAGE DerivingVia                   #-}
-{-#LANGUAGE RankNTypes                    #-}
+{-#LANGUAGE IncoherentInstances           #-}
 {-#LANGUAGE OverloadedStrings             #-}
 {-#LANGUAGE QuantifiedConstraints         #-}
---{-#LANGUAGE IncoherentInstances   #-}
+{-#LANGUAGE RankNTypes                    #-}
+{-#LANGUAGE RoleAnnotations               #-}
+{-#LANGUAGE ScopedTypeVariables           #-}
 
+-- | Protecting sensitive data from being accidentally leaked by
+-- packing them into a 'Secret' newtype wrapper.
 module EulerHS.Extra.Secret
   (
-    -- * some re-exports
-    Given
-  , give
-    -- * main stuff
+    -- * Introduction
+    -- $secret
+    --
+
+    -- * Core part
+    SecretContext(..)
   , Secret -- do not export Secret's data Constructor for security reasons
-  , SecretContext(..)
-    -- construction
+
+    -- * Construction and extraction
   , makeSecret
-  , toBuilder
-    -- extracting
-  , unsafeExtractSecret -- prefer extractSecret
   , ExtractSecrets
   , extractSecret
   , elimExtractSecrets
-    -- sequence-like transformations
+  , toBuilder
+  , unsafeExtractSecret -- deprecated, prefer extractSecret
+
+    -- * sequence-like transformations
   , sequenceSecretMaybe
   , sequenceMaybeSecret
   , sequenceSecretEither
   , sequenceEitherSecret
-    -- servant stuff
+
+    -- * Servant stuff
+    -- $servant
   , ProtectedJSON
   , DiscloseSecret (..)
+
+    -- * Re-exports
+    -- | Some of "Data.Reflection" are re-exported for users' convenience.
+  , Given
+  , give
   ) where
 
 import Data.Aeson hiding (object)
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Encoding as AE
 import Data.ByteString.Builder (Builder, string8)
+import Data.Coerce (coerce)
 import Data.Functor.Contravariant (contramap)
 import Data.Functor.Identity (Identity (Identity))
-import qualified Data.HashMap.Strict as HM
 import Data.Kind (Type)
 import Data.Reflection (Given, give, given)
 import Data.Store (Store (..))
@@ -53,20 +61,101 @@ import Network.HTTP.Media ((//))
 import Prelude hiding (print)
 import Servant.API (Accept(..), MimeRender(..))
 import Test.QuickCheck (Arbitrary, Arbitrary1, arbitrary, arbitrary1, liftArbitrary)
-import Unsafe.Coerce (unsafeCoerce)
 import Web.FormUrlEncoded
 import Web.HttpApiData
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Encoding as AE
+import qualified Data.HashMap.Strict as HM
 
--- Secret context to annotate risky/safely usage of Secret type
+
+-- $secret
+--
+-- This module introduces 'Secret' newtype wrapper. The idea is to put __all sensitive__
+-- fields in a 'Secret` wrapper, so instead just @Text \/ Int \/ etc@ fields we are going
+-- to work with @Secret Text@ and so on.
+--
+-- > data X = X {name :: Secret String, b :: Y}
+-- >   deriving stock (Generic)
+-- >   deriving anyclass (FromJSON)
+-- >
+-- >   deriving instance Given SecretContext => ToJSON X
+-- >   deriving instance Given SecretContext => Show X
+-- >   deriving instance Given SecretContext => Store X
+-- >
+-- > data Y = Y {c :: Int, money :: Secret Int}
+-- >   deriving stock (Generic)
+-- >   deriving anyclass (FromJSON, FromForm)
+-- >
+-- >   deriving instance Given SecretContext => ToJSON Y
+-- >   deriving instance Given SecretContext => Show Y
+-- >   deriving instance Given SecretContext => Store Y
+-- >
+--
+-- The 'Secret' wrapper works as follows:
+--
+-- * you can put a value into a Secret using 'makeSecret' function
+--
+-- * in order to extract a value you have to provide @Given SecretContext@ instance
+--
+-- Let's start with creating:
+--
+-- > exampleX :: X
+-- > exampleX = X { name = makeSecret "a", b = exampleY }
+-- >
+-- > exampleY :: Y
+-- > exampleY = Y {c = 10, money = makeSecret 20}
+--
+-- Potentially dangerous instances including 'Show', 'ToJSON' and 'Store' also
+-- require @Given SecretContext@. In order not to pass the context explicitly
+-- this module leverages "Data.Reflection" machinery to pass around the context.
+-- You don't need to understand how 'give'\/'given' is implemented but you
+-- have to understand this:
+--
+-- >>> given (42 :: Int) $ given @Int
+-- 42
+--
+-- Let's take a look at more examples:
+--
+-- >>> print $ give SafelyHideSecrets (A.encode exampleX)
+-- "{\"name\":\"***secret***\",\"b\":{\"money\":\"***secret***\",\"c\":10}}"
+-- >>> print $ give RiskyShowSecrets (A.encode exampleX)
+-- "{\"name\":\"a\",\"b\":{\"money\":20,\"c\":10}}"
+-- >>> print $ give SafelyHideSecrets (show exampleX :: String)
+-- "X {name = ***secret***, b = Y {c = 10, money = ***secret***}}"
+-- >>> print $ give RiskyShowSecrets (show exampleX :: String)
+-- "X {name = \"a\", b = Y {c = 10, money = 20}}"
+--
+-- TODO: Is it needed?
+--
+-- 'FromJSON', 'FromForm', 'FromHttpApiData' and 'Store's parsing fails if
+-- encounters /secreted data/:
+--
+-- >>> let secretJson = A.decode @X $ give SafelyHideSecrets $ A.encode exampleX
+-- "*** Exception: FromJSON (Secret a): trying to decode secret data
+--
+-- For changing 'Secret' data just use 'Secret' as a monad without extraction:
+--
+-- > f :: Secret Int -> Secret String
+-- > f secret = do
+-- >  x <- secret
+-- >  pure $ show $ x + 1
+
+{-------------------------------------------------------------------------------
+  Core part
+-------------------------------------------------------------------------------}
+
+-- | Secret context to annotate risky/safely usage of 'Secret' type
 data SecretContext = RiskyShowSecrets | SafelyHideSecrets
 
--- Secret data type used to hide any sensitive data stored in fields
-
--- We refused use the Traversable instance intentionally.
--- It also implies Foldable instance leading to extraction data without 'unsafeExtractSecret'.
--- Eg. 'traverse print (Secret password)' or
--- sneaky :: Show a => Secret a -> String
--- sneaky = foldMap show
+-- | 'Secret' data type is used to hide any sensitive data stored in fields
+-- in API and domain types.
+--
+-- We refused use the 'Traversable' instance intentionally since it opens
+-- backdoors like @'traverse print (Secret password)'@. The same is the case
+-- with 'Foldable' leading to extraction data, e.g.:
+--
+-- > sneaky :: Show a => Secret a -> String
+-- > sneaky = foldMap show
 newtype Secret (a :: Type) = Secret a
   deriving (Eq, Ord) via a
   deriving (Functor, Applicative, Monad) via Identity
@@ -77,11 +166,13 @@ instance Arbitrary a => Arbitrary (Secret a) where
 instance Arbitrary1 Secret where
   liftArbitrary = fmap Secret
 
+-- | Turns secreted values into __"***secret***"__ when in 'SafelyHideSecrets' context.
 instance (Show a, Given SecretContext) => Show (Secret a) where
   show (Secret value) = case given of
     SafelyHideSecrets -> "***secret***"
     RiskyShowSecrets  -> show value
 
+-- | Turns secreted values into __"***secret***"__ when in 'SafelyHideSecrets' context.
 instance (ToJSON a, Given SecretContext) => ToJSON (Secret a) where
   toJSON (Secret value) = case given of
     SafelyHideSecrets -> A.String "***secret***"
@@ -91,20 +182,23 @@ instance (ToJSON a, Given SecretContext) => ToJSON (Secret a) where
     SafelyHideSecrets -> AE.string "***secret***"
     RiskyShowSecrets  -> toEncoding value
 
+-- | Fails when encountering __"***secret***"__ strings.
 instance FromJSON a => FromJSON (Secret a) where
   parseJSON (String "***secret***") = Prelude.error "FromJSON (Secret a): trying to decode secret data"
   parseJSON value = makeSecret <$> parseJSON value
 
+-- | Fails when encountering __"***secret***"__ strings.
 instance FromForm a => FromForm (Secret a) where
   fromForm form = if HM.null $ HM.filter (elem "***secret***") $ unForm form
     then makeSecret <$> fromForm form
     else Left "FromForm (Secret a): trying to decode secret data"
 
+-- | Fails when encountering __"***secret***"__ strings.
 instance FromHttpApiData a => FromHttpApiData (Secret a) where
   parseUrlPiece "***secret***" = Left "FromHttpApiData (Secret a): trying to decode secret data"
   parseUrlPiece val = makeSecret <$> parseUrlPiece val
 
--- SecretContext here used just to annotate unwrapping of Secret values with Store operations.
+-- | SecretContext here used just to annotate unwrapping of 'Secret' values with 'Store' operations.
 instance (Store a, Given SecretContext) => Store (Secret a) where
     size = case given of
       SafelyHideSecrets -> Prelude.error "Store.size (Secret a): trying to size secret data"
@@ -114,33 +208,63 @@ instance (Store a, Given SecretContext) => Store (Secret a) where
       RiskyShowSecrets  -> poke x
     peek = Secret <$> peek
 
+{-------------------------------------------------------------------------------
+  Building and extracting secrets
+-------------------------------------------------------------------------------}
+
+-- TODO add a show-case example
+
+-- | Just makes a secret.
 makeSecret :: a -> Secret a
 makeSecret = Secret
 
--- unsafeExtractSecret used to extract sensitive data as a last resort.
--- Avoid to use it as as long as possible! Better add help function here!
--- it is NOT for show or logs!
--- Please, annotate all uses of `unsafeExtractSecre` with a comment that says on of
--- 'DB conversion',
--- 'API type conversion for response' or
--- 'API type conversion for service'
+-- | Internal type class to avoid the use of `unsafeCoerce`.
+class ExtractSecrets' dummy
 
--- For changing Secret data use Secret monad without extraction.
--- f :: Secret Int -> Secret String
--- f secret = do
---   x <- secret
---   pure $ show $ x + 1
+type role ExtractSecrets' representational
 
--- Edsko de Vries suggested to add a constrain to unsafeExtractSecret.
--- It will additionaly marks all functions where sensitive data extraction occurs.
--- Example https://well-typed.com/blog/2015/07/checked-exceptions/
+-- | A constraint to track functions which requires access to sensitive data.
+type ExtractSecrets = ExtractSecrets' ()
+
+-- | A function to extract a value in 'ExtractSecrets' context.
+extractSecret :: ExtractSecrets => Secret a -> a
+extractSecret (Secret s) = s
+
+-- | The last resort to extract sensitive data. Avoid to use it as as long as possible!
+-- __It is NOT for show or logs!__
+--
+-- Please, annotate all uses of `unsafeExtractSecre` with a comment that says on why this
+-- was done.
+--
+{-#DEPRECATED unsafeExtractSecret "use 'extractSecret' instead; for backward compatibility only"#-}
 unsafeExtractSecret :: Secret a -> a
 unsafeExtractSecret (Secret a) = a
 
+-- | TODO do we need it? If yes, why not to have @extract :: Given SecretContext => Secret a -> Maybe a@?
 toBuilder :: Given SecretContext => Secret a -> (a -> Builder) -> Builder
 toBuilder (Secret b) f = case given of
   SafelyHideSecrets -> string8 "***secret***"
   RiskyShowSecrets  -> f b
+
+-- | Newtypes and instances to eliminate 'ExtractSecrets'' context
+newtype Wrap dummy a = Wrap { unWrap :: ExtractSecrets' dummy => a }
+newtype UnDummy = UnDummy ()
+instance ExtractSecrets' UnDummy
+
+-- | Eliminates @ExtractSecrets@ constraint.
+--
+-- >>> elimExtractSecrets $ extractSecret  $ Secret ("foo" :: String)
+-- "foo"
+elimExtractSecrets :: forall a. (ExtractSecrets => a) -> a
+elimExtractSecrets v =
+    unWrap (coerceWrap (Wrap v))
+  where
+    coerceWrap :: Wrap () a -> Wrap (UnDummy) a
+    coerceWrap = coerce
+
+{-------------------------------------------------------------------------------
+  sequence-like transformations
+-------------------------------------------------------------------------------}
 
 sequenceSecretMaybe :: Secret (Maybe a) -> Maybe (Secret a)
 sequenceSecretMaybe (Secret (Just a)) = Just $ makeSecret a
@@ -160,76 +284,55 @@ sequenceEitherSecret :: Either e (Secret a) -> Secret (Either e a)
 sequenceEitherSecret (Right (Secret a)) = makeSecret $ Right a
 sequenceEitherSecret (Left e)           = makeSecret $ Left e
 
----
+{-------------------------------------------------------------------------------
+  Some servant stuff
+-------------------------------------------------------------------------------}
 
-class ExtractSecrets
+-- $servant
+-- The 'Secret' is designed to be used with /servant/, one can use it in request
+-- and response types. Nothing is needed to protect __requests__ since packing
+-- into 'Secret' is a straightforward operation. For __responses__ just use
+-- 'ProtectedJSON' instead of stock 'JSON' in your API-type and use /via deriving/
+-- for @ToJSON@ instance using 'DiscloseSecret' newtype:
+--
+-- > type Api =
+-- >   "path"
+-- >   :> ReqBody '[JSON] Req        -- no changes here
+-- >   :> Post '[ProtectedJSON] Foo  -- uses ProtectedJSON
+-- >
+-- > data Foo = Foo { bar :: Secret Text }
+-- >
+-- > deriving stock instance Eq InitTxnResp,
+-- > deriving stock instance Generic InitTxnResp
+-- > deriving anyclass instance Given SecretContext => ToJSON Foo
+-- > deriving via (DiscloseSecret Foo) instance MimeRender ProtectedJSON Foo
 
-extractSecret :: ExtractSecrets => Secret a -> a
-extractSecret (Secret s) = s
-
-newtype Wrap a = Wrap { unWrap :: ExtractSecrets => a}
-
-elimExtractSecrets :: (ExtractSecrets => a) -> a
-elimExtractSecrets a = unsafeCoerce {-@(Wrap a) @(() -> a)-} (Wrap a) ()
-
--- Some servant stuff
-
--- We need a promoted type constructor to use instead of the regular JSON kind
+-- | A promoted type constructor to use instead of the regular 'JSON' kind
 data ProtectedJSON
 
 instance Accept ProtectedJSON where
   contentType _ = "application" // "json"
 
+-- | A newtype wrapper to use in /via deriving/
 newtype DiscloseSecret a = DiscloseSecret a
 
+-- | This instance uses __QuantifiedConstraints__ extension to express the fact that
+-- @a@ is a @ToJSON@ only when a @Given SecretConstext@ is given. As such a context
+-- 'DiscloseSecret' 'give's 'RiskyShowSecrets'.
 instance (Given SecretContext => ToJSON a) => MimeRender ProtectedJSON (DiscloseSecret a) where
   mimeRender _ (DiscloseSecret v) = give RiskyShowSecrets $ encode v
 
 
+-- TODO move to tests?
 
+{-
 
-
-
-
-
-
-
--- leave here to test example:
 -- import           Data.Text (Text, pack)
 -- import           Euler.Types.Utils.JSONUtils (eitherDecodeT)
 -- import Euler.Types.Utils.JSONUtils (encodeT)
 -- import           GHC.Generics
 -- import           Data.Reflection (give) -- leave here to test example
 -- import qualified Data.Store as Binary -- leave here to test example
-
-
-{-
-test :: Secret a -> a
-test s = extracter $ unsafeExtractSecretConstraint s
--}
-
-{-   Usage of JSON, FromForm and Show instancies of Secret
-data X = X {name :: Secret String, b :: Y}
-  deriving stock (Generic)
-  deriving anyclass (FromJSON)
-
-deriving instance Given SecretContext => ToJSON X
-deriving instance Given SecretContext => Show X
-deriving instance Given SecretContext => Store X
-
-data Y = Y {c :: Int, money :: Secret Int}
-  deriving stock (Generic)
-  deriving anyclass (FromJSON, FromForm)
-
-deriving instance Given SecretContext => ToJSON Y
-deriving instance Given SecretContext => Show Y
-deriving instance Given SecretContext => Store Y
-
-exampleX :: X
-exampleX = X { name = makeSecret "a", b = exampleY }
-
-exampleY :: Y
-exampleY = Y {c = 10, money = makeSecret 20}
 
 main :: IO ()
 main = do

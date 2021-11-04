@@ -55,6 +55,7 @@ library
   exposed-modules:
     EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
+    EulerHS.Extra.BL
     EulerHS.Extra.NonEmptyText
     EulerHS.Extra.Secret
     EulerHS.Extra.Test

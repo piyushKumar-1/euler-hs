@@ -4,6 +4,7 @@
 
 * Moved `NonEmptyText` from euler-db/euler-types
 * Moved `Secret` from euler-db/euler-types + additional constraint
+* Add `EulerHS.Extra.BL` module for streamlining BL code using Except monad
 
 ## [2.9.3.0] - 2021-10-18
 

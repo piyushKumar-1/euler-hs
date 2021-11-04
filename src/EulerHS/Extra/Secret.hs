@@ -1,3 +1,6 @@
+-- TODO Given SecretContext vs. ExtractSecrets
+-- TODO sequence vs. Traversable
+-- TODO general approach -- cover as much as possible with Secret
 {-#OPTIONS_GHC -fclear-plugins            #-}
 {-#OPTIONS_GHC -Wno-unused-top-binds      #-}
 {-#OPTIONS_GHC -Wno-redundant-constraints #-}
@@ -151,7 +154,7 @@ data SecretContext = RiskyShowSecrets | SafelyHideSecrets
 -- in API and domain types.
 --
 -- We refused use the 'Traversable' instance intentionally since it opens
--- backdoors like @'traverse print (Secret password)'@. The same is the case
+-- backdoors like @'traverse print (makeSecret password)'@. The same is the case
 -- with 'Foldable' leading to extraction data, e.g.:
 --
 -- > sneaky :: Show a => Secret a -> String

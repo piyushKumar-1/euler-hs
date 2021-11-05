@@ -57,6 +57,7 @@ library
     EulerHS.Extra.AltValidation
     EulerHS.Extra.BL
     EulerHS.Extra.NonEmptyText
+    EulerHS.Extra.Parsing
     EulerHS.Extra.Secret
     EulerHS.Extra.Test
     EulerHS.Extra.Validation
@@ -126,6 +127,8 @@ library
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics
+    , nonempty-containers
+    , nonempty-vector
     , optics-core
     , pem
     , postgresql-simple
@@ -154,6 +157,8 @@ library
     , utf8-string
     , uuid
     , validation
+    , validation-selective
+    , vector
     , x509
     , x509-store
     , x509-system

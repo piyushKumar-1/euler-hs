@@ -56,6 +56,7 @@ library
     EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
     EulerHS.Extra.BL
+    EulerHS.Extra.Combinators
     EulerHS.Extra.NonEmptyText
     EulerHS.Extra.Parsing
     EulerHS.Extra.Secret

@@ -15,7 +15,7 @@ module EulerHS.Extra.Parsing
   ParsingErrorType (..),
   ParsingError (..),
   Parsed (Failed, Result),
-  handleParsed, fromParsed,
+  handleParsed, fromParsed, toEither,
   Step,
   parse, parseField,
   project, liftEither, liftPure, nonNegative, nonEmptyText,
@@ -141,6 +141,12 @@ handleParsed onFail onSuccess (Parsed comp) =
 fromParsed :: a -> Parsed a -> a
 fromParsed def (Parsed comp) =
   fromRight def . validationToEither $ comp
+
+-- | Maps a parsing result to Either
+toEither :: Parsed b -> Either (NonEmptyVector ParsingError) b
+toEither = \case
+  Failed errs -> Left errs
+  Result x    -> Right x
 
 -- Represents one parsing step. In particular, we track whether we're parsing a
 -- record field or not by way of 'ctx'. You can safely ignore 'ctx' in practice

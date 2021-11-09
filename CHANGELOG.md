@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.3.1] - 2021-11-09
+
+* Optimize exception passing to db connection pools
+
 ## [2.9.3.0] - 2021-10-18
 
 * Treat `Text` and `String` tags in logging entries without show'ing them

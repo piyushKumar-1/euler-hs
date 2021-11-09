@@ -13,6 +13,7 @@
 {-#LANGUAGE RankNTypes                    #-}
 {-#LANGUAGE RoleAnnotations               #-}
 {-#LANGUAGE ScopedTypeVariables           #-}
+{-#LANGUAGE TypeOperators                 #-}
 
 -- | Protecting sensitive data from being accidentally leaked by
 -- packing them into a 'Secret' newtype wrapper.
@@ -33,6 +34,11 @@ module EulerHS.Extra.Secret
   , elimExtractSecrets
   , toBuilder
   , unsafeExtractSecret -- deprecated, prefer extractSecret
+
+    -- * HKD-style secreting
+    -- $hkd
+  , Secreted
+  , unSecret
 
     -- * sequence-like transformations
   , sequenceSecretMaybe
@@ -60,6 +66,8 @@ import Data.Kind (Type)
 import Data.Reflection (Given, give, given)
 import Data.Store (Store (..))
 import Data.String (IsString)
+import Data.Void (Void)
+import GHC.Generics
 import Network.HTTP.Media ((//))
 import Prelude hiding (print)
 import Servant.API (Accept(..), MimeRender(..))
@@ -217,13 +225,18 @@ instance (Store a, Given SecretContext) => Store (Secret a) where
 
 -- TODO add a show-case example
 
--- | Just makes a secret.
+-- | Just makes a secret. When parsing values you might prefer to use a specialized
+-- 'secret' step from "EulerHS.Extra.Parsing"
 makeSecret :: a -> Secret a
 makeSecret = Secret
 
 -- | Internal type class to avoid the use of `unsafeCoerce`.
 class ExtractSecrets' dummy
 
+-- By default type-classes' params get, so to say, the @nominal@ role, so for being
+-- able to coerce @Wrap () a -> Wrap (UnDummy) a@ we need to ask compiler not to
+-- strengthen 'Wrap''s @dummy@ param to nominal due to its usage with 'ExtractSecrets''
+-- constraint.
 type role ExtractSecrets' representational
 
 -- | A constraint to track functions which requires access to sensitive data.
@@ -264,6 +277,67 @@ elimExtractSecrets v =
   where
     coerceWrap :: Wrap () a -> Wrap (UnDummy) a
     coerceWrap = coerce
+
+{-------------------------------------------------------------------------------
+  HKD-style secret elimination
+-------------------------------------------------------------------------------}
+
+-- $hkd
+--
+
+-- | Type family to write HKD-datatypes
+type family Secreted  f a where
+  Secreted Identity a = a
+  Secreted Secret a = Secret a
+  Secreted _ _ = Void
+
+class UnSec i o where
+  gUnSec :: i p -> o p
+
+instance ExtractSecrets => UnSec (K1 a (Secret k)) (K1 a k) where
+  -- gUnSec :: K1 a (Secret k) -> (K1 a k)
+  gUnSec (K1 k) = K1 $ extractSecret k
+  {-# INLINE gUnSec #-}
+
+instance ExtractSecrets => UnSec (K1 a k) (K1 a k) where
+  -- gUnSec :: K1 a k -> (K1 a k)
+  gUnSec = id
+  {-# INLINE gUnSec #-}
+
+instance (UnSec i o, UnSec i' o')
+    => UnSec (i :*: i') (o :*: o') where
+  gUnSec (l :*: r) = gUnSec l :*: gUnSec r
+  {-# INLINE gUnSec #-}
+
+instance (UnSec i o, UnSec i' o')
+    => UnSec (i :+: i') (o :+: o') where
+  gUnSec (L1 l) = L1 $ gUnSec l
+  gUnSec (R1 r) = R1 $ gUnSec r
+  {-# INLINE gUnSec #-}
+
+instance UnSec i o
+    => UnSec (M1 _a _b i) (M1 _a' _b' o) where
+  gUnSec (M1 x) = M1 $ gUnSec x
+  {-# INLINE gUnSec #-}
+
+instance UnSec V1 V1 where
+  gUnSec = undefined
+  {-# INLINE gUnSec #-}
+
+instance UnSec U1 U1 where
+  gUnSec U1 = U1
+  {-# INLINE gUnSec #-}
+
+unSecret
+    :: forall f .
+       ( Generic (f Secret)
+       , Generic (f Identity)
+       , UnSec (Rep (f Secret))
+               (Rep (f Identity))
+       )
+    => f Secret
+    -> f Identity
+unSecret = to . gUnSec . from
 
 {-------------------------------------------------------------------------------
   sequence-like transformations

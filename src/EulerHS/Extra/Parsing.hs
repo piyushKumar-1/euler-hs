@@ -2,6 +2,7 @@
 -- https://github.com/ndmitchell/record-dot-preprocessor/issues/30
 {-# OPTIONS_GHC -Wno-deprecations #-}
 {-# OPTIONS_GHC -Wno-incomplete-record-updates #-}
+{-# OPTIONS_GHC -Wno-unused-foralls #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DerivingVia         #-}
 {-# LANGUAGE KindSignatures      #-}
@@ -11,37 +12,64 @@
 {-# LANGUAGE ViewPatterns        #-}
 
 module EulerHS.Extra.Parsing
-(
-  ParsingErrorType (..),
-  ParsingError (..),
-  Parsed (Failed, Result),
-  handleParsed, fromParsed, toEither,
-  Step,
-  parse, parseField,
-  project, liftEither, liftPure, nonNegative, nonEmptyText,
-  mandated, integral, toUTC, defaulting,
-  around, aroundSecret, reconcile, secret
-) where
+  (
+  -- * Core definitions
+    ParsingErrorType (..)
+  , ParsingError (..)
+  , Parsed (Failed, Result)
+  , Step
+  , handleParsed
+  , fromParsed
+  , toEither
+
+  -- * Parsers' runners
+  , parse
+  , parseField
+
+  -- * Helpers for building 'Step's
+  , project
+  , liftEither
+  , liftPure
+
+  -- * Parser combinators
+  , around
+  , aroundSecret
+  , reconcile
+
+  -- * Common collection on parsers
+  , range
+  , mandated
+  , integral
+  , toUTC
+  , defaulting
+  , nonNegative
+  , nonEmptyText
+  , secret
+  ) where
 
 import           Control.Applicative (liftA2)
 import           Control.Arrow (Kleisli (Kleisli), runKleisli)
 import           Control.Category (Category ((.)))
 import           Data.Either (fromRight)
+import           Data.Either.Extra (mapRight)
 import           Data.Int (Int16, Int32, Int64, Int8)
 import           Data.Kind (Type)
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, fromJust)
 import           Data.Proxy (Proxy (Proxy))
 import           Data.Sequence (Seq (Empty, (:<|)))
 import qualified Data.Sequence as Seq
 import           Data.Sequence.NonEmpty (NESeq ((:<||)), singleton)
 import           Data.Text (Text, pack, unpack)
+import qualified Data.Text as T (length)
 import           Data.Time (LocalTime, UTCTime, localTimeToUTC, utc)
+import           Data.Type.Nat
 import qualified Data.Vector as V
 import           Data.Vector.NonEmpty (NonEmptyVector, uncons, unfoldr1)
 import           EulerHS.Extra.Secret (Secret, makeSecret, unsafeExtractSecret)
 import           EulerHS.Extra.NonEmptyText (NonEmptyText, nonEmpty)
 import           GHC.Records (HasField, getField)
-import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import           GHC.TypeLits (KnownNat, KnownSymbol, Symbol, symbolVal, natVal)
+import qualified GHC.TypeLits as TL (Nat)
 import           Optics.Core (preview)
 import           Prelude hiding ((.))
 import           Text.Read (readMaybe)
@@ -206,73 +234,6 @@ liftEither = Step . Kleisli
 liftPure :: (a -> b) -> Step ctx a b
 liftPure f = Step . Kleisli $ pure . f
 
--- A 'Step' that ensures its numerical input is not a negative value.
---
--- Formerly 'notNegative'.
-nonNegative :: forall (a :: Type) (ctx :: Maybe Symbol) .
-  (Num a, Eq a, Typeable a) => Step ctx a a
-nonNegative = Step . Kleisli $ \input -> case signum input of
-  (-1) -> Left . UnexpectedNegative $ tyName @a
-  _    -> Right input
-
--- A 'Step' that ensures a 'Text' is not empty, and enshrines that into the type
--- of its output.
---
--- Formerly 'textNotEmpty'.
-nonEmptyText :: forall (ctx :: Maybe Symbol) . Step ctx Text NonEmptyText
-nonEmptyText = Step . Kleisli $
-  maybe (Left UnexpectedEmptyText) Right . preview nonEmpty
-
--- A 'Step' which ensures that a 'Maybe' value is present, erroring otherwise,
--- and enshrines that by having its output be outside of 'Maybe'.
---
--- Formerly 'extractJust'.
-mandated :: forall (a :: Type) (ctx :: Maybe Symbol) .
-  (Typeable a) => Step ctx (Maybe a) a
-mandated = Step . Kleisli $ maybe (Left mkError) Right
-  where
-    mkError :: ParsingErrorType
-    mkError = MandatoryValueMissing (tyName @a)
-
--- A 'Step' which either promotes a value out of 'Maybe', or replaces it with
--- the provided default.
---
--- Formerly 'extractMaybeWithDefault'.
-defaulting :: a -> Step ctx (Maybe a) a
-defaulting def = Step . Kleisli $ Right . fromMaybe def
-
--- A 'Step' which parses 'Text' into an 'Integral' instance, erroring if this fails.
---
--- Formerly 'toInt'.
-integral :: forall (a :: Type) (ctx :: Maybe Symbol) .
-  (Integral a, Bounded a, Typeable a) => Step ctx Text a
-integral = liftEither go
-  where
-    go s = maybe (Left (UnexpectedTextValue (tyName @a) s)) integerToBounded . readMaybe . unpack $ s
-
-integerToBounded :: forall a. (Integral a, Bounded a, Typeable a) => Integer -> Either ParsingErrorType a
-integerToBounded n
-    | n < toInteger (minBound @a) = Left . Other $ "The value is less than minBound of " <>  tyName @a
-    | n > toInteger (maxBound @a) = Left . Other $ "The value is greater than maxBound of " <> tyName @a
-    | otherwise                   = Right (fromIntegral n)
-{-# INLINE integerToBounded #-}
-{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int #-}
-{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int8 #-}
-{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int16 #-}
-{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int32 #-}
-{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int64 #-}
-
--- A 'Step' which converts a 'LocalTime' into a 'UTCTime', on the assumption
--- that the input is zoned to UTC.
-toUTC :: Step ctx LocalTime UTCTime
-toUTC = Step . Kleisli $ Right . localTimeToUTC utc
-
--- A 'Step' which converts a 'a' into a 'Secret a'
--- Use for sensitive data fields
-secret :: Step ctx a (Secret a)
-secret = Step . Kleisli $ Right . makeSecret
-
-
 -- Helpers for transforming 'Step's
 
 -- Promote a 'Step' which works on pure values to working on values inside
@@ -320,7 +281,106 @@ reconcile f (Step comp1) (Step comp2) =
         Left err     -> Left err
         Right (l, r) -> f l r
 
--- Helpers
+{-------------------------------------------------------------------------------
+  Common collection of parsers
+-------------------------------------------------------------------------------}
+
+-- A 'Step' which converts a 'LocalTime' into a 'UTCTime', on the assumption
+-- that the input is zoned to UTC.
+toUTC :: Step ctx LocalTime UTCTime
+toUTC = Step . Kleisli $ Right . localTimeToUTC utc
+
+-- A 'Step' which converts a 'a' into a 'Secret a'
+-- Use for sensitive data fields
+secret :: Step ctx a (Secret a)
+secret = Step . Kleisli $ Right . makeSecret
+
+
+
+type family TextByLength (minL :: Nat) where
+  TextByLength  'Z    = Text
+  TextByLength ('S _) = NonEmptyText
+
+range :: forall (minL :: TL.Nat) (maxL :: TL.Nat) (ctx :: Maybe Symbol)
+  . (SNatI (FromGHC minL), KnownNat minL, KnownNat maxL)
+  => Step ctx Text (TextByLength (FromGHC minL))
+range = Step $ Kleisli $ case snat @(FromGHC minL) of
+    SZ -> go
+    SS -> \text ->
+            let res = go text
+            in mapRight (fromJust . preview nonEmpty) res
+  where
+    go :: Text -> Either ParsingErrorType Text
+    go t = let
+             tLength = toInteger $ T.length t
+             maxLt = natVal (Proxy @maxL)
+             minLt = natVal (Proxy @minL)
+           in
+             if tLength <= maxLt && tLength >= minLt
+               then Right t
+               else Left $ Other $ pack
+                $ "Length should be >= " <> show minLt <> " and <= " <> show maxLt
+
+
+-- A 'Step' which ensures that a 'Maybe' value is present, erroring otherwise,
+-- and enshrines that by having its output be outside of 'Maybe'.
+--
+-- Formerly 'extractJust'.
+mandated :: forall (a :: Type) (ctx :: Maybe Symbol) .
+  (Typeable a) => Step ctx (Maybe a) a
+mandated = Step . Kleisli $ maybe (Left mkError) Right
+  where
+    mkError :: ParsingErrorType
+    mkError = MandatoryValueMissing (tyName @a)
+
+-- A 'Step' which either promotes a value out of 'Maybe', or replaces it with
+-- the provided default.
+--
+-- Formerly 'extractMaybeWithDefault'.
+defaulting :: a -> Step ctx (Maybe a) a
+defaulting def = Step . Kleisli $ Right . fromMaybe def
+
+-- A 'Step' which parses 'Text' into an 'Integral' instance, erroring if this fails.
+--
+-- Formerly 'toInt'.
+integral :: forall (a :: Type) (ctx :: Maybe Symbol) .
+  (Integral a, Bounded a, Typeable a) => Step ctx Text a
+integral = liftEither go
+  where
+    go s = maybe (Left (UnexpectedTextValue (tyName @a) s)) integerToBounded . readMaybe . unpack $ s
+
+integerToBounded :: forall a. (Integral a, Bounded a, Typeable a) => Integer -> Either ParsingErrorType a
+integerToBounded n
+    | n < toInteger (minBound @a) = Left . Other $ "The value is less than minBound of " <>  tyName @a
+    | n > toInteger (maxBound @a) = Left . Other $ "The value is greater than maxBound of " <> tyName @a
+    | otherwise                   = Right (fromIntegral n)
+{-# INLINE integerToBounded #-}
+{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int #-}
+{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int8 #-}
+{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int16 #-}
+{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int32 #-}
+{-# SPECIALISE integerToBounded :: Integer -> Either ParsingErrorType Int64 #-}
+
+-- A 'Step' that ensures its numerical input is not a negative value.
+--
+-- Formerly 'notNegative'.
+nonNegative :: forall (a :: Type) (ctx :: Maybe Symbol) .
+  (Num a, Eq a, Typeable a) => Step ctx a a
+nonNegative = Step . Kleisli $ \input -> case signum input of
+  (-1) -> Left . UnexpectedNegative $ tyName @a
+  _    -> Right input
+
+-- A 'Step' that ensures a 'Text' is not empty, and enshrines that into the type
+-- of its output.
+--
+-- Formerly 'textNotEmpty'.
+nonEmptyText :: forall (ctx :: Maybe Symbol) . Step ctx Text NonEmptyText
+nonEmptyText = Step . Kleisli $
+  maybe (Left UnexpectedEmptyText) Right . preview nonEmpty
+
+{-------------------------------------------------------------------------------
+  Helpers
+-------------------------------------------------------------------------------}
 
 intoNEVector :: NESeq a -> NonEmptyVector a
 intoNEVector (h :<|| t) = unfoldr1 go h t

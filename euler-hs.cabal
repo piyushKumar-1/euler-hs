@@ -113,6 +113,7 @@ library
     , dlist
     , exceptions
     , extra
+    , fin
     , fmt
     , formatting
     , free

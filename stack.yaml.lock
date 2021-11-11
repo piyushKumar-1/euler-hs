@@ -160,6 +160,34 @@ packages:
       sha256: bd58146671de5a56fc05e381e2e341f71630872ed4f1310f57290dfdf5c96f29
   original:
     hackage: record-dot-preprocessor-0.2.11@sha256:b29c3109e3295ca9eab034b44607ce28e8093d8d05ffdef0c2d44e9bec553c46,2441
+- completed:
+    hackage: store-0.7.12@sha256:362327372c816f00cff4800d699d7f7ba015fa21fa7b3ad493094ce01b99b2bb,8071
+    pantry-tree:
+      size: 1292
+      sha256: 580ced2e7269701270a4f94de55c39e2d0589393f999ccba99ecc3cf17d93cae
+  original:
+    hackage: store-0.7.12@sha256:362327372c816f00cff4800d699d7f7ba015fa21fa7b3ad493094ce01b99b2bb,8071
+- completed:
+    hackage: validation-selective-0.1.0.1@sha256:9a5aa8b801efc6a4ffb120e1b28e80c5f7d090043be56bba11222cd20c393044,3621
+    pantry-tree:
+      size: 696
+      sha256: bf72fe4304690da4b5bc6e5218b0f90b5613e7d658f3ce31731816a423fcbca6
+  original:
+    hackage: validation-selective-0.1.0.1@sha256:9a5aa8b801efc6a4ffb120e1b28e80c5f7d090043be56bba11222cd20c393044,3621
+- completed:
+    hackage: store-core-0.4.4.4@sha256:a19098ca8419ea4f6f387790e942a7a5d0acf62fe1beff7662f098cfb611334c,1430
+    pantry-tree:
+      size: 271
+      sha256: 2e38b2201b812c658ef4ce97db1044563cacbf3232211dcc7a2071be2c71f389
+  original:
+    hackage: store-core-0.4.4.4@sha256:a19098ca8419ea4f6f387790e942a7a5d0acf62fe1beff7662f098cfb611334c,1430
+- completed:
+    hackage: th-utilities-0.2.4.1@sha256:b37d23c8bdabd678aee5a36dd4373049d4179e9a85f34eb437e9cd3f04f435ca,1869
+    pantry-tree:
+      size: 882
+      sha256: 0f2cadecd5bf76c605a2768f3b150318750258fd82bde4d8e206651802106065
+  original:
+    hackage: th-utilities-0.2.4.1@sha256:b37d23c8bdabd678aee5a36dd4373049d4179e9a85f34eb437e9cd3f04f435ca,1869
 snapshots:
 - completed:
     size: 496112

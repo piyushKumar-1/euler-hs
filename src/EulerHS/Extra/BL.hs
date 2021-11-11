@@ -327,7 +327,7 @@ unless' = when' . not
 -- >   | MerchantNotFound
 -- >   | MerchantAccountValidationFailed Text
 -- >   | BadOrigin
--- > 
+-- >
 -- > authenticate
 -- >   :: RouteParameters
 -- >   -> Maybe Signature
@@ -341,36 +341,36 @@ unless' = when' . not
 -- >       >>= validateMerchantAccount
 -- >       >>= when' (getAuthScope routeParams == MERCHANT) runIpAddressFilters
 -- >     >>= handleAuthResult
--- > 
+-- >
 -- >     where
 -- >       getAuthHeader = _ $ lookupRP @Authorization routeParams
--- > 
+-- >
 -- >       extractKey apiKeyStr = exceptMap InvalidApiKey $
 -- >       extractApiKey apiKeyStr
--- > 
+-- >
 -- >       findActiveKey apiKey = exceptMaybeM KeyNotActive $ ETM.getActiveByApiKey apiKey
--- > 
+-- >
 -- >       loadMerchantAccount mk = exceptMaybeM MerchantNotFound $ ETM.loadMerchantDBById mk.merchantAccountId
--- > 
+-- >
 -- >       validateMerchantAccount macc = exceptMap (MerchantAccountValidationFailed . show)
 -- >         $ parsedToExcept $ ETM.parseMerchantAccount macc
--- > 
+-- >
 -- >       runIpAddressFilters macc =
 -- >         ifM (lift $ ipAddressFilters macc (lookupRP @XForwardedFor routeParams))
 -- >           (pure macc)
 -- >           (throwE BadOrigin)
--- > 
+-- >
 -- >       handleAuthResult :: Either AuthError ETM.MerchantAccount -> Flow (Either Text ETM.MerchantAccount)
 -- >       handleAuthResult res = do
 -- >         whenLeft res handleError
 -- >         pure $ first report res
--- > 
+-- >
 -- >         report AuthorizationHeaderIsEmpty = show $ Errs.eulerAccessDenied "API key not present in Authorization header"
 -- >         report (InvalidApiKey _) = show $ Errs.eulerAccessDenied "Invalid API key."
 -- >         report (MerchantAccountValidationFailed _ ) = show Errs.internalError
 -- >         report (BadOrigin) = show Errs.ecBadOrigin
 -- >         report _ = show Errs.ecAccessDenied
--- > 
+-- >
 -- >       handleError :: AuthError -> Flow ()
 -- >       handleError err = do
 -- >         case err of

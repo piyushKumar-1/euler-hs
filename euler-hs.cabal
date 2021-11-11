@@ -55,11 +55,13 @@ library
   exposed-modules:
     EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
+    EulerHS.Extra.Aeson
     EulerHS.Extra.BL
     EulerHS.Extra.Combinators
     EulerHS.Extra.NonEmptyText
     EulerHS.Extra.Parsing
     EulerHS.Extra.Secret
+    EulerHS.Extra.Text
     EulerHS.Extra.Test
     EulerHS.Extra.Validation
     EulerHS.Interpreters
@@ -72,7 +74,6 @@ library
     EulerHS.Api
     EulerHS.BinaryString
     EulerHS.Common
-    EulerHS.Extra.Aeson
     EulerHS.Extra.Language
     EulerHS.Framework.Interpreter
     EulerHS.Framework.Language
@@ -139,6 +140,7 @@ library
     , random
     , reflection
     , resource-pool
+    , scientific
     , sequelize             ^>=1.1.0.0
     , servant
     , servant-client        ^>=0.18.2

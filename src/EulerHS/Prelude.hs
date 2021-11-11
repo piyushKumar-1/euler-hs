@@ -5,10 +5,6 @@ module EulerHS.Prelude
   ( module X
   , liftFC
   , catchAny
-  -- JSON
-  , jsonSetField
-  , encodeJSON
-  , decodeJSON
   ) where
 
 import           Control.Concurrent as X (ThreadId, forkIO, killThread,
@@ -35,7 +31,6 @@ import           Data.Aeson as X (FromJSON, FromJSONKey, ToJSON, ToJSONKey,
 import           Data.Kind as X (Type)
 import           Data.Maybe as X (fromJust)
 import           Data.Serialize as X (Serialize)
-import           EulerHS.Extra.Aeson (decodeJSON, encodeJSON, jsonSetField)
 import           Fmt as X ((+|), (+||), (|+), (||+))
 import           GHC.Base as X (until)
 import           Text.Read as X (read, readsPrec)

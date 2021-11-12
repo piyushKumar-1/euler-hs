@@ -64,6 +64,7 @@ library
     EulerHS.Extra.Secret
     EulerHS.Extra.Text
     EulerHS.Extra.Test
+    EulerHS.Extra.Time
     EulerHS.Extra.Validation
     EulerHS.Interpreters
     EulerHS.Language

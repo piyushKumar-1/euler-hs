@@ -58,6 +58,7 @@ library
     EulerHS.Extra.Aeson
     EulerHS.Extra.BL
     EulerHS.Extra.Combinators
+    EulerHS.Extra.Config
     EulerHS.Extra.NonEmptyText
     EulerHS.Extra.Parsing
     EulerHS.Extra.Secret

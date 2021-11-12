@@ -1,7 +1,7 @@
 {-#LANGUAGE RankNTypes #-}
 -- | Some useful extra functions and combinators  for writing
 -- business logic code and some notes on the topic.
-module EulerHS.Extra.BL
+module EulerHS.Extra.Control
  ( except
  , exceptMap
  , exceptMaybe

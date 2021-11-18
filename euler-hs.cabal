@@ -59,6 +59,7 @@ library
     EulerHS.Extra.Control
     EulerHS.Extra.Combinators
     EulerHS.Extra.Config
+    EulerHS.Extra.DB
     EulerHS.Extra.NonEmptyText
     EulerHS.Extra.Parsing
     EulerHS.Extra.Secret

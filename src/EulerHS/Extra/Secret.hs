@@ -251,10 +251,9 @@ extractSecret (Secret s) = s
 --
 -- Please, annotate all uses of `unsafeExtractSecre` with a comment that says on why this
 -- was done.
---
-{-#DEPRECATED unsafeExtractSecret "use 'extractSecret' instead; for backward compatibility only"#-}
+
 unsafeExtractSecret :: Secret a -> a
-unsafeExtractSecret (Secret a) = a
+unsafeExtractSecret s = elimExtractSecrets (extractSecret s)
 
 -- | TODO do we need it? If yes, why not to have @extract :: Given SecretContext => Secret a -> Maybe a@?
 toBuilder :: Given SecretContext => Secret a -> (a -> Builder) -> Builder

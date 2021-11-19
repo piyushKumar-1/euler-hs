@@ -6,6 +6,7 @@ module EulerHS.Extra.Control
  , exceptMap
  , exceptMaybe
  , exceptMaybeM
+ , hoistMaybe
  , when'
  , unless'
  -- $notes
@@ -39,6 +40,11 @@ when' False _ = pure
 -- | The opposite of 'when''
 unless' :: forall a m . Applicative m => Bool -> (a -> m a) -> (a -> m a)
 unless' = when' . not
+
+-- | Convert a 'Maybe' computation to 'MaybeT'.
+hoistMaybe :: (Applicative m) => Maybe b -> MaybeT m b
+hoistMaybe = MaybeT . pure
+
 
 -- $notes
 --

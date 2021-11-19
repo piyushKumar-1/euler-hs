@@ -143,9 +143,9 @@ library
     , scientific
     , sequelize             ^>=1.1.0.0
     , servant
-    , servant-client        ^>=0.18.2
-    , servant-client-core   ^>=0.18.2
-    , servant-server        ^>=0.18.2
+    , servant-client        ^>=0.18.3
+    , servant-client-core   ^>=0.18.3
+    , servant-server        ^>=0.18.3
     , sqlite-simple
     , stm
     , store
@@ -216,10 +216,10 @@ test-suite language
     , random
     , safe-exceptions
     , sequelize
-    , servant               ^>=0.18.2
-    , servant-client        ^>=0.18.2
+    , servant               ^>=0.18.3
+    , servant-client        ^>=0.18.3
     , servant-mock          ^>=0.8.7
-    , servant-server        ^>=0.18.2
+    , servant-server        ^>=0.18.3
     , string-conversions
     , text
     , tls

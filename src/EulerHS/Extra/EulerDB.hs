@@ -9,15 +9,12 @@ module EulerHS.Extra.EulerDB (
   withEulerDBR1,
   ) where
 
-import           EulerHS.Language (MonadFlow, SqlDB, getOption,
-                                   getSqlDBConnection, logErrorT, runDB,
-                                   throwException)
+import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,
+                                   throwException, withDB)
 import           EulerHS.Prelude hiding (getOption)
-import           EulerHS.Types (BeamRunner, BeamRuntime, DBConfig, DBResult,
-                                OptionEntity, SqlConn)
+import           EulerHS.Types (DBConfig, OptionEntity)
 
 import           Database.Beam.MySQL (MySQLM)
-import           Servant (err500)
 
 
 data EulerDbCfg = EulerDbCfg
@@ -68,34 +65,3 @@ withEulerDBGeneral key internalError act = do
     Nothing -> do
       logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
       throwException internalError
-
--- Helpers
-
-withDB ::
-  ( BeamRunner beM
-  , BeamRuntime be beM
-  , MonadFlow m
-  )
-  => DBConfig beM
-  -> SqlDB beM a
-  -> m a
-withDB = withDB' runDB
-
-withDB' :: (MonadFlow m) =>
-  (SqlConn beM -> SqlDB beM a -> m (DBResult a))
-  -> DBConfig beM
-  -> SqlDB beM a
-  -> m a
-withDB' runDB' dbConf act = do
-  mConn <- getSqlDBConnection dbConf
-  conn <- case mConn of
-    Right c -> pure c
-    Left err -> do
-      logErrorT "SqlDB connect" . show $ err
-      throwException err500
-  res <- runDB' conn act
-  case res of
-    Left dbError -> do
-     logErrorT "SqlDB interraction" . show $ dbError
-     throwException err500
-    Right r -> pure r

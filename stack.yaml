@@ -10,7 +10,7 @@ packages:
   - ../beam/beam-sqlite
   - ../beam/beam-postgres
   - ../beam-mysql
-  - ../juspay-extra
+  - ../euler-haskell-common
 
 extra-deps:
   - git: https://gitlab.com/aravindvirat/tinylog

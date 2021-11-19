@@ -45,13 +45,13 @@ instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 -- Pass Exception argument to function ad hoc,
 -- or better use prepared functions from
 -- src/Euler/WebService/Database/EulerDB.hs
-getEulerDbConf :: (MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
+getEulerDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
 getEulerDbConf = getEulerDbByConfig EulerDbCfg
 
-getEulerDbConfR1 :: (MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
+getEulerDbConfR1 :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
 getEulerDbConfR1 = getEulerDbByConfig EulerDbCfgR1
 
-getEulerDbByConfig :: (MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM))
+getEulerDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM))
   => k -> e -> m (DBConfig MySQLM)
 getEulerDbByConfig dbConf internalError = do
   dbcfg <- getOption dbConf
@@ -62,16 +62,16 @@ getEulerDbByConfig dbConf internalError = do
       throwException internalError
 
 -- NOTE: Does NOT run inside a transaction
-withEulerDB :: (MonadFlow m, Exception e) => e -> SqlDB MySQLM a -> m a
+withEulerDB :: (HasCallStack, MonadFlow m, Exception e) => e -> SqlDB MySQLM a -> m a
 withEulerDB internalError act = withEulerDBGeneral EulerDbCfg internalError act
 
 -- | Runs the query against the MySQL read replica DB
 -- Falls back to using default MySQL DB if replica DB connection is not initialized
 -- NOTE: Does NOT run inside a transaction
-withEulerDBR1 :: (MonadFlow m, Exception e) => e -> SqlDB MySQLM a -> m a
+withEulerDBR1 :: (HasCallStack, MonadFlow m, Exception e) => e -> SqlDB MySQLM a -> m a
 withEulerDBR1 internalError act = withEulerDBGeneral EulerDbCfg internalError act
 
-withEulerDBGeneral :: (MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM))
+withEulerDBGeneral :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM))
   => k -> e -> SqlDB MySQLM a -> m a
 withEulerDBGeneral key internalError act = do
   dbcfg <- getOption key

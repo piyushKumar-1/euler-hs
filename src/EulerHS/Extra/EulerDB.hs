@@ -7,14 +7,17 @@ module EulerHS.Extra.EulerDB (
   getEulerDbConfR1,
   withEulerDB,
   withEulerDBR1,
+  withEulerPsqlDB,
+  withEulerDBTransaction,
   ) where
 
 import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,
-                                   throwException, withDB)
+                                   throwException, withDB, withDBTransaction)
 import           EulerHS.Prelude hiding (getOption)
 import           EulerHS.Types (DBConfig, OptionEntity)
 
 import           Database.Beam.MySQL (MySQLM)
+import qualified Database.Beam.Postgres as BP
 
 
 data EulerDbCfg = EulerDbCfg
@@ -28,6 +31,12 @@ data EulerDbCfgR1 = EulerDbCfgR1
   deriving anyclass (ToJSON, FromJSON)
 
 instance OptionEntity EulerDbCfgR1 (DBConfig MySQLM)
+
+data EulerPsqlDbCfg = EulerPsqlDbCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 
 
 getEulerDbConf :: (MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
@@ -60,6 +69,27 @@ withEulerDBGeneral :: (MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM
   => k -> e -> SqlDB MySQLM a -> m a
 withEulerDBGeneral key internalError act = do
   dbcfg <- getOption key
+  case dbcfg of
+    Just cfg -> withDB cfg act
+    Nothing -> do
+      logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
+      throwException internalError
+
+-- NOTE: Does NOT run inside a transaction
+withEulerDBTransaction :: (HasCallStack, MonadFlow m, Exception e)
+  => e -> SqlDB MySQLM a -> m a
+withEulerDBTransaction internalError act = do
+  (dbcfg :: Maybe (DBConfig MySQLM)) <- getOption EulerDbCfg
+  case dbcfg of
+    Just cfg -> withDBTransaction cfg act
+    Nothing -> do
+      logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
+      throwException internalError
+
+withEulerPsqlDB :: (HasCallStack, MonadFlow m, Exception e)
+  => e -> SqlDB BP.Pg a -> m a
+withEulerPsqlDB internalError act = do
+  (dbcfg :: Maybe (DBConfig BP.Pg)) <- getOption EulerPsqlDbCfg
   case dbcfg of
     Just cfg -> withDB cfg act
     Nothing -> do

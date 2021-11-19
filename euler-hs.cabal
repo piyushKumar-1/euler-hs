@@ -60,9 +60,6 @@ library
     EulerHS.Extra.Combinators
     EulerHS.Extra.Config
     EulerHS.Extra.DB
-    EulerHS.Extra.NonEmptyText
-    EulerHS.Extra.Parsing
-    EulerHS.Extra.Secret
     EulerHS.Extra.Test
     EulerHS.Extra.Time
     EulerHS.Extra.Validation

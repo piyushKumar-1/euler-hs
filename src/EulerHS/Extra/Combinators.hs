@@ -12,7 +12,7 @@ where
 import           Control.Exception (Exception)
 import           Control.Monad (void)
 import           Data.Text (Text, pack)
-import           EulerHS.Extra.Parsing (Parsed (Failed, Result))
+import           Juspay.Extra.Parsing (Parsed (Failed, Result))
 import           EulerHS.Language (MonadFlow, logError, throwException)
 import           EulerHS.Types (DBError)
 import           GHC.Generics (Generic)

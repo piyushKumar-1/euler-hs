@@ -20,7 +20,7 @@ dependencies:
     revision: 7acc05c59853f1ef7fbf2715db66b5cdf03edfea
   juspay-extra:
     branch: add-euler-extra
-    revision: 0948bf169ff01f03b53e9d15a7ff0b94c2a5eaf2
+    revision: 27d7ea94957f505846718d3542b4db61199d5645
 
 overrides:
   hedis:

@@ -3,33 +3,28 @@
 module EulerHS.Extra.Aeson
 (
   jsonSetField
-, encodeJSON
-, decodeJSON
+-- , encodeJSON
+-- , decodeJSON
 , obfuscate
-, encodeT
-, eitherDecodeT
+-- , encodeT
+-- , eitherDecodeT
 -- for JSON instances of storage types
 , jsonNumberToString
 , jsonStringToNumber
 , updateJSONString
 ) where
 
-import qualified EulerHS.Extra.Text as Extra
+import qualified Juspay.Extra.Text as Extra
 
 import           Prelude
 
-import           Data.Aeson (FromJSON, ToJSON (..), Value (..), decode,
-                             eitherDecode, encode)
+import           Data.Aeson (ToJSON (..), Value (..), decode)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Text as Aeson
-import qualified Data.ByteString.Lazy as LazyByteString
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Maybe (fromJust)
 import           Data.Scientific (floatingOrInteger)
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.Lazy as LazyText
 
 
 
@@ -42,24 +37,6 @@ jsonSetField fieldName fieldValue obj = case obj of
     Aeson.Object $ HashMap.insert fieldName (Aeson.toJSON fieldValue) fields
   _ ->
     error $ "This should be an object... got " <> show obj
-
--- | Encode a value to JSON Text
---
--- Note: the name `jsonEncode` is already taken by Aeson
-encodeJSON :: ToJSON a => a -> Text
-encodeJSON = LazyText.toStrict . Aeson.encodeToLazyText
-
--- | Parse JSON Text into a value
-decodeJSON :: FromJSON a => Text -> Maybe a
-decodeJSON = Aeson.decode . LazyByteString.fromStrict . Text.encodeUtf8
-
--- | Encode to Text
-encodeT :: ToJSON a => a -> Text
-encodeT = Text.decodeUtf8 . BSL.toStrict . encode
-
--- | Decode from Text
-eitherDecodeT :: FromJSON a => Text -> Either String a
-eitherDecodeT = eitherDecode . BSL.fromStrict . Text.encodeUtf8
 
 -- | Rip away all values from a Value
 obfuscate :: Value -> Value

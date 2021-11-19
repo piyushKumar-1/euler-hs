@@ -63,7 +63,6 @@ library
     EulerHS.Extra.NonEmptyText
     EulerHS.Extra.Parsing
     EulerHS.Extra.Secret
-    EulerHS.Extra.Text
     EulerHS.Extra.Test
     EulerHS.Extra.Time
     EulerHS.Extra.Validation
@@ -129,6 +128,7 @@ library
     , http-client-tls
     , http-media
     , http-types
+    , juspay-extra
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named

@@ -3,6 +3,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.Extra.EulerDB (
+  EulerDbCfg(..),
+  EulerDbCfgR1(..),
+  EulerPsqlDbCfg(..),
   getEulerDbConf,
   getEulerDbConfR1,
   withEulerDB,
@@ -39,6 +42,9 @@ data EulerPsqlDbCfg = EulerPsqlDbCfg
 instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 
 
+-- Pass Exception argument to function ad hoc,
+-- or better use prepared functions from
+-- src/Euler/WebService/Database/EulerDB.hs
 getEulerDbConf :: (MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
 getEulerDbConf = getEulerDbByConfig EulerDbCfg
 

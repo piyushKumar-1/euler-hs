@@ -49,12 +49,12 @@ packages:
     git: https://github.com/juspay/bytestring-lexing
     commit: 0a46db1139011736687cb50bbd3877d223bcb737
 - completed:
-    hackage: servant-0.18.2@sha256:709b9e0a4ceea893a98d9a6bf3835763427a6b8366c222599167ed84e41ae838,5484
+    hackage: servant-0.18.3@sha256:0fbf8f9274bdfda6a778d6d7ec714c9f0abd17102af9bc002a93fe3ed284e8ca,5309
     pantry-tree:
       size: 2662
-      sha256: 89203ad8f8f77e6a4ba5b0686804245243307f36e79841d727c2e4a412c2c3d8
+      sha256: 206f6289793fc25e4708e454ebb3e478710e8634017a47f05cff41a20b50a08b
   original:
-    hackage: servant-0.18.2
+    hackage: servant-0.18.3
 - completed:
     hackage: servant-mock-0.8.7@sha256:64cb3e52bbd51ab6cb25e3f412a99ea712c6c26f1efd117f01a8d1664df49c67,2306
     pantry-tree:
@@ -63,26 +63,26 @@ packages:
   original:
     hackage: servant-mock-0.8.7
 - completed:
-    hackage: servant-server-0.18.2@sha256:8d70dc82700e84928be269328ed87551db865165ab0cf4f9ebc167c26e161876,5665
+    hackage: servant-server-0.18.3@sha256:8040e38682d936a2c87ad2a787cc65b3bad18c87e9f773cf7bcfc12ce76af96e,5508
     pantry-tree:
       size: 2614
-      sha256: f68f20871f9e36b0fe9a6496d33293a662054b2402c78ac5807c4ad407330cd2
+      sha256: 972459941ab4e8f83a44fce6172b61e9126727cb5bdad5d4d21c28907128917a
   original:
-    hackage: servant-server-0.18.2
+    hackage: servant-server-0.18.3
 - completed:
-    hackage: servant-client-0.18.2@sha256:eaa1cd164819c96b7e7ff6d808b6493fb9e3ccb977fde40aa985f1fab17612de,4745
+    hackage: servant-client-0.18.3@sha256:570145df5209b245a141eec6841fbca6785cd88e073e85eecbeff4438ca34784,4602
     pantry-tree:
       size: 1300
-      sha256: f1f2da3eefe26e6d0939dd5ab0340ca7db2356b4ba487d6723bef5947ad9f3e3
+      sha256: 4f3a9dd501ea02289559f8c49df88fb00a2f34ac225c2d9ae1df5970bf8ce4db
   original:
-    hackage: servant-client-0.18.2
+    hackage: servant-client-0.18.3
 - completed:
-    hackage: servant-client-core-0.18.2@sha256:99923d4fc7e7f840fd9078729882638e5acdeff015c7073ed320274529648b32,3763
+    hackage: servant-client-core-0.18.3@sha256:db2551c94cc17bef7682602082d6a16e79593cfc939f2d696d4ccee21b2b2091,3649
     pantry-tree:
       size: 1444
-      sha256: 7e4759baeac1660a1c37de37123c6491766eab7b84eba34463fd2ecf992ae979
+      sha256: cc2087f25bde5bbb6174320ef499366a7005ac646ba0256225a0758bec91a3cd
   original:
-    hackage: servant-client-core-0.18.2
+    hackage: servant-client-core-0.18.3
 - completed:
     hackage: named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
     pantry-tree:

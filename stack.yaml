@@ -10,6 +10,7 @@ packages:
   - ../beam/beam-sqlite
   - ../beam/beam-postgres
   - ../beam-mysql
+  - ../juspay-extra
 
 extra-deps:
   - git: https://gitlab.com/aravindvirat/tinylog
@@ -21,11 +22,11 @@ extra-deps:
   - git: https://github.com/juspay/bytestring-lexing
     commit: 0a46db1139011736687cb50bbd3877d223bcb737
   # Needed for us
-  - servant-0.18.2
+  - servant-0.18.3
   - servant-mock-0.8.7
-  - servant-server-0.18.2
-  - servant-client-0.18.2
-  - servant-client-core-0.18.2
+  - servant-server-0.18.3
+  - servant-client-0.18.3
+  - servant-client-core-0.18.3
   # Needed for sequelize
   - named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
   # Needed for beam

@@ -2,8 +2,9 @@
 {-# LANGUAGE DerivingStrategies  #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module EulerHS.Extra.DB (
+module EulerHS.Extra.EulerDB (
   getEulerDbConf,
+  getEulerDbConfR1,
   withEulerDB,
   ) where
 
@@ -24,9 +25,22 @@ data EulerDbCfg = EulerDbCfg
 
 instance OptionEntity EulerDbCfg (DBConfig MySQLM)
 
+data EulerDbCfgR1 = EulerDbCfgR1
+  deriving stock (Eq, Show, Typeable, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerDbCfgR1 (DBConfig MySQLM)
+
+
 getEulerDbConf :: (MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
-getEulerDbConf internalError = do
-  dbcfg <- getOption EulerDbCfg
+getEulerDbConf = getEulerDbByConfig EulerDbCfg
+
+getEulerDbConfR1 :: (MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
+getEulerDbConfR1 = getEulerDbByConfig EulerDbCfgR1
+
+getEulerDbByConfig :: (MonadFlow m, Exception e, OptionEntity k v) => k -> e -> m v
+getEulerDbByConfig dbConf internalError = do
+  dbcfg <- getOption dbConf
   case dbcfg of
     Just cfg -> pure cfg
     Nothing -> do

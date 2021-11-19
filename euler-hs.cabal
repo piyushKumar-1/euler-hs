@@ -59,7 +59,7 @@ library
     EulerHS.Extra.Control
     EulerHS.Extra.Combinators
     EulerHS.Extra.Config
-    EulerHS.Extra.DB
+    EulerHS.Extra.EulerDB
     EulerHS.Extra.Test
     EulerHS.Extra.Time
     EulerHS.Extra.Validation

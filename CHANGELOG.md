@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.4.1] - 2021-11-23
+
+* Add `withJSONBody` to make building of JSON HTTP requests easier
+
 ## [2.9.4.0] - 2021-11-23
 
 * Moved all non Euler-specific and non `Flow`-dependent code into brand-new `juspay-exra` library and made it a dependency

@@ -33,8 +33,8 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     servant = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant";
-        ver = "0.18.2";
-        sha256 = "0l2k895nxvw2ngr9201g3br6s9zab7mk5mhpjibyg8mxfbv75a8y";
+        ver = "0.18.3";
+        sha256 = "0dklk3i3bcg85rzrmiggkypkw7pwkh6m5dlrjipsw0njfmlhqfz6";
       } { });
       overrides = {
         enableProfiling = true;
@@ -43,8 +43,8 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     servant-server = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-server";
-        ver = "0.18.2";
-        sha256 = "1kynxl7qg5z45bhi0k61sxn79xkgnq1z97ccqqs39wjyf45fj5yy";
+        ver = "0.18.3";
+        sha256 = "0388v7drjj0gph99kszxivi4qijbckys67bkbv6384g2zrdplvj7";
       } { });
       overrides = {
         enableProfiling = true;
@@ -63,8 +63,8 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     servant-client = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-client";
-        ver = "0.18.2";
-        sha256 = "0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3";
+        ver = "0.18.3";
+        sha256 = "1gz2a0h9xnc1hmfp5bv84pg7vi45b9rvjk1fgy51zizg8vdlagvg";
       } { });
       overrides = {
         enableProfiling = true;
@@ -73,8 +73,8 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     servant-client-core = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "servant-client-core";
-        ver = "0.18.2";
-        sha256 = "1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx";
+        ver = "0.18.3";
+        sha256 = "1x0f3kalzrwj2blgsmk269m37bb7sygw6lr7dbp0rk6jbrfrkjm1";
       } { });
       overrides = {
         enableProfiling = true;

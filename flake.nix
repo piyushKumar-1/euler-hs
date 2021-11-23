@@ -8,15 +8,23 @@
     euler-build.inputs.beam.follows = "beam";
     euler-build.inputs.beam-mysql.follows = "beam-mysql";
     euler-build.inputs.haskell-sequelize.follows = "haskell-sequelize";
+    euler-build.inputs.euler-haskell-common.follows = "euler-haskell-common";
     beam.inputs.euler-build.follows = "euler-build";
     beam.inputs.beam-mysql.follows = "beam-mysql";
     beam.inputs.haskell-sequelize.follows = "haskell-sequelize";
+    beam.inputs.euler-haskell-common.follows = "euler-haskell-common";
     beam-mysql.inputs.euler-build.follows = "euler-build";
     beam-mysql.inputs.beam.follows = "beam";
     beam-mysql.inputs.haskell-sequelize.follows = "haskell-sequelize";
+    beam-mysql.inputs.euler-haskell-common.follows = "euler-haskell-common";
     haskell-sequelize.inputs.euler-build.follows = "euler-build";
     haskell-sequelize.inputs.beam.follows = "beam";
     haskell-sequelize.inputs.beam-mysql.follows = "beam-mysql";
+    haskell-sequelize.inputs.euler-haskell-common.follows = "euler-haskell-common";
+    euler-haskell-common.inputs.euler-build.follows = "euler-build";
+    euler-haskell-common.inputs.beam.follows = "beam";
+    euler-haskell-common.inputs.beam-mysql.follows = "beam-mysql";
+    euler-haskell-common.inputs.haskell-sequelize.follows = "haskell-sequelize";
   };
 
   outputs = flakeInputs@{ self, euler-build, ... }:

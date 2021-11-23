@@ -1,7 +1,8 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.9.3.1
+version:       2.9.4.0
 synopsis:      The Flow framework for Euler.
+description:
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
 author:        Juspay Technologies Pvt Ltd
@@ -54,7 +55,11 @@ library
   exposed-modules:
     EulerHS.CachedSqlDBQuery
     EulerHS.Extra.AltValidation
+    EulerHS.Extra.Aeson
+    EulerHS.Extra.Combinators
+    EulerHS.Extra.EulerDB
     EulerHS.Extra.Test
+    EulerHS.Extra.Time
     EulerHS.Extra.Validation
     EulerHS.Interpreters
     EulerHS.Language
@@ -66,7 +71,6 @@ library
     EulerHS.Api
     EulerHS.BinaryString
     EulerHS.Common
-    EulerHS.Extra.Aeson
     EulerHS.Extra.Language
     EulerHS.Framework.Interpreter
     EulerHS.Framework.Language
@@ -91,6 +95,7 @@ library
     EulerHS.SqlDB.Types
 
   build-depends:
+    , QuickCheck
     , aeson
     , base64-bytestring
     , beam-core             ^>=0.9.0.0
@@ -106,31 +111,41 @@ library
     , dlist
     , exceptions
     , extra
-    , generic-deriving
     , fmt
     , formatting
     , free
+    , generic-deriving
     , generic-lens
     , hedis                 ^>=0.12.8.1
+    , http-api-data
     , http-client
     , http-client-tls
+    , http-media
     , http-types
+    , juspay-extra
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named
     , newtype-generics
+    , nonempty-containers
+    , nonempty-vector
+    , optics-core
     , pem
     , postgresql-simple
     , process
     , profunctors
     , random
+    , reflection
     , resource-pool
+    , scientific
     , sequelize             ^>=1.1.0.0
-    , servant-client        ^>=0.18.2
-    , servant-client-core   ^>=0.18.2
-    , servant-server        ^>=0.18.2
+    , servant
+    , servant-client        ^>=0.18.3
+    , servant-client-core   ^>=0.18.3
+    , servant-server        ^>=0.18.3
     , sqlite-simple
     , stm
+    , store
     , string-conversions
     , text
     , time
@@ -143,6 +158,8 @@ library
     , utf8-string
     , uuid
     , validation
+    , validation-selective
+    , vector
     , x509
     , x509-store
     , x509-system
@@ -196,10 +213,10 @@ test-suite language
     , random
     , safe-exceptions
     , sequelize
-    , servant               ^>=0.18.2
-    , servant-client        ^>=0.18.2
+    , servant               ^>=0.18.3
+    , servant-client        ^>=0.18.3
     , servant-mock          ^>=0.8.7
-    , servant-server        ^>=0.18.2
+    , servant-server        ^>=0.18.3
     , string-conversions
     , text
     , tls

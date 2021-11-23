@@ -10,6 +10,7 @@ packages:
   - ../beam/beam-sqlite
   - ../beam/beam-postgres
   - ../beam-mysql
+  - ../euler-haskell-common
 
 extra-deps:
   - git: https://gitlab.com/aravindvirat/tinylog
@@ -21,11 +22,11 @@ extra-deps:
   - git: https://github.com/juspay/bytestring-lexing
     commit: 0a46db1139011736687cb50bbd3877d223bcb737
   # Needed for us
-  - servant-0.18.2
+  - servant-0.18.3
   - servant-mock-0.8.7
-  - servant-server-0.18.2
-  - servant-client-0.18.2
-  - servant-client-core-0.18.2
+  - servant-server-0.18.3
+  - servant-client-0.18.3
+  - servant-client-core-0.18.3
   # Needed for sequelize
   - named-0.3.0.1@sha256:2975d50c9c5d88095026ffc1303d2d9be52e5f588a8f8bcb7003a04b79f10a06,2312
   # Needed for beam
@@ -40,7 +41,13 @@ extra-deps:
   - wire-streams-0.1.1.0@sha256:08816c7fa53b20f52e5c465252c106d9de8e6d9580ec0b6d9f000a34c7bcefc8,2130
   - mason-0.2.3@sha256:186ff6306c7d44dbf7b108b87f73a30d45c70cd5c87d6f2a88d300def5542fef,1226
   - record-dot-preprocessor-0.2.11@sha256:b29c3109e3295ca9eab034b44607ce28e8093d8d05ffdef0c2d44e9bec553c46,2441
-# MySQL
+  # Need for store
+  - store-0.7.12@sha256:362327372c816f00cff4800d699d7f7ba015fa21fa7b3ad493094ce01b99b2bb,8071
+  - validation-selective-0.1.0.1@sha256:9a5aa8b801efc6a4ffb120e1b28e80c5f7d090043be56bba11222cd20c393044,3621
+  - store-core-0.4.4.4@sha256:a19098ca8419ea4f6f387790e942a7a5d0acf62fe1beff7662f098cfb611334c,1430
+  - th-utilities-0.2.4.1@sha256:b37d23c8bdabd678aee5a36dd4373049d4179e9a85f34eb437e9cd3f04f435ca,1869
+
+  # MySQ
 # MacOS:
 # Problem: MacOS build failure
 # >   Configuring mysql-0.1.7...

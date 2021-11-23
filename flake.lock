@@ -61,6 +61,26 @@
         "type": "indirect"
       }
     },
+    "euler-haskell-common": {
+      "inputs": {
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1637319287,
+        "narHash": "sha256-0iYsC8qtihNdEsiZDQsJEjn/PXu3uyZpQMwPjhZRRu4=",
+        "ref": "add-euler-extra",
+        "rev": "590063aec49d829577ebfebd17a9a1f5f5d31beb",
+        "revCount": 11,
+        "type": "git",
+        "url": "ssh://git@bitbucket.org/juspay/euler-haskell-common"
+      },
+      "original": {
+        "id": "euler-haskell-common",
+        "type": "indirect"
+      }
+    },
     "flake-utils": {
       "locked": {
         "lastModified": 1600209923,
@@ -142,6 +162,7 @@
         "beam": "beam",
         "beam-mysql": "beam-mysql",
         "euler-build": "euler-build",
+        "euler-haskell-common": "euler-haskell-common",
         "haskell-sequelize": "haskell-sequelize"
       }
     },

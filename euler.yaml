@@ -1,8 +1,8 @@
 name: euler-hs
 allowed-paths:
-- src
-- test
-- euler-hs.cabal
+  - src
+  - test
+  - euler-hs.cabal
 
 disable-tests: false
 dependencies:
@@ -18,6 +18,9 @@ dependencies:
   haskell-sequelize:
     branch: master
     revision: 7acc05c59853f1ef7fbf2715db66b5cdf03edfea
+  euler-haskell-common:
+    branch: master
+    revision: 1affbe0f828f27983c2aa6578ae7e3969b7023a2
 
 overrides:
   hedis:
@@ -33,15 +36,15 @@ overrides:
     source: hackage
 
   servant:
-    version: 0.18.2
+    version: 0.18.3
     source: hackage
-    sha256: 0l2k895nxvw2ngr9201g3br6s9zab7mk5mhpjibyg8mxfbv75a8y
+    sha256: 0dklk3i3bcg85rzrmiggkypkw7pwkh6m5dlrjipsw0njfmlhqfz6
     enable-profiling: true
 
   servant-server:
-    version: 0.18.2
+    version: 0.18.3
     source: hackage
-    sha256: 1kynxl7qg5z45bhi0k61sxn79xkgnq1z97ccqqs39wjyf45fj5yy
+    sha256: 0388v7drjj0gph99kszxivi4qijbckys67bkbv6384g2zrdplvj7
     enable-profiling: true
 
   servant-mock:
@@ -52,26 +55,26 @@ overrides:
     jailbreak: true
 
   servant-client:
-    version: 0.18.2
+    version: 0.18.3
     source: hackage
-    sha256: 0yip2s63ivrlrpficdipq60j2a6czg8agn18lpkkaxf3n55j4jr3
+    sha256: 1gz2a0h9xnc1hmfp5bv84pg7vi45b9rvjk1fgy51zizg8vdlagvg
     enable-profiling: true
 
   servant-client-core:
-    version: 0.18.2
+    version: 0.18.3
     source: hackage
-    sha256: 1hazxk1laklpm2c65zgkk2gn8mvlp682437071s04bqggk9b59sx
+    sha256: 1x0f3kalzrwj2blgsmk269m37bb7sygw6lr7dbp0rk6jbrfrkjm1
     enable-profiling: true
 
   # disable tests
-  beam-mysql: {}
+  beam-mysql: { }
+
 build-tools:
-- redis
+  - redis
 
 nix-shell-tools:
-- redis
-- haskell-language-server
+  - redis
+  - haskell-language-server
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883
-

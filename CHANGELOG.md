@@ -2,7 +2,8 @@
 
 ## [2.9.4.0] - 2021-11-23
 
-* Moved all non `Flow` dependent code into brand-new `juspay-exra` library and made it a dependency
+* Moved all non Euler-specific and non `Flow`-dependent code into brand-new `juspay-exra` library and made it a dependency
+* Move common Euler-specific utility code from `euler-webservice` and `euler-db` into `Extra` folder, including `EulerHS.Extra.Aeson`, `EulerHS.Extra.Combinators`, `EulerHS.Extra.Time`)
 
 ## [2.9.3.1] - 2021-11-09
 

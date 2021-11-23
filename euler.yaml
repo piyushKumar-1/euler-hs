@@ -19,8 +19,8 @@ dependencies:
     branch: master
     revision: 7acc05c59853f1ef7fbf2715db66b5cdf03edfea
   euler-haskell-common:
-    branch: add-euler-extra
-    revision: 590063aec49d829577ebfebd17a9a1f5f5d31beb
+    branch: master
+    revision: 1affbe0f828f27983c2aa6578ae7e3969b7023a2
 
 overrides:
   hedis:

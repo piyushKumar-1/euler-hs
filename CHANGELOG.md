@@ -1,10 +1,12 @@
 # Changelog for euler-hs
 
-## [2.9.4.0] - 2021-11-02
+## [2.9.4.0] - 2021-11-23
 
-* Moved `NonEmptyText` from euler-db/euler-types
-* Moved `Secret` from euler-db/euler-types + additional constraint
-* Add `EulerHS.Extra.BL` module for streamlining BL code using Except monad
+* Moved all non `Flow` dependent code into brand-new `juspay-exra` library and made it a dependency
+
+## [2.9.3.1] - 2021-11-09
+
+* Optimize exception passing to db connection pools
 
 ## [2.9.3.0] - 2021-10-18
 

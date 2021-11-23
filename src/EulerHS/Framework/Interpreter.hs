@@ -449,19 +449,19 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
                   Right x        -> pure $ Right x
         rawSql <- DL.toList <$> readTVarIO rawSqlTVar
         pure (eRes', rawSql)
-      else case conn of
-          PostgresPool _ pool -> do
-            eRes <-  try @_ @SomeException . DP.withResource pool $ \conn' ->
-                        runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
-            wrapAndSend rawSqlTVar eRes
-          MySQLPool _ pool    -> do
-            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' ->
-                        runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
-            wrapAndSend rawSqlTVar eRes
-          SQLitePool _ pool   -> do
-            eRes <- try @_ @SomeException . DP.withResource pool $ \conn' ->
-                        runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
-            wrapAndSend rawSqlTVar eRes
+      else do
+        eRes <- try @_ @SomeException $
+          case conn of
+            PostgresPool _ pool ->
+              DP.withResource pool $ \conn' ->
+                runSqlDB (NativePGConn conn') dbgLogAction $ sqlDbMethod
+            MySQLPool _ pool ->
+              DP.withResource pool $ \conn' ->
+                runSqlDB (NativeMySQLConn conn') dbgLogAction $ sqlDbMethod
+            SQLitePool _ pool ->
+              DP.withResource pool $ \conn' ->
+                runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
+        wrapAndSend rawSqlTVar eRes
   where
       wrapAndSend rawSqlLoc eResult = do
         rawSql <- DL.toList <$> readTVarIO rawSqlLoc

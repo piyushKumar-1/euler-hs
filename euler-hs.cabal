@@ -2,7 +2,7 @@ cabal-version: 3.0
 name:          euler-hs
 version:       2.9.4.0
 synopsis:      The Flow framework for Euler.
-description:   Blah-blah-blah
+description:
 homepage:      https://bitbucket.org/juspay/euler-hs
 license:
 author:        Juspay Technologies Pvt Ltd
@@ -113,7 +113,6 @@ library
     , dlist
     , exceptions
     , extra
-    , fin
     , fmt
     , formatting
     , free

@@ -12,6 +12,12 @@ module EulerHS.Extra.Aeson
 , jsonNumberToString
 , jsonStringToNumber
 , updateJSONString
+-- aeson options
+, aesonOmitNothingFields
+, untaggedOptions
+, stripLensPrefixOptions
+, stripAllLensPrefixOptions
+, unaryRecordOptions
 ) where
 
 import qualified Juspay.Extra.Text as Extra
@@ -72,3 +78,35 @@ updateJSONString :: (Text -> Text) -> Value -> Value
 updateJSONString f (String t) = String $ f t
 updateJSONString _ Null = Null
 updateJSONString _ _ = error "updateJSONString: expected a JSON String"
+
+-- Aeson options
+
+-- Use aesonOmitNothingFields to omit Nothing fields.
+-- Former aesonOrderCreateOptions, aesonOmitNothingOption and broken aesonOptions
+-- aesonOptions broken because it used False, which default in aeson.
+-- If you want to show Nothing fields then just use defaultOptions, please!
+aesonOmitNothingFields :: Options
+aesonOmitNothingFields = defaultOptions
+  { omitNothingFields = True -- hey! It should be True. We relay on it.
+  }
+
+untaggedOptions :: Options
+untaggedOptions = defaultOptions
+  { sumEncoding = UntaggedValue
+  }
+
+stripLensPrefixOptions :: Options
+stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
+
+stripAllLensPrefixOptions :: Options
+stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
+  where
+    dropPrefix :: String -> String
+    dropPrefix field = if length field > 0
+                         then dropWhile (== head field) field
+                         else field
+
+unaryRecordOptions :: Options
+unaryRecordOptions = defaultOptions
+  { unwrapUnaryRecords = True
+  }

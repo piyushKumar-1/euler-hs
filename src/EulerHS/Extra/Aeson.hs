@@ -24,7 +24,8 @@ import qualified Juspay.Extra.Text as Extra
 
 import           Prelude
 
-import           Data.Aeson (ToJSON (..), Value (..), decode)
+import           Data.Aeson (Options (..), ToJSON (..), Value (..), decode,
+                             defaultOptions)
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Maybe (fromJust)
@@ -92,7 +93,7 @@ aesonOmitNothingFields = defaultOptions
 
 untaggedOptions :: Options
 untaggedOptions = defaultOptions
-  { sumEncoding = UntaggedValue
+  { sumEncoding = Aeson.UntaggedValue
   }
 
 stripLensPrefixOptions :: Options

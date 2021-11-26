@@ -80,12 +80,20 @@ updateJSONString f (String t) = String $ f t
 updateJSONString _ Null = Null
 updateJSONString _ _ = error "updateJSONString: expected a JSON String"
 
+-------------------------------------------------------------------------------
 -- Aeson options
+-- tests test/extra/Options.hs
+-------------------------------------------------------------------------------
 
 -- Use aesonOmitNothingFields to omit Nothing fields.
 -- Former aesonOrderCreateOptions, aesonOmitNothingOption and broken aesonOptions
 -- aesonOptions broken because it used False, which default in aeson.
 -- If you want to show Nothing fields then just use defaultOptions, please!
+-- With options turned on you got:
+-- Person "Omar" Nothing
+-- "{\"name\":\"Omar\"}"
+-- while default behavior is
+-- "{\"age\":null,\"name\":\"Omar\"}"
 aesonOmitNothingFields :: Options
 aesonOmitNothingFields = defaultOptions
   { omitNothingFields = True -- hey! It should be True. We relay on it.
@@ -107,6 +115,10 @@ stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
                          then dropWhile (== head field) field
                          else field
 
+-- When a record wrapped to the constructor,
+-- the former one encoded with 'contents' key, the latter one - with 'tag' key.
+-- If one passes a record to decoding without 'tag' and 'contents' -- it consumed when unaryRecordOptions is set, otherwise it fails.
+-- See tests for more examples test/extra/Options.hs
 unaryRecordOptions :: Options
 unaryRecordOptions = defaultOptions
   { unwrapUnaryRecords = True

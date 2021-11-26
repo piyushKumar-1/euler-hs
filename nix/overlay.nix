@@ -83,6 +83,12 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     beam-mysql = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hsuper.beam-mysql);
     };
+    beam = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hsuper.beam);
+    };
+    haskell-sequelize = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hsuper.haskell-sequelize);
+    };
     
     euler-hs = self.eulerBuild.fastBuild {
       drv = super.haskell.lib.addBuildTools (hself.callCabal2nix "euler-hs" euler-hs-src { }) (with self; [ redis ]);

@@ -29,11 +29,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1627392724,
-        "narHash": "sha256-4sONAlH9d9s+v+x1UwNu7n5+ZMD9BZDI7orW4jdbtfQ=",
+        "lastModified": 1637668299,
+        "narHash": "sha256-3/VomyAmtuB1MkoUSi0ZfvMC03e7bLZF/D7QVXkWTpo=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "a6099ddc0cbeb67e1ed3adf22483c2758bf54843",
+        "rev": "9359b77664979371ec11dec2cb47f075fbd87930",
         "type": "github"
       },
       "original": {
@@ -68,11 +68,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1637319287,
+        "lastModified": 1637576622,
         "narHash": "sha256-0iYsC8qtihNdEsiZDQsJEjn/PXu3uyZpQMwPjhZRRu4=",
-        "ref": "add-euler-extra",
-        "rev": "590063aec49d829577ebfebd17a9a1f5f5d31beb",
-        "revCount": 11,
+        "ref": "master",
+        "rev": "1affbe0f828f27983c2aa6578ae7e3969b7023a2",
+        "revCount": 12,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/euler-haskell-common"
       },

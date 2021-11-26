@@ -14,7 +14,7 @@ dependencies:
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
     branch: master
-    revision: a6099ddc0cbeb67e1ed3adf22483c2758bf54843
+    revision: 9359b77664979371ec11dec2cb47f075fbd87930
   haskell-sequelize:
     branch: master
     revision: 7acc05c59853f1ef7fbf2715db66b5cdf03edfea
@@ -68,6 +68,9 @@ overrides:
 
   # disable tests
   beam-mysql: { }
+  beam: { }
+  haskell-sequelize: { }
+
 
 build-tools:
   - redis

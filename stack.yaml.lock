@@ -188,6 +188,34 @@ packages:
       sha256: 0f2cadecd5bf76c605a2768f3b150318750258fd82bde4d8e206651802106065
   original:
     hackage: th-utilities-0.2.4.1@sha256:b37d23c8bdabd678aee5a36dd4373049d4179e9a85f34eb437e9cd3f04f435ca,1869
+- completed:
+    hackage: hedgehog-1.0.5@sha256:9f108efb1cdaad121e010f5d12b7853d9bc501ea20554e8d0bc0ac65b794126f,4533
+    pantry-tree:
+      size: 2575
+      sha256: ad6d708e17c37df2da828bf26b070f51635a1c993741d6e91c2fffa5d108363b
+  original:
+    hackage: hedgehog-1.0.5
+- completed:
+    hackage: tasty-hedgehog-1.1.0.0@sha256:e1289602588b87caa809bd58f8af169738a37dcd8d579eb4a79a540a788c8f22,1803
+    pantry-tree:
+      size: 330
+      sha256: 18a877911c5544030afd43299a01fb5c7f6f6ab60de3d41978b25000e513d0c3
+  original:
+    hackage: tasty-hedgehog-1.1.0.0
+- completed:
+    hackage: tasty-hunit-0.10.0.3@sha256:ba774024f3a26100c559dbef41e030bdf443408ed848691f7b9aa85b6fb218c3,1545
+    pantry-tree:
+      size: 399
+      sha256: c82bce9c756f82fa9221fc2f89b8fa52858d630a388b9288af90cb0c03e084de
+  original:
+    hackage: tasty-hunit-0.10.0.3
+- completed:
+    hackage: tasty-1.4.2.1@sha256:4f97a51e348ec1d5fcbc9fa0dae5e33ff41d8ce4f679a306bf7a46dc52f7a1ba,2827
+    pantry-tree:
+      size: 1944
+      sha256: 3cb7f23d69f58f3902d77f007f5cddb431197feb7656b19daecc78fc1d615dbe
+  original:
+    hackage: tasty-1.4.2.1
 snapshots:
 - completed:
     size: 496112

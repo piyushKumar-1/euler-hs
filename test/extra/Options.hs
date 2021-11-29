@@ -42,8 +42,20 @@ spec = do
   describe "stripLensPrefixOptions" $ do
     it "Default option" $ do
       encode cat `shouldBe` enc_cat
-    it "With strip option" $ do
+    it "With strip option. One char prefix" $ do
       encode dog `shouldBe` enc_dog
+    it "With strip option. Multi char prefix" $ do
+      encode bull `shouldBe` enc_bull
+
+  describe "stripAllLensPrefixOptions" $ do
+    it "Default option" $ do
+      encode cow `shouldBe` enc_cow
+    it "With strip option. Short prefix" $ do
+      encode wolf `shouldBe` enc_wolf
+    it "With strip option. Long equal prefix" $ do
+      encode wooolf `shouldBe` enc_wooolf
+    it "With strip option. Long not equal prefix" $ do
+      encode wulf `shouldBe` enc_wulf
 
 
 
@@ -235,3 +247,88 @@ dog = Dog "Buddy" (Just "white")
 
 enc_dog :: BSL.ByteString
 enc_dog = "{\"Name\":\"Buddy\",\"Colour\":\"white\"}"
+
+data Bull = Bull
+  { bbulName :: Text
+  , bbulColour :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON)
+
+instance ToJSON Bull where
+  toJSON     = genericToJSON stripLensPrefixOptions
+  toEncoding = genericToEncoding stripLensPrefixOptions
+
+bull :: Bull
+bull = Bull "Bully" (Just "white")
+
+enc_bull :: BSL.ByteString
+enc_bull = "{\"bulName\":\"Bully\",\"bulColour\":\"white\"}"
+
+-------------------------------------------------------------------------------
+-- stripAllLensPrefixOptions
+-------------------------------------------------------------------------------
+
+data Cow = Cow
+  { cName :: Text
+  , cColour :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+cow :: Cow
+cow = Cow "Mu" (Just "white-nd-black")
+
+enc_cow :: BSL.ByteString
+enc_cow = "{\"cName\":\"Mu\",\"cColour\":\"white-nd-black\"}"
+
+data Wolf = Wolf
+  { cName :: Text
+  , cColour :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON)
+
+instance ToJSON Wolf where
+  toJSON     = genericToJSON stripAllLensPrefixOptions
+  toEncoding = genericToEncoding stripAllLensPrefixOptions
+
+wolf :: Wolf
+wolf = Wolf "Boss" (Just "grey")
+
+enc_wolf :: BSL.ByteString
+enc_wolf = "{\"Name\":\"Boss\",\"Colour\":\"grey\"}"
+
+data Wooolf = Wooolf
+  { cccName :: Text
+  , cccColour :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON)
+
+instance ToJSON Wooolf where
+  toJSON     = genericToJSON stripAllLensPrefixOptions
+  toEncoding = genericToEncoding stripAllLensPrefixOptions
+
+wooolf :: Wooolf
+wooolf = Wooolf "Boooss" (Just "grey")
+
+enc_wooolf :: BSL.ByteString
+enc_wooolf = "{\"Name\":\"Boooss\",\"Colour\":\"grey\"}"
+
+data Wulf = Wulf
+  { cucName :: Text
+  , cucColour :: Maybe Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON)
+
+instance ToJSON Wulf where
+  toJSON     = genericToJSON stripAllLensPrefixOptions
+  toEncoding = genericToEncoding stripAllLensPrefixOptions
+
+wulf :: Wulf
+wulf = Wulf "Buss" (Just "black")
+
+enc_wulf :: BSL.ByteString
+enc_wulf = "{\"ucName\":\"Buss\",\"ucColour\":\"black\"}"

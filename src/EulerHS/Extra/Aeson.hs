@@ -99,17 +99,25 @@ aesonOmitNothingFields = defaultOptions
   { omitNothingFields = True -- hey! It should be True. We relay on it.
   }
 
--- It allow to strip prefix of record's fields
+-- It strips a prefix of record's fields
 {-
 data Dog = Dog
   { cName :: Text
   , cColour :: Maybe Text
   }
-encoded to "{\"Name\":\"Buddy\",\"Colour\":\"white\"}"
+Dog "Buddy" (Just "white") -> "{\"Name\":\"Buddy\",\"Colour\":\"white\"}"
 -}
 stripLensPrefixOptions :: Options
 stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
 
+-- It drops a prefix while it equal to head
+{-
+data Wooolf = Wooolf
+  { cccName :: Text
+  , cccColour :: Maybe Text
+  }
+Wooolf "Boooss" (Just "grey") -> "{\"Name\":\"Boooss\",\"Colour\":\"grey\"}"
+-}
 stripAllLensPrefixOptions :: Options
 stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
   where

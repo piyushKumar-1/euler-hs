@@ -99,11 +99,14 @@ aesonOmitNothingFields = defaultOptions
   { omitNothingFields = True -- hey! It should be True. We relay on it.
   }
 
-untaggedOptions :: Options
-untaggedOptions = defaultOptions
-  { sumEncoding = Aeson.UntaggedValue
+-- It allow to strip prefix of record's fields
+{-
+data Dog = Dog
+  { cName :: Text
+  , cColour :: Maybe Text
   }
-
+encoded to "{\"Name\":\"Buddy\",\"Colour\":\"white\"}"
+-}
 stripLensPrefixOptions :: Options
 stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
 
@@ -115,9 +118,20 @@ stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
                          then dropWhile (== head field) field
                          else field
 
+-- It reduces encoding of a body with a constructor to just body,
+-- and throwing away a constructor.
+-- To decode the resulted json use `unaryRecordOptions`
+-- See tests for more examples test/extra/Options.hs
+untaggedOptions :: Options
+untaggedOptions = defaultOptions
+  { sumEncoding = Aeson.UntaggedValue
+  }
+
 -- When a record wrapped to the constructor,
 -- the former one encoded with 'contents' key, the latter one - with 'tag' key.
--- If one passes a record to decoding without 'tag' and 'contents' -- it consumed when unaryRecordOptions is set, otherwise it fails.
+-- If one passes a record to decoding WITHOUT 'tag' and 'contents'
+-- it consumed when unaryRecordOptions is set, otherwise it fails.
+-- To encode json without tag use `untaggedOptions`
 -- See tests for more examples test/extra/Options.hs
 unaryRecordOptions :: Options
 unaryRecordOptions = defaultOptions

@@ -1,1 +1,1 @@
-packages: . ../beam-mysql ../haskell-sequelize
+packages: .

@@ -34,7 +34,7 @@ import           Prelude
   Common utility functions
 -------------------------------------------------------------------------------}
 
-{- | Set/add if missing a field inside a JSON Object.
+{- | Set/add if missing a field inside a JSON 'Object'.
 
 __Throws an error when called over a non-object JSON value!__
 
@@ -152,10 +152,10 @@ stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
 {- | When a record wrapped in a constructor with one argument, like @newtype@ ones,
 the record goes into @contents@ key and the constructor's name into @tag@ key.
 
-If you want to encode/decode JSON which doesn't contain @tag@ and @contents@, but just
+If you want to encode\/decode JSON which doesn't contain @tag@ and @contents@, but just
 the value itself use this preset. See docs for 'unwrapUnaryRecords'.
 
-See tests for more examples: test/extra/Options.hs
+See tests for more examples: test\/extra\/Options.hs
 -}
 unaryRecordOptions :: Options
 unaryRecordOptions = defaultOptions
@@ -163,9 +163,9 @@ unaryRecordOptions = defaultOptions
   }
 
 {- | This preset throws away a constructor of sum type while encoding and uses the
-first compatible constructor when decoding. See docs for 'sumEncoding'.
+first compatible constructor when decoding. See docs for 'sumEncoding' and 'UntaggedValue'.
 
-See tests for more examples: test/extra/Options.hs
+See tests for more examples: test\/extra\/Options.hs
 -}
 untaggedOptions :: Options
 untaggedOptions = defaultOptions { sumEncoding = UntaggedValue }

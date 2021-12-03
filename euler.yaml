@@ -14,10 +14,10 @@ dependencies:
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
     branch: master
-    revision: 9359b77664979371ec11dec2cb47f075fbd87930
+    revision: 1371202ebc3ec7e9ef3e16d1e99f805596022217
   haskell-sequelize:
     branch: master
-    revision: 7acc05c59853f1ef7fbf2715db66b5cdf03edfea
+    revision: 1bbd42155ecd587eb96a515b350c48b35cabc41e
   euler-haskell-common:
     branch: master
     revision: 1affbe0f828f27983c2aa6578ae7e3969b7023a2

@@ -3,13 +3,7 @@
 -- | Utility functions for munging JSON data with Aeson.
 module EulerHS.Extra.Aeson
   ( -- * Common utility functions
-    jsonSetField
-  , obfuscate
-
-    -- * Storage types utilities
-  , jsonNumberToString
-  , jsonStringToNumber
-  , updateJSONString
+    obfuscate
 
     -- * Aeson options presets
   , aesonOmitNothingFields
@@ -17,33 +11,16 @@ module EulerHS.Extra.Aeson
   , stripLensPrefixOptions
   , unaryRecordOptions
   , untaggedOptions
-) where
+  ) where
 
-import           Data.Aeson (Options (..), ToJSON (..), SumEncoding(..), Value (..),)
-import           Data.Aeson (decode, defaultOptions)
-import           Data.ByteString.Lazy (fromStrict)
-import qualified Data.HashMap.Strict as HashMap
-import           Data.Maybe (fromJust)
-import           Data.Scientific (floatingOrInteger)
-import           Data.Text (Text)
-import           Data.Text.Encoding (encodeUtf8)
+import           Data.Aeson (Options (..), SumEncoding (..), Value (..),
+                             defaultOptions)
 import           Prelude
 
 
 {-------------------------------------------------------------------------------
   Common utility functions
 -------------------------------------------------------------------------------}
-
-{- | Set/add if missing a field inside a JSON 'Object'.
-
-__Throws an error when called over a non-object JSON value!__
-
-TODO: can we make it total by replacing `Aeson.Value` with `Aeson.Object`?
--}
-jsonSetField :: ToJSON a => Text -> a -> Value -> Value
-jsonSetField fieldName fieldValue obj = case obj of
-  Object fields -> Object $ HashMap.insert fieldName (toJSON fieldValue) fields
-  _             -> error $ "This should be an object... got " <> show obj
 
 -- | Rip away all __simple__ values from a JSON Value.
 obfuscate :: Value -> Value
@@ -54,36 +31,6 @@ obfuscate v = go v where
     go (Number _)  = Number 0
     go (Bool _)    = Bool False
     go Null        = Null
-
-{-------------------------------------------------------------------------------
-  Storage types utilities
--------------------------------------------------------------------------------}
-
--- | Convert a 'Number' value into 'String', via reading it as an 'Int' value.
-jsonNumberToString :: Value -> Value
-jsonNumberToString =  \case
-  -- TODO should be @Int64 I suppose
-  (Number n) -> case floatingOrInteger @Double @Int n of
-    Right i -> toJSON $ show i
-    Left _  -> error "not an integral"
-  Null -> Null
-  _ -> error "jsonNumberToString: not a number"
-
--- TODO why Int?
--- | Convert a 'String' value into a 'Number' via reading an 'Int' value.
-jsonStringToNumber :: Value -> Value
-jsonStringToNumber = \case
-  -- TODO fromJust
-  (String n) -> (toJSON . fromJust) ((decode . fromStrict . encodeUtf8) n :: Maybe Int)
-  Null -> Null
-  -- TODO error
-  _ -> error "jsonStringToNumber: not a string"
-
--- | Update a string inside Value
-updateJSONString :: (Text -> Text) -> Value -> Value
-updateJSONString f (String t) = String $ f t
-updateJSONString _ Null = Null
-updateJSONString _ _ = error "updateJSONString: expected a JSON String"
 
 {-------------------------------------------------------------------------------
   Aeson options presets

@@ -46,6 +46,11 @@ extra-deps:
   - validation-selective-0.1.0.1@sha256:9a5aa8b801efc6a4ffb120e1b28e80c5f7d090043be56bba11222cd20c393044,3621
   - store-core-0.4.4.4@sha256:a19098ca8419ea4f6f387790e942a7a5d0acf62fe1beff7662f098cfb611334c,1430
   - th-utilities-0.2.4.1@sha256:b37d23c8bdabd678aee5a36dd4373049d4179e9a85f34eb437e9cd3f04f435ca,1869
+  # Need for tests
+  - hedgehog-1.0.5
+  - tasty-hedgehog-1.1.0.0
+  - tasty-hunit-0.10.0.3
+  - tasty-1.4.2.1
 
   # MySQ
 # MacOS:

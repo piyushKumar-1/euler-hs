@@ -1,44 +1,28 @@
 {-# LANGUAGE TypeApplications #-}
 
+-- | Utility functions for munging JSON data with Aeson.
 module EulerHS.Extra.Aeson
-(
-  jsonSetField
--- , encodeJSON
--- , decodeJSON
-, obfuscate
--- , encodeT
--- , eitherDecodeT
--- for JSON instances of storage types
-, jsonNumberToString
-, jsonStringToNumber
-, updateJSONString
-) where
+  ( -- * Common utility functions
+    obfuscate
 
-import qualified Juspay.Extra.Text as Extra
+    -- * Aeson options presets
+  , aesonOmitNothingFields
+  , stripAllLensPrefixOptions
+  , stripLensPrefixOptions
+  , unaryRecordOptions
+  , untaggedOptions
+  ) where
 
+import           Data.Aeson (Options (..), SumEncoding (..), Value (..),
+                             defaultOptions)
 import           Prelude
 
-import           Data.Aeson (ToJSON (..), Value (..), decode)
-import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
-import           Data.Maybe (fromJust)
-import           Data.Scientific (floatingOrInteger)
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as Text
 
+{-------------------------------------------------------------------------------
+  Common utility functions
+-------------------------------------------------------------------------------}
 
-
--- utility functions
-
--- | Set a field inside a JSON Object
-jsonSetField :: ToJSON a => Text -> a -> Aeson.Value -> Aeson.Value
-jsonSetField fieldName fieldValue obj = case obj of
-  Aeson.Object fields ->
-    Aeson.Object $ HashMap.insert fieldName (Aeson.toJSON fieldValue) fields
-  _ ->
-    error $ "This should be an object... got " <> show obj
-
--- | Rip away all values from a Value
+-- | Rip away all __simple__ values from a JSON Value.
 obfuscate :: Value -> Value
 obfuscate v = go v where
     go (Object o)  = Object $ go <$> o
@@ -48,27 +32,88 @@ obfuscate v = go v where
     go (Bool _)    = Bool False
     go Null        = Null
 
--- | Helpers for Storage's JSON instances
+{-------------------------------------------------------------------------------
+  Aeson options presets
+  tests in test/extra/Options.hs
+-------------------------------------------------------------------------------}
 
--- | Convert a string just from an integral number inside Value
-jsonNumberToString :: Value -> Value
-jsonNumberToString =  \case
-  -- TODO should be @Int64 I suppose
-  (Number n) -> case floatingOrInteger @Double @Int n of
-    Right i -> toJSON $ show i
-    Left _  -> error "not an integral"
-  Null -> Null
-  _ -> error "jsonNumberToString: not a number"
+{- | Use it to omit 'Nothing' fields.
 
--- Convert a string to Int inside  Value
-jsonStringToNumber :: Value -> Value
-jsonStringToNumber = \case
-  (String n) -> toJSON $ fromJust (decode $ Extra.toLazy $ Text.encodeUtf8 n :: Maybe Int)
-  Null -> Null
-  _ -> error "jsonStringToNumber: not a string"
+Also previously known as @aesonOrderCreateOptions@, @aesonOmitNothingOption@ and
+broken @aesonOptions@. The latter is broken because of using @omitNothingFields = False@,
+which is default in Aeson.
 
--- | Update a string inside Value
-updateJSONString :: (Text -> Text) -> Value -> Value
-updateJSONString f (String t) = String $ f t
-updateJSONString _ Null = Null
-updateJSONString _ _ = error "updateJSONString: expected a JSON String"
+If you want to show 'Nothing' fields then please just use stock 'defaultOptions'!
+
+>>> encode $ Person "Omar" Nothing
+"{\"name\":\"Omar\"}"
+
+whereas the default behavior is:
+
+>>> encode $ Person "Omar" Nothing
+"{\"age\":null,\"name\":\"Omar\"}"
+
+-}
+aesonOmitNothingFields :: Options
+aesonOmitNothingFields = defaultOptions
+  { omitNothingFields = True -- hey! It should be True. We relay on it.
+  }
+
+{- | Drops all leading characters while they are the same.
+
+@
+data Wooolf = Wooolf
+  { cccName :: Text
+  , cccColour :: Maybe Text
+  }
+@
+
+>>> encode $ Wooolf "Boooss" (Just "grey")
+"{\"Name\":\"Boooss\",\"Colour\":\"grey\"}"
+
+-}
+stripAllLensPrefixOptions :: Options
+stripAllLensPrefixOptions = defaultOptions { fieldLabelModifier = dropPrefix}
+  where
+    dropPrefix :: String -> String
+    dropPrefix field = if length field > 0
+                         then dropWhile (== head field) field
+                         else field
+
+{- | Strips lens-style one-character prefixes (usually @_@) from field names.
+
+@
+data Dog = Dog
+  { cName :: Text
+  , cColour :: Maybe Text
+  }
+@
+
+>>> encode $ Dog "Buddy" (Just "white")
+"{\"Name\":\"Buddy\",\"Colour\":\"white\"}"
+
+-}
+stripLensPrefixOptions :: Options
+stripLensPrefixOptions = defaultOptions { fieldLabelModifier = drop 1 }
+
+{- | When a record wrapped in a constructor with one argument, like @newtype@ ones,
+the record goes into @contents@ key and the constructor's name into @tag@ key.
+
+If you want to encode\/decode JSON which doesn't contain @tag@ and @contents@, but just
+the value itself use this preset. See docs for 'unwrapUnaryRecords'.
+
+See tests for more examples: test\/extra\/Options.hs
+-}
+unaryRecordOptions :: Options
+unaryRecordOptions = defaultOptions
+  { unwrapUnaryRecords = True
+  }
+
+{- | This preset throws away a constructor of sum type while encoding and uses the
+first compatible constructor when decoding. See docs for 'sumEncoding' and 'UntaggedValue'.
+
+See tests for more examples: test\/extra\/Options.hs
+-}
+untaggedOptions :: Options
+untaggedOptions = defaultOptions { sumEncoding = UntaggedValue }
+

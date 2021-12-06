@@ -3,6 +3,8 @@
 ## [2.9.4.2] - 2021-11-25
 
 * Add aeson option to extra stuff. It moved from webservice and euler-db
+* Move out non-total json modifiers to euler-db. Just to hide from exteral usage.
+* Update `beam-mysql` and `haskell-sequelize` versions.
 
 ## [2.9.4.1] - 2021-11-23
 

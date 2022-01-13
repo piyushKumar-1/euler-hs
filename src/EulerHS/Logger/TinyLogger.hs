@@ -22,6 +22,7 @@ import           EulerHS.Logger.Types (BufferSize, FlowFormatter,
                                        LoggerConfig (LoggerConfig),
                                        MessageBuilder (MsgBuilder, MsgTransformer, SimpleBS, SimpleLBS, SimpleString, SimpleText),
                                        PendingMsg (PendingMsg))
+import           GHC.Conc (labelThread)
 import           EulerHS.Prelude
 import qualified System.Logger as Log
 
@@ -118,6 +119,7 @@ createLogger'
       caps <- getNumCapabilities
       chan@(_, outChan) <- Chan.newChan (fromIntegral maxQueueSize)
       threadIds <- traverse (`forkOn` (forever $ loggerWorker flowFormatter outChan loggers)) [1..caps]
+      mapM_ (\tid -> labelThread tid "euler-createLogger") threadIds
       pure $ AsyncLoggerHandle threadIds chan loggers
 
 disposeLogger :: FlowFormatter -> LoggerHandle -> IO ()

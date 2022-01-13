@@ -27,6 +27,7 @@ import qualified EulerHS.Logger.Runtime as R
 import           EulerHS.Prelude
 import           EulerHS.SqlDB.Types (ConnTag,
                                       NativeSqlPool (NativeMySQLPool, NativePGPool, NativeSQLitePool))
+import           GHC.Conc (labelThread)
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
 import           Network.HTTP.Client.TLS (mkManagerSettings)
@@ -203,21 +204,24 @@ runPubSubWorker rt log = do
         putMVar pubSubWorkerLock ()
         error "Unable to run Publish/Subscribe worker: No connection to Redis provided"
 
-      Just conn -> forkIO $ forever $ do
-        res <- try @_ @SomeException $ RD.pubSubForever conn (_pubSubController rt) $ do
-          writeIORef delayRef tsecond
-          log "Publish/Subscribe worker: Run successfuly"
+      Just conn -> do
+        tid <- forkIO $ forever $ do
+            res <- try @_ @SomeException $ RD.pubSubForever conn (_pubSubController rt) $ do
+              writeIORef delayRef tsecond
+              log "Publish/Subscribe worker: Run successfuly"
 
-        case res of
-          Left e -> do
-              delay <- readIORef delayRef
+            case res of
+              Left e -> do
+                  delay <- readIORef delayRef
 
-              log $ "Publish/Subscribe worker: Got error: " <> show e
-              log $ "Publish/Subscribe worker: Restart in " <> show (delay `div` tsecond) <> " sec"
+                  log $ "Publish/Subscribe worker: Got error: " <> show e
+                  log $ "Publish/Subscribe worker: Restart in " <> show (delay `div` tsecond) <> " sec"
 
-              modifyIORef' delayRef (\d -> d + d `div` 2) -- (* 1.5)
-              threadDelay delay
-          Right _ -> pure ()
+                  modifyIORef' delayRef (\d -> d + d `div` 2) -- (* 1.5)
+                  threadDelay delay
+              Right _ -> pure ()
+        labelThread tid "euler-runPubSubWorker"
+        return tid
 
     pure $ do
       killThread threadId

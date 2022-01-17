@@ -7,6 +7,7 @@ module EulerHS.Logger.Runtime
   , LoggerRuntime(..)
   , SeverityCounterHandle(..)
   , shouldLogRawSql
+  , shouldLogAPI
   , incLogCounter
   , createCoreRuntime
   , createVoidLoggerRuntime
@@ -34,6 +35,7 @@ data LoggerRuntime
     , _logContext             :: T.LogContext
     , _logLevel               :: T.LogLevel
     , _logRawSql              :: T.ShouldLogSQL
+    , _logAPI                 :: Bool
     , _logCounter             :: !T.LogCounter
     , _logMaskingConfig       :: Maybe T.LogMaskingConfig
     , _logLoggerHandle        :: Impl.LoggerHandle
@@ -73,12 +75,14 @@ createLoggerRuntime flowFormatter severityCounterHandler cfg = do
     mempty
     (T._logLevel cfg)
     (T._logRawSql cfg)
+    (T._logAPI cfg)
     logSequence
     Nothing
     logHandle
     severityCounterHandler
 
-createLoggerRuntime' :: Maybe Log.DateFormat
+createLoggerRuntime'
+  :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
   -> T.FlowFormatter
@@ -94,6 +98,7 @@ createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severityCo
     mempty
     (T._logLevel cfg)
     (T._logRawSql cfg)
+    (T._logAPI cfg)
     logSequence
     (T._logMaskingConfig cfg)
     loggerHandle
@@ -109,13 +114,14 @@ createVoidLoggerRuntime = do
     mempty
     T.Debug
     T.SafelyOmitSqlLogs
+    True
     logSequence
     Nothing
     logHandle
     Nothing
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
-clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ handle _) = Impl.disposeLogger flowFormatter handle
+clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ _ handle _) = Impl.disposeLogger flowFormatter handle
 clearLoggerRuntime (MemoryLoggerRuntime _ _ _ msgsVar _) = void $ swapMVar msgsVar []
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
@@ -126,12 +132,15 @@ clearCoreRuntime _ = pure ()
 
 shouldLogRawSql :: LoggerRuntime -> Bool
 shouldLogRawSql = \case
-  (LoggerRuntime _ _ _ T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _ _) -> True
+  (LoggerRuntime _ _ _ T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _ _ _) -> True
   _                                                                     -> False
+shouldLogAPI :: LoggerRuntime -> Bool
+shouldLogAPI (LoggerRuntime _ _ _ _ x _ _ _ _) = x
+shouldLogAPI _                                 = True
 
 getLogMaskingConfig :: LoggerRuntime -> Maybe T.LogMaskingConfig
 getLogMaskingConfig = \case
-  (LoggerRuntime _ _ _ _ _ mbMaskConfig _ _) -> mbMaskConfig
+  (LoggerRuntime _ _ _ _ _ _ mbMaskConfig _ _) -> mbMaskConfig
   _                                          -> Nothing
 
 initLogCounter :: IO T.LogCounter

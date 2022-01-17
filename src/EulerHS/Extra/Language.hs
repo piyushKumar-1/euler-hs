@@ -646,6 +646,6 @@ updateLoggerContext updateLCtx rt@FlowRuntime{..} =
   where
     newLrt :: LoggerRuntime
     newLrt = case _loggerRuntime _coreRuntime of
-      MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
-      -- the next line is courtesy to Kyrylo Havryliuk ;-)
-      LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}
+              MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+              -- the next line is courtesy to Kyrylo Havryliuk ;-)
+              LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}

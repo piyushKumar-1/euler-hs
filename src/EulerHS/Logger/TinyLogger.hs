@@ -83,7 +83,7 @@ createLogger'
   mbRenderer
   bufferSize
   flowFormatter
-  (LoggerConfig isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _ _) = do
+  (LoggerConfig isAsync _ logFileName isConsoleLog isFileLog maxQueueSize _ _ _) = do
 
     let fileSettings
           = Log.setFormat mbDateFormat

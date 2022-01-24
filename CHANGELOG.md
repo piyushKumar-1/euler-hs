@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.9.4.3] - 2022-01-24
+
+* Labels for threads.
+
 ## [2.9.4.2] - 2021-11-25
 
 * Add aeson option to extra stuff. It moved from webservice and euler-db

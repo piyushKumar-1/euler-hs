@@ -74,6 +74,7 @@ import           EulerHS.SqlDB.Types (ConnTag,
                                       mysqlErrorToDbError, nativeToBem,
                                       postgresErrorToDbError,
                                       sqliteErrorToDbError)
+import           GHC.Conc (labelThread)
 import qualified Network.HTTP.Client as HTTP
 import           Network.HTTP.Client.Internal
 import qualified Network.HTTP.Types as HTTP
@@ -328,9 +329,10 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.RunSysCmd cmd next) =
   next <$> readCreateProcess (shell cmd) ""
 
 ----------------------------------------------------------------------
-interpretFlowMethod mbFlowGuid rt (L.Fork _desc _newFlowGUID flow next) = do
+interpretFlowMethod mbFlowGuid rt (L.Fork desc _newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
-  void $ forkIO (suppressErrors (runFlow' mbFlowGuid rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+  tid <- forkIO (suppressErrors (runFlow' mbFlowGuid rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+  labelThread tid $ "euler-Fork:" ++ Text.unpack desc
   pure $ next $ Awaitable awaitableMVar
 
 ----------------------------------------------------------------------

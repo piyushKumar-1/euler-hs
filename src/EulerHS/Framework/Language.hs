@@ -57,30 +57,34 @@ module EulerHS.Framework.Language
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
                                       MonadThrow (throwM))
 import           Control.Monad.Free.Church (MonadFree)
+import           Control.Monad.Trans.Except (withExceptT)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
-import           Control.Monad.Trans.Except (withExceptT)
 import qualified Data.Aeson as A
+import           Data.Maybe (fromJust)
 import qualified Data.Text as Text
+import           Network.HTTP.Client (Manager)
+import           Servant.Client (BaseUrl, ClientError (ConnectionError))
+
 import           EulerHS.Api (EulerClient)
 import           EulerHS.Common (Awaitable, Description, ForkGUID,
-                                 ManagerSelector(ManagerSelector), Microseconds, SafeFlowGUID)
+                                 ManagerSelector (ManagerSelector),
+                                 Microseconds, SafeFlowGUID)
 import           EulerHS.Framework.Runtime (FlowRuntime)
-import           EulerHS.HttpAPI (HTTPRequest, HTTPResponse, HTTPClientSettings, withClientTls, HTTPCert)
+import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
+                                  HTTPResponse, withClientTls)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
 import           EulerHS.Logger.Language (Logger, logMessage')
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
-                                       Message(Message))
+                                       Message (Message))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import qualified EulerHS.PubSub.Language as PSL
 import           EulerHS.SqlDB.Language (SqlDB)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBResult, SqlConn)
-import           Network.HTTP.Client (Manager)
-import           Servant.Client (BaseUrl, ClientError (ConnectionError))
 
 data AwaitingError = AwaitingTimeout | ForkedFlowError Text
   deriving stock (Show, Eq, Ord, Generic)

@@ -11,6 +11,7 @@ import           EulerHS.Types (DBConfig, DBError (DBError),
                                 DBErrorType (SQLError), SQLError (SqliteError),
                                 SqliteError (SqliteErrorConstraint))
 import qualified EulerHS.Types as T
+import           Prelude (head, (!!))
 import           SQLDB.TestData.Connections (testDBName, withEmptyDB)
 import           SQLDB.TestData.Scenarios.SQLite (insertReturningScript,
                                                   insertTestValues,
@@ -18,7 +19,7 @@ import           SQLDB.TestData.Scenarios.SQLite (insertReturningScript,
                                                   selectUnknownDbScript,
                                                   uniqueConstraintViolationDbScript,
                                                   updateAndSelectDbScript)
-import           SQLDB.TestData.Types (_userFirstName, _userLastName, someUser)
+import           SQLDB.TestData.Types (someUser, _userFirstName, _userLastName)
 import           Test.Hspec hiding (runIO)
 
 -- Configurations

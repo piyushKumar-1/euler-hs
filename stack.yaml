@@ -51,7 +51,7 @@ extra-deps:
   - tasty-hedgehog-1.1.0.0
   - tasty-hunit-0.10.0.3
   - tasty-1.4.2.1
-
+  - hspec-hedgehog-0.0.1.2@sha256:4d09c7be34cdc941b78e4e964f71013ffeeb099ea32d8ede17ad9c03ae7a62e3,1470
   # MySQ
 # MacOS:
 # Problem: MacOS build failure

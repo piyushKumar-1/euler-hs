@@ -4,7 +4,7 @@
 module FlowSpec (spec) where
 
 import           Client (User (User), getBook, getUser, port, externalServerPort)
-import           Common (initRTWithManagers, withServer, withSecureServer, 
+import           Common (initRTWithManagers, withServer, withSecureServer,
                          withCertV1SecureServer, withClientTlsAuthServer, clientHttpCert)
 import qualified Control.Exception as E
 -- import qualified Data.String.Conversions as DSC
@@ -15,7 +15,7 @@ import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
-import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime)
+import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime, defaultSeverityHandle)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
                                          NTTestKeyWithStringPayload (NTTestKeyWithStringPayload),
@@ -66,7 +66,7 @@ import Data.X509.CertificateStore (readCertificateStore)
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do
   describe "EulerHS flow language tests" $ do
-    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter) loggerCfg)) $ do
+    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter defaultSeverityHandle) loggerCfg)) $ do
 
       describe "TestInterpreters" $ do
         xit "testScenario1" $ \rt -> do

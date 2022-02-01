@@ -68,10 +68,10 @@ createMemoryLoggerRuntime flowFormatter logLevel =
   MemoryLoggerRuntime flowFormatter mempty logLevel <$> newMVar [] <*> initLogCounter
 
 createLoggerRuntime :: T.FlowFormatter
-  -> T.LoggerConfig
   -> SeverityHandle
+  -> T.LoggerConfig
   -> IO LoggerRuntime
-createLoggerRuntime flowFormatter cfg severity = do
+createLoggerRuntime flowFormatter severity cfg = do
   counter <- initLogCounter
   logHandle <- Impl.createLogger flowFormatter cfg
   pure $ LoggerRuntime
@@ -88,10 +88,10 @@ createLoggerRuntime' :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
   -> T.FlowFormatter
-  -> T.LoggerConfig
   -> SeverityHandle
+  -> T.LoggerConfig
   -> IO LoggerRuntime
-createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg severity = do
+createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severity cfg = do
   counter <- initLogCounter
   loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
   pure $ LoggerRuntime

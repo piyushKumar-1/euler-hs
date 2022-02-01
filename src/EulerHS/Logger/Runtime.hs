@@ -5,6 +5,8 @@ module EulerHS.Logger.Runtime
     -- * Core Runtime
     CoreRuntime(..)
   , LoggerRuntime(..)
+  , SeverityHandle(..)
+  , defaultSeverityHandle
   , shouldLogRawSql
   , incLogCounter
   , createCoreRuntime
@@ -36,12 +38,23 @@ data LoggerRuntime
     , _logCounter       :: !T.LogCounter
     , _logMaskingConfig :: Maybe T.LogMaskingConfig
     , _logLoggerHandle  :: Impl.LoggerHandle
+    , _severityCounter  :: SeverityHandle
     }
   | MemoryLoggerRuntime !T.FlowFormatter T.LogContext !T.LogLevel !(MVar [Text]) !T.LogCounter
 
 newtype CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
     }
+
+-- | LogLevel counter. Handlepattern for metrics
+data SeverityHandle = SeverityHandle
+  { incrementSeverityCount :: T.LogLevel -> IO ()
+  }
+
+defaultSeverityHandle :: SeverityHandle
+defaultSeverityHandle = SeverityHandle
+  { incrementSeverityCount = const (pure ())
+  }
 
 -- createLoggerRuntime :: LoggerConfig -> IO LoggerRuntime
 -- createLoggerRuntime (MemoryLoggerConfig cfgLogLevel) =
@@ -54,20 +67,31 @@ createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
 createMemoryLoggerRuntime flowFormatter logLevel =
   MemoryLoggerRuntime flowFormatter mempty logLevel <$> newMVar [] <*> initLogCounter
 
-createLoggerRuntime :: T.FlowFormatter -> T.LoggerConfig -> IO LoggerRuntime
-createLoggerRuntime flowFormatter cfg = do
+createLoggerRuntime :: T.FlowFormatter
+  -> T.LoggerConfig
+  -> SeverityHandle
+  -> IO LoggerRuntime
+createLoggerRuntime flowFormatter cfg severity = do
   counter <- initLogCounter
-  LoggerRuntime flowFormatter mempty (T._logLevel cfg) (T._logRawSql cfg) counter Nothing
-    <$> Impl.createLogger flowFormatter cfg
+  logHandle <- Impl.createLogger flowFormatter cfg
+  pure $ LoggerRuntime
+    flowFormatter
+    mempty
+    (T._logLevel cfg)
+    (T._logRawSql cfg)
+    counter
+    Nothing
+    logHandle
+    severity
 
-createLoggerRuntime'
-  :: Maybe Log.DateFormat
+createLoggerRuntime' :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
   -> T.FlowFormatter
   -> T.LoggerConfig
+  -> SeverityHandle
   -> IO LoggerRuntime
-createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg = do
+createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg severity = do
   counter <- initLogCounter
   loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
   pure $ LoggerRuntime
@@ -78,14 +102,16 @@ createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter cfg = do
     counter
     (T._logMaskingConfig cfg)
     loggerHandle
+    severity
 
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
   counter <- initLogCounter
-  LoggerRuntime (const $ pure T.showingMessageFormatter) mempty T.Debug T.SafelyOmitSqlLogs counter Nothing <$> Impl.createVoidLogger
+  logHandle <- Impl.createVoidLogger
+  pure $ LoggerRuntime (const $ pure T.showingMessageFormatter) mempty T.Debug T.SafelyOmitSqlLogs counter Nothing logHandle defaultSeverityHandle
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
-clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ handle) = Impl.disposeLogger flowFormatter handle
+clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ handle _) = Impl.disposeLogger flowFormatter handle
 clearLoggerRuntime (MemoryLoggerRuntime _ _ _ msgsVar _) = void $ swapMVar msgsVar []
 
 createCoreRuntime :: LoggerRuntime -> IO CoreRuntime
@@ -96,13 +122,13 @@ clearCoreRuntime _ = pure ()
 
 shouldLogRawSql :: LoggerRuntime -> Bool
 shouldLogRawSql = \case
-  (LoggerRuntime _ _ _ T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _) -> True
-  _                                                                   -> False
+  (LoggerRuntime _ _ _ T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION _ _ _ _) -> True
+  _                                                                     -> False
 
 getLogMaskingConfig :: LoggerRuntime -> Maybe T.LogMaskingConfig
 getLogMaskingConfig = \case
-  (LoggerRuntime _ _ _ _ _ mbMaskConfig _) -> mbMaskConfig
-  _                                        -> Nothing
+  (LoggerRuntime _ _ _ _ _ mbMaskConfig _ _) -> mbMaskConfig
+  _                                          -> Nothing
 
 initLogCounter :: IO T.LogCounter
 initLogCounter = newIORef 0

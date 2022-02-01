@@ -1,8 +1,8 @@
 # Changelog for euler-hs
 
-## [2.10.0.0] - 2022-02-01
+## [2.11.0.0] - 2022-02-01
 
-* Add handle to count log severity. It is BREAKING changes!
+* Add handler to count log entries by severity. It is a BREAKING change! From now on you have to provide a `SeverityCounterHandle` when building logger runtime. Please refer to this PR as an example https://bitbucket.org/juspay/euler-api-customer/pull-requests/249
 
 ## [2.9.4.3] - 2022-01-24
 

@@ -15,7 +15,7 @@ import qualified Data.UUID as UUID (fromText)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
-import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime, defaultSeverityHandle)
+import           EulerHS.Runtime (createLoggerRuntime, withFlowRuntime, dummySeverityCounterHandle)
 import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithIntPayload),
                                          NTTestKeyWithIntPayloadAnotherEnc (NTTestKeyWithIntPayloadAnotherEnc),
                                          NTTestKeyWithStringPayload (NTTestKeyWithStringPayload),
@@ -66,7 +66,7 @@ import Data.X509.CertificateStore (readCertificateStore)
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do
   describe "EulerHS flow language tests" $ do
-    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter defaultSeverityHandle) loggerCfg)) $ do
+    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter dummySeverityCounterHandle) loggerCfg)) $ do
 
       describe "TestInterpreters" $ do
         xit "testScenario1" $ \rt -> do

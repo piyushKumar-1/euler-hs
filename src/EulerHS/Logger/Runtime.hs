@@ -5,8 +5,8 @@ module EulerHS.Logger.Runtime
     -- * Core Runtime
     CoreRuntime(..)
   , LoggerRuntime(..)
-  , SeverityHandle(..)
-  , defaultSeverityHandle
+  , SeverityCounterHandle(..)
+  , dummySeverityCounterHandle
   , shouldLogRawSql
   , incLogCounter
   , createCoreRuntime
@@ -31,84 +31,95 @@ import qualified System.Logger as Log
 -- TODO: add StaticLoggerRuntimeContext if we'll need more than a single Bool
 data LoggerRuntime
   = LoggerRuntime
-    { _flowFormatter    :: T.FlowFormatter
-    , _logContext       :: T.LogContext
-    , _logLevel         :: T.LogLevel
-    , _logRawSql        :: T.ShouldLogSQL
-    , _logCounter       :: !T.LogCounter
-    , _logMaskingConfig :: Maybe T.LogMaskingConfig
-    , _logLoggerHandle  :: Impl.LoggerHandle
-    , _severityCounter  :: SeverityHandle
+    { _flowFormatter          :: T.FlowFormatter
+    , _logContext             :: T.LogContext
+    , _logLevel               :: T.LogLevel
+    , _logRawSql              :: T.ShouldLogSQL
+    , _logCounter             :: !T.LogCounter
+    , _logMaskingConfig       :: Maybe T.LogMaskingConfig
+    , _logLoggerHandle        :: Impl.LoggerHandle
+    , _severityCounterHandle  :: SeverityCounterHandle
     }
-  | MemoryLoggerRuntime !T.FlowFormatter T.LogContext !T.LogLevel !(MVar [Text]) !T.LogCounter
+  | MemoryLoggerRuntime
+      !T.FlowFormatter
+       T.LogContext
+      !T.LogLevel
+      !(MVar [Text])
+      !T.LogCounter
 
 newtype CoreRuntime = CoreRuntime
     { _loggerRuntime :: LoggerRuntime
     }
 
--- | LogLevel counter. Handlepattern for metrics
-data SeverityHandle = SeverityHandle
-  { incrementSeverityCount :: T.LogLevel -> IO ()
+-- | Log entry counter by severity handle.
+data SeverityCounterHandle = SeverityCounterHandle
+  { incCounter :: T.LogLevel -> IO ()
   }
 
-defaultSeverityHandle :: SeverityHandle
-defaultSeverityHandle = SeverityHandle
-  { incrementSeverityCount = const (pure ())
+-- | A dummy counter handle which does nothing.
+dummySeverityCounterHandle :: SeverityCounterHandle
+dummySeverityCounterHandle = SeverityCounterHandle
+  { incCounter = const (pure ())
   }
-
--- createLoggerRuntime :: LoggerConfig -> IO LoggerRuntime
--- createLoggerRuntime (MemoryLoggerConfig cfgLogLevel) =
---   MemoryLoggerRuntime cfgLogLevel <$> newMVar []
--- createLoggerRuntime cfg = do
---   counter <- initLogCounter
---   LoggerRuntime (_level cfg) (_logRawSql cfg) counter Nothing Nothing (_logMaskingConfig cfg)<$> Impl.createLogger cfg
 
 createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
 createMemoryLoggerRuntime flowFormatter logLevel =
   MemoryLoggerRuntime flowFormatter mempty logLevel <$> newMVar [] <*> initLogCounter
 
-createLoggerRuntime :: T.FlowFormatter
-  -> SeverityHandle
+createLoggerRuntime
+  :: T.FlowFormatter
+  -> SeverityCounterHandle
   -> T.LoggerConfig
   -> IO LoggerRuntime
-createLoggerRuntime flowFormatter severity cfg = do
-  counter <- initLogCounter
+createLoggerRuntime flowFormatter severityCounterHandler cfg = do
+  -- log entries' sequential number
+  logSequence <- initLogCounter
   logHandle <- Impl.createLogger flowFormatter cfg
   pure $ LoggerRuntime
     flowFormatter
     mempty
     (T._logLevel cfg)
     (T._logRawSql cfg)
-    counter
+    logSequence
     Nothing
     logHandle
-    severity
+    severityCounterHandler
 
 createLoggerRuntime' :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
   -> T.FlowFormatter
-  -> SeverityHandle
+  -> SeverityCounterHandle
   -> T.LoggerConfig
   -> IO LoggerRuntime
-createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severity cfg = do
-  counter <- initLogCounter
+createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severityCounterHandler cfg = do
+  -- log entries' sequential number
+  logSequence <- initLogCounter
   loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
   pure $ LoggerRuntime
     flowFormatter
     mempty
     (T._logLevel cfg)
     (T._logRawSql cfg)
-    counter
+    logSequence
     (T._logMaskingConfig cfg)
     loggerHandle
-    severity
+    severityCounterHandler
 
 createVoidLoggerRuntime :: IO LoggerRuntime
 createVoidLoggerRuntime = do
-  counter <- initLogCounter
+  -- log entries' sequential number
+  logSequence <- initLogCounter
   logHandle <- Impl.createVoidLogger
-  pure $ LoggerRuntime (const $ pure T.showingMessageFormatter) mempty T.Debug T.SafelyOmitSqlLogs counter Nothing logHandle defaultSeverityHandle
+  pure $ LoggerRuntime
+    (const $ pure T.showingMessageFormatter)
+    mempty
+    T.Debug
+    T.SafelyOmitSqlLogs
+    logSequence
+    Nothing
+    logHandle
+    dummySeverityCounterHandle
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ handle _) = Impl.disposeLogger flowFormatter handle

@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.10.0.0] - 2022-02-01
+
+* Add handle to count log severity. It is BREAKING changes!
+
 ## [2.9.4.3] - 2022-01-24
 
 * Labels for threads.

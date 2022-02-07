@@ -44,12 +44,17 @@ module EulerHS.HttpAPI
     , mkHttpApiCallLogEntry
     ) where
 
+import qualified EulerHS.BinaryString as T
+import qualified EulerHS.Logger.Types as Log
+import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
+                                  maskHTTPHeaders, parseRequestResponseBody,
+                                  shouldMaskKey)
+import           EulerHS.Prelude hiding (ord)
+import           Juspay.Extra.Text (formUrlEncode)
+
 import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import           Data.ByteString.Builder (Builder)
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.Char as Char
 import           Data.Default
 import qualified Data.Map as Map
 import           Data.Monoid (All (..))
@@ -64,12 +69,6 @@ import           Data.X509.CertificateStore (CertificateStore, listCertificates,
                                              makeCertificateStore)
 import           Data.X509.Validation (checkLeafV3, defaultChecks, defaultHooks,
                                        validate)
-import qualified EulerHS.BinaryString as T
-import qualified EulerHS.Logger.Types as Log
-import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
-                                  maskHTTPHeaders, parseRequestResponseBody,
-                                  shouldMaskKey)
-import           EulerHS.Prelude hiding (ord)
 import           Generics.Deriving.Monoid (mappenddefault, memptydefault)
 import qualified Network.Connection as Conn
 import qualified Network.HTTP.Client as HTTP
@@ -433,54 +432,6 @@ withJSONBody body req@HTTPRequest{getRequestHeaders} =
 
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
-
-formUrlEncode :: [(Text, Text)] -> LB.ByteString
-formUrlEncode = Builder.toLazyByteString . mconcat . intersperse amp . map encodePair
-  where
-    equals = Builder.word8 (ord '=')
-    amp = Builder.word8 (ord '&')
-    percent = Builder.word8 (ord '%')
-    plus = Builder.word8 (ord '+')
-
-    encodePair :: (Text, Text) -> Builder
-    encodePair (key, value) = encode key <> equals <> encode value
-
-    encode :: Text -> Builder
-    encode = escape . Text.encodeUtf8
-
-    escape :: ByteString -> Builder
-    escape = mconcat . map f . B.unpack
-      where
-        f :: Word8 -> Builder
-        f c
-          | p c = Builder.word8 c
-          | c == ord ' ' = plus
-          | otherwise = percentEncode c
-
-        p :: Word8 -> Bool
-        p c =
-             ord 'a' <= c && c <= ord 'z'
-          || c == ord '_'
-          || c == ord '*'
-          || c == ord '-'
-          || c == ord '.'
-          || ord '0' <= c && c <= ord '9'
-          || ord 'A' <= c && c <= ord 'Z'
-
-    ord :: Char -> Word8
-    ord = fromIntegral . Char.ord
-
-    percentEncode :: Word8 -> Builder
-    percentEncode n = percent <> hex hi <> hex lo
-      where
-        (hi, lo) = n `divMod` 16
-
-    hex :: Word8 -> Builder
-    hex n = Builder.word8 (offset + n)
-      where
-        offset
-          | n < 10    = 48
-          | otherwise = 55
 
 maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequestMasked
 maskHTTPRequest mbMaskConfig request = HTTPRequestMasked

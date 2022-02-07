@@ -47,4 +47,4 @@ init/id_rsa
 
 *~
 
-*.yaml.lock
+stack.yaml.lock

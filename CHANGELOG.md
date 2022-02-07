@@ -3,6 +3,7 @@
 ## [2.13.0.0] - 2022-04-22
 
 * Update `record-dot-preprocessor` and `juspay-extra` versions
+* Import `formUrlEncode` from `juspay-extra`.
 
 ## [2.12.0.0] - 2022-04-12
 

@@ -29,15 +29,12 @@ import           Data.Aeson as X (FromJSON, FromJSONKey, ToJSON, ToJSONKey,
                                   genericParseJSON, genericToJSON, parseJSON,
                                   toJSON)
 import           Data.Kind as X (Type)
-import           Data.Maybe as X (fromJust)
 import           Data.Serialize as X (Serialize)
 import           Fmt as X ((+|), (+||), (|+), (||+))
 import           GHC.Base as X (until)
-import           Text.Read as X (read, readsPrec)
 import           Universum (catchAny)
 import           Universum as X hiding (All, Option, Set, Type, catchAny, head,
                                  init, last, set, tail, trace)
-import           Universum.Unsafe as X (head, init, last, tail, (!!))
 
 -- Lift for Church encoded Free
 liftFC :: (Functor f, MF.MonadFree f m) => f a -> m a

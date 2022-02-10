@@ -3,15 +3,23 @@
 
 module FlowSpec (spec) where
 
-import           Client (User (User), getBook, getUser, port, externalServerPort)
-import           Common (initRTWithManagers, withServer, withSecureServer, 
-                         withCertV1SecureServer, withClientTlsAuthServer, clientHttpCert)
+import           Client (User (User), externalServerPort, getBook, getUser,
+                         port)
+import           Common (clientHttpCert, initRTWithManagers,
+                         withCertV1SecureServer, withClientTlsAuthServer,
+                         withSecureServer, withServer)
 import qualified Control.Exception as E
--- import qualified Data.String.Conversions as DSC
-import qualified Data.Text as Text
--- import qualified Data.Text.Encoding as Encoding
 import           Data.Either.Extra (fromLeft')
+import           Data.Maybe (fromJust)
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID (fromText)
+import           Data.X509.CertificateStore (readCertificateStore)
+import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
+import           Servant.Server (err403, errBody)
+import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
+                             shouldSatisfy, xit)
+import           Unsafe.Coerce (unsafeCoerce)
+
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
@@ -53,15 +61,10 @@ import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithI
                                          mbTestStringKeyAnotherEnc)
 import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
 import           EulerHS.Testing.Types (FlowMockedValues' (..))
-import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter, getResponseCode)
+import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter,
+                                getResponseCode)
 import qualified EulerHS.Types as T
 import           Scenario1 (testScenario1)
-import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
-import           Servant.Server (err403, errBody)
-import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
-                             shouldSatisfy, xit)
-import           Unsafe.Coerce (unsafeCoerce)
-import Data.X509.CertificateStore (readCertificateStore)
 
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do

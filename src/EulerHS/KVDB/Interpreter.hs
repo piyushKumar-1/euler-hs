@@ -19,6 +19,7 @@ import           EulerHS.KVDB.Types (KVDBError (KVDBConnectionDoesNotExist),
                                      exceptionToKVDBReply, fromRdStatus,
                                      fromRdTxResult, hedisReplyToKVDBReply)
 import           EulerHS.Prelude
+import           Text.Read (read)
 
 interpretKeyValueF
   ::

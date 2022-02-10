@@ -10,6 +10,7 @@ import           EulerHS.Language (initSqlDBConnection)
 import           EulerHS.Prelude
 import           EulerHS.Runtime (withFlowRuntime)
 import qualified EulerHS.Types as T
+import           Prelude (head, (!!))
 import           SQLDB.TestData.Scenarios.MySQL (insertAndSelectWithinOneConnectionScript,
                                                  insertReturningScript,
                                                  selectOneDbScript,
@@ -20,8 +21,8 @@ import           SQLDB.TestData.Scenarios.MySQL (insertAndSelectWithinOneConnect
                                                  uniqueConstraintViolationEveDbScript,
                                                  uniqueConstraintViolationMickeyDbScript,
                                                  updateAndSelectDbScript)
-import           SQLDB.TestData.Types (UserT (User), _userFirstName, _userId,
-                                       _userLastName, someUser)
+import           SQLDB.TestData.Types (UserT (User), someUser, _userFirstName,
+                                       _userId, _userLastName)
 import           System.Process ()
 import           Test.Hspec hiding (runIO)
 

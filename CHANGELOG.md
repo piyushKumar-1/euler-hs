@@ -1,5 +1,11 @@
 # Changelog for euler-hs
 
+## [2.10.0.0] - 2022-01-25
+
+* !!!BREAKING CHANGES!!! Remove non-total functions from re-export.
+  Highly recommended to not use them in your code.
+  However in case they are indispensable to code just import from standart Prelude.
+
 ## [2.9.4.3] - 2022-01-24
 
 * Labels for threads.

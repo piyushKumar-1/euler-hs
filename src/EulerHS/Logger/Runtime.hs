@@ -6,7 +6,6 @@ module EulerHS.Logger.Runtime
     CoreRuntime(..)
   , LoggerRuntime(..)
   , SeverityCounterHandle(..)
-  -- , dummySeverityCounterHandle
   , shouldLogRawSql
   , incLogCounter
   , createCoreRuntime
@@ -55,12 +54,6 @@ newtype CoreRuntime = CoreRuntime
 data SeverityCounterHandle = SeverityCounterHandle
   { incCounter :: T.LogLevel -> IO ()
   }
-
--- | A dummy counter handle which does nothing.
--- dummySeverityCounterHandle :: SeverityCounterHandle
--- dummySeverityCounterHandle = SeverityCounterHandle
---   { incCounter = const (pure ())
---   }
 
 createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
 createMemoryLoggerRuntime flowFormatter logLevel =

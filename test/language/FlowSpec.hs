@@ -66,10 +66,11 @@ import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter,
 import qualified EulerHS.Types as T
 import           Scenario1 (testScenario1)
 
+
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do
   describe "EulerHS flow language tests" $ do
-    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter) loggerCfg)) $ do
+    around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter Nothing) loggerCfg)) $ do
 
       describe "TestInterpreters" $ do
         xit "testScenario1" $ \rt -> do

@@ -640,12 +640,12 @@ rSismember cName k v = do
 withLoggerContext :: (HasCallStack, L.MonadFlow m) => (LogContext -> LogContext) -> L.Flow a -> m a
 withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
 
-
 updateLoggerContext :: (LogContext -> LogContext) -> FlowRuntime -> FlowRuntime
-updateLoggerContext updateLCtx rt@FlowRuntime{..} = rt {_coreRuntime = _coreRuntime {_loggerRuntime = newLrt}}
+updateLoggerContext updateLCtx rt@FlowRuntime{..} =
+ rt { _coreRuntime = _coreRuntime {_loggerRuntime = newLrt} }
   where
     newLrt :: LoggerRuntime
     newLrt = case _loggerRuntime _coreRuntime of
-               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
-               LoggerRuntime { _flowFormatter, _logContext, _logLevel, _logRawSql, _logCounter, _logMaskingConfig, _logLoggerHandle}
-                 -> LoggerRuntime  _flowFormatter (updateLCtx _logContext) _logLevel _logRawSql _logCounter _logMaskingConfig _logLoggerHandle
+      MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+      -- the next line is courtesy to Kyrylo Havryliuk ;-)
+      LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}

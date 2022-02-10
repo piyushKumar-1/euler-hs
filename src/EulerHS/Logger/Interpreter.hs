@@ -45,7 +45,7 @@ interpretLogger
 -- Regular logger
 interpretLogger
   mbFlowGuid
-  (R.LoggerRuntime flowFormatter logContext logLevel _ cntVar _ handle)
+  (R.LoggerRuntime flowFormatter logContext logLevel _ cntVar _ handle severityCounterHandle)
   (LogMessage msgLogLevel tag msg next) =
 
   fmap next $
@@ -54,6 +54,9 @@ interpretLogger
       _  -> do
         msgNum    <- R.incLogCounter cntVar
         Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum logContext
+        case severityCounterHandle of
+          Nothing -> pure ()
+          Just scHandle -> scHandle.incCounter msgLogLevel
 
 runLogger :: Maybe FlowGUID -> R.LoggerRuntime -> Logger a -> IO a
 runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)

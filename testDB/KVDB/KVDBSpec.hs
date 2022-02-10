@@ -6,6 +6,7 @@ import           EulerHS.Prelude
 import           EulerHS.Runtime
 import qualified EulerHS.Types as T
 import           Test.Hspec hiding (runIO)
+import           Prelude (head)
 
 redisName :: Text
 redisName = "eulerKVDB"

@@ -13,6 +13,7 @@ import qualified Data.String.Conversions as Conversions
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
 import           EulerHS.Prelude
+import           Text.Read (read)
 
 -- TODO: Move to euler-db
 

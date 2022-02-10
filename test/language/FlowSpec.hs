@@ -9,11 +9,17 @@ import           Common (clientHttpCert, initRTWithManagers,
                          withCertV1SecureServer, withClientTlsAuthServer,
                          withSecureServer, withServer)
 import qualified Control.Exception as E
--- import qualified Data.String.Conversions as DSC
-import qualified Data.Text as Text
--- import qualified Data.Text.Encoding as Encoding
 import           Data.Either.Extra (fromLeft')
+import           Data.Maybe (fromJust)
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID (fromText)
+import           Data.X509.CertificateStore (readCertificateStore)
+import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
+import           Servant.Server (err403, errBody)
+import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
+                             shouldSatisfy, xit)
+import           Unsafe.Coerce (unsafeCoerce)
+
 import           Data.X509.CertificateStore (readCertificateStore)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L

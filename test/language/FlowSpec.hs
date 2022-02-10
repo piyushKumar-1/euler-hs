@@ -20,7 +20,6 @@ import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
                              shouldSatisfy, xit)
 import           Unsafe.Coerce (unsafeCoerce)
 
-import           Data.X509.CertificateStore (readCertificateStore)
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
 import           EulerHS.Prelude hiding (get, getOption)
@@ -66,11 +65,7 @@ import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter,
                                 getResponseCode)
 import qualified EulerHS.Types as T
 import           Scenario1 (testScenario1)
-import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
-import           Servant.Server (err403, errBody)
-import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
-                             shouldSatisfy, xit)
-import           Unsafe.Coerce (unsafeCoerce)
+
 
 spec :: Maybe T.LoggerConfig -> Spec
 spec loggerCfg = do

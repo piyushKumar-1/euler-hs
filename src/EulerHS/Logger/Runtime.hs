@@ -6,7 +6,7 @@ module EulerHS.Logger.Runtime
     CoreRuntime(..)
   , LoggerRuntime(..)
   , SeverityCounterHandle(..)
-  , dummySeverityCounterHandle
+  -- , dummySeverityCounterHandle
   , shouldLogRawSql
   , incLogCounter
   , createCoreRuntime
@@ -38,7 +38,7 @@ data LoggerRuntime
     , _logCounter             :: !T.LogCounter
     , _logMaskingConfig       :: Maybe T.LogMaskingConfig
     , _logLoggerHandle        :: Impl.LoggerHandle
-    , _severityCounterHandle  :: SeverityCounterHandle
+    , _severityCounterHandle  :: Maybe SeverityCounterHandle
     }
   | MemoryLoggerRuntime
       !T.FlowFormatter
@@ -57,10 +57,10 @@ data SeverityCounterHandle = SeverityCounterHandle
   }
 
 -- | A dummy counter handle which does nothing.
-dummySeverityCounterHandle :: SeverityCounterHandle
-dummySeverityCounterHandle = SeverityCounterHandle
-  { incCounter = const (pure ())
-  }
+-- dummySeverityCounterHandle :: SeverityCounterHandle
+-- dummySeverityCounterHandle = SeverityCounterHandle
+--   { incCounter = const (pure ())
+--   }
 
 createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
 createMemoryLoggerRuntime flowFormatter logLevel =
@@ -68,7 +68,7 @@ createMemoryLoggerRuntime flowFormatter logLevel =
 
 createLoggerRuntime
   :: T.FlowFormatter
-  -> SeverityCounterHandle
+  -> Maybe SeverityCounterHandle
   -> T.LoggerConfig
   -> IO LoggerRuntime
 createLoggerRuntime flowFormatter severityCounterHandler cfg = do
@@ -89,7 +89,7 @@ createLoggerRuntime' :: Maybe Log.DateFormat
   -> Maybe Log.Renderer
   -> T.BufferSize
   -> T.FlowFormatter
-  -> SeverityCounterHandle
+  -> Maybe SeverityCounterHandle
   -> T.LoggerConfig
   -> IO LoggerRuntime
 createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severityCounterHandler cfg = do
@@ -119,7 +119,7 @@ createVoidLoggerRuntime = do
     logSequence
     Nothing
     logHandle
-    dummySeverityCounterHandle
+    Nothing
 
 clearLoggerRuntime :: LoggerRuntime -> IO ()
 clearLoggerRuntime (LoggerRuntime flowFormatter _ _ _ _ _ handle _) = Impl.disposeLogger flowFormatter handle

@@ -4,6 +4,7 @@
 
 * Update `record-dot-preprocessor` and `juspay-extra` versions
 * Import `formUrlEncode` from `juspay-extra`.
+* Update `stack's lts` to `16.31`
 
 ## [2.12.0.0] - 2022-04-12
 

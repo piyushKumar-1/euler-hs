@@ -75,7 +75,7 @@ git clone [https://user_name@bitbucket.org/juspay/euler-hs.git](https://user_nam
 
 - All tests:
 
-    `stack test`
+    `stack test --flag 'beam-mysql:lenient'`
 
 - backend dsl language tests:
     - `stack test euler-hs:language`

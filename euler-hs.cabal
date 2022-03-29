@@ -213,7 +213,7 @@ test-suite language
     , quickcheck-instances
     , random
     , safe-exceptions
-    , sequelize
+    , sequelize             ^>=1.1.1.0
     , servant               ^>=0.18.3
     , servant-client        ^>=0.18.3
     , servant-mock          ^>=0.8.7

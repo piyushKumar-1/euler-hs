@@ -1,5 +1,5 @@
 ---
-resolver: lts-15.15
+resolver: lts-16.31
 
 packages:
   - .
@@ -54,6 +54,9 @@ extra-deps:
   - hspec-hedgehog-0.0.1.2@sha256:4d09c7be34cdc941b78e4e964f71013ffeeb099ea32d8ede17ad9c03ae7a62e3,1470
   # Need for juspay-extra
   - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
+
+  - constraints-0.11.2@sha256:d173efdf7a5d5515075635c686420211dccd9f85bc091a579ecc18b3f138a5fe,2324
+  - some-1.0.1@sha256:26e5bab7276f48b25ea8660d3fd1166c0f20fd497dac879a40f408e23211f93e,2055
   # MySQ
 # MacOS:
 # Problem: MacOS build failure

@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.12.0.0] - 2022-04-12
+
+* Add logAPI flag to allow applications to control the logging of external API calls. It is a BREAKING change! From now on you have to provide an extra flag - `logAPI` when building logger runtime.
+
 ## [2.11.0.0] - 2022-02-01
 
 * Add handler to count log entries by severity. It is a BREAKING change! From now on you have to provide a `SeverityCounterHandle` when building logger runtime. Please refer to this PR as an example https://bitbucket.org/juspay/euler-api-customer/pull-requests/249

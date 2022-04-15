@@ -106,6 +106,7 @@ data LoggerConfig
     , _logToFile        :: Bool
     , _maxQueueSize     :: Word
     , _logRawSql        :: ShouldLogSQL
+    , _logAPI           :: Bool
     , _logMaskingConfig :: Maybe LogMaskingConfig
     } deriving (Generic, Show, Read)
 
@@ -137,6 +138,7 @@ defaultLoggerConfig = LoggerConfig
     , _logToFile = False
     , _maxQueueSize = 1000
     , _logRawSql = SafelyOmitSqlLogs
+    , _logAPI = True
     , _logMaskingConfig = Nothing
     }
 

@@ -45,7 +45,7 @@ interpretLogger
 -- Regular logger
 interpretLogger
   mbFlowGuid
-  (R.LoggerRuntime flowFormatter logContext logLevel _ cntVar _ handle severityCounterHandle)
+  (R.LoggerRuntime flowFormatter logContext logLevel _ _ cntVar _ handle severityCounterHandle)
   (LogMessage msgLogLevel tag msg next) =
 
   fmap next $

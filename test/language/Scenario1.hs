@@ -17,6 +17,7 @@ mkUrl host = BaseUrl Http host port ""
 
 testScenario1 :: Flow User
 testScenario1 = do
+  -- logDebugT "testScenario1" "Enter"
   localUserName <- pack <$> runSysCmd "whoami"
   localGUID <- runIO (undefined :: IO Text)
   guid <- generateGUID

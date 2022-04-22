@@ -3,7 +3,7 @@
 
 module FlowSpec (spec) where
 
-import           Client (User (User), externalServerPort, getBook, getUser,
+import           Client (externalServerPort, getBook, getUser,
                          port)
 import           Common (clientHttpCert, initRTWithManagers,
                          withCertV1SecureServer, withClientTlsAuthServer,
@@ -17,8 +17,7 @@ import           Data.X509.CertificateStore (readCertificateStore)
 import           Servant.Client (BaseUrl (..), ClientError (..), Scheme (..))
 import           Servant.Server (err403, errBody)
 import           Test.Hspec (Spec, around, around_, describe, it, shouldBe,
-                             shouldSatisfy, xit)
-import           Unsafe.Coerce (unsafeCoerce)
+                             shouldSatisfy)
 
 import           EulerHS.Interpreters (runFlow)
 import           EulerHS.Language as L
@@ -59,12 +58,16 @@ import           EulerHS.TestData.Types (NTTestKeyWithIntPayload (NTTestKeyWithI
                                          mbTestStringKey, mbTestStringKey2,
                                          mbTestStringKey2AnotherEnc,
                                          mbTestStringKeyAnotherEnc)
-import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
-import           EulerHS.Testing.Types (FlowMockedValues' (..))
 import           EulerHS.Types (HttpManagerNotFound (..), defaultFlowFormatter,
                                 getResponseCode)
 import qualified EulerHS.Types as T
-import           Scenario1 (testScenario1)
+
+-- import           EulerHS.Testing.Types (FlowMockedValues' (..))
+-- import           EulerHS.Testing.Flow.Interpreter (runFlowWithTestInterpreter)
+-- import           Scenario1 (testScenario1)
+-- import           Unsafe.Coerce (unsafeCoerce)
+
+-- import Debug.Trace
 
 
 spec :: Maybe T.LoggerConfig -> Spec
@@ -72,11 +75,11 @@ spec loggerCfg = do
   describe "EulerHS flow language tests" $ do
     around (withFlowRuntime (map (createLoggerRuntime defaultFlowFormatter Nothing) loggerCfg)) $ do
 
-      describe "TestInterpreters" $ do
-        xit "testScenario1" $ \rt -> do
-          mv <- newMVar scenario1MockedValues
-          res <- runFlowWithTestInterpreter mv rt testScenario1
-          res `shouldBe` User "John" "Snow" "00000000-0000-0000-0000-000000000000"
+      -- describe "TestInterpreters" $ do
+      --   xit "testScenario1" $ \rt -> do
+      --     mv <- newMVar scenario1MockedValues
+      --     res <- runFlowWithTestInterpreter mv rt testScenario1
+      --     res `shouldBe` User "John" "Snow" "00000000-0000-0000-0000-000000000000"
 
       around_ withCertV1SecureServer $ do
         describe "support for V1 certificates" $ do
@@ -490,23 +493,23 @@ spec loggerCfg = do
 
 -- Helpers
 
-user :: Any
-user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
+-- user :: Any
+-- user = unsafeCoerce $ Right $ User "John" "Snow" "00000000-0000-0000-0000-000000000000"
 
-localGUID :: Any
-localGUID = unsafeCoerce ("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" :: String)
+-- localGUID :: Any
+-- localGUID = unsafeCoerce ("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" :: String)
 
-lhost :: ByteString
-lhost = "localhost"
+-- lhost :: ByteString
+-- lhost = "localhost"
 
-scenario1MockedValues :: FlowMockedValues'
-scenario1MockedValues = FlowMockedValues'
-  { mockedCallServantAPI = [user]
-  , mockedRunIO = [localGUID]
-  , mockedGetOption = [lhost]
-  , mockedGenerateGUID = ["00000000-0000-0000-0000-000000000000"]
-  , mockedRunSysCmd = ["Neo"]
-  }
+-- scenario1MockedValues :: FlowMockedValues'
+-- scenario1MockedValues = FlowMockedValues'
+--   { mockedCallServantAPI = [user]
+--   , mockedRunIO = [localGUID]
+--   , mockedGetOption = [lhost]
+--   , mockedGenerateGUID = ["00000000-0000-0000-0000-000000000000"]
+--   , mockedRunSysCmd = ["Neo"]
+--   }
 
 ioActWithException :: IO Text
 ioActWithException = do

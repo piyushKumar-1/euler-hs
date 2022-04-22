@@ -280,7 +280,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
               logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
-              when shouldLogAPI $ do 
+              when shouldLogAPI $ do
                 let logEntry = mkHttpApiCallLogEntry lat
                                 (maskHTTPRequest getLoggerMaskConfig request)
                                 (maskHTTPResponse getLoggerMaskConfig response)

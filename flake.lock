@@ -68,11 +68,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1637576622,
-        "narHash": "sha256-0iYsC8qtihNdEsiZDQsJEjn/PXu3uyZpQMwPjhZRRu4=",
+        "lastModified": 1650615771,
+        "narHash": "sha256-SrEmUlhUN5/VPm+2/Pphh4Z09oXpPqqChr8scTUqiE8=",
         "ref": "master",
-        "rev": "1affbe0f828f27983c2aa6578ae7e3969b7023a2",
-        "revCount": 12,
+        "rev": "b673307a0362690fceddc3a585c0a97f0794f16e",
+        "revCount": 52,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/euler-haskell-common"
       },

@@ -1,5 +1,11 @@
 # Changelog for euler-hs
 
+## [2.13.0.0] - 2022-04-22
+
+* Update `record-dot-preprocessor` and `juspay-extra` versions
+* Import `formUrlEncode` from `juspay-extra`.
+* Update `stack's lts` to `16.31`
+
 ## [2.12.0.0] - 2022-04-12
 
 * Add logAPI flag to allow applications to control the logging of external API calls. It is a BREAKING change! From now on you have to provide an extra flag - `logAPI` when building logger runtime.

@@ -86,6 +86,9 @@ git clone [https://user_name@bitbucket.org/juspay/euler-hs.git](https://user_nam
 - ART tests:
     - `cd ./app/euler-backend`
     - `art.sh`
+- How to use cabal flag with `stack`
+
+    `stack test --flag 'beam-mysql:lenient'`
 
 **Run:**
 

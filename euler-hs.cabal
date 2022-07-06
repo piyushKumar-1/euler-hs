@@ -66,6 +66,7 @@ library
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
+    EulerHS.SqlDB.Language
 
   other-modules:
     EulerHS.Api
@@ -89,7 +90,6 @@ library
     EulerHS.PubSub.Interpreter
     EulerHS.PubSub.Language
     EulerHS.SqlDB.Interpreter
-    EulerHS.SqlDB.Language
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types

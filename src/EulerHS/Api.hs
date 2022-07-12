@@ -107,7 +107,7 @@ interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogM
 interpretClientF _   _   _ (SCF.Throw e) = throwM e
 interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   start <- liftIO $ systemToTAITime <$> getSystemTime
-  res <- SCC.runRequestAcceptStatus (Just [minBound .. maxBound]) req
+  res <- SCC.runRequestAcceptStatus Nothing req
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
   let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat

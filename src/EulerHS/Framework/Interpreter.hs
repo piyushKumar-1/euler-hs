@@ -316,6 +316,17 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetOption k v next) =
     let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
     putMVar _options newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContext k v next) =
+  fmap next $ do
+    m <- takeMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 
+    let newMap = HM.insert k v m
+    putMVar (R._logContext . R._loggerRuntime $ _coreRuntime) newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContextMap newMap next) =
+  fmap next $ do
+    oldMap <- takeMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 
+    putMVar (R._logContext . R._loggerRuntime $ _coreRuntime) (HM.union newMap oldMap)
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
   fmap next $ do
     m <- takeMVar _options

@@ -31,7 +31,7 @@ import qualified System.Logger as Log
 data LoggerRuntime
   = LoggerRuntime
     { _flowFormatter          :: T.FlowFormatter
-    , _logContext             :: T.LogContext
+    , _logContext             :: MVar T.LogContext
     , _logLevel               :: T.LogLevel
     , _logRawSql              :: T.ShouldLogSQL
     , _logCounter             :: !T.LogCounter
@@ -41,7 +41,7 @@ data LoggerRuntime
     }
   | MemoryLoggerRuntime
       !T.FlowFormatter
-       T.LogContext
+      !(MVar T.LogContext)
       !T.LogLevel
       !(MVar [Text])
       !T.LogCounter
@@ -56,8 +56,9 @@ data SeverityCounterHandle = SeverityCounterHandle
   }
 
 createMemoryLoggerRuntime :: T.FlowFormatter -> T.LogLevel -> IO LoggerRuntime
-createMemoryLoggerRuntime flowFormatter logLevel =
-  MemoryLoggerRuntime flowFormatter mempty logLevel <$> newMVar [] <*> initLogCounter
+createMemoryLoggerRuntime flowFormatter logLevel = do 
+  emptyLoggerCtx <- newMVar mempty
+  MemoryLoggerRuntime flowFormatter emptyLoggerCtx logLevel <$> newMVar [] <*> initLogCounter
 
 createLoggerRuntime
   :: T.FlowFormatter
@@ -68,9 +69,10 @@ createLoggerRuntime flowFormatter severityCounterHandler cfg = do
   -- log entries' sequential number
   logSequence <- initLogCounter
   logHandle <- Impl.createLogger flowFormatter cfg
+  emptyLoggerCtx <- newMVar mempty
   pure $ LoggerRuntime
     flowFormatter
-    mempty
+    emptyLoggerCtx
     (T._logLevel cfg)
     (T._logRawSql cfg)
     logSequence
@@ -89,9 +91,10 @@ createLoggerRuntime' mbDateFormat mbRenderer bufferSize flowFormatter severityCo
   -- log entries' sequential number
   logSequence <- initLogCounter
   loggerHandle <- Impl.createLogger' mbDateFormat mbRenderer bufferSize flowFormatter cfg
+  emptyLoggerCtx <- newMVar mempty
   pure $ LoggerRuntime
     flowFormatter
-    mempty
+    emptyLoggerCtx
     (T._logLevel cfg)
     (T._logRawSql cfg)
     logSequence
@@ -104,9 +107,10 @@ createVoidLoggerRuntime = do
   -- log entries' sequential number
   logSequence <- initLogCounter
   logHandle <- Impl.createVoidLogger
+  emptyLoggerCtx <- newMVar mempty
   pure $ LoggerRuntime
     (const $ pure T.showingMessageFormatter)
-    mempty
+    emptyLoggerCtx
     T.Debug
     T.SafelyOmitSqlLogs
     logSequence

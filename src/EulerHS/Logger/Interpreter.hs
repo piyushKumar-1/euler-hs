@@ -32,7 +32,8 @@ interpretLogger
       _  -> do
         formatter <- flowFormatter mbFlowGuid
         !msgNum   <- R.incLogCounter cntVar
-        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum logContext
+        x <- readMVar logContext
+        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum x
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
               T.SimpleText txt -> txt
@@ -53,7 +54,8 @@ interpretLogger
       GT -> pure ()
       _  -> do
         msgNum    <- R.incLogCounter cntVar
-        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum logContext
+        x <- readMVar logContext
+        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum x
         case severityCounterHandle of
           Nothing -> pure ()
           Just scHandle -> scHandle.incCounter msgLogLevel

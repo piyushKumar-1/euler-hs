@@ -21,8 +21,6 @@ module EulerHS.Language
     Y.logErrorV,
     Y.logDebugV,
     Y.logWarningV,
-    Y.setLoggerContext,
-    Y.setLoggerContextMap,
     -- * Calling external services
     Y.callAPI,
     Y.callAPI',

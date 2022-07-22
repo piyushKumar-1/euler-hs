@@ -35,6 +35,8 @@ module EulerHS.Framework.Language
   , logDebugV
   , logWarningM
   , logWarningV
+  , setLoggerContext
+  , setLoggerContextMap
   -- *** PublishSubscribe
   , unpackLanguagePubSub
   -- *** Working with external services

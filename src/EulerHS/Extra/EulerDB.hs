@@ -12,7 +12,7 @@ module EulerHS.Extra.EulerDB (
   withEulerDBR1,
   withEulerPsqlDB,
   withEulerDBTransaction,
-  EulerAddtionalPsqlDbCfg(..),
+  EulerPsqlDbAdditionalCfg(..),
   withEulerAddtionalPsqlDB
   ) where
 
@@ -44,11 +44,11 @@ data EulerPsqlDbCfg = EulerPsqlDbCfg
 instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 
 
-data EulerAddtionalPsqlDbCfg = EulerAddtionalPsqlDbCfg
+data EulerPsqlDbAdditionalCfg = EulerPsqlDbAdditionalCfg
   deriving stock (Generic, Typeable, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
 
-instance OptionEntity EulerAddtionalPsqlDbCfg (DBConfig BP.Pg)
+instance OptionEntity EulerPsqlDbAdditionalCfg (DBConfig BP.Pg)
 
 
 
@@ -118,7 +118,7 @@ withEulerPsqlDB internalError act = do
 withEulerAddtionalPsqlDB :: (HasCallStack, MonadFlow m, Exception e)
   => e -> SqlDB BP.Pg a -> m a
 withEulerAddtionalPsqlDB internalError act = do
-  (dbcfg :: Maybe (DBConfig BP.Pg)) <- getOption EulerAddtionalPsqlDbCfg
+  (dbcfg :: Maybe (DBConfig BP.Pg)) <- getOption EulerPsqlDbAdditionalCfg
   case dbcfg of
     Just cfg -> withDB cfg act
     Nothing -> do

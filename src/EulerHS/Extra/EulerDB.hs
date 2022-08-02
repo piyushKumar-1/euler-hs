@@ -13,7 +13,7 @@ module EulerHS.Extra.EulerDB (
   withEulerDBR1,
   withEulerPsqlDB,
   withEulerDBTransaction,
-  withEulerAddtionalPsqlDB
+  withEulerAdditionalPsqlDB
   ) where
 
 import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,

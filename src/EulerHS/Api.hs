@@ -7,8 +7,7 @@ module EulerHS.Api where
 
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS (toStrict)
-import           Data.ByteString.Builder.Internal (toLazyByteStringWith, safeStrategy)
-import qualified Data.ByteString.Lazy.Internal as L
+import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy.UTF8 as LBS
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
@@ -68,7 +67,7 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
 
 mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
 mkServantApiCallLogEntry mbMaskConfig req res lat = ServantApiCallLogEntry
-  { url = LBS.toString $ toLazyByteStringWith (safeStrategy L.smallChunkSize L.defaultChunkSize) L.Empty (SCC.requestPath req)
+  { url = LBS.toString $ toLazyByteString (SCC.requestPath req)
   , method = method'
   , req_headers = req_headers'
   , req_body = req_body'

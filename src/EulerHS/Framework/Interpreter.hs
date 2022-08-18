@@ -227,7 +227,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
           eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
                                                                           then dbgLogger Debug
                                                                           else const $ return ()
-                                                                      ) getLoggerMaskConfig clientAct) $
+                                                                      ) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do

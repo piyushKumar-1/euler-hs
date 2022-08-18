@@ -65,9 +65,9 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
 
-mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
-mkServantApiCallLogEntry mbMaskConfig req res lat = ServantApiCallLogEntry
-  { url = LBS.toString $ toLazyByteString (SCC.requestPath req)
+mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
+mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
+  { url = SCF.showBaseUrl bUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
   , method = method'
   , req_headers = req_headers'
   , req_body = req_body'
@@ -105,19 +105,19 @@ mkServantApiCallLogEntry mbMaskConfig req res lat = ServantApiCallLogEntry
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
 
-interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCF.ClientF a -> SC.ClientM a
-interpretClientF _   _ (SCF.Throw e) = throwM e
-interpretClientF log mbMaskConfig (SCF.RunRequest req next) = do
+interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
+interpretClientF _   _   _ (SCF.Throw e) = throwM e
+interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   start <- liftIO $ systemToTAITime <$> getSystemTime
   res <- SCC.runRequestAcceptStatus Nothing req
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
-  let logEntry = mkServantApiCallLogEntry mbMaskConfig req res lat
+  let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
   liftIO $ log logEntry
   pure $ next res
   where
     picoMilliDiff :: Integer
     picoMilliDiff = 1000000000
 
-runEulerClient :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> EulerClient a -> SCIHC.ClientM a
-runEulerClient log mbMaskConfig (EulerClient f) = foldFree (interpretClientF log mbMaskConfig) f
+runEulerClient :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
+runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClientF log mbMaskConfig bUrl) f

@@ -126,7 +126,6 @@ library
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named
-    , network-uri
     , newtype-generics
     , nonempty-containers
     , nonempty-vector

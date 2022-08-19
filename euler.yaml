@@ -4,7 +4,7 @@ allowed-paths:
   - test
   - euler-hs.cabal
 
-disable-tests: false
+disable-tests: true
 dependencies:
   euler-build:
     branch: master
@@ -13,8 +13,8 @@ dependencies:
     branch: master
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
-    branch: master
-    revision: 1371202ebc3ec7e9ef3e16d1e99f805596022217
+    branch: trace_changes_for_txns
+    revision: 2747059f02f67f2dab3ae72b1953f9a43fc0dda9
   haskell-sequelize:
     branch: master
     revision: 1bbd42155ecd587eb96a515b350c48b35cabc41e
@@ -81,3 +81,7 @@ nix-shell-tools:
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883
+
+development:
+  cabal-project:
+    beam-mysql: ../beam-mysql

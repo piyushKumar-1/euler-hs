@@ -14,6 +14,7 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Time.Clock (diffTimeToPicoseconds)
 import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import           Data.Time.Clock.TAI (diffAbsoluteTime)
+import           Data.List (init, isSuffixOf)
 import qualified Data.Text.Encoding as TE (decodeUtf8)
 import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
@@ -67,7 +68,7 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
 
 mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
 mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
-  { url = SCF.showBaseUrl bUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
+  { url = baseUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
   , method = method'
   , req_headers = req_headers'
   , req_body = req_body'
@@ -101,6 +102,9 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
     headersToJson :: Seq (Text, Text) -> A.Value
     headersToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
+
+    baseUrlString = SCF.showBaseUrl bUrl
+    baseUrl = if isSuffixOf baseUrlString "/" then init baseUrlString else baseUrlString
 
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient

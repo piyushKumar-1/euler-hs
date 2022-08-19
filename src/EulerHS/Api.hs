@@ -104,7 +104,7 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
     headersToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
 
     baseUrlString = SCF.showBaseUrl bUrl
-    baseUrl = if isSuffixOf baseUrlString "/" then init baseUrlString else baseUrlString
+    baseUrl = if isSuffixOf "/" baseUrlString then init baseUrlString else baseUrlString
 
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient

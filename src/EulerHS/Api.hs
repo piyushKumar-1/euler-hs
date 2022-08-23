@@ -14,6 +14,7 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Time.Clock (diffTimeToPicoseconds)
 import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import           Data.Time.Clock.TAI (diffAbsoluteTime)
+import           Data.List (init, isSuffixOf)
 import qualified Data.Text.Encoding as TE (decodeUtf8)
 import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
@@ -65,9 +66,9 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
 
-mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
-mkServantApiCallLogEntry mbMaskConfig req res lat = ServantApiCallLogEntry
-  { url = LBS.toString $ toLazyByteString (SCC.requestPath req)
+mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
+mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
+  { url = baseUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
   , method = method'
   , req_headers = req_headers'
   , req_body = req_body'
@@ -102,22 +103,25 @@ mkServantApiCallLogEntry mbMaskConfig req res lat = ServantApiCallLogEntry
     headersToJson :: Seq (Text, Text) -> A.Value
     headersToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
 
+    baseUrlString = SCF.showBaseUrl bUrl
+    baseUrl = if isSuffixOf "/" baseUrlString then init baseUrlString else baseUrlString
+
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
 
-interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCF.ClientF a -> SC.ClientM a
-interpretClientF _   _ (SCF.Throw e) = throwM e
-interpretClientF log mbMaskConfig (SCF.RunRequest req next) = do
+interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> SCF.ClientF a -> SC.ClientM a
+interpretClientF _   _   _ (SCF.Throw e) = throwM e
+interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   start <- liftIO $ systemToTAITime <$> getSystemTime
   res <- SCC.runRequestAcceptStatus Nothing req
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
-  let logEntry = mkServantApiCallLogEntry mbMaskConfig req res lat
+  let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat
   liftIO $ log logEntry
   pure $ next res
   where
     picoMilliDiff :: Integer
     picoMilliDiff = 1000000000
 
-runEulerClient :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> EulerClient a -> SCIHC.ClientM a
-runEulerClient log mbMaskConfig (EulerClient f) = foldFree (interpretClientF log mbMaskConfig) f
+runEulerClient :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a
+runEulerClient log mbMaskConfig bUrl (EulerClient f) = foldFree (interpretClientF log mbMaskConfig bUrl) f

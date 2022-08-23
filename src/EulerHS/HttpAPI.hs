@@ -71,7 +71,6 @@ import           Data.X509.Validation (checkLeafV3, defaultChecks, defaultHooks,
                                        validate)
 import           Generics.Deriving.Monoid (mappenddefault, memptydefault)
 import qualified Network.Connection as Conn
-import           Network.URI (uriPath, parseURI)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.TLS as TLS
 import qualified Network.TLS as TLS
@@ -323,7 +322,7 @@ data HttpApiCallLogEntry = HttpApiCallLogEntry
 
 mkHttpApiCallLogEntry :: Integer -> HTTPRequestMasked -> HTTPResponseMasked -> HttpApiCallLogEntry
 mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
-  { url = fromMaybe req.getRequestURL (Text.pack . uriPath <$> parseURI (Text.unpack req.getRequestURL))
+  { url = req.getRequestURL
   , method = show $ req.getRequestMethod
   , req_headers = A.toJSON $ req.getRequestHeaders
   , req_body = req.getRequestBody

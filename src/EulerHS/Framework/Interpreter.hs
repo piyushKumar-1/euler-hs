@@ -231,9 +231,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
-              case err of
-                S.ConnectionError ce -> dbgLogger Error $ show @Text ce
-                _ -> pure ()
+              dbgLogger Error $ show @Text err
               pure $ Left err
             Right response ->
               pure $ Right response

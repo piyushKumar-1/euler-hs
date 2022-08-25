@@ -322,6 +322,11 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContext k v next) =
     let newMap = HM.insert k v m
     putMVar (R._logContext . R._loggerRuntime $ _coreRuntime) newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetLoggerContext k next) =
+  fmap next $ do
+    m <- readMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 
+    pure $ HM.lookup k m
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContextMap newMap next) =
   fmap next $ do
     oldMap <- takeMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 

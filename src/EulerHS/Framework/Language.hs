@@ -162,6 +162,12 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
   
+  GetLoggerContext
+    :: HasCallStack
+     => Text
+    -> ((Maybe Text) -> next)
+    -> FlowMethod next
+
   SetLoggerContextMap
     :: HasCallStack
     => HashMap Text Text
@@ -326,6 +332,7 @@ instance Functor FlowMethod where
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     SetLoggerContext k v cont -> SetLoggerContext k v (f . cont)
+    GetLoggerContext k cont -> GetLoggerContext k (f . cont)
     SetLoggerContextMap v cont -> SetLoggerContextMap v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
     GenerateGUID cont -> GenerateGUID (f . cont)
@@ -483,6 +490,8 @@ class (MonadMask m) => MonadFlow m where
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
 
   setLoggerContext :: (HasCallStack) => Text -> Text -> m ()
+
+  getLoggerContext :: (HasCallStack) => Text -> m (Maybe Text)
 
   setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> m ()
 
@@ -754,6 +763,9 @@ instance MonadFlow Flow where
   {-# INLINEABLE setLoggerContext #-}
   setLoggerContext :: (HasCallStack) => Text -> Text -> Flow ()
   setLoggerContext k v = liftFC $ SetLoggerContext k v id
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext :: (HasCallStack) => Text -> Flow (Maybe Text)
+  getLoggerContext k = liftFC $ GetLoggerContext k id
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> Flow ()
   setLoggerContextMap v = liftFC $ SetLoggerContextMap v id
@@ -822,6 +834,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   setOption k = lift . setOption k
   {-# INLINEABLE setLoggerContext #-}
   setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE delOption #-}
@@ -884,6 +898,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE setLoggerContext #-}
   setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE delOption #-}
@@ -946,6 +962,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   setOption k = lift . setOption k
   {-# INLINEABLE setLoggerContext #-}
   setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE delOption #-}
@@ -1008,6 +1026,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   setOption k = lift . setOption k
   {-# INLINEABLE setLoggerContext #-}
   setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE delOption #-}
@@ -1070,6 +1090,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE setLoggerContext #-}
   setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE delOption #-}

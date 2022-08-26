@@ -20,7 +20,7 @@ dependencies:
     revision: 1bbd42155ecd587eb96a515b350c48b35cabc41e
   euler-haskell-common:
     branch: master
-    revision: 1affbe0f828f27983c2aa6578ae7e3969b7023a2
+    revision: b673307a0362690fceddc3a585c0a97f0794f16e
 
 overrides:
   hedis:
@@ -31,8 +31,8 @@ overrides:
     source: github
 
   record-dot-preprocessor:
-    version: 0.2.11
-    sha256: 1q100j7kcba4i7jfa5wwkv7kssv3k3y3y2xy95ybzsxibr8867hp
+    version: 0.2.14
+    sha256: 11zg0wgiy2awsblmazzk5rm22sr11fm3gyj9zsh230339ckrha88
     source: hackage
 
   servant:

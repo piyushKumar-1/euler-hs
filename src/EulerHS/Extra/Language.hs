@@ -85,6 +85,7 @@ import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
 -- import           EulerHS.Logger.Types (LogContext)
 import           EulerHS.Prelude hiding (get, id)
 -- import           EulerHS.Runtime ( FlowRuntime (..))
+-- import           EulerHS.Logger.Runtime ( LoggerRuntime (..), CoreRuntime(..))
 import           EulerHS.SqlDB.Language (SqlDB, insertRowReturningMySQL,
                                          insertRowsReturningList)
 import qualified EulerHS.SqlDB.Types as T
@@ -645,6 +646,6 @@ rSismember cName k v = do
 --   where
 --     newLrt :: LoggerRuntime
 --     newLrt = case _loggerRuntime _coreRuntime of
---       MemoryLoggerRuntime a ( lc) b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
---       -- the next line is courtesy to Kyrylo Havryliuk ;-)
---       LoggerRuntime{ _logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}
+--               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+--               -- the next line is courtesy to Kyrylo Havryliuk ;-)
+--               LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}

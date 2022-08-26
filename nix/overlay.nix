@@ -26,8 +26,8 @@ super.eulerBuild.mkEulerHaskellOverlay self super
     record-dot-preprocessor = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hself.callHackageDirect {
         pkg = "record-dot-preprocessor";
-        ver = "0.2.11";
-        sha256 = "1q100j7kcba4i7jfa5wwkv7kssv3k3y3y2xy95ybzsxibr8867hp";
+        ver = "0.2.14";
+        sha256 = "11zg0wgiy2awsblmazzk5rm22sr11fm3gyj9zsh230339ckrha88";
       } { });
     };
     servant = self.eulerBuild.fastBuildExternal {

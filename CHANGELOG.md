@@ -1,5 +1,20 @@
 # Changelog for euler-hs
 
+
+## [2.13.0.1] - 2022-08-03
+
+* Add Configuration for Additional Postgres Database Connection and creating Option Entity for the same - `EulerPsqlDbAdditionalCfg`
+
+## [2.13.0.0] - 2022-04-22
+
+* Update `record-dot-preprocessor` and `juspay-extra` versions
+* Import `formUrlEncode` from `juspay-extra`.
+* Update `stack's lts` to `16.31`
+
+## [2.12.0.0] - 2022-04-12
+
+* Add logAPI flag to allow applications to control the logging of external API calls. It is a BREAKING change! From now on you have to provide an extra flag - `logAPI` when building logger runtime.
+
 ## [2.11.0.0] - 2022-02-01
 
 * Add handler to count log entries by severity. It is a BREAKING change! From now on you have to provide a `SeverityCounterHandle` when building logger runtime. Please refer to this PR as an example https://bitbucket.org/juspay/euler-api-customer/pull-requests/249

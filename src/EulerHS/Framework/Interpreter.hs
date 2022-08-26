@@ -224,7 +224,10 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
           let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                             then setRequestTimeout defaultTimeout req
                             else req {HTTP.responseTimeout = mResponseTimeout mngr}
-          eitherResult <- tryRunClient $! S.runClientM (runEulerClient (dbgLogger Debug) getLoggerMaskConfig bUrl clientAct) $
+          eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
+                                                                          then dbgLogger Debug
+                                                                          else const $ return ()
+                                                                      ) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
@@ -240,6 +243,8 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
         $ Message Nothing (Just $ A.toJSON msg)
+    shouldLogAPI =
+      R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
     tryRunClient :: IO (Either S.ClientError a) -> IO (Either S.ClientError a)
@@ -275,10 +280,11 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
               logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
-              let logEntry = mkHttpApiCallLogEntry lat
-                     (maskHTTPRequest getLoggerMaskConfig request)
-                     (maskHTTPResponse getLoggerMaskConfig response)
-              logJson Debug logEntry
+              when shouldLogAPI $ do
+                let logEntry = mkHttpApiCallLogEntry lat
+                                (maskHTTPRequest getLoggerMaskConfig request)
+                                (maskHTTPResponse getLoggerMaskConfig response)
+                logJson Debug logEntry
               pure $ Right response
   where
     picoMilliDiff :: Integer
@@ -291,6 +297,8 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
         . L.logMessage' debugLevel ("callHTTP" :: String)
         $ Message Nothing (Just $ A.toJSON msg)
 
+    shouldLogAPI =
+      R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 

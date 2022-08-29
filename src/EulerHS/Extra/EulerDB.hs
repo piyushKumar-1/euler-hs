@@ -6,12 +6,14 @@ module EulerHS.Extra.EulerDB (
   EulerDbCfg(..),
   EulerDbCfgR1(..),
   EulerPsqlDbCfg(..),
+  EulerPsqlDbAdditionalCfg(..),
   getEulerDbConf,
   getEulerDbConfR1,
   withEulerDB,
   withEulerDBR1,
   withEulerPsqlDB,
   withEulerDBTransaction,
+  withEulerAdditionalPsqlDB
   ) where
 
 import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,
@@ -21,7 +23,6 @@ import           EulerHS.Types (DBConfig, OptionEntity)
 
 import           Database.Beam.MySQL (MySQLM)
 import qualified Database.Beam.Postgres as BP
-
 
 data EulerDbCfg = EulerDbCfg
   deriving stock (Eq, Show, Generic)
@@ -41,6 +42,11 @@ data EulerPsqlDbCfg = EulerPsqlDbCfg
 
 instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 
+data EulerPsqlDbAdditionalCfg = EulerPsqlDbAdditionalCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerPsqlDbAdditionalCfg (DBConfig BP.Pg)
 
 -- Pass Exception argument to function ad hoc,
 -- or better use prepared functions from
@@ -100,4 +106,14 @@ withEulerPsqlDB internalError act = do
     Just cfg -> withDB cfg act
     Nothing -> do
       logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
+      throwException internalError
+
+withEulerAdditionalPsqlDB :: (HasCallStack, MonadFlow m, Exception e)
+  => e -> SqlDB BP.Pg a -> m a
+withEulerAdditionalPsqlDB internalError act = do
+  (dbcfg :: Maybe (DBConfig BP.Pg)) <- getOption EulerPsqlDbAdditionalCfg
+  case dbcfg of
+    Just cfg -> withDB cfg act
+    Nothing -> do
+      logErrorT "MissingDB identifier" "Can't find EulerAdditionalPsqlDB identifier in options"
       throwException internalError

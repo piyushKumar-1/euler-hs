@@ -59,6 +59,8 @@ data FlowRuntime = FlowRuntime
   -- ^ Subscribe controller
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
+  , _configCache              :: MVar (Map Text Text)
+  
   }
 
 -- | Possible issues that can arise when registering certificates.
@@ -122,6 +124,7 @@ createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
+  configCacheVar        <- newMVar mempty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty
   dynHttpClientManagers <- newMVar $ LRU.empty 100
@@ -131,6 +134,7 @@ createFlowRuntime coreRt = do
     , _defaultHttpClientManager = defaultManagerVar
     , _httpClientManagers       = mempty
     , _options                  = optionsVar
+    , _configCache              = configCacheVar
     , _kvdbConnections          = kvdbConnections
     -- , _runMode                  = T.RegularMode
     , _sqldbConnections         = sqldbConnections

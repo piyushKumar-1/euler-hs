@@ -330,6 +330,33 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
     let newMap = Map.delete k m
     putMVar _options newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetConfig k next) =
+  fmap next $ do
+    m <- readMVar _configCache
+    pure $ do
+      Map.lookup k m
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetConfig k v next) =
+  fmap next $ do
+    m <- takeMVar _configCache
+    let newMap = Map.insert k v m
+    putMVar _configCache newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.DelConfig k next) =
+  fmap next $ do
+    m <- takeMVar _configCache
+    let newMap = Map.delete k m
+    putMVar _configCache newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.TrySetConfig k v next) =
+  fmap next $ do
+    mbM <- tryTakeMVar _configCache
+    case mbM of
+      Nothing -> pure Nothing
+      Just m -> do
+        let newMap = Map.insert k v m
+        Just <$> putMVar _configCache newMap
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.GenerateGUID next) = do
   next <$> (UUID.toText <$> UUID.nextRandom)
 

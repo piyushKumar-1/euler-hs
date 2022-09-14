@@ -161,6 +161,32 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  GetConfig
+    :: HasCallStack
+    => Text
+    -> (Maybe Text -> next)
+    -> FlowMethod next
+
+  SetConfig
+    :: HasCallStack
+    => Text
+    -> Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  TrySetConfig
+    :: HasCallStack
+    => Text
+    -> Text
+    -> (Maybe () -> next)
+    -> FlowMethod next
+
+  DelConfig
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
   GenerateGUID
     ::  HasCallStack
     => (Text -> next)
@@ -313,6 +339,10 @@ instance Functor FlowMethod where
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
+    GetConfig k cont -> GetConfig k (f . cont)
+    SetConfig k v cont -> SetConfig k v (f . cont)
+    TrySetConfig k v cont -> TrySetConfig k v (f . cont)
+    DelConfig k cont -> DelConfig k (f . cont)
     GenerateGUID cont -> GenerateGUID (f . cont)
     RunSysCmd cmd cont -> RunSysCmd cmd (f . cont)
     Fork desc guid flow cont -> Fork desc guid flow (f . cont)
@@ -470,6 +500,13 @@ class (MonadMask m) => MonadFlow m where
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
+  getConfig :: HasCallStack => Text -> m (Maybe Text)
+
+  setConfig :: HasCallStack => Text -> Text -> m ()
+
+  trySetConfig :: HasCallStack => Text -> Text -> m (Maybe ())
+
+  delConfig :: HasCallStack => Text -> m ()
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
   --
@@ -735,6 +772,18 @@ instance MonadFlow Flow where
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE getConfig #-}
+  getConfig :: HasCallStack => Text -> Flow (Maybe Text)
+  getConfig k = liftFC $ GetConfig k id
+  {-# INLINEABLE setConfig #-}
+  setConfig :: HasCallStack => Text -> Text -> Flow ()
+  setConfig k v = liftFC $ SetConfig k v id
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig :: HasCallStack => Text -> Text -> Flow (Maybe ())
+  trySetConfig k v = liftFC $ TrySetConfig k v id
+  {-# INLINEABLE delConfig #-}
+  delConfig :: HasCallStack => Text -> Flow ()
+  delConfig k = liftFC $ DelConfig k id
   {-# INLINEABLE generateGUID #-}
   generateGUID = liftFC $ GenerateGUID id
   {-# INLINEABLE runSysCmd #-}
@@ -797,6 +846,14 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -855,6 +912,14 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -913,6 +978,14 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -971,6 +1044,14 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1029,6 +1110,14 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}

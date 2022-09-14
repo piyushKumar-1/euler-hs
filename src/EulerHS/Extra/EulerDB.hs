@@ -6,6 +6,8 @@ module EulerHS.Extra.EulerDB (
   EulerDbCfg(..),
   EulerDbCfgR1(..),
   EulerPsqlDbCfg(..),
+  EulerProcessTrackerDbCfg(..),
+  EulerProcessTrackerDbCfgR1(..),
   getEulerDbConf,
   getEulerDbConfR1,
   withEulerDB,
@@ -13,6 +15,8 @@ module EulerHS.Extra.EulerDB (
   withEulerPsqlDB,
   withEulerDBTransaction,
   getEulerPsqlDbConf,
+  getEulerProcessTrackerDbConf,
+  getEulerProcessTrackerDbConfR1,
   ) where
 
 import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,
@@ -42,6 +46,17 @@ data EulerPsqlDbCfg = EulerPsqlDbCfg
 
 instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 
+data EulerProcessTrackerDbCfg = EulerProcessTrackerDbCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerProcessTrackerDbCfg (DBConfig BP.Pg)
+
+data EulerProcessTrackerDbCfgR1 = EulerProcessTrackerDbCfgR1
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerProcessTrackerDbCfgR1 (DBConfig BP.Pg)
 
 -- Pass Exception argument to function ad hoc,
 -- or better use prepared functions from
@@ -64,6 +79,12 @@ getEulerDbByConfig dbConf internalError = do
 
 getEulerPsqlDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
 getEulerPsqlDbConf = getEulerPsqlDbByConfig EulerPsqlDbCfg
+
+getEulerProcessTrackerDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
+getEulerProcessTrackerDbConf = getEulerPsqlDbByConfig EulerProcessTrackerDbCfg
+
+getEulerProcessTrackerDbConfR1 :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
+getEulerProcessTrackerDbConfR1 = getEulerPsqlDbByConfig EulerProcessTrackerDbCfgR1
 
 getEulerPsqlDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig BP.Pg))
   => k -> e -> m (DBConfig BP.Pg)

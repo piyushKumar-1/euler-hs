@@ -3,6 +3,7 @@
 module EulerHS.CachedSqlDBQuery
   ( create
   , createSql
+  , createSqlWoReturing
   , updateOne
   , updateOneWoReturning
   , updateOneSql
@@ -432,6 +433,17 @@ createSqlMySQL dbConf value = do
       L.logError @Text "createSqlMySQL" message
       return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
+
+createSqlWoReturing ::
+  forall m  table.
+  ( HasCallStack,
+    Model BM.MySQL table,
+    L.MonadFlow m
+  ) =>
+  DBConfig BM.MySQLM ->
+  table Identity ->
+  m (Either DBError ())
+createSqlWoReturing dbConf value = runQuery dbConf $ DB.insertRows $ sqlCreate value
 
 findOneSql ::
   ( HasCallStack,

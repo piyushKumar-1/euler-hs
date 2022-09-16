@@ -11,6 +11,7 @@ module EulerHS.Framework.Interpreter
 import           Control.Concurrent.MVar (modifyMVar)
 import           Control.Exception (throwIO)
 import qualified Control.Exception as Exception
+import qualified Control.Concurrent.Map as CMap
 import qualified Data.Aeson as A
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
@@ -356,6 +357,20 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.TrySetConfig k v next) =
       Just m -> do
         let newMap = Map.insert k v m
         Just <$> putMVar _configCache newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.AcquireConfigLock k next) =
+  fmap next $ do
+    m <- takeMVar _configCacheLock
+    didAcquire <- CMap.insertIfAbsent k () m
+    putMVar _configCacheLock m
+    return didAcquire
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.ReleaseConfigLock k next) =
+  fmap next $ do
+    m <- takeMVar _configCacheLock
+    didDelete <- CMap.delete k m
+    putMVar _configCacheLock m
+    return didDelete
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GenerateGUID next) = do
   next <$> (UUID.toText <$> UUID.nextRandom)

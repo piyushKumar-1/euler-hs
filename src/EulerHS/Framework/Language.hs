@@ -187,6 +187,18 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  AcquireConfigLock
+    :: HasCallStack
+    => Text
+    -> (Bool -> next)
+    -> FlowMethod next
+  
+  ReleaseConfigLock
+    :: HasCallStack
+    => Text
+    -> (Bool -> next)
+    -> FlowMethod next
+
   GenerateGUID
     ::  HasCallStack
     => (Text -> next)
@@ -343,6 +355,8 @@ instance Functor FlowMethod where
     SetConfig k v cont -> SetConfig k v (f . cont)
     TrySetConfig k v cont -> TrySetConfig k v (f . cont)
     DelConfig k cont -> DelConfig k (f . cont)
+    AcquireConfigLock k cont -> AcquireConfigLock k (f . cont)
+    ReleaseConfigLock k cont -> ReleaseConfigLock k (f . cont)
     GenerateGUID cont -> GenerateGUID (f . cont)
     RunSysCmd cmd cont -> RunSysCmd cmd (f . cont)
     Fork desc guid flow cont -> Fork desc guid flow (f . cont)
@@ -507,6 +521,10 @@ class (MonadMask m) => MonadFlow m where
   trySetConfig :: HasCallStack => Text -> Text -> m (Maybe ())
 
   delConfig :: HasCallStack => Text -> m ()
+
+  acquireConfigLock :: HasCallStack => Text -> m Bool
+
+  releaseConfigLock :: HasCallStack => Text -> m Bool
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
   --
@@ -784,6 +802,12 @@ instance MonadFlow Flow where
   {-# INLINEABLE delConfig #-}
   delConfig :: HasCallStack => Text -> Flow ()
   delConfig k = liftFC $ DelConfig k id
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock :: HasCallStack => Text -> Flow Bool
+  acquireConfigLock k = liftFC $ AcquireConfigLock k id
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock :: HasCallStack => Text -> Flow Bool
+  releaseConfigLock k = liftFC $ ReleaseConfigLock k id
   {-# INLINEABLE generateGUID #-}
   generateGUID = liftFC $ GenerateGUID id
   {-# INLINEABLE runSysCmd #-}
@@ -854,6 +878,10 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
   delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -920,6 +948,10 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
   delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -986,6 +1018,10 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
   delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1052,6 +1088,10 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
   delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1118,6 +1158,10 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
   delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}

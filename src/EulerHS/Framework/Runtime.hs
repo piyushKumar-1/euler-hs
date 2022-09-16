@@ -17,6 +17,7 @@ module EulerHS.Framework.Runtime
   ) where
 
 import           Control.Monad.Trans.Except (throwE)
+import qualified Control.Concurrent.Map as CMap
 import qualified Data.Map as Map (empty)
 import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP (destroyAllResources)
@@ -60,6 +61,7 @@ data FlowRuntime = FlowRuntime
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
   , _configCache              :: MVar (Map Text Text)
+  , _configCacheLock          :: MVar (CMap.Map Text ())
   
   }
 
@@ -125,6 +127,7 @@ createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
   configCacheVar        <- newMVar mempty
+  configCacheLockVar    <- newMVar =<< CMap.empty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty
   dynHttpClientManagers <- newMVar $ LRU.empty 100
@@ -135,6 +138,7 @@ createFlowRuntime coreRt = do
     , _httpClientManagers       = mempty
     , _options                  = optionsVar
     , _configCache              = configCacheVar
+    , _configCacheLock          = configCacheLockVar
     , _kvdbConnections          = kvdbConnections
     -- , _runMode                  = T.RegularMode
     , _sqldbConnections         = sqldbConnections

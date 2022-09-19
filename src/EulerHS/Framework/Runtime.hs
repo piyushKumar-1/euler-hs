@@ -1,10 +1,12 @@
 {-# LANGUAGE DerivingVia     #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module EulerHS.Framework.Runtime
   (
     -- * Framework Runtime
     FlowRuntime(..)
+  , ConfigEntry(..)
   , createFlowRuntime
   , createFlowRuntime'
   , withFlowRuntime
@@ -18,6 +20,7 @@ module EulerHS.Framework.Runtime
 
 import           Control.Monad.Trans.Except (throwE)
 import qualified Control.Concurrent.Map as CMap
+import           Data.Aeson as A
 import qualified Data.Map as Map (empty)
 import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP (destroyAllResources)
@@ -60,11 +63,18 @@ data FlowRuntime = FlowRuntime
   -- ^ Subscribe controller
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
-  , _configCache              :: MVar (Map Text Text)
+  , _configCache              :: MVar (Map Text ConfigEntry)
   , _configCacheLock          :: MVar (CMap.Map Text ())
   
   }
 
+data ConfigEntry = ConfigEntry
+  {
+      ttl :: Text
+    , entry :: Text
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (A.FromJSON, A.ToJSON)
 -- | Possible issues that can arise when registering certificates.
 --
 -- @since 2.0.4.3

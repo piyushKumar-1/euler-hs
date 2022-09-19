@@ -70,7 +70,7 @@ import           EulerHS.Api (EulerClient)
 import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  ManagerSelector (ManagerSelector),
                                  Microseconds, SafeFlowGUID)
-import           EulerHS.Framework.Runtime (FlowRuntime)
+import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
                                   HTTPResponse, withClientTls)
 import           EulerHS.KVDB.Language (KVDB)
@@ -164,20 +164,20 @@ data FlowMethod (next :: Type) where
   GetConfig
     :: HasCallStack
     => Text
-    -> (Maybe Text -> next)
+    -> (Maybe ConfigEntry -> next)
     -> FlowMethod next
 
   SetConfig
     :: HasCallStack
     => Text
-    -> Text
+    -> ConfigEntry
     -> (() -> next)
     -> FlowMethod next
 
   TrySetConfig
     :: HasCallStack
     => Text
-    -> Text
+    -> ConfigEntry
     -> (Maybe () -> next)
     -> FlowMethod next
 
@@ -514,11 +514,11 @@ class (MonadMask m) => MonadFlow m where
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
-  getConfig :: HasCallStack => Text -> m (Maybe Text)
+  getConfig :: HasCallStack => Text -> m (Maybe ConfigEntry)
 
-  setConfig :: HasCallStack => Text -> Text -> m ()
+  setConfig :: HasCallStack => Text -> ConfigEntry -> m ()
 
-  trySetConfig :: HasCallStack => Text -> Text -> m (Maybe ())
+  trySetConfig :: HasCallStack => Text -> ConfigEntry -> m (Maybe ())
 
   delConfig :: HasCallStack => Text -> m ()
 
@@ -791,13 +791,13 @@ instance MonadFlow Flow where
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
   {-# INLINEABLE getConfig #-}
-  getConfig :: HasCallStack => Text -> Flow (Maybe Text)
+  getConfig :: HasCallStack => Text -> Flow (Maybe ConfigEntry)
   getConfig k = liftFC $ GetConfig k id
   {-# INLINEABLE setConfig #-}
-  setConfig :: HasCallStack => Text -> Text -> Flow ()
+  setConfig :: HasCallStack => Text -> ConfigEntry -> Flow ()
   setConfig k v = liftFC $ SetConfig k v id
   {-# INLINEABLE trySetConfig #-}
-  trySetConfig :: HasCallStack => Text -> Text -> Flow (Maybe ())
+  trySetConfig :: HasCallStack => Text -> ConfigEntry -> Flow (Maybe ())
   trySetConfig k v = liftFC $ TrySetConfig k v id
   {-# INLINEABLE delConfig #-}
   delConfig :: HasCallStack => Text -> Flow ()

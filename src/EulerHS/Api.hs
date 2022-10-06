@@ -7,16 +7,20 @@ module EulerHS.Api where
 
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS (toStrict)
+import Data.ByteString.Builder (toLazyByteString)
+import qualified Data.ByteString.Lazy.UTF8 as LBS
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
 import           Data.Time.Clock (diffTimeToPicoseconds)
 import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import           Data.Time.Clock.TAI (diffAbsoluteTime)
+import           Data.List (init, isSuffixOf)
 import qualified Data.Text.Encoding as TE (decodeUtf8)
 import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
 import           EulerHS.Masking (defaultMaskText, getContentTypeForServant,
                                   maskServantHeaders,
+                                  maskQueryStrings,
                                   parseRequestResponseBody, shouldMaskKey)
 import           EulerHS.Prelude
 import qualified Servant.Client as SC
@@ -59,22 +63,28 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
   , res_body :: A.Value
   , res_headers :: A.Value
   , latency :: Integer
+  , req_query_params :: A.Value
   }
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
 
 mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
 mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
-  { url = SCF.showBaseUrl bUrl
-  , method = method'
-  , req_headers = req_headers'
-  , req_body = req_body'
-  , res_code = res_code'
-  , res_body = res_body'
-  , res_headers = res_headers'
-  , latency = lat
-  }
+    { url = baseUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
+    , method = method'
+    , req_headers = req_headers'
+    , req_body = req_body'
+    , res_code = res_code'
+    , res_body = res_body'
+    , res_headers = res_headers'
+    , latency = lat
+    , req_query_params = queryParams
+    }
   where
+    queryParams = queryToJson
+      $ fmap (bimap TE.decodeUtf8 (TE.decodeUtf8 <$>))
+      $ maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText
+      $ SCC.requestQueryString req
     method' = TE.decodeUtf8 $ SCC.requestMethod req
     req_headers' = headersToJson
       $ fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8)
@@ -97,8 +107,15 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
       $ SCC.responseHeaders res
     getMaskText :: Text
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
+    queryToJson :: Seq (Text, Maybe Text) -> A.Value
+    queryToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
+
     headersToJson :: Seq (Text, Text) -> A.Value
     headersToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
+
+    baseUrlString = SCF.showBaseUrl bUrl
+    baseUrl = if isSuffixOf "/" baseUrlString then init baseUrlString else baseUrlString
 
 client :: SC.HasClient EulerClient api => Proxy api -> SC.Client EulerClient api
 client api = SCC.clientIn api $ Proxy @EulerClient
@@ -107,7 +124,7 @@ interpretClientF :: (forall msg . A.ToJSON msg => msg -> IO()) -> Maybe Log.LogM
 interpretClientF _   _   _ (SCF.Throw e) = throwM e
 interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   start <- liftIO $ systemToTAITime <$> getSystemTime
-  res <- SCC.runRequestAcceptStatus (Just [minBound .. maxBound]) req
+  res <- SCC.runRequestAcceptStatus Nothing req
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
   let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req res lat

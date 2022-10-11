@@ -24,7 +24,7 @@ common common-lang
 
   build-depends:
     , base                     >=4.13   && <5
-    , record-dot-preprocessor  
+    , record-dot-preprocessor  ^>=0.2.14
     , record-hasfield
 
   default-extensions:
@@ -122,7 +122,7 @@ library
     , http-client-tls
     , http-media
     , http-types
-    , juspay-extra          ^>=1.0.1.2
+    , juspay-extra          ^>=1.0.1.5
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named

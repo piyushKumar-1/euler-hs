@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+
+## [2.13.0.1] - 2022-08-03
+
+* Add Configuration for Additional Postgres Database Connection and creating Option Entity for the same - `EulerPsqlDbAdditionalCfg`
+
 ## [2.13.0.0] - 2022-04-22
 
 * Update `record-dot-preprocessor` and `juspay-extra` versions

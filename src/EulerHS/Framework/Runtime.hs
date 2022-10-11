@@ -24,6 +24,7 @@ import           Data.Aeson as A
 import qualified Data.Map as Map (empty)
 import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP (destroyAllResources)
+import           Data.Time (LocalTime)
 import           Data.X509.CertificateStore (readCertificateStore)
 import qualified Database.Redis as RD
 import           EulerHS.KVDB.Types (NativeKVDBConn (NativeKVDB))
@@ -70,7 +71,7 @@ data FlowRuntime = FlowRuntime
 
 data ConfigEntry = ConfigEntry
   {
-      ttl :: Text
+      ttl :: LocalTime
     , entry :: Text
   }
   deriving stock (Show, Generic)

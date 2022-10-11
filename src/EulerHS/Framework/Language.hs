@@ -1418,9 +1418,9 @@ forkFlow' :: HasCallStack =>
 forkFlow' description flow = do
     flowGUID <- generateGUID
     logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
-      Nothing ->
+      Just _ ->
         "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
-      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+      Nothing  -> "Flow forked. GUID: " +| flowGUID |+ ""
     liftFC $ Fork description flowGUID flow id
 
 

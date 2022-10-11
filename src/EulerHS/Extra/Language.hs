@@ -630,7 +630,6 @@ rXreadT cName k v = rXreadB cName k' v'
     k' = TE.encodeUtf8 k
     v' = TE.encodeUtf8 v
 
-
 rXreadB :: (HasCallStack, L.MonadFlow m) =>
   RedisName -> L.KVDBStream -> L.RecordID -> m (Either KVDBReply (Maybe [L.KVDBStreamReadResponse]))
 rXreadB cName strm entryId = do
@@ -638,13 +637,7 @@ rXreadB cName strm entryId = do
   _ <-  case res of
     Left err -> 
       L.logError @Text "Redis xread" $ show err
-    Right response ->
-      case response of
-        Nothing ->
-          L.logError @Text "Redis xread" "Empty response from stream"
-        Just [] -> 
-          L.logError @Text "Redis xread" "Empty response from stream"
-        _ -> pure ()
+    Right _ -> pure ()
   pure res
 
 rXrevrangeT :: (HasCallStack,L.MonadFlow m) =>

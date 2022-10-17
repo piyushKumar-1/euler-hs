@@ -11,12 +11,13 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import           Data.IORef (readIORef)
 import           EulerHS.Common (FlowGUID)
 import           EulerHS.Logger.Language (Logger, LoggerMethod (LogMessage))
 import qualified EulerHS.Logger.Runtime as R
 import qualified EulerHS.Logger.TinyLogger as Impl
 import qualified EulerHS.Logger.Types as T
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (readIORef)
 
 interpretLogger :: Maybe FlowGUID -> R.LoggerRuntime -> LoggerMethod a -> IO a
 
@@ -32,7 +33,7 @@ interpretLogger
       _  -> do
         formatter <- flowFormatter mbFlowGuid
         !msgNum   <- R.incLogCounter cntVar
-        x <- readMVar logContext
+        x <- readIORef logContext
         let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum x
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
@@ -54,7 +55,7 @@ interpretLogger
       GT -> pure ()
       _  -> do
         msgNum    <- R.incLogCounter cntVar
-        x <- readMVar logContext
+        x <- readIORef logContext
         Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum x
         case severityCounterHandle of
           Nothing -> pure ()

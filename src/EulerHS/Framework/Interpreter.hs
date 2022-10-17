@@ -18,6 +18,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
+import           Data.IORef (readIORef, writeIORef)
 import qualified Data.LruCache as LRU
 import qualified Data.Map as Map
 import qualified Data.Pool as DP
@@ -60,7 +61,7 @@ import qualified EulerHS.Logger.Language as L
 import qualified EulerHS.Logger.Runtime as R
 import           EulerHS.Logger.Types (LogLevel (Debug, Error),
                                        Message (Message))
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (readIORef, writeIORef)
 import           EulerHS.PubSub.Interpreter (runPubSub)
 import           EulerHS.SqlDB.Interpreter (runSqlDB)
 import           EulerHS.SqlDB.Types (ConnTag,
@@ -326,19 +327,19 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetOption k v next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContext k v next) =
   fmap next $ do
-    m <- takeMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 
+    m <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
     let newMap = HM.insert k v m
-    putMVar (R._logContext . R._loggerRuntime $ _coreRuntime) newMap
+    writeIORef (R._logContext . R._loggerRuntime $ _coreRuntime) newMap
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetLoggerContext k next) =
   fmap next $ do
-    m <- readMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 
+    m <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
     pure $ HM.lookup k m
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContextMap newMap next) =
   fmap next $ do
-    oldMap <- takeMVar $ R._logContext . R._loggerRuntime $ _coreRuntime 
-    putMVar (R._logContext . R._loggerRuntime $ _coreRuntime) (HM.union newMap oldMap)
+    oldMap <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
+    writeIORef (R._logContext . R._loggerRuntime $ _coreRuntime) (HM.union newMap oldMap)
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
   fmap next $ do

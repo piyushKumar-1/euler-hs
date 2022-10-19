@@ -94,6 +94,7 @@ library
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
+    EulerHS.KVConnector.Flow
 
   build-depends:
     , QuickCheck

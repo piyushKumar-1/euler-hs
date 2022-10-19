@@ -75,6 +75,7 @@ library
     EulerHS.Framework.Interpreter
     EulerHS.Framework.Language
     EulerHS.Framework.Runtime
+    EulerHS.KVConnector.Types
     EulerHS.HttpAPI
     EulerHS.KVDB.Interpreter
     EulerHS.KVDB.Language

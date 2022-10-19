@@ -29,7 +29,8 @@ import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
-import           EulerHS.KVConnector.Types (MeshConfig)
+import           EulerHS.KVConnector.Types (MeshConfig, KVConnector)
+import           EulerHS.KVConnector.Flow (createWithKVConnector)
 import qualified EulerHS.SqlDB.Language as DB
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBError (DBError),
@@ -58,6 +59,7 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
       Model be table,
       ToJSON (table Identity),
       FromJSON (table Identity),
+      KVConnector (table Identity),
       Show (table Identity)
     ) =>
     DBConfig beM ->
@@ -107,7 +109,9 @@ createMySQL ::
          r.
   ( HasCallStack,
     Model BM.MySQL table,
+    FromJSON (table Identity),
     ToJSON (table Identity),
+    KVConnector (table Identity),
     Show (table Identity)
   ) =>
   DBConfig BM.MySQLM ->
@@ -115,13 +119,14 @@ createMySQL ::
   table Identity ->
   Maybe Text ->
   ReaderT r L.Flow (Either DBError (table Identity))
-createMySQL dbConf _ value mCacheKey = do
+createMySQL dbConf meshCfg value groupingKey = do
+  _ <- createWithKVConnector meshCfg value groupingKey
   res <- createSqlMySQL dbConf value
   case res of
     Right val -> do
-      whenJust mCacheKey (`cacheWithKey` val)
+      whenJust groupingKey (`cacheWithKey` val)
       return $ Right val
-    Left e -> return $ Left e
+    Left err -> return $ Left err
 
 -- | Update an element matching the query to the new value.
 --   Cache the value at the given key if the DB update succeeds.

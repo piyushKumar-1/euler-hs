@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module EulerHS.CachedSqlDBQuery
   ( create
@@ -28,6 +29,7 @@ import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
+import           EulerHS.KVConnector.Types (MeshConfig)
 import qualified EulerHS.SqlDB.Language as DB
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBError (DBError),
@@ -48,7 +50,7 @@ cacheName = "eulerKVDB"
 class SqlReturning (beM :: Type -> Type) (be :: Type) where
   createReturning ::
     forall (table :: (Type -> Type) -> Type)
-           (m :: Type -> Type) .
+           r.
     ( HasCallStack,
       BeamRuntime be beM,
       BeamRunner beM,
@@ -56,13 +58,13 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
       Model be table,
       ToJSON (table Identity),
       FromJSON (table Identity),
-      Show (table Identity),
-      L.MonadFlow m
+      Show (table Identity)
     ) =>
     DBConfig beM ->
+    MeshConfig ->
     table Identity ->
     Maybe Text ->
-    m (Either DBError (table Identity))
+    ReaderT r L.Flow (Either DBError (table Identity))
 
 instance SqlReturning BM.MySQLM BM.MySQL where
   createReturning = createMySQL
@@ -78,21 +80,21 @@ create ::
   forall (be :: Type)
          (beM :: Type -> Type)
          (table :: (Type -> Type) -> Type)
-         (m :: Type -> Type) .
+         r.
   ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
     Model be table,
     ToJSON (table Identity),
-    Show (table Identity),
-    L.MonadFlow m
+    Show (table Identity)
   ) =>
   DBConfig beM ->
+  MeshConfig ->
   table Identity ->
   Maybe Text ->
-  m (Either DBError (table Identity))
-create dbConf value mCacheKey = do
+  ReaderT r L.Flow (Either DBError (table Identity))
+create dbConf _ value mCacheKey = do
   res <- createSql dbConf value
   case res of
     Right val -> do
@@ -102,18 +104,18 @@ create dbConf value mCacheKey = do
 
 createMySQL ::
   forall (table :: (Type -> Type) -> Type)
-         (m :: Type -> Type) .
+         r.
   ( HasCallStack,
     Model BM.MySQL table,
     ToJSON (table Identity),
-    Show (table Identity),
-    L.MonadFlow m
+    Show (table Identity)
   ) =>
   DBConfig BM.MySQLM ->
+  MeshConfig ->
   table Identity ->
   Maybe Text ->
-  m (Either DBError (table Identity))
-createMySQL dbConf value mCacheKey = do
+  ReaderT r L.Flow (Either DBError (table Identity))
+createMySQL dbConf _ value mCacheKey = do
   res <- createSqlMySQL dbConf value
   case res of
     Right val -> do

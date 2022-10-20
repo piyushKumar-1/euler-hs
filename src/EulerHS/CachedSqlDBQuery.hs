@@ -12,6 +12,7 @@ module EulerHS.CachedSqlDBQuery
   , updateAllSql
   , updateExtended
   , findOne
+  , findOne'
   , findOneSql
   , findAll
   , findAllSql
@@ -32,8 +33,8 @@ import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
-import           EulerHS.KVConnector.Types (MeshConfig, KVConnector)
-import           EulerHS.KVConnector.Flow (createWithKVConnector)
+import           EulerHS.KVConnector.Types (MeshConfig, KVConnector, MeshResult, MeshMeta)
+import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector)
 import qualified EulerHS.SqlDB.Language as DB
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBError (DBError),
@@ -123,6 +124,7 @@ createMySQL ::
   Maybe Text ->
   ReaderT r L.Flow (Either DBError (table Identity))
 createMySQL dbConf meshCfg value groupingKey = do
+  L.logDebug @Text "createMySQL" "createWithKVConnector"
   _ <- createWithKVConnector meshCfg value groupingKey
   res <- createSqlMySQL dbConf value
   case res of
@@ -252,6 +254,22 @@ updateExtended dbConf mKey upd = do
   res <- runQuery dbConf . DB.updateRows $ upd
   maybe (pure ()) (`cacheWithKey` res) mKey
   pure res
+
+findOne' :: 
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    MeshMeta table,
+    B.HasQBuilder be,
+    FromJSON (table Identity)
+  ) =>
+  DBConfig beM ->
+  MeshConfig ->
+  Maybe Text ->
+  Where be table ->
+  ReaderT r L.Flow (MeshResult (table Identity))
+findOne' _ meshCfg _ whereClause = findWithKVConnector meshCfg whereClause
 
 -- | Find an element matching the query. Only uses the DB if the cache is empty.
 --   Caches the result using the given key.

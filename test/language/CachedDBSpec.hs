@@ -11,6 +11,7 @@ import           EulerHS.Prelude
 import           EulerHS.Types as T
 import           Sequelize
 import           Test.Hspec
+import           EulerHS.KVConnector.Types (meshConfig)
 
 redisCfg :: KVDBConfig
 redisCfg = T.mkKVDBConfig "eulerKVDB" T.defaultKVDBConnConfig
@@ -119,7 +120,7 @@ spec = do
         let user = User 10 "Alonzo" "Church"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
-          _ <- create sqliteCfg user Nothing
+          _ <- create sqliteCfg meshConfig user Nothing
           findOne sqliteCfg Nothing []
         res `shouldBe` Right (Just user)
 
@@ -129,7 +130,7 @@ spec = do
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          _ <- create sqliteCfg user (Just testKey)
+          _ <- create sqliteCfg meshConfig user (Just testKey)
           -- Delete from DB to ensure the cache is used
           _ <- L.runDB conn $ L.deleteRows $
             B.delete (users userDB) (\u -> _userGUID u B.==. 10)
@@ -140,7 +141,7 @@ spec = do
         let user1 :: User = User 10 "Alan" "Turing"
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
-          _ <- create sqliteCfg user1 Nothing
+          _ <- create sqliteCfg meshConfig user1 Nothing
           _ <- updateOne sqliteCfg Nothing [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
           findOne sqliteCfg Nothing []
         res `shouldBe` Right (Just user1 {DBS._firstName = "Kurt"})
@@ -151,7 +152,7 @@ spec = do
         res <- runFlow rt $ do
           _ <- initKVDBConnection redisCfg
           conn <- connectOrFail sqliteCfg
-          _ <- create sqliteCfg user1 (Just testKey)
+          _ <- create sqliteCfg meshConfig user1 (Just testKey)
           _ <- updateOne sqliteCfg (Just testKey) [Sequelize.Set DBS._firstName "Kurt"] [Is _userGUID (Eq 10)]
           -- Delete from DB to ensure the cache is used
           _ <- L.runDB conn $ L.deleteRows $

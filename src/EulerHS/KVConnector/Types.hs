@@ -96,3 +96,14 @@ data MeshConfig = MeshConfig
   , redisTtl        :: L.KVDBDuration
   }
 
+meshConfig :: MeshConfig
+meshConfig = MeshConfig
+  { meshEnabled = True
+  , memcacheEnabled = False
+  , isTrackerTable = (\_ -> True)
+  , isConfigTable = (\_ -> False)
+  , meshDBName = "ECRDB"
+  , ecRedisDBStream = "db-sync-stream"
+  , kvRedis = "KVRedis"
+  , redisTtl = 43200
+  }

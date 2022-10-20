@@ -16,8 +16,8 @@ dependencies:
     branch: master
     revision: 1371202ebc3ec7e9ef3e16d1e99f805596022217
   haskell-sequelize:
-    branch: master
-    revision: 1bbd42155ecd587eb96a515b350c48b35cabc41e
+    branch: EUL-5049/kv_where_support
+    revision: 70068106fde21fee3b50bab8d49a409dde247de2
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e

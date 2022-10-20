@@ -271,6 +271,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
+          logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
           case translateHttpResponse httpResponse of

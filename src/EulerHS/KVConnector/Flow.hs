@@ -7,7 +7,7 @@
 module EulerHS.KVConnector.Flow where
 
 import           EulerHS.Prelude
-import           EulerHS.KVConnector.Types (KVConnector, MeshConfig, MeshResult,MeshError(..), MeshMeta(..) ,tableName, getLookupKeyByPKey, getSecondaryLookupKeys)
+import           EulerHS.KVConnector.Types (KVConnector, MeshConfig, MeshResult,MeshError(..), MeshMeta(..) ,tableName, getLookupKeyByPKey, getSecondaryLookupKeys, applyFPair, )
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
@@ -38,7 +38,7 @@ createWithKVConnector ::
   Maybe Text ->
   ReaderT r L.Flow (MeshResult (table Identity))
 createWithKVConnector meshCfg value _ = do
-  autoId <- getAutoIncId meshCfg (tableName value)
+  autoId <- getAutoIncId meshCfg (tableName @(table Identity))
   L.logWarning @Text "createWithKVConnector" (show autoId)
   case autoId of
     Right _id -> do
@@ -61,33 +61,38 @@ findWithKVConnector :: forall be table beM r.
     Model be table,
     MeshMeta table,
     B.HasQBuilder be,
+    KVConnector (table Identity),
     FromJSON (table Identity)
   ) =>
   MeshConfig ->
   Where be table ->
   ReaderT r L.Flow (MeshResult (table Identity))
--- findWithKVConnector _ _ = pure $ Left $ MKeyNotFound "not found"
 findWithKVConnector meshCfg whereClause = do
-  let fieldsAndValues = getFieldsAndValuesFromClause meshModelTableEntityDescriptor [] (And whereClause)
-      (_ , val) = head $ filter (\(a, _) -> a == primaryK) fieldsAndValues
-  let key = "orderReference_" <> primaryK <> "_" <> val
-  L.logWarning @Text "findWithKVConnector" key
-  res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack key)
-  case res of
-    Right (Just r) ->
-      case A.eitherDecode $ BSL.fromChunks [r] of
-        Right r' -> return $ mapRight head $ decodeField @(table Identity) r'
-        -- Decoding Error
-        Left e   -> return $ Left $ MDecodingError $ T.pack e
-    -- Not found
-    Right Nothing -> do
-      let traceMsg = "redis_fetch_noexist: Could not find hash: " <> key <> " while getting field"
-      L.logWarning @Text "getCacheWithHash" traceMsg
-      pure $ Left $ MKeyNotFound "not found"
-    -- Redis error
-    Left e -> return $ Left $ MRedisError e
-  where
-    primaryK = "id"
+  let fieldsAndValues = sort $ getFieldsAndValuesFromClause meshModelTableEntityDescriptor [] (And whereClause)
+      modelName = tableName @(table Identity)
+      keyAndValueCombinations = (\(a, b) -> zip a b) $ applyFPair (\x -> map (T.intercalate "_") (nonEmptySubsequences x)) $ unzip fieldsAndValues
+  L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
+  keyRes <- getPrimaryKeyFromFieldsAndValues modelName keyAndValueCombinations meshCfg   -- if length is 1 it's a primary key. TODO: This should be implemented with a proper logic
+  L.logDebugT "findWithKVConnector" (show keyRes)
+
+  case keyRes of
+    Right (Just key) -> do
+      res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack key)
+      case res of
+        Right (Just r) ->
+          case A.eitherDecode $ BSL.fromChunks [r] of
+            Right r' -> return $ mapRight head $ decodeField @(table Identity) r'
+            -- Decoding Error
+            Left e   -> return $ Left $ MDecodingError $ T.pack e
+        -- Not found
+        Right Nothing -> do
+          let traceMsg = "redis_fetch_noexist: Could not find key: " <> key
+          L.logWarningT "getCacheWithHash" traceMsg
+          pure $ Left $ MKeyNotFound "not found"
+        -- Redis error
+        Left e -> return $ Left $ MRedisError e
+    Right Nothing -> error "Fallback to MySQL and re cache"
+    Left err -> pure $ Left err
 
 decodeField :: forall a. (FromJSON a) => A.Value -> MeshResult [a]
 decodeField o@(A.Object _) =
@@ -124,59 +129,37 @@ getFieldsAndValuesFromClause dt res = \case
     (key, show val) : res
   _ -> res
 
--- encodeClause ::
---   forall be table.
---   B.Beamable table =>
---   UpdateModel ->
---   B.DatabaseEntityDescriptor be (B.TableEntity table) ->
---   Clause be table ->
---   A.Object
--- encodeClause model dt w =
---   let foldWhere' = \case
---         And cs -> foldAnd cs
---         Or cs -> foldOr cs
---         Is column val -> foldIs column val
---       foldAnd = \case
---         [] -> HM.empty
---         [x] -> foldWhere' x
---         xs -> HM.singleton "$and" (A.toJSON $ map foldWhere' xs)
---       foldOr = \case
---         [] -> HM.empty
---         [x] -> foldWhere' x
---         xs -> HM.singleton "$or" (A.toJSON $ map foldWhere' xs)
---       foldIs :: A.ToJSON a => Column table value -> Term be a -> A.Object
---       foldIs column term =
---         let key =
---               B._fieldName . fromColumnar' . column . columnize $
---                 B.dbTableSettings dt
---          in HM.singleton key $ encodeTerm model key term
---    in foldWhere' w
+getPrimaryKeyFromFieldsAndValues :: Text -> [(Text, Text)] -> MeshConfig -> ReaderT r L.Flow (MeshResult (Maybe Text))
+getPrimaryKeyFromFieldsAndValues modelName fieldsAndValues meshCfg = do
+  if length fieldsAndValues == 1
+    then do
+      let (key, val) = head fieldsAndValues
+      pure $ Right $ Just $ contructKey key val
+    else do
+      getPKeyFromSkeys fieldsAndValues
+  where
+    getPKeyFromSkeys [] = pure $ Right Nothing
+    getPKeyFromSkeys ((k, v) : xs) = do
+        let sKey = contructKey k v
+        res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack sKey)
+        case res of
+          Right (Just r) -> pure $ Right (Just $ decodeUtf8 r)
+          -- Not found
+          Right Nothing -> do
+            let traceMsg = "redis_fetch_noexist: Could not find " <> sKey
+            L.logWarningT "getPKeyFromSkeys" traceMsg
+            getPKeyFromSkeys xs
+          -- Redis error
+          Left e -> return $ Left $ MRedisError e
+    contructKey k v = modelName <> "_" <> k <> "_" <> v
 
--- encodeTerm :: A.ToJSON table => UpdateModel -> Text -> Term be table -> A.Value
--- encodeTerm model key = \case
---   In vals -> array "$in" (modifyToPsFormat <$> vals)
---   Eq val -> modifyToPsFormat val
---   Null -> A.Null
---   GreaterThan val -> single "$gt" (modifyToPsFormat val)
---   GreaterThanOrEq val -> single "$gte" (modifyToPsFormat val)
---   LessThan val -> single "$lt" (modifyToPsFormat val)
---   LessThanOrEq val -> single "$lte" (modifyToPsFormat val)
---   -- Like val -> single "$like" (modifyToPsFormat val)
---   -- Not (Like val) -> single "$notLike" (modifyToPsFormat val)
---   Not (In vals) -> array "$notIn" (modifyToPsFormat <$> vals)
---   Not (Eq val) -> single "$ne" (modifyToPsFormat val)
---   Not Null -> single "$ne" A.Null
---   Not term -> single "$not" (encodeTerm model key term)
---   _ -> error "Error while encoding - Term not supported"
+-- >>> map (foldl (<>) "") (nonEmptySubsequences ["id", "id2", "id3"])
+-- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
+nonEmptySubsequences         :: [Text] -> [[Text]]
+nonEmptySubsequences []      =  []
+nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
+  where f ys r = ys : (x : "_": ys) : r
 
---   where
---     modifyToPsFormat val = snd $ toPSJSON model (key, A.toJSON val)
-
--- array :: Text -> [A.Value] -> A.Value
--- array k vs = A.toJSON $ HM.singleton k vs
-
--- single :: Text -> A.Value -> A.Value
--- single k v = A.toJSON $ HM.singleton k v
 ---------------- UTILS -----------------------
 
 getAutoIncId :: MeshConfig -> Text -> ReaderT r L.Flow (MeshResult Integer)

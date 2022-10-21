@@ -240,6 +240,7 @@ findOne' ::
     Model be table,
     MeshMeta table,
     B.HasQBuilder be,
+    KVConnector (table Identity),
     FromJSON (table Identity)
   ) =>
   DBConfig beM ->

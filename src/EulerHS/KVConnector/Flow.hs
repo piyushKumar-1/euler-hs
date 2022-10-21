@@ -158,7 +158,7 @@ getPrimaryKeyFromFieldsAndValues modelName fieldsAndValues meshCfg = do
 nonEmptySubsequences         :: [Text] -> [[Text]]
 nonEmptySubsequences []      =  []
 nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
-  where f ys r = ys : (x : "_": ys) : r
+  where f ys r = ys : (x : ys) : r
 
 ---------------- UTILS -----------------------
 

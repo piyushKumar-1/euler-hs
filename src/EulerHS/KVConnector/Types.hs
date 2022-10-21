@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module EulerHS.KVConnector.Types where
 
@@ -12,6 +13,7 @@ import           Data.Function (on)
 import           Data.Functor.Identity (Identity)
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
+import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Database.Beam.MySQL (MySQL)
@@ -24,7 +26,7 @@ data PrimaryKey = PKey [(Text,Text)]
 data SecondaryKey = SKey [(Text,Text)]
 
 class KVConnector table where
-  tableName :: table -> Text
+  tableName :: Text
   primaryKey :: table -> PrimaryKey
   secondaryKeys:: table -> [SecondaryKey]
 
@@ -37,27 +39,29 @@ keyDelim = "_"
 
 getLookupKeyByPKey :: forall table. (KVConnector (table Identity)) => table Identity -> Text
 getLookupKeyByPKey table = do
-  let tName = tableName table
+  let tName = tableName @(table Identity)
   let (PKey k) = primaryKey table
   let lookupKey = getSortedKey k
   tName <> keyDelim <> lookupKey
 
 getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table Identity -> [Text]
 getSecondaryLookupKeys table = do
-  let tName = tableName table
+  let tName = tableName @(table Identity)
   let skeys = secondaryKeys table
   let tupList = Prelude.map (\(SKey s) -> s) skeys 
-  let list = Prelude.map (\x -> tName <> (getSortedKey x) ) tupList
+  let list = Prelude.map (\x -> tName <> keyDelim <> (getSortedKey x) ) tupList
   list
+
+applyFPair :: (t -> b) -> (t, t) -> (b, b)
+applyFPair f (x, y) = (f x, f y)
 
 ------------- UTILS HIDDEN ------------------
 
 getSortedKey :: [(Text,Text)] -> Text
 getSortedKey kvTup = do
   let sortArr = sortBy (compare `on` fst) kvTup
-  let flatTupArr = (Prelude.map (\(a,b) -> a <> keyDelim <> b ) sortArr)
-  let flatArr = (Prelude.foldl (\b a -> b <> (if b == "" then "" else keyDelim ) <> a) "" flatTupArr)
-  flatArr
+  let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
+  appendedKeys <> "_" <> appendedValues
 
 --------------- EXISTING DB MESH ---------------
 class MeshState a where

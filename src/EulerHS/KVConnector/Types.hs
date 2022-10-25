@@ -11,6 +11,7 @@ import           Data.Aeson.Types (Parser)
 import           Data.List (sortBy)
 import           Data.Function (on)
 import           Data.Functor.Identity (Identity)
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -27,6 +28,7 @@ data SecondaryKey = SKey [(Text,Text)]
 
 class KVConnector table where
   tableName :: Text
+  keyMap :: HM.HashMap Text Bool -- True implies it is primary key and False implies secondary
   primaryKey :: table -> PrimaryKey
   secondaryKeys:: table -> [SecondaryKey]
 
@@ -48,8 +50,8 @@ getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table 
 getSecondaryLookupKeys table = do
   let tName = tableName @(table Identity)
   let skeys = secondaryKeys table
-  let tupList = Prelude.map (\(SKey s) -> s) skeys 
-  let list = Prelude.map (\x -> tName <> keyDelim <> (getSortedKey x) ) tupList
+  let tupList = Prelude.map (\(SKey s) -> s) skeys
+  let list = Prelude.map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
   list
 
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
@@ -100,14 +102,14 @@ data MeshConfig = MeshConfig
   , redisTtl        :: L.KVDBDuration
   }
 
-meshConfig :: MeshConfig
-meshConfig = MeshConfig
-  { meshEnabled = True
-  , memcacheEnabled = False
-  , isTrackerTable = (\_ -> True)
-  , isConfigTable = (\_ -> False)
-  , meshDBName = "ECRDB"
-  , ecRedisDBStream = "db-sync-stream"
-  , kvRedis = "KVRedis"
-  , redisTtl = 43200
-  }
+-- meshConfig :: MeshConfig
+-- meshConfig = MeshConfig
+--   { meshEnabled = True
+--   , memcacheEnabled = False
+--   , isTrackerTable = const True
+--   , isConfigTable = const False
+--   , meshDBName = "ECRDB"
+--   , ecRedisDBStream = "db-sync-stream"
+--   , kvRedis = "KVRedis"
+--   , redisTtl = 43200
+--   }

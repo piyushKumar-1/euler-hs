@@ -8,6 +8,7 @@ module EulerHS.CachedSqlDBQuery
   , updateOne
   , updateOneWoReturning
   , updateOneSql
+  , updateOneSql'
   , updateOneSqlWoReturning
   , updateAllSql
   , updateExtended
@@ -31,10 +32,11 @@ import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
+import           Data.Either.Extra (mapLeft)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
-import           EulerHS.KVConnector.Types (MeshConfig, KVConnector, MeshResult, MeshMeta)
-import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector)
+import           EulerHS.KVConnector.Types (MeshConfig, KVConnector, MeshResult, MeshMeta, MeshError(..))
+import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector, updateWithKVConnector)
 import qualified EulerHS.SqlDB.Language as DB
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBError (DBError),
@@ -201,6 +203,26 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
    --   return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 
+updateOneSql' ::
+  forall r be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    MeshMeta table,
+    KVConnector (table Identity),
+    ToJSON (table Identity),
+    FromJSON (table Identity),
+    Show (table Identity)
+  ) =>
+  DBConfig beM ->
+  MeshConfig ->
+  [Set be table] ->
+  Where be table ->
+  ReaderT r L.Flow (MeshResult (table Identity))
+updateOneSql' = updateWithKVConnector
+
 updateOneSql ::
   forall m be beM table.
   ( HasCallStack,
@@ -255,7 +277,7 @@ updateExtended dbConf mKey upd = do
   maybe (pure ()) (`cacheWithKey` res) mKey
   pure res
 
-findOne' :: 
+findOne' ::
   ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
@@ -269,8 +291,12 @@ findOne' ::
   MeshConfig ->
   Maybe Text ->
   Where be table ->
-  ReaderT r L.Flow (MeshResult (table Identity))
-findOne' _ meshCfg _ whereClause = findWithKVConnector meshCfg whereClause
+  ReaderT r L.Flow (MeshResult (Maybe (table Identity)))
+findOne' dbConf meshCfg _ whereClause = do
+  res <- findWithKVConnector meshCfg whereClause
+  case res of
+    Right Nothing -> mapLeft MDBError <$> findOneSql dbConf whereClause
+    _ -> pure res
 
 -- | Find an element matching the query. Only uses the DB if the cache is empty.
 --   Caches the result using the given key.

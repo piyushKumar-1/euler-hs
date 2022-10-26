@@ -18,6 +18,7 @@ module EulerHS.CachedSqlDBQuery
   , findAll
   , findAllSql
   , findAllExtended
+  , findAllWithKVConnector
   , SqlReturning(..)
   )
 where
@@ -34,7 +35,7 @@ import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import           EulerHS.KVConnector.Types (MeshConfig, KVConnector, MeshResult, MeshMeta, MeshError(..))
-import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector, updateWithKVConnector)
+import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector, updateWithKVConnector, findAllWithKVConnector)
 import qualified EulerHS.SqlDB.Language as DB
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBError (DBError),
@@ -55,7 +56,7 @@ cacheName = "eulerKVDB"
 class SqlReturning (beM :: Type -> Type) (be :: Type) where
   createReturning ::
     forall (table :: (Type -> Type) -> Type)
-           r.
+           m.
     ( HasCallStack,
       BeamRuntime be beM,
       BeamRunner beM,
@@ -64,13 +65,14 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
       ToJSON (table Identity),
       FromJSON (table Identity),
       KVConnector (table Identity),
-      Show (table Identity)
+      Show (table Identity),
+      L.MonadFlow m
     ) =>
     DBConfig beM ->
     MeshConfig ->
     table Identity ->
     Maybe Text ->
-    ReaderT r L.Flow (Either DBError (table Identity))
+    m (Either DBError (table Identity))
 
 instance SqlReturning BM.MySQLM BM.MySQL where
   createReturning = createMySQL
@@ -86,20 +88,21 @@ create ::
   forall (be :: Type)
          (beM :: Type -> Type)
          (table :: (Type -> Type) -> Type)
-         r.
+         m.
   ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
     B.HasQBuilder be,
     Model be table,
     ToJSON (table Identity),
-    Show (table Identity)
+    Show (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   MeshConfig ->
   table Identity ->
   Maybe Text ->
-  ReaderT r L.Flow (Either DBError (table Identity))
+  m (Either DBError (table Identity))
 create dbConf _ value mCacheKey = do
   res <- createSql dbConf value
   case res of
@@ -110,19 +113,20 @@ create dbConf _ value mCacheKey = do
 
 createMySQL ::
   forall (table :: (Type -> Type) -> Type)
-         r.
+         m.
   ( HasCallStack,
     Model BM.MySQL table,
     FromJSON (table Identity),
     ToJSON (table Identity),
-    KVConnector (table Identity)
+    KVConnector (table Identity),
+    L.MonadFlow m
     -- Show (table Identity)
   ) =>
   DBConfig BM.MySQLM ->
   MeshConfig ->
   table Identity ->
   Maybe Text ->
-  ReaderT r L.Flow (Either DBError (table Identity))
+  m (Either DBError (table Identity))
 createMySQL _ meshCfg value groupingKey = do
   L.logDebug @Text "createMySQL" "createWithKVConnector"
   res <- createWithKVConnector meshCfg value groupingKey
@@ -206,7 +210,7 @@ updateOneSqlWoReturning dbConf newVals whereClause = do
     Left e -> return $ Left e
 
 updateOneSql' ::
-  forall r be beM table.
+  forall m be beM table.
   ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
@@ -216,13 +220,14 @@ updateOneSql' ::
     KVConnector (table Identity),
     ToJSON (table Identity),
     FromJSON (table Identity),
-    Show (table Identity)
+    Show (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   MeshConfig ->
   [Set be table] ->
   Where be table ->
-  ReaderT r L.Flow (MeshResult (table Identity))
+  m (MeshResult (table Identity))
 updateOneSql' = updateWithKVConnector
 
 updateOneSql ::
@@ -268,13 +273,14 @@ findOne' ::
     MeshMeta table,
     B.HasQBuilder be,
     KVConnector (table Identity),
-    FromJSON (table Identity)
+    FromJSON (table Identity),
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   MeshConfig ->
   Maybe Text ->
   Where be table ->
-  ReaderT r L.Flow (MeshResult (Maybe (table Identity)))
+  m (MeshResult (Maybe (table Identity)))
 findOne' dbConf meshCfg _ whereClause = do
   res <- findWithKVConnector meshCfg whereClause
   case res of

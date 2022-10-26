@@ -178,7 +178,7 @@ test-suite language
   main-is:        Main.hs
   other-modules:
     ArtSpec
-    CachedDBSpec
+    -- CachedDBSpec
     Client
     Common
     DBSetup

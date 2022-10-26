@@ -14,6 +14,8 @@ module EulerHS.KVDB.Language
   -- *** Regular
   -- **** For simple values
   , set, get, incr, setex, setOpts
+  -- **** For list values
+  , lpush, lrange
   -- **** For hash values
   , hset, hget
   -- **** For streams
@@ -24,6 +26,7 @@ module EulerHS.KVDB.Language
   -- | Used inside multiExec instead of regular
   , multiExec, multiExecWithHash
   , setTx, getTx, delTx, setexTx
+  , lpushTx, lrangeTx 
   , hsetTx, hgetTx
   , xaddTx, xlenTx
   , expireTx
@@ -73,7 +76,7 @@ type KVDBStreamItem = (ByteString, ByteString)
 ----------------------------------------------------------------------
 
 data KeyValueF f next where
-  Set     :: KVDBKey -> KVDBValue -> (f KVDBStatus -> next) -> KeyValueF f next
+  Set     :: KVDBKey -> KVDBValue -> (f KVDBStatus -> next) -> KeyValueF f next  
   SetEx   :: KVDBKey -> KVDBDuration -> KVDBValue -> (f KVDBStatus -> next) -> KeyValueF f next
   SetOpts :: KVDBKey -> KVDBValue -> KVDBSetTTLOption -> KVDBSetConditionOption -> (f Bool -> next) -> KeyValueF f next
   Get     :: KVDBKey -> (f (Maybe ByteString) -> next) -> KeyValueF f next
@@ -86,6 +89,8 @@ data KeyValueF f next where
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  LPush   :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  LRange   :: KVDBKey -> Integer -> Integer -> (f ([ByteString]) -> next) -> KeyValueF f next
   SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
 
@@ -103,6 +108,8 @@ instance Functor (KeyValueF f) where
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
   fmap f (SAdd k v next)                 = SAdd k v (f . next)
+  fmap f (LPush k v next)                = LPush k v (f . next)
+  fmap f (LRange k start stop next)      = LRange k start stop (f . next)
   fmap f (SMem k v next)                 = SMem k v (f . next)
   fmap f (Raw args next)                 = Raw args (f . next)
 
@@ -169,6 +176,12 @@ xaddTx stream entryId items = liftFC $ XAdd stream entryId items id
 xlenTx :: KVDBStream -> KVDBTx (R.Queued Integer)
 xlenTx stream = liftFC $ XLen stream id
 
+lpushTx :: KVDBKey -> [KVDBValue] -> KVDBTx (R.Queued Integer)
+lpushTx key value = liftFC $ LPush key value id
+
+lrangeTx :: KVDBKey -> Integer -> Integer -> KVDBTx (R.Queued [ByteString])
+lrangeTx key start stop = liftFC $ LRange key start stop id
+
 ---
 -- | Set the value of a key
 set :: KVDBKey -> KVDBValue -> KVDB KVDBStatus
@@ -218,6 +231,12 @@ xlen stream = ExceptT $ liftFC $ KV $ XLen stream id
 -- | Add one or more members to a set
 sadd :: KVDBKey -> [KVDBValue] -> KVDB Integer
 sadd setKey setmem = ExceptT $ liftFC $ KV $ SAdd setKey setmem id
+
+lpush :: KVDBKey -> [KVDBValue] -> KVDB Integer
+lpush key value = ExceptT $ liftFC $ KV $ LPush key value id
+
+lrange :: KVDBKey -> Integer -> Integer -> KVDB [ByteString]
+lrange key start stop = ExceptT $ liftFC $ KV $ LRange key start stop id
 
 sismember :: KVDBKey -> KVDBKey -> KVDB Bool
 sismember key member = ExceptT $ liftFC $ KV $ SMem key member id

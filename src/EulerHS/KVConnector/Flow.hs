@@ -31,19 +31,21 @@ import           Unsafe.Coerce (unsafeCoerce)
 
 
 
+
 createWithKVConnector ::
-  forall (table :: (Type -> Type) -> Type) r.
+  forall (table :: (Type -> Type) -> Type) m.
   ( HasCallStack,
     Model BM.MySQL table,
     FromJSON (table Identity),
     ToJSON (table Identity),
     -- Show (table Identity),
-    KVConnector (table Identity)
+    KVConnector (table Identity),
+    L.MonadFlow m
   ) =>
   MeshConfig ->
   table Identity ->
   Maybe Text ->
-  ReaderT r L.Flow (MeshResult (table Identity))
+  m (MeshResult (table Identity))
 createWithKVConnector meshCfg value _ = do
   autoId <- getAutoIncId meshCfg (tableName @(table Identity))
   L.logWarning @Text "createWithKVConnector" (show autoId)
@@ -58,7 +60,10 @@ createWithKVConnector meshCfg value _ = do
       _ <- L.runKVDB meshCfg.kvRedis $ L.setex pKey meshCfg.redisTtl (BSL.toStrict $ A.encode val)
       mapM_ (\secIdx -> do
         let sKey = fromString . T.unpack $ secIdx
-        L.runKVDB meshCfg.kvRedis $ L.setex sKey meshCfg.redisTtl pKey) $ getSecondaryLookupKeys val
+        L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+          _ <- L.lpushTx sKey [pKey]
+          L.expireTx sKey meshCfg.redisTtl
+        ) $ getSecondaryLookupKeys val
       _ <- L.runKVDB meshCfg.kvRedis $ L.xadd
             (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
             L.AutoID
@@ -68,7 +73,7 @@ createWithKVConnector meshCfg value _ = do
 
 ---------------- Update -----------------
 
-updateWithKVConnector :: forall be table beM r.
+updateWithKVConnector :: forall be table beM m.
   ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
@@ -78,13 +83,14 @@ updateWithKVConnector :: forall be table beM r.
     KVConnector (table Identity),
     FromJSON (table Identity),
     ToJSON (table Identity),
-    Show (table Identity) --debugging purpose
+    Show (table Identity), --debugging purpose
+    L.MonadFlow m
   ) =>
   DBConfig beM ->
   MeshConfig ->
   [Set be table] ->
   Where be table ->
-  ReaderT r L.Flow (MeshResult (table Identity))
+  m (MeshResult (table Identity))
 updateWithKVConnector dbConf meshCfg setClause whereClause = do
   findRes <- findWithKVConnector meshCfg whereClause
   L.logDebugT "updateWithKVConnector" ("findWithKVConnectorRes = " <> show findRes)
@@ -107,7 +113,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
     Left err -> pure $ Left err
 
   where
-    setObjectInRedis :: table Identity -> ReaderT r L.Flow (MeshResult (table Identity))
+    setObjectInRedis :: table Identity -> m (MeshResult (table Identity))
     setObjectInRedis obj = do
       let updVals = jsonKeyValueUpdates setClause
       case updateModel obj updVals of
@@ -174,45 +180,105 @@ runQuery dbConf query = do
     Left  e -> return $ Left e
 
 ---------------- Find -----------------------
-findWithKVConnector :: forall be table beM r.
+findWithKVConnector :: forall be table beM m.
   ( HasCallStack,
     BeamRuntime be beM,
     Model be table,
     MeshMeta table,
     KVConnector (table Identity),
-    FromJSON (table Identity)
+    FromJSON (table Identity),
+    L.MonadFlow m
   ) =>
   MeshConfig ->
   Where be table ->
-  ReaderT r L.Flow (MeshResult (Maybe (table Identity)))
-findWithKVConnector meshCfg whereClause = do
-  let fieldsAndValues = sort $ getFieldsAndValuesFromClause meshModelTableEntityDescriptor [] (And whereClause)
+  m (MeshResult (Maybe (table Identity)))
+findWithKVConnector meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
+  let keyAndValueCombinations = map (applyFPair (T.intercalate "_") . (unzip . sort)) (getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause))
       modelName = tableName @(table Identity)
-      keyAndValueCombinations = uncurry zip $ applyFPair (map (T.intercalate "_") . nonEmptySubsequences) $ unzip fieldsAndValues
       keyHashMap = keyMap @(table Identity)
   L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
-  keyRes <- getPrimaryKeyFromFieldsAndValues modelName keyAndValueCombinations meshCfg keyHashMap
+  keyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) keyAndValueCombinations
+  allRowsRes <- mapM getDataFromPKeysRedis (rights keyRes) --don't ignore left
   L.logDebugT "findWithKVConnector" (show keyRes)
+  pure $ mapRight (findOneMatching whereClause) (getRowsFromKVResult allRowsRes [])
 
-  case keyRes of
-    Right (Just key) -> do
-      res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack key)
+  where
+    getDataFromPKeysRedis [] = pure $ Right []
+    getDataFromPKeysRedis (pKey : pKeys) = do
+      res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
       case res of
         Right (Just r) ->
           case A.eitherDecode $ BSL.fromChunks [r] of
-            Right r' -> return $ mapRight (findOneMatching whereClause) $ decodeField @(table Identity) r'
-            -- Decoding Error
+            Right r' -> do
+              case decodeField @(table Identity) r' of
+                Right decodeRes -> do
+                  remainingPKeysRes <- getDataFromPKeysRedis pKeys
+                  pure $ mapRight (decodeRes ++) remainingPKeysRes
+                Left e -> return $ Left e
             Left e   -> return $ Left $ MDecodingError $ T.pack e
-        -- Not found
         Right Nothing -> do
-          let traceMsg = "redis_fetch_noexist: Could not find key: " <> key
+          let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
           L.logWarningT "getCacheWithHash" traceMsg
-          pure $ Right Nothing
-        -- Redis error
+          getDataFromPKeysRedis pKeys
         Left e -> return $ Left $ MRedisError e
-    Right Nothing -> return $ Right Nothing
-    Left err -> pure $ Left err
 
+    getRowsFromKVResult [] res = Right res
+    getRowsFromKVResult (x : xs) res = case x of
+      Right rows -> getRowsFromKVResult xs (rows ++ res)
+      Left e -> Left e
+
+concatMeshResult :: MeshResult [a] -> MeshResult [a] -> MeshResult [a]
+concatMeshResult (Right m1) (Right m2) = Right (m1 ++ m2)
+concatMeshResult (Left _) _ = Left $ MKeyNotFound "No key"
+concatMeshResult _ (Left _) = Left $ MKeyNotFound "No key"
+
+findAllWithKVConnector :: forall be table beM m.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    Model be table,
+    MeshMeta table,
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    L.MonadFlow m
+  ) =>
+  MeshConfig ->
+  Where be table ->
+  m (MeshResult [table Identity])
+findAllWithKVConnector meshCfg whereClause = do
+  let keyAndValueCombinations = map (applyFPair (T.intercalate "_") . (unzip . sort)) (getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause))
+      modelName = tableName @(table Identity)
+      keyHashMap = keyMap @(table Identity)
+  L.logDebugT "findAllWithKVConnector" (show keyAndValueCombinations)
+  keyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) keyAndValueCombinations
+  allRowsRes <- mapM getDataFromPKeysRedis (rights keyRes) --don't ignore left
+  L.logDebugT "findAllWithKVConnector" (show keyRes)
+  pure $ mapRight (findAllMatching whereClause) (getRowsFromKVResult allRowsRes [])
+
+  where
+    getDataFromPKeysRedis [] = pure $ Right []
+    getDataFromPKeysRedis (pKey : pKeys) = do
+      res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
+      case res of
+        Right (Just r) ->
+          case A.eitherDecode $ BSL.fromChunks [r] of
+            Right r' -> do
+              case decodeField @(table Identity) r' of
+                Right decodeRes -> do
+                  remainingPKeysRes <- getDataFromPKeysRedis pKeys
+                  pure $ mapRight (decodeRes ++) remainingPKeysRes
+                Left e -> return $ Left e
+            Left e   -> return $ Left $ MDecodingError $ T.pack e
+        Right Nothing -> do
+          let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
+          L.logWarningT "getCacheWithHash" traceMsg
+          getDataFromPKeysRedis pKeys
+        Left e -> return $ Left $ MRedisError e
+
+    getRowsFromKVResult [] res = Right res
+    getRowsFromKVResult (x : xs) res = case x of
+      Right rows -> getRowsFromKVResult xs (rows ++ res)
+      Left e -> Left e
+--
 decodeField :: forall a. (FromJSON a) => A.Value -> MeshResult [a]
 decodeField o@(A.Object _) =
   case A.eitherDecode @a $ A.encode o of
@@ -224,32 +290,33 @@ decodeField o@(A.Array _) =
 decodeField o = Left $ MDecodingError
   ("Expected list or object but got '" <> T.pack (show o) <> "'.")
 
+-- getFieldsAndValuesFromClause dt (And [Is DBS.id (Eq (Just 1)), Or [Is DBS.merchantId (Eq (Just "123")), Is DBS.orderId (Eq (Just "oid"))]])
+-- [[("id","Just 1"),("merchantId","Just \"123\"")],[("id","Just 1"),("orderId","Just \"oid\"")]]
 getFieldsAndValuesFromClause :: forall table be. (Model be table, MeshMeta table) =>
-  B.DatabaseEntityDescriptor be (B.TableEntity table) -> [(Text, Text)] -> Clause be table -> [(Text, Text)]
-getFieldsAndValuesFromClause dt res = \case
-  And cs -> concatMap (getFieldsAndValuesFromClause dt res) cs
-  Or cs -> concatMap (getFieldsAndValuesFromClause dt res) cs
+  B.DatabaseEntityDescriptor be (B.TableEntity table) -> Clause be table -> [[(Text, Text)]]
+getFieldsAndValuesFromClause dt = \case
+  And cs -> foldl' processAnd [[]] $ map (getFieldsAndValuesFromClause dt) cs
+  Or cs -> processOr cs
   Is column (Eq val) -> do
     let key = B._fieldName . fromColumnar' . column . columnize $ B.dbTableSettings dt
-    (key, show val) : res
-  _ -> res
+    [[(key, show val)]]
+  _ -> []
 
-getPrimaryKeyFromFieldsAndValues :: Text -> [(Text, Text)] -> MeshConfig -> HM.HashMap Text Bool -> ReaderT r L.Flow (MeshResult (Maybe Text))
-getPrimaryKeyFromFieldsAndValues _ [] _ _ = return $ Right Nothing
-getPrimaryKeyFromFieldsAndValues modelName ((k, v) : xs) meshCfg keyHashMap =
+  where
+    processAnd xs ys = [x ++ y | x <-xs, y <- ys]
+    processOr xs = concatMap (getFieldsAndValuesFromClause dt) xs
+
+getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> (Text, Text) -> m (MeshResult [ByteString])
+getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap (k, v) =
   case HM.lookup k keyHashMap of
-    Just True -> pure $ Right $ Just contructKey
+    Just True -> pure $ Right [fromString $ T.unpack contructKey]
     Just False -> do
       let sKey = contructKey
-      res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack sKey)
+      res <- L.runKVDB meshCfg.kvRedis $ L.lrange (fromString $ T.unpack sKey) 0 (-1)
       case res of
-        Right (Just r) -> pure $ Right (Just $ decodeUtf8 r)
-        Right Nothing -> do
-          let traceMsg = "redis_fetch_noexist: Could not find " <> sKey
-          L.logWarningT "getPKeyFromSkeys" traceMsg
-          getPrimaryKeyFromFieldsAndValues modelName xs meshCfg keyHashMap
+        Right r -> pure $ Right r
         Left e -> return $ Left $ MRedisError e
-    _ -> getPrimaryKeyFromFieldsAndValues modelName xs meshCfg keyHashMap
+    _ -> pure $ Right []
   where
     contructKey = modelName <> "_" <> k <> "_" <> v
 
@@ -268,7 +335,7 @@ getShardedHashTag key = do
       streamShard = slot `mod` 128
   "{shard-" <> show streamShard <> "}"
 
-getAutoIncId :: MeshConfig -> Text -> ReaderT r L.Flow (MeshResult Integer)
+getAutoIncId :: (L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult Integer)
 getAutoIncId meshCfg tName = do
   let key = (T.pack . quietSnake . T.unpack) tName <> "_auto_increment_id"
   mId <- L.runKVDB meshCfg.kvRedis $ L.incr $ encodeUtf8 key

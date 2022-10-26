@@ -50,10 +50,10 @@ createWithKVConnector meshCfg value _ = do
     Right _id -> do
       -- TODO: Key - id is hardcoded to replace AutoIncrId. Make it Generic
       let val = unsafeJSONSet @Text "id" (T.pack . show $ _id) value
-      let pKeyText = getLookupKeyByPKey value
+      let pKeyText = getLookupKeyByPKey val
           pKey = fromString . T.unpack $ pKeyText
       time <- fromIntegral <$> L.getCurrentDateInMillis
-      let qCmd = getCreateQuery (modelTableName @table) V1 pKeyText time meshCfg.meshDBName value
+      let qCmd = getCreateQuery (modelTableName @table) V1 pKeyText time meshCfg.meshDBName val
       _ <- L.runKVDB meshCfg.kvRedis $ L.setex pKey meshCfg.redisTtl (BSL.toStrict $ A.encode val)
       mapM_ (\secIdx -> do
         let sKey = fromString . T.unpack $ secIdx

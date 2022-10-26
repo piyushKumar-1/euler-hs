@@ -2,6 +2,8 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
+{-# OPTIONS_GHC -Wno-star-is-type #-}
 
 module EulerHS.KVConnector.Types where
 
@@ -16,9 +18,11 @@ import qualified Data.Map.Strict as Map
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
+import qualified Database.Beam as B
+import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Database.Beam.MySQL (MySQL)
-import           Sequelize (Clause, Set)
+import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
 ------------ TYPES AND CLASSES ------------
@@ -75,8 +79,12 @@ class MeshState a where
 class MeshMeta table where
   meshModelFieldModification :: table (FieldModification (TableField table))
   valueMapper :: Map.Map Text (A.Value -> A.Value)
-  parseFieldAndGetClause :: A.Value -> Text -> Parser (Clause MySQL table)
+  parseFieldAndGetClause :: A.Value -> Text -> Parser (TermWrap MySQL table)
   parseSetClause :: [(Text, A.Value)] -> Parser [Set MySQL table]
+
+data TermWrap be (table :: (* -> *) -> *) where
+  TermWrap :: (B.BeamSqlBackendCanSerialize be a, A.ToJSON a, Ord a, B.HasSqlEqualityCheck be a, Show a) 
+              => Column table a -> a -> TermWrap be table
 
 type MeshResult a = Either MeshError a
 

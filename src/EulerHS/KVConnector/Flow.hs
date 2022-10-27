@@ -26,6 +26,7 @@ import qualified Database.Beam.Schema.Tables as B
 import qualified Database.Beam.MySQL as BM
 import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
+import           Text.Casing (quietSnake)
 import           Unsafe.Coerce (unsafeCoerce)
 
 
@@ -269,7 +270,7 @@ getShardedHashTag key = do
 
 getAutoIncId :: MeshConfig -> Text -> ReaderT r L.Flow (MeshResult Integer)
 getAutoIncId meshCfg tName = do
-  let key = tName <> "_auto_increment_id"
+  let key = (T.pack . quietSnake . T.unpack) tName <> "_auto_increment_id"
   mId <- L.runKVDB meshCfg.kvRedis $ L.incr $ encodeUtf8 key
   case mId of
     Right id_ -> return $ Right id_

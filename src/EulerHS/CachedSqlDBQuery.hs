@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -Wno-error=unused-top-binds #-}
 
 module EulerHS.CachedSqlDBQuery
   ( create
@@ -114,23 +115,27 @@ createMySQL ::
     Model BM.MySQL table,
     FromJSON (table Identity),
     ToJSON (table Identity),
-    KVConnector (table Identity),
-    Show (table Identity)
+    KVConnector (table Identity)
+    -- Show (table Identity)
   ) =>
   DBConfig BM.MySQLM ->
   MeshConfig ->
   table Identity ->
   Maybe Text ->
   ReaderT r L.Flow (Either DBError (table Identity))
-createMySQL dbConf meshCfg value groupingKey = do
+createMySQL _ meshCfg value groupingKey = do
   L.logDebug @Text "createMySQL" "createWithKVConnector"
-  _ <- createWithKVConnector meshCfg value groupingKey
-  res <- createSqlMySQL dbConf value
+  res <- createWithKVConnector meshCfg value groupingKey
   case res of
-    Right val -> do
-      whenJust groupingKey (`cacheWithKey` val)
-      return $ Right val
-    Left err -> return $ Left err
+    Right r -> pure $ Right r
+    Left (MDBError err) -> pure $ Left err
+    Left err -> pure $ Left $ DBError UnexpectedResult (show err) --TODO: Change the return types
+  -- res <- createSqlMySQL dbConf value
+  -- case res of
+  --   Right val -> do
+  --     whenJust groupingKey (`cacheWithKey` val)
+  --     return $ Right val
+  --   Left err -> return $ Left err
 
 -- | Update an element matching the query to the new value.
 --   Cache the value at the given key if the DB update succeeds.

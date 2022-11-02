@@ -1330,11 +1330,14 @@ withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 -- >   pure ()
 --
 forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
-forkFlow description flow = void $ forkFlow' description $ do
-  eitherResult <- runSafeFlow flow
-  case eitherResult of
-    Left msg -> logError ("forkFlow" :: Text) msg
-    Right _  -> pure ()
+forkFlow description flow = do
+  flowGUID <- generateGUID
+  void $ forkFlow'' description flowGUID $ do
+    void $ setLoggerContext "flow_guid" flowGUID
+    eitherResult <- runSafeFlow flow
+    case eitherResult of
+      Left msg -> logError ("forkFlow" :: Text) msg
+      Right _  -> pure ()
 
 -- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
 -- to reap results from the flow being forked.
@@ -1347,6 +1350,15 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
+forkFlow'' :: HasCallStack =>
+  Description -> ForkGUID -> Flow a -> Flow (Awaitable (Either Text a))
+forkFlow'' description flowGUID flow = do
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+    liftFC $ Fork description flowGUID flow id
+
 forkFlow' :: HasCallStack =>
   Description -> Flow a -> Flow (Awaitable (Either Text a))
 forkFlow' description flow = do

@@ -500,7 +500,7 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
       wrapException :: HasCallStack => SomeException -> IO DBError
       wrapException exception = do
         runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ Text.pack $ prettyCallStack callStack) Nothing
+               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception) <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
         pure (wrapException' exception)
 
       wrapException' :: SomeException -> DBError

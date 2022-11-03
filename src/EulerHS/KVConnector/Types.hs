@@ -97,6 +97,7 @@ data MeshError
   | MDecodingError Text
   | MUpdateFailed Text
   | MMultipleKeysFound Text
+  | UnexpectedError Text
   deriving Show
 
 data QueryPath = KVPath | SQLPath

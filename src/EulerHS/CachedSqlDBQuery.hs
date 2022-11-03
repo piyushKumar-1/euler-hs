@@ -21,6 +21,9 @@ module EulerHS.CachedSqlDBQuery
   , findAllExtended
   , deleteExtended
   , deleteWithReturningPG
+  , createWithKVConnector
+  , findWithKVConnector
+  , updateWithKVConnector
   , findAllWithKVConnector
   , SqlReturning(..)
   )
@@ -72,7 +75,6 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
       L.MonadFlow m
     ) =>
     DBConfig beM ->
-    MeshConfig ->
     table Identity ->
     Maybe Text ->
     m (Either DBError (table Identity))
@@ -102,11 +104,10 @@ create ::
     L.MonadFlow m
   ) =>
   DBConfig beM ->
-  MeshConfig ->
   table Identity ->
   Maybe Text ->
   m (Either DBError (table Identity))
-create dbConf _ value mCacheKey = do
+create dbConf value mCacheKey = do
   res <- createSql dbConf value
   case res of
     Right val -> do
@@ -119,30 +120,21 @@ createMySQL ::
          m.
   ( HasCallStack,
     Model BM.MySQL table,
-    FromJSON (table Identity),
     ToJSON (table Identity),
-    KVConnector (table Identity),
-    L.MonadFlow m
-    -- Show (table Identity)
+    L.MonadFlow m,
+    Show (table Identity)
   ) =>
   DBConfig BM.MySQLM ->
-  MeshConfig ->
   table Identity ->
   Maybe Text ->
   m (Either DBError (table Identity))
-createMySQL _ meshCfg value groupingKey = do
-  L.logDebug @Text "createMySQL" "createWithKVConnector"
-  res <- createWithKVConnector meshCfg value groupingKey
+createMySQL dbConf value groupingKey = do
+  res <- createSqlMySQL dbConf value
   case res of
-    Right r -> pure $ Right r
-    Left (MDBError err) -> pure $ Left err
-    Left err -> pure $ Left $ DBError UnexpectedResult (show err) --TODO: Change the return types
-  -- res <- createSqlMySQL dbConf value
-  -- case res of
-  --   Right val -> do
-  --     whenJust groupingKey (`cacheWithKey` val)
-  --     return $ Right val
-  --   Left err -> return $ Left err
+    Right val -> do
+      whenJust groupingKey (`cacheWithKey` val)
+      return $ Right val
+    Left err -> return $ Left err
 
 -- | Update an element matching the query to the new value.
 --   Cache the value at the given key if the DB update succeeds.

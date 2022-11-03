@@ -3,6 +3,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-star-is-type #-}
 
 module EulerHS.KVConnector.Types where
@@ -22,6 +23,7 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Database.Beam.MySQL (MySQL)
+import           GHC.Generics (Generic)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
@@ -102,13 +104,12 @@ data QueryPath = KVPath | SQLPath
 data MeshConfig = MeshConfig
   { meshEnabled     :: Bool
   , memcacheEnabled :: Bool
-  , isTrackerTable  :: Text -> Bool
-  , isConfigTable   :: Text -> Bool
   , meshDBName      :: Text
   , ecRedisDBStream :: Text
   , kvRedis         :: Text
   , redisTtl        :: L.KVDBDuration
   }
+  deriving (Generic, Eq, Show, A.ToJSON)
 
 -- meshConfig :: MeshConfig
 -- meshConfig = MeshConfig

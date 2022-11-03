@@ -5,14 +5,22 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
-module EulerHS.KVConnector.Flow where
+module EulerHS.KVConnector.Flow
+  (
+    createWithKVConnector,
+    findWithKVConnector,
+    updateWithKVConnector,
+    findAllWithKVConnector
+  )
+ where
 
 import           EulerHS.Prelude
-import           EulerHS.KVConnector.Types (KVConnector, MeshConfig, MeshResult, MeshError(..), MeshMeta(..), tableName, keyMap, getLookupKeyByPKey, getSecondaryLookupKeys, applyFPair)
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, getLookupKeyByPKey, getSecondaryLookupKeys, applyFPair)
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, DBCommandVersion(..))
 import qualified Data.Aeson as A
 import           Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as BSL
+import           Data.List (span, delete)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
@@ -23,7 +31,6 @@ import qualified EulerHS.SqlDB.Language as DB
 import           Sequelize (fromColumnar', modelTableName, columnize, sqlSelect, Model, Where, Clause(..), Term(..), Set(..))
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
-import qualified Database.Beam.MySQL as BM
 import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
 import           Text.Casing (quietSnake)
@@ -33,9 +40,9 @@ import           Unsafe.Coerce (unsafeCoerce)
 
 
 createWithKVConnector ::
-  forall (table :: (Type -> Type) -> Type) m.
+  forall (table :: (Type -> Type) -> Type) be m.
   ( HasCallStack,
-    Model BM.MySQL table,
+    Model be table,
     FromJSON (table Identity),
     ToJSON (table Identity),
     -- Show (table Identity),
@@ -94,28 +101,33 @@ updateWithKVConnector :: forall be table beM m.
 updateWithKVConnector dbConf meshCfg setClause whereClause = do
   findRes <- findWithKVConnector meshCfg whereClause
   L.logDebugT "updateWithKVConnector" ("findWithKVConnectorRes = " <> show findRes)
+  let updVals = jsonKeyValueUpdates setClause
   case findRes of
-    Right (Just obj) -> setObjectInRedis obj
+    Right (Just obj) -> do
+      let olderSkeys = map (\(SKey s) -> s) (secondaryKeys obj)
+      _ <- modifySKeysRedis updVals olderSkeys obj
+      updateObjectRedis obj updVals
     Right Nothing -> do
       L.logDebugT "updateWithKVConnector" "Found nothing from findWithKVConnectorRes - Falling back to DB and recaching"
       let findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
       dbRes <- runQuery dbConf findQuery
       case dbRes of
         Right (Just obj) -> do
-          -- Reconstruct secondary key lookups
+          let pKey = fromString . T.unpack $ getLookupKeyByPKey obj
           mapM_ (\secIdx -> do
-            let pKey = fromString . T.unpack $ getLookupKeyByPKey obj
-                sKey = fromString . T.unpack $ secIdx
-            L.runKVDB meshCfg.kvRedis $ L.setex sKey meshCfg.redisTtl pKey) (getSecondaryLookupKeys obj)
-          setObjectInRedis obj
+            let sKey = fromString . T.unpack $ secIdx
+            L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+              _ <- L.lpushTx sKey [pKey]
+              L.expireTx sKey meshCfg.redisTtl
+            ) $ getSecondaryLookupKeys obj
+          updateObjectRedis obj updVals
         Right Nothing -> pure $ Left (MUpdateFailed ("No value found for table " <> tableName @(table Identity)))
         Left err -> pure $ Left (MDBError err)
     Left err -> pure $ Left err
 
   where
-    setObjectInRedis :: table Identity -> m (MeshResult (table Identity))
-    setObjectInRedis obj = do
-      let updVals = jsonKeyValueUpdates setClause
+    updateObjectRedis :: table Identity ->[(Text, A.Value)] -> m (MeshResult (table Identity))
+    updateObjectRedis obj updVals = do
       case updateModel obj updVals of
         Left err -> return $ Left err
         Right updatedModel -> do
@@ -124,15 +136,55 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
               pKey = fromString . T.unpack $ pKeyText
           let updateCmd = getDbUpdateCommandJson (modelTableName @table) updVals whereClause
               qCmd = getUpdateQuery V1 pKeyText time meshCfg.meshDBName updateCmd
-          L.logDebugT "Setting in redis stream" (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText)
-          kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.setex pKey meshCfg.redisTtl (BSL.toStrict $ A.encode updatedModel)
           _ <- L.runKVDB meshCfg.kvRedis $ L.xadd
             (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
             L.AutoID
             [("command", BSL.toStrict $ A.encode qCmd)]
+          kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.setex pKey meshCfg.redisTtl (BSL.toStrict $ A.encode obj)
           L.logDebug @Text "RedisUpdAnswer" . T.pack . show $ kvdbRes
-          return $ mapLeft MDecodingError
-            $ resultToEither $ A.fromJSON updatedModel
+          pure $ mapLeft MDecodingError (resultToEither $ A.fromJSON updatedModel)
+
+    modifySKeysRedis :: [(Text, A.Value)] -> [[(Text, Text)]] -> table Identity -> m (MeshResult (table Identity))
+    modifySKeysRedis updVals olderSkeys table = do
+      let pKeyText = getLookupKeyByPKey table
+          pKey = fromString . T.unpack $ pKeyText
+      let tName = tableName @(table Identity)
+          updValsMap = HM.fromList (map (\p -> (fst p, True)) updVals)
+          (modifiedSkeysValues, unModifiedSkeysValues) = applyFPair (map getSortedKeyAndValue) $
+                                                span (`isKeyModified` updValsMap) olderSkeys
+          newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeys table)
+      let unModifiedSkeys = map (\x -> tName <> "_" <> fst x <> "_" <> snd x) unModifiedSkeysValues
+      mapM_ ((\key -> L.runKVDB meshCfg.kvRedis $ L.expire key meshCfg.redisTtl) . (fromString . T.unpack)) unModifiedSkeys
+      mapM_ (addNewSkey pKey tName) (filter (\x -> fst x `elem` map fst modifiedSkeysValues) newSkeysValues)
+      mapM_ (deleteOldSKeys pKey . (\x -> fromString . T.unpack $ tName <> "_" <> fst x <> "_" <> snd x)) modifiedSkeysValues
+      pure $ Right table
+
+    isKeyModified :: [(Text, Text)] -> HM.HashMap Text Bool -> Bool
+    isKeyModified sKey updValsMap = foldl' (\r k -> HM.member (fst k) updValsMap || r) False sKey
+
+    addNewSkey :: ByteString -> Text -> (Text, Text) -> m (MeshResult ())
+    addNewSkey pKey tName (k, v) = do
+      let sKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v
+      _ <- L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+          _ <- L.lpushTx sKey [pKey]
+          L.expireTx sKey meshCfg.redisTtl
+      pure $ Right ()
+
+    deleteOldSKeys :: ByteString -> ByteString -> m (MeshResult ())
+    deleteOldSKeys pKey sKey = do
+      res <- L.runKVDB meshCfg.kvRedis $ L.lrange sKey 0 (-1)
+      case res of
+        Right pKeys -> do
+          _ <- L.runKVDB meshCfg.kvRedis $ L.lpush sKey (delete pKey pKeys)
+          pure $ Right ()
+        Left err -> pure $ Left (MRedisError err)
+
+    getSortedKeyAndValue :: [(Text,Text)] -> (Text, Text)
+    getSortedKeyAndValue kvTup = do
+      let sortArr = sortBy (compare `on` fst) kvTup
+      let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
+      (appendedKeys, appendedValues)
+
 
 -- | Update the model by setting it's fields according the given
 --   key value mapping.
@@ -227,10 +279,10 @@ findWithKVConnector meshCfg whereClause = do --This function fetches all possibl
       Right rows -> getRowsFromKVResult xs (rows ++ res)
       Left e -> Left e
 
-concatMeshResult :: MeshResult [a] -> MeshResult [a] -> MeshResult [a]
-concatMeshResult (Right m1) (Right m2) = Right (m1 ++ m2)
-concatMeshResult (Left _) _ = Left $ MKeyNotFound "No key"
-concatMeshResult _ (Left _) = Left $ MKeyNotFound "No key"
+-- concatMeshResult :: MeshResult [a] -> MeshResult [a] -> MeshResult [a]
+-- concatMeshResult (Right m1) (Right m2) = Right (m1 ++ m2)
+-- concatMeshResult (Left _) _ = Left $ MKeyNotFound "No key"
+-- concatMeshResult _ (Left _) = Left $ MKeyNotFound "No key"
 
 findAllWithKVConnector :: forall be table beM m.
   ( HasCallStack,
@@ -239,12 +291,12 @@ findAllWithKVConnector :: forall be table beM m.
     MeshMeta table,
     KVConnector (table Identity),
     FromJSON (table Identity),
-    L.MonadFlow m
-  ) =>
+    L.MonadFlow m, B.HasQBuilder be, BeamRunner beM) =>
+  DBConfig beM ->
   MeshConfig ->
   Where be table ->
   m (MeshResult [table Identity])
-findAllWithKVConnector meshCfg whereClause = do
+findAllWithKVConnector dbConf meshCfg whereClause = do
   let keyAndValueCombinations = map (applyFPair (T.intercalate "_") . (unzip . sort)) (getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause))
       modelName = tableName @(table Identity)
       keyHashMap = keyMap @(table Identity)
@@ -252,6 +304,8 @@ findAllWithKVConnector meshCfg whereClause = do
   keyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) keyAndValueCombinations
   allRowsRes <- mapM getDataFromPKeysRedis (rights keyRes) --don't ignore left
   L.logDebugT "findAllWithKVConnector" (show keyRes)
+  let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+  _ <- runQuery dbConf findAllQuery
   pure $ mapRight (findAllMatching whereClause) (getRowsFromKVResult allRowsRes [])
 
   where
@@ -322,10 +376,10 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap (k, v) =
 
 -- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
 -- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
-nonEmptySubsequences         :: [Text] -> [[Text]]
-nonEmptySubsequences []      =  []
-nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
-  where f ys r = ys : (x : ys) : r
+-- nonEmptySubsequences         :: [Text] -> [[Text]]
+-- nonEmptySubsequences []      =  []
+-- nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
+--   where f ys r = ys : (x : ys) : r
 
 ---------------- UTILS -----------------------
 

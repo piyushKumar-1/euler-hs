@@ -274,7 +274,7 @@ findOne' ::
   Where be table ->
   m (MeshResult (Maybe (table Identity)))
 findOne' dbConf meshCfg _ whereClause = do
-  res <- findWithKVConnector meshCfg whereClause
+  res <- findWithKVConnector dbConf meshCfg whereClause
   case res of
     Right Nothing -> mapLeft MDBError <$> findOneSql dbConf whereClause
     _ -> pure res

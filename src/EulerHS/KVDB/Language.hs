@@ -9,7 +9,7 @@ module EulerHS.KVDB.Language
   , KVDBSetTTLOption(..), KVDBSetConditionOption(..)
   , KVDBField, KVDBChannel, KVDBMessage
   , KVDBStream, KVDBStreamItem, KVDBStreamEntryID (..), KVDBStreamEntryIDInput (..)
-  , KVDBF(..), KeyValueF(..), TransactionF(..)
+  , KVDBF(..), KeyValueF(..), TransactionF(..), RecordID, KVDBStreamReadResponse (..), KVDBStreamReadResponseRecord (..), KVDBStreamEnd, KVDBStreamStart
   -- ** Methods
   -- *** Regular
   -- **** For simple values
@@ -17,7 +17,7 @@ module EulerHS.KVDB.Language
   -- **** For hash values
   , hset, hget
   -- **** For streams
-  , xadd, xlen
+  , xadd, xlen, xread, xrevrange
   -- **** For both
   , exists, del, expire
   -- *** Transactional
@@ -25,7 +25,7 @@ module EulerHS.KVDB.Language
   , multiExec, multiExecWithHash
   , setTx, getTx, delTx, setexTx
   , hsetTx, hgetTx
-  , xaddTx, xlenTx
+  , xaddTx, xlenTx , xreadTx
   , expireTx
   -- *** Set
   , sadd
@@ -59,6 +59,9 @@ type KVDBChannel = ByteString
 type KVDBMessage = ByteString
 
 type KVDBStream = ByteString
+type KVDBStreamEnd = ByteString
+type KVDBStreamStart = ByteString
+type RecordID = ByteString
 
 data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
   deriving stock Generic
@@ -66,6 +69,20 @@ data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
 data KVDBStreamEntryIDInput
   = EntryID KVDBStreamEntryID
   | AutoID
+  deriving stock Generic
+
+data KVDBStreamReadResponse =
+  KVDBStreamReadResponse {
+      streamName :: ByteString
+    , response :: [KVDBStreamReadResponseRecord]
+  }
+  deriving stock Generic
+
+data KVDBStreamReadResponseRecord =
+  KVDBStreamReadResponseRecord {
+      recordId :: ByteString
+    , records :: [(ByteString, ByteString)]
+  }
   deriving stock Generic
 
 type KVDBStreamItem = (ByteString, ByteString)
@@ -84,6 +101,8 @@ data KeyValueF f next where
   HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
+  XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
+  XRevRange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> (f [KVDBStreamReadResponseRecord] -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
@@ -101,6 +120,8 @@ instance Functor (KeyValueF f) where
   fmap f (HSet k field value next)       = HSet k field value (f . next)
   fmap f (HGet k field next)             = HGet k field (f . next)
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
+  fmap f (XRead s entryId next)          = XRead s entryId (f . next)
+  fmap f (XRevRange strm send sstart count next) = XRevRange strm send sstart count (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
   fmap f (SAdd k v next)                 = SAdd k v (f . next)
   fmap f (SMem k v next)                 = SMem k v (f . next)
@@ -166,6 +187,9 @@ expireTx key sec = liftFC $ Expire key sec id
 xaddTx :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDBTx (R.Queued KVDBStreamEntryID)
 xaddTx stream entryId items = liftFC $ XAdd stream entryId items id
 
+xreadTx :: KVDBStream -> RecordID -> KVDBTx (R.Queued (Maybe [KVDBStreamReadResponse]))
+xreadTx stream entryId = liftFC $ XRead stream entryId id
+
 xlenTx :: KVDBStream -> KVDBTx (R.Queued Integer)
 xlenTx stream = liftFC $ XLen stream id
 
@@ -211,6 +235,12 @@ hget key field = ExceptT $ liftFC $ KV $ HGet key field id
 
 xadd :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> KVDB KVDBStreamEntryID
 xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
+
+xread :: KVDBStream -> RecordID -> KVDB (Maybe [KVDBStreamReadResponse])
+xread stream entryId = ExceptT $ liftFC $ KV $ XRead stream entryId id
+
+xrevrange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> KVDB ([KVDBStreamReadResponseRecord])
+xrevrange stream send sstart count = ExceptT $ liftFC $ KV $ XRevRange stream send sstart count id
 
 xlen :: KVDBStream -> KVDB Integer
 xlen stream = ExceptT $ liftFC $ KV $ XLen stream id

@@ -11,6 +11,7 @@ module EulerHS.Framework.Interpreter
 import           Control.Concurrent.MVar (modifyMVar)
 import           Control.Exception (throwIO)
 import qualified Control.Exception as Exception
+import qualified Control.Concurrent.Map as CMap
 import qualified Data.Aeson as A
 import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
@@ -232,9 +233,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
-              case err of
-                S.ConnectionError ce -> dbgLogger Error $ show @Text ce
-                _ -> pure ()
+              dbgLogger Error $ show @Text err
               pure $ Left err
             Right response ->
               pure $ Right response
@@ -274,6 +273,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
+          logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
           case translateHttpResponse httpResponse of
@@ -346,6 +346,47 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
     m <- takeMVar _options
     let newMap = Map.delete k m
     putMVar _options newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetConfig k next) =
+  fmap next $ do
+    m <- readMVar _configCache
+    pure $ do
+      Map.lookup k m
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetConfig k v next) =
+  fmap next $ do
+    m <- takeMVar _configCache
+    let newMap = Map.insert k v m
+    putMVar _configCache newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.DelConfig k next) =
+  fmap next $ do
+    m <- takeMVar _configCache
+    let newMap = Map.delete k m
+    putMVar _configCache newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.TrySetConfig k v next) =
+  fmap next $ do
+    mbM <- tryTakeMVar _configCache
+    case mbM of
+      Nothing -> pure Nothing
+      Just m -> do
+        let newMap = Map.insert k v m
+        Just <$> putMVar _configCache newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.AcquireConfigLock k next) =
+  fmap next $ do
+    m <- takeMVar _configCacheLock
+    didAcquire <- CMap.insertIfAbsent k () m
+    putMVar _configCacheLock m
+    return didAcquire
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.ReleaseConfigLock k next) =
+  fmap next $ do
+    m <- takeMVar _configCacheLock
+    didDelete <- CMap.delete k m
+    putMVar _configCacheLock m
+    return didDelete
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GenerateGUID next) = do
   next <$> (UUID.toText <$> UUID.nextRandom)

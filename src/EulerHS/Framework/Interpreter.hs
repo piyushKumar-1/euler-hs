@@ -499,9 +499,10 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
 
       wrapException :: HasCallStack => SomeException -> IO DBError
       wrapException exception = do
+        let exception' = (wrapException' exception)
         runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception) <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
-        pure (wrapException' exception)
+               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception') <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
+        pure exception'
 
       wrapException' :: SomeException -> DBError
       wrapException' e = fromMaybe (DBError UnrecognizedError $ show e)

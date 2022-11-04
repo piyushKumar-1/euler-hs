@@ -9,6 +9,7 @@ import qualified EulerHS.Types as T
 import qualified MaskingSpec as MaskSpec
 import qualified FlowSpec as Flow
 import qualified HttpAPISpec as HttpAPISpec
+import qualified KV.SckvSpec as KV
 -- import qualified KVDBArtSpec as KVDB
 -- import qualified PubSubSpec as PubSub
 -- import qualified SQLArtSpec as SQL
@@ -28,7 +29,7 @@ main = do
       HttpAPISpec.spec
       MaskSpec.spec
       Flow.spec logsDisabled
-
+      KV.spec
       -- Wait for Redis on CI
       -- CachedSqlDBQuery.spec
 

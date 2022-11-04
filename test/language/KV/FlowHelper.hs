@@ -1,0 +1,351 @@
+
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE RecordWildCards #-}
+
+module KV.FlowHelper where
+import qualified Data.Map as Map
+-- import qualified Euler.WebService.Logging as WSLOG
+import qualified EulerHS.Interpreters as I
+import qualified EulerHS.Language as L
+import           EulerHS.Prelude
+import qualified EulerHS.Runtime as R
+import qualified EulerHS.Types as T
+-- import qualified Offer.Config.Config as Config
+-- import qualified Offer.Config.Options as Opt
+import qualified Database.Beam.MySQL as BM
+import qualified Data.Text as Text
+import           Test.Hspec
+import           Database.Beam.MySQL (MySQLM)
+import           System.Environment (getEnvironment)
+import           System.IO.Unsafe (unsafePerformIO)
+import qualified Data.Time as Time
+import qualified Data.Aeson as A
+import Data.Aeson
+import           Data.HashMap.Strict (lookup)
+import qualified EulerHS.Extra.EulerDB as Extra
+import qualified System.Logger as Log
+import qualified Data.ByteString.Builder as BB
+
+type FlowSpec = SpecWith R.FlowRuntime
+
+itFlow :: [Char] -> L.Flow () -> FlowSpec
+itFlow description flow =
+    it description (`I.runFlow` flow)
+
+flowSpec :: FlowSpec -> Spec
+flowSpec =
+    aroundAll $ \tests ->
+      R.withFlowRuntime (Just logger) $ \rt -> do
+        I.runFlow rt preparePSqlConnection
+        tests rt
+
+ where
+    logToConsole = True
+    logSql = T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION
+    loggerCfg =
+        T.LoggerConfig
+          { T._logToFile = False,
+            T._logFilePath = "/tmp/offer-engine.log",
+            T._isAsync = False,
+            T._logLevel = T.Debug,
+            T._logToConsole = logToConsole,
+            T._maxQueueSize = 1000,
+            T._logRawSql = logSql,
+            T._logMaskingConfig = Nothing,
+            T._logAPI = True
+          }
+    logger = R.createLoggerRuntime' Nothing (Just defaultRenderer) 4096 psMimicFlowFormatter Nothing loggerCfg
+
+defaultRenderer :: ByteString -> p1 -> p2 -> [Log.Element] -> BB.Builder
+defaultRenderer s _ _ (_:es) = Log.renderDefault s es
+defaultRenderer s _ _ []     = Log.renderDefault s []
+
+asserting :: Expectation -> L.Flow ()
+asserting = L.runIO
+
+preparePSqlConnection :: (HasCallStack, L.MonadFlow m) => m ()
+preparePSqlConnection = do
+  psqlDbCfg <- L.runIO mysqlDBC
+  epool <- L.initSqlDBConnection psqlDbCfg
+  kv <- L.initKVDBConnection kvdbClusterConfig
+  L.throwOnFailedWithLog kv L.KVDBConnectionFailedException "Failed to connect to Redis Cluster DB."
+  L.throwOnFailedWithLog epool L.SqlDBConnectionFailedException "Failed to connect to SQLite DB."
+  L.setOption Extra.EulerDbCfg psqlDbCfg
+
+
+
+mysqlDBC :: IO (T.DBConfig MySQLM)
+mysqlDBC = do
+  mySqlConfig <- getMySQLCfg
+  pure $ T.mkMySQLPoolConfig (Text.pack devMysqlConnectionName) mySqlConfig mySqlPoolConfig
+
+kvdbClusterConfig :: T.KVDBConfig
+kvdbClusterConfig = T.mkKVDBClusterConfig kvRedis redisClusterConfig
+
+
+mySqlPoolConfig :: T.PoolConfig
+mySqlPoolConfig = T.PoolConfig
+    { stripes = devMysqlPoolStripes
+    , keepAlive = fromInteger devMysqlPoolKeepAlive
+    , resourcesPerStripe = devMysqlPoolResourcesPerStripe
+    }
+
+kvRedis :: Text
+kvRedis = "KVRedis"
+
+getMySQLCfg :: IO T.MySQLConfig
+getMySQLCfg = 
+    pure T.MySQLConfig
+          { connectHost     = devMysqlConnectHost
+          , connectPort     = devMysqlConnectPort
+          , connectUser     = devMysqlConnectUser
+          , connectPassword = devMysqlConnectPassword
+          , connectDatabase = devMysqlConnectDatabase
+          , connectOptions  = []
+          , connectPath     = devMysqlConnectPath
+          , connectSSL      = Nothing
+          , connectCharset  = T.Latin1
+          }
+
+redisClusterConfig :: T.RedisConfig
+redisClusterConfig = 
+  T.RedisConfig
+    { connectHost           = devRedisClusterHost
+    , connectPort           = devRedisClusterPort
+    , connectAuth           = Nothing
+    , connectDatabase       = devRedisClusterDatabase
+    , connectMaxConnections = devRedisClusterMaxConnections
+    , connectMaxIdleTime    = fromInteger devRedisClusterMaxIdleTime
+    , connectTimeout        = Nothing
+    }
+
+devMysqlConnectionName :: String
+devMysqlConnectionName = fromMaybe "eulerMysqlDB" $ lookupEnv "DEV_MYSQL_CONNECTION_NAME"
+
+devMysqlConnectHost :: String
+devMysqlConnectHost = fromMaybe "localhost" $ lookupEnv "DEV_MYSQL_CONNECT_HOST"
+
+devMysqlConnectPort :: Word16
+devMysqlConnectPort = fromMaybe 3306 $ readMaybe =<< lookupEnv "DEV_MYSQL_CONNECT_PORT"
+
+devMysqlConnectUser :: String
+devMysqlConnectUser = fromMaybe "cloud" $ lookupEnv "DEV_MYSQL_CONNECT_USER"
+
+devMysqlConnectPassword :: String
+devMysqlConnectPassword = fromMaybe "scape" $ lookupEnv "DEV_MYSQL_CONNECT_PASSWORD"
+
+devMysqlConnectDatabase :: String
+devMysqlConnectDatabase = fromMaybe "jdb" $ lookupEnv "DEV_MYSQL_CONNECT_DATABASE"
+
+devMysqlConnectPath :: String
+devMysqlConnectPath = fromMaybe "" $ lookupEnv "DEV_MYSQL_CONNECT_PATH"
+
+devMysqlPoolStripes :: Int
+devMysqlPoolStripes = fromMaybe 1 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_STRIPES"
+
+devMysqlPoolKeepAlive :: Integer
+devMysqlPoolKeepAlive = fromMaybe 10 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_KEEP_ALIVE"
+
+devMysqlPoolResourcesPerStripe :: Int
+devMysqlPoolResourcesPerStripe = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_MYSQL_POOL_RESOURCES_PER_STRIPE"
+
+devRedisClusterHost :: String
+devRedisClusterHost = fromMaybe "localhost" $ lookupEnv "DEV_REDIS_CLUSTER_CONNECT_HOST"
+
+devRedisClusterPort :: Word16
+devRedisClusterPort = fromMaybe 30001 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_PORT"
+
+devRedisClusterDatabase :: Integer
+devRedisClusterDatabase = fromMaybe 0 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_DATABASE"
+
+devRedisClusterMaxConnections :: Int
+devRedisClusterMaxConnections = fromMaybe 50 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_MAX_CONNECTIONS"
+
+devRedisClusterMaxIdleTime :: Integer
+devRedisClusterMaxIdleTime = fromMaybe 30 $ readMaybe =<< lookupEnv "DEV_REDIS_CLUSTER_CONNECT_MAX_IDLE_TIME"
+
+{-# NOINLINE environmentVars #-}
+environmentVars :: Map String String
+environmentVars = Map.fromList $ unsafePerformIO getEnvironment
+
+lookupEnv :: String -> Maybe String
+lookupEnv k = Map.lookup k environmentVars
+
+data OfferEngineCfg = OfferEngineCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity OfferEngineCfg (T.DBConfig BM.MySQLM)
+
+psMimicFlowFormatter :: Maybe T.FlowGUID -> IO (T.PendingMsg -> T.MessageBuilder)   -- T.FlowFormatter
+psMimicFlowFormatter _ = do
+  currTime <- Time.formatTime Time.defaultTimeLocale "%Y-%m-%d %H:%M:%S%3Q" <$> Time.getCurrentTime
+  pure $! aesonPSMimicFormatterText (Text.pack currTime)
+
+
+aesonPSMimicFormatterText
+  :: Text       -- timestamp
+  -> T.MessageFormatter
+aesonPSMimicFormatterText
+  timestamp
+  (T.PendingMsg _mbFlowGuid lvl tag msg msgNum logContext) = res
+  where
+    logEntry = PSLogEntry
+          { _timestamp                = timestamp
+          , _app_framework            = appFramework
+          , _hostname                 = hostname
+          , _source_commit            = "sourceCommit"
+          , _env                      = env
+          , _level                    = show lvl
+          , _txn_uuid                 = fromMaybe "null" $ lookup "txnUuid" logContext
+          , _order_id                 = fromMaybe "null" $ lookup "orderId" logContext
+          , _refund_id                = fromMaybe "null" $ lookup "refundId" logContext
+          , _refund_unique_request_id = fromMaybe "null" $ lookup "refundUniqueRequestId" logContext
+          , _merchant_id              = fromMaybe "null" $ lookup "merchantId" logContext
+          , _message_number           = show msgNum
+          , _gateway                  = fromMaybe "null" $ lookup "gateway" logContext
+          , _x_request_id             = fromMaybe "null" $ lookup "x-request-id" logContext
+          , _x_global_request_id      = fromMaybe "null" $ lookup "x-global-request-id" logContext
+          , _action                   = if isOutgoingAPICall tag then outgoingApiTag else "null"
+          , _label                    = if isOutgoingAPICall tag then "UPSTREAM" else "null"
+          , _message                  = msg.msgMessage
+          , _message_type             = if isJust msg.msgValue then "json" else "string"
+          , _value                    = msg.msgValue
+          , _tag                      = tag
+          , _notification_id          = fromMaybe "null" $ lookup "notification_id" logContext
+          }
+    res = T.SimpleLBS $ A.encode logEntry
+
+data PSLogEntry strType = PSLogEntry
+  { _timestamp                :: strType
+  , _app_framework            :: strType
+  , _hostname                 :: strType
+  , _source_commit            :: strType
+  , _env                      :: strType
+  , _level                    :: strType
+  , _action                   :: strType
+  , _label                    :: strType
+  , _txn_uuid                 :: strType
+  , _gateway                  :: strType
+  , _order_id                 :: strType
+  , _refund_id                :: strType
+  , _refund_unique_request_id :: strType
+  , _merchant_id              :: strType
+  , _message_number           :: strType
+  , _x_request_id             :: strType
+  , _x_global_request_id      :: strType
+  , _message                  :: Maybe A.Value
+  , _message_type             :: strType
+  , _value                    :: Maybe A.Value
+  , _tag                      :: strType
+  , _notification_id          :: strType
+  }
+
+instance A.ToJSON (PSLogEntry Text) where
+  toJSON PSLogEntry {..} =
+    A.object [ "timestamp"                A..= _timestamp
+             , "app_framework"            A..= _app_framework
+             , "hostname"                 A..= _hostname
+             , "source_commit"            A..= _source_commit
+             , "env"                      A..= _env
+             , "level"                    A..= _level
+             , "txn_uuid"                 A..= _txn_uuid
+             , "order_id"                 A..= _order_id
+             , "refund_id"                A..= _refund_id
+             , "refund_unique_request_id" A..= _refund_unique_request_id
+             , "merchant_id"              A..= _merchant_id
+             , "message_number"           A..= _message_number
+             , "action"                   A..= _action
+             , "label"                    A..= _label
+             , "gateway"                  A..= _gateway
+             , "x-request-id"             A..= _x_request_id
+             , "x-global-request-id"      A..= _x_global_request_id
+             , "tag"                      A..= _tag
+             , "message"                  A..= _message
+             , "message_type"             A..= _message_type
+             , "value"                    A..= _value
+             , "notification_id"          A..= _notification_id
+             ]
+
+  toEncoding PSLogEntry{..} = A.pairs $ mconcat [
+    "timestamp"                  .= _timestamp,
+    "hostname"                   .= _hostname,
+    "app_framework"              .= _app_framework,
+    "env"                        .= _env,
+    "level"                      .= _level,
+    "x-request-id"               .= _x_request_id ,
+    "x-global-request-id"        .= _x_global_request_id ,
+    "order_id"                   .= _order_id,
+    "txn_uuid"                   .= _txn_uuid,
+    "merchant_id"                .= _merchant_id,
+    "refund_id"                  .= _refund_id,
+    "refund_unique_request_id"   .= _refund_unique_request_id,
+    "gateway"                    .= _gateway,
+    "tag"                        .= _tag,
+    maybe mempty (\v -> ("message" .= v)) _message,
+    "message_type"               .= _message_type,
+    "action"                     .= _action,
+    "label"                      .= _label,
+    maybe mempty (\v -> ("value" .= v)) _value,
+    "source_commit"              .= _source_commit,
+    "message_number"             .= _message_number,
+    "notification_id"            .= _notification_id
+    ]
+
+
+isOutgoingAPICall :: Text -> Bool
+isOutgoingAPICall tag =
+           tag == "OUTGOING_REQUEST"
+        || tag == "CallServantAPI impl"
+        || tag == "\"CallServantAPI impl\""
+        || tag == "callHTTP"
+        || tag == "\"callHTTP\""
+
+
+outgoingApiTag :: Text
+outgoingApiTag = "OUTGOING_REQUEST"
+
+
+appFramework :: Text
+appFramework = "euler-hs-application"
+
+hostname :: Text
+hostname = "euler-hs"
+
+env :: Text
+env = "test"
+
+
+getEulerDbConf :: (L.MonadFlow m) => m (T.DBConfig MySQLM)
+getEulerDbConf = Extra.getEulerDbConf internalError
+
+withEulerDB :: (L.MonadFlow m) => L.SqlDB MySQLM a -> m a
+withEulerDB = Extra.withEulerDB internalError
+
+
+
+data ErrorResponse = ErrorResponse
+   { code     :: Int
+   , response :: ErrorPayload
+   }
+  deriving (Eq, Show, Generic)
+
+instance Exception ErrorResponse
+
+data ErrorPayload = ErrorPayload
+  { error1        :: Bool
+  , errorMessage :: Text
+  , userMessage  :: Text
+  }
+  deriving (Eq, Show, Generic)
+
+internalError :: ErrorResponse
+internalError = ErrorResponse
+  { code = 500
+  , response = ErrorPayload
+      { errorMessage = "Internal Server Error"
+      , userMessage = "Internal Server Error"
+      , error1 = True
+      }
+  }

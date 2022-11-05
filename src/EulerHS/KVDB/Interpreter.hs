@@ -94,11 +94,20 @@ interpretKeyValueF runRedis (L.XLen stream next) =
 interpretKeyValueF runRedis (L.SAdd k v next) =
   fmap next $ runRedis $ R.sadd k v
 
+interpretKeyValueF runRedis (L.SRem k v next) =
+  fmap next $ runRedis $ R.srem k v
+
 interpretKeyValueF runRedis (L.LPush k v next) =
   fmap next $ runRedis $ R.lpush k v
 
 interpretKeyValueF runRedis (L.LRange k start stop next) =
   fmap next $ runRedis $ R.lrange k start stop
+
+interpretKeyValueF runRedis (L.SMembers k next) =
+  fmap next $ runRedis $ R.smembers k
+
+interpretKeyValueF runRedis (L.SMove k1 k2 v next) =
+  fmap next $ runRedis $ R.smove k1 k2 v
 
 interpretKeyValueF runRedis (L.SMem k v next) =
   fmap next $ runRedis $ R.sismember k v
@@ -157,11 +166,20 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
 interpretKeyValueTxF (L.SAdd k v next) =
   next <$> R.sadd k v
 
+interpretKeyValueTxF (L.SRem k v next) =
+  next <$> R.srem k v
+
 interpretKeyValueTxF (L.LRange k start stop next) =
   next <$> R.lrange k start stop
 
 interpretKeyValueTxF (L.LPush k v next) =
   next <$> R.lpush k v
+
+interpretKeyValueTxF (L.SMembers k next) =
+  next <$> R.smembers k
+
+interpretKeyValueTxF (L.SMove k1 k2 v next) =
+  next <$> R.smove k1 k2 v
 
 interpretKeyValueTxF (L.SMem k v next) =
   next <$> R.sismember k v

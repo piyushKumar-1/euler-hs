@@ -8,22 +8,17 @@
 
 module EulerHS.KVConnector.Types where
 
-import Prelude
+import EulerHS.Prelude
 import qualified Data.Aeson as A
 import           Data.Aeson.Types (Parser)
-import           Data.List (sortBy)
-import           Data.Function (on)
-import           Data.Functor.Identity (Identity)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Database.Beam.MySQL (MySQL)
-import           GHC.Generics (Generic)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
@@ -56,8 +51,8 @@ getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table 
 getSecondaryLookupKeys table = do
   let tName = tableName @(table Identity)
   let skeys = secondaryKeys table
-  let tupList = Prelude.map (\(SKey s) -> s) skeys
-  let list = Prelude.map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
+  let tupList = map (\(SKey s) -> s) skeys
+  let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
   list
 
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
@@ -98,7 +93,15 @@ data MeshError
   | MUpdateFailed Text
   | MMultipleKeysFound Text
   | UnexpectedError Text
-  deriving Show
+  deriving (Show, Generic)
+
+instance ToJSON MeshError where
+  toJSON (MRedisError r) = A.object
+    [
+      "contents" A..= (show r :: Text),
+      "tag" A..= ("MRedisError" :: Text)
+    ]
+  toJSON a = A.toJSON a
 
 data QueryPath = KVPath | SQLPath
 

@@ -12,8 +12,8 @@ let
   };
 
   hedis-repo = builtins.fetchTarball {
-    url = "https://github.com/MrRobo24/hedis/archive/6454c72a98f821908cf3ec498f920db2049e1534.tar.gz";
-    sha256 = "0mnlpi153rcrxa0d0l9sraa6slysvix2ij4jk6rhq7lm7iwizjxs";
+    url = "https://github.com/MrRobo24/hedis/archive/216088b7fcf805dc53353ec8738664b003087315.tar.gz";
+    sha256 = "1njp8g1avkfnw9hidw2x0962j14hqsxq3snpjgbwf7gwg3b1fimw";
   };
   hedis-path = hedis-repo;
 

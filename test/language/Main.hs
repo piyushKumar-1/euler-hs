@@ -5,10 +5,10 @@ module Main (main) where
 -- import qualified ArtSpec as Art
 -- import           Control.Exception.Safe (bracket)
 import           EulerHS.Prelude hiding (bracket)
-import qualified EulerHS.Types as T
-import qualified MaskingSpec as MaskSpec
-import qualified FlowSpec as Flow
-import qualified HttpAPISpec as HttpAPISpec
+-- import qualified EulerHS.Types as T
+-- import qualified MaskingSpec as MaskSpec
+-- import qualified FlowSpec as Flow
+-- import qualified HttpAPISpec as HttpAPISpec
 import qualified KV.SckvSpec as KV
 -- import qualified KVDBArtSpec as KVDB
 -- import qualified PubSubSpec as PubSub
@@ -26,9 +26,9 @@ main = do
     -- Redis not works on CI
     -- withRedis $
     hspec $ do
-      HttpAPISpec.spec
-      MaskSpec.spec
-      Flow.spec logsDisabled
+      -- HttpAPISpec.spec
+      -- MaskSpec.spec
+      -- Flow.spec logsDisabled
       KV.spec
       -- Wait for Redis on CI
       -- CachedSqlDBQuery.spec
@@ -38,9 +38,9 @@ main = do
       -- KVDB.spec
       -- SQL.spec
       -- PubSub.spec
-  where
-    logsDisabled :: Maybe T.LoggerConfig
-    logsDisabled = Nothing
+  -- where
+  --   logsDisabled :: Maybe T.LoggerConfig
+  --   logsDisabled = Nothing
 
 
 

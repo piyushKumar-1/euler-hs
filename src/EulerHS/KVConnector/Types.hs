@@ -25,6 +25,7 @@ import           Database.Beam.MySQL (MySQL)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
+
 ------------ TYPES AND CLASSES ------------
 
 data PrimaryKey = PKey [(Text,Text)]

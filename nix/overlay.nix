@@ -12,12 +12,12 @@ let
   };
 
   hedis-repo = builtins.fetchTarball {
-    url = "https://github.com/juspay/hedis/archive/c92d376eab732616222a19af5c6ba37f9cb6107f.tar.gz";
-    sha256 = "1mz7aicz4c974fky00v0jr5n6n726n932hw5fby8c2kg4f1ibm5q";
+    url = "https://github.com/MrRobo24/hedis/archive/6454c72a98f821908cf3ec498f920db2049e1534.tar.gz";
+    sha256 = "0mnlpi153rcrxa0d0l9sraa6slysvix2ij4jk6rhq7lm7iwizjxs";
   };
   hedis-path = hedis-repo;
 
-in 
+in
 super.eulerBuild.mkEulerHaskellOverlay self super
   (hself: hsuper: {
     hedis = self.eulerBuild.fastBuildExternal {

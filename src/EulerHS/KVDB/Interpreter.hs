@@ -92,13 +92,19 @@ interpretKeyValueF runRedis (L.XRead stream entryId next) =
     runRedis $ do
       result <- R.xread [(stream, entryId)]
       pure $ (fmap . fmap $ parseXReadResponse) <$> result
-  where
-    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
-    parseXReadResponseRecord record =
-      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
 
-    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
-    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+parseXReadResponseRecord record =
+  L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+
+parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueF runRedis (L.XReadGroup groupName consumerName streamsAndIds opt next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xreadGroupWithOpts groupName consumerName streamsAndIds opt
+      pure $ (fmap . fmap $ parseXReadResponse) <$> result
 
 interpretKeyValueF runRedis (L.XRevRange stream send sstart count next) =
   fmap next $

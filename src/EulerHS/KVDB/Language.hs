@@ -10,6 +10,7 @@ module EulerHS.KVDB.Language
   , KVDBField, KVDBChannel, KVDBMessage
   , KVDBStream, KVDBStreamItem, KVDBStreamEntryID (..), KVDBStreamEntryIDInput (..)
   , KVDBF(..), KeyValueF(..), TransactionF(..), RecordID, KVDBStreamReadResponse (..), KVDBStreamReadResponseRecord (..), KVDBStreamEnd, KVDBStreamStart
+  , KVDBGroupName, KVDBConsumerName
   -- ** Methods
   -- *** Regular
   -- **** For simple values
@@ -17,7 +18,7 @@ module EulerHS.KVDB.Language
   -- **** For hash values
   , hset, hget
   -- **** For streams
-  , xadd, xlen, xread, xrevrange
+  , xadd, xlen, xread, xrevrange, xreadGroup
   -- **** For both
   , exists, del, expire
   -- *** Transactional
@@ -62,6 +63,8 @@ type KVDBStream = ByteString
 type KVDBStreamEnd = ByteString
 type KVDBStreamStart = ByteString
 type RecordID = ByteString
+type KVDBGroupName = ByteString
+type KVDBConsumerName = ByteString
 
 data KVDBStreamEntryID = KVDBStreamEntryID Integer Integer
   deriving stock Generic
@@ -102,6 +105,7 @@ data KeyValueF f next where
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
+  XReadGroup :: KVDBGroupName -> KVDBConsumerName -> [(KVDBStream, RecordID)] -> R.XReadOpts -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
   XRevRange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> (f [KVDBStreamReadResponseRecord] -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
@@ -121,6 +125,7 @@ instance Functor (KeyValueF f) where
   fmap f (HGet k field next)             = HGet k field (f . next)
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XRead s entryId next)          = XRead s entryId (f . next)
+  fmap f (XReadGroup gName cName s opts next) = XReadGroup gName cName s opts (f . next)
   fmap f (XRevRange strm send sstart count next) = XRevRange strm send sstart count (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
   fmap f (SAdd k v next)                 = SAdd k v (f . next)
@@ -238,6 +243,9 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 
 xread :: KVDBStream -> RecordID -> KVDB (Maybe [KVDBStreamReadResponse])
 xread stream entryId = ExceptT $ liftFC $ KV $ XRead stream entryId id
+
+xreadGroup :: KVDBGroupName -> KVDBConsumerName -> [(KVDBStream, RecordID)] -> Maybe Integer -> Maybe Integer -> Bool -> KVDB (Maybe [KVDBStreamReadResponse])
+xreadGroup groupName consumerName streamsAndIds mBlock mCount noack = ExceptT $ liftFC $ KV $ XReadGroup groupName consumerName streamsAndIds (R.XReadOpts mBlock mCount noack) id
 
 xrevrange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> KVDB ([KVDBStreamReadResponseRecord])
 xrevrange stream send sstart count = ExceptT $ liftFC $ KV $ XRevRange stream send sstart count id

@@ -53,7 +53,7 @@ spec = flowSpec $ do
             when (isLeft eitherSC) $ error $ show eitherSC
             asserting $ (join $ hush eitherSC) `shouldBe` (Just serviceConfig)
           )
-    xitFlow "Should reject creation of duplicate entry based on the unique key" $ do
+    xitFlow "[Feature to be impl] Should reject creation of duplicate entry based on the unique key" $ do
         -- Assuming name column of service config table has a unique key constraint
         withServiceConfig $ (\serviceConfig dbConf -> do
             eitherEntry <- DB.createReturning dbConf meshConfig serviceConfig Nothing

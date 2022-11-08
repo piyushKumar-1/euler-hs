@@ -193,10 +193,11 @@ test-suite language
     Scenario1
     SQLArtSpec
     KV.FlowHelper
-    KV.Sctest
+    KV.TestSchema.Sctest
     KV.SckvSpec
-    KV.ThUtils
-    KV.Mesh
+    KV.TestSchema.ThUtils
+    KV.TestSchema.Mesh
+    KV.TestHelper
 
   build-depends:
     , aeson

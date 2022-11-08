@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS -fno-warn-name-shadowing #-}
-module KV.ThUtils where
+module KV.TestSchema.ThUtils where
 
 import           EulerHS.Prelude hiding (Type, words)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshMeta(..), PrimaryKey(..), SecondaryKey(..), TermWrap(..), MeshMeta)
@@ -9,27 +9,10 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
 import           Data.List ((!!))
 import qualified Data.Text as T
--- import           EulerHS.KVConnector.Types (KVConnector(..), MeshMeta(..), PrimaryKey(..), SecondaryKey(..), )
 import           Language.Haskell.TH
 import qualified Sequelize as S
 import           Text.Casing (camel)
 import           Prelude (head)
-
--- tableTModMeshD :: Name -> Q [Dec]
--- tableTModMeshD name = do
---     let tableTModMeshN = mkName $ camel (nameBase name) <> "ModMesh"
---         psToHs = mkName "psToHs"
---         applyFieldModifier field = AppE (AppE (AppE (VarE 'HM.findWithDefault) (LitE $ StringL field)) (LitE $ StringL field)) (VarE psToHs)
---     names <- extractRecFields . head . extractConstructors <$> reify name
---     let recExps = (\name' -> (name', AppE (VarE 'B.fieldNamed) (applyFieldModifier $ nameBase name'))) <$> names
---     return [FunD tableTModMeshN [Clause [] (NormalB (RecUpdE (VarE 'B.tableModification) recExps)) []]]
-
-------------------------------------------------------------------
--- class KVConnector table where
---   tableName :: Text
---   keyMap :: HM.HashMap Text Bool -- True implies it is primary key and False implies secondary
---   primaryKey :: table -> PrimaryKey
---   secondaryKeys:: table -> [SecondaryKey]
 
 kvConnectorInstancesD :: Name -> [Name] -> [[Name]] -> Q [Dec]
 kvConnectorInstancesD name pKeyN sKeysN = do

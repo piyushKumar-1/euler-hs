@@ -9,21 +9,19 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module KV.Sctest where
+module KV.TestSchema.Sctest where
 
 
--- import           Data.Int (Int64)
 import qualified Database.Beam as B
 import           EulerHS.Prelude hiding (id)
 import           Sequelize (ModelMeta (modelFieldModification, modelTableName))
 import qualified EulerHS.Language as L
 import           EulerHS.CachedSqlDBQuery (findOne')
--- import           Sequelize (Clause (..), Term (Eq))
 import           Sequelize (ModelMeta (modelFieldModification, modelTableName, mkExprWithDefault), Clause(..), Term(..),Set (..))
 import           KV.FlowHelper
-import           KV.ThUtils
+import           KV.TestSchema.ThUtils
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshMeta(..), PrimaryKey(..), SecondaryKey(..), TermWrap(..), MeshMeta, tableName, primaryKey, secondaryKeys)
-import           KV.Mesh
+import           KV.TestSchema.Mesh
 import qualified Data.Aeson as A
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M

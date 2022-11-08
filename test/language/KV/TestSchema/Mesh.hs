@@ -1,4 +1,4 @@
-module KV.Mesh where
+module KV.TestSchema.Mesh where
 
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -6,7 +6,6 @@ import           Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import           Data.Text (Text)
 import           Prelude
--- import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types (MeshConfig(..))
 import           System.Environment (getEnvironment)
 import           System.IO.Unsafe (unsafePerformIO)

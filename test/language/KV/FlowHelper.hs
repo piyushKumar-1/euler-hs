@@ -33,6 +33,10 @@ itFlow :: [Char] -> L.Flow () -> FlowSpec
 itFlow description flow =
     it description (`I.runFlow` flow)
 
+xitFlow :: [Char] -> L.Flow () -> FlowSpec
+xitFlow description flow =
+    xit description (`I.runFlow` flow)
+
 flowSpec :: FlowSpec -> Spec
 flowSpec =
     aroundAll $ \tests ->

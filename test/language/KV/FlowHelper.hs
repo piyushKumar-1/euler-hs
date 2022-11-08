@@ -26,6 +26,7 @@ import           Data.HashMap.Strict (lookup)
 import qualified EulerHS.Extra.EulerDB as Extra
 import qualified System.Logger as Log
 import qualified Data.ByteString.Builder as BB
+import           System.Directory(getCurrentDirectory)
 
 type FlowSpec = SpecWith R.FlowRuntime
 
@@ -37,20 +38,30 @@ xitFlow :: [Char] -> L.Flow () -> FlowSpec
 xitFlow description flow =
     xit description (`I.runFlow` flow)
 
+-- NOTE
+-- This is a the flowruntime for the KV tests
+-- Log to file is enabled and log to console is disabled
+-- so that the test report are more readable and don't get
+-- entangled with the application logs
+-- The file to which logs are added is present in the _logFilePath
+-- field below
+
 flowSpec :: FlowSpec -> Spec
-flowSpec =
-    aroundAll $ \tests ->
-      R.withFlowRuntime (Just logger) $ \rt -> do
+flowSpec = do 
+    aroundAll $ \tests -> do
+      dir <- getCurrentDirectory
+      R.withFlowRuntime (Just $ logger dir) $ \rt -> do
         I.runFlow rt preparePSqlConnection
         tests rt
 
- where
-    logToConsole = True
-    logSql = T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION
-    loggerCfg =
+  where
+    logToConsole = False -- Set this to true if you want to see application logs in the console
+    logToFile = True
+    logSql = T.UnsafeLogSQL_DO_NOT_USE_IN_PRODUCTION -- This enabled logging raw SQL queries for debugging
+    loggerCfg dir =
         T.LoggerConfig
-          { T._logToFile = False,
-            T._logFilePath = "/tmp/offer-engine.log",
+          { T._logToFile = logToFile,
+            T._logFilePath = dir <> "/testlog.json",
             T._isAsync = False,
             T._logLevel = T.Debug,
             T._logToConsole = logToConsole,
@@ -59,7 +70,7 @@ flowSpec =
             T._logMaskingConfig = Nothing,
             T._logAPI = True
           }
-    logger = R.createLoggerRuntime' Nothing (Just defaultRenderer) 4096 psMimicFlowFormatter Nothing loggerCfg
+    logger dir = R.createLoggerRuntime' Nothing (Just defaultRenderer) 4096 psMimicFlowFormatter Nothing $ loggerCfg dir 
 
 defaultRenderer :: ByteString -> p1 -> p2 -> [Log.Element] -> BB.Builder
 defaultRenderer s _ _ (_:es) = Log.renderDefault s es

@@ -19,13 +19,15 @@ import qualified KV.SckvSpec as KV
 -- import           System.FilePath ((<.>), (</>))
 -- import           System.Process.Typed (proc, startProcess, stopProcess)
 -- import           System.Random (getStdRandom, random)
-import           Test.Hspec (hspec)
+-- import           Test.Hspec
+import           Test.Hspec.Core.Runner
+-- import           Test.Hspec.Core.Formatters
 
 main :: IO ()
 main = do
     -- Redis not works on CI
     -- withRedis $
-    hspec $ do
+    hspecWith defaultConfig{ configPrintCpuTime = True, configColorMode = ColorAlways} $ do
       -- HttpAPISpec.spec
       -- MaskSpec.spec
       -- Flow.spec logsDisabled
@@ -41,6 +43,9 @@ main = do
   -- where
   --   logsDisabled :: Maybe T.LoggerConfig
   --   logsDisabled = Nothing
+  -- where
+  --   defOptions =
+      
 
 
 

@@ -9,7 +9,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module KV.TestSchema.Sctest where
+module KV.TestSchema.ServiceConfiguration where
 
 
 import qualified Database.Beam as B
@@ -101,18 +101,6 @@ serviceConfigurationTMod = B.tableModification
     , name = B.fieldNamed "name"
     , value = B.fieldNamed "value"
     }
-
-
-findServiceConfig :: HasCallStack => Int64 -> L.Flow (Maybe ServiceConfiguration)
-findServiceConfig txnDetail_id = do
-  dbConf <- getEulerDbConf
-  res <- findOne' dbConf meshConfig Nothing [
-           Is id (Eq $ txnDetail_id)]
-  case res of
-    Right (Just a) -> pure $ Just a
-    Right (Nothing) -> L.logInfoT "DB_TEST" "NOT_FOUDN" $> Nothing
-    Left err -> L.logInfoT "DB_TEST" (show err) $> Nothing
-
 
 hush :: Either a b -> Maybe b
 hush (Left _) = Nothing

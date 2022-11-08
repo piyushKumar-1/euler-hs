@@ -2,10 +2,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module KV.SckvSpec where
 
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding(id)
 
 import           KV.FlowHelper
-import           KV.TestSchema.Sctest
+import           KV.TestSchema.ServiceConfiguration
 import qualified EulerHS.CachedSqlDBQuery as DB
 import           Test.Hspec
 import           Sequelize (Clause(..), Term(..))
@@ -13,11 +13,10 @@ import           KV.TestSchema.Mesh
 import qualified EulerHS.Language as L
 import qualified Data.Text as Text
 import EulerHS.KVConnector.Types hiding(kvRedis)
--- import qualified Data.Aeson as A
--- import Prelude (partialHead)
 import qualified EulerHS.Types as T
 import           Database.Beam.MySQL (MySQLM)
 import           KV.TestHelper
+
 {-
 Things to test against insert
 1. The value should be present in the KV againt the right primary id KEY 
@@ -31,12 +30,10 @@ Things to test againt find
 3. Right value should be fetched with secondary keys for a query which requires extra filtering of data in the application
 4. 
 -}
--- KV_TESTae4b6\\\
--- [\"]
 
 spec :: HasCallStack => Spec
 spec = flowSpec $ do
-    itFlow "Should fetch a created SC using secondary key" $ do
+    itFlow "Should fetch a created entry using secondary key" $ do
         withServiceConfig $ (\serviceConfig dbConf -> do
             eitherSC <- DB.findOne' dbConf meshConfig Nothing [Is name (Eq $ serviceConfig.name)]
             when (isLeft eitherSC) $ error $ show eitherSC
@@ -47,8 +44,14 @@ spec = flowSpec $ do
             let pKey = getLookupKeyByPKey serviceConfig
             let secKeys = getSecondaryLookupKeys serviceConfig
             (valueFromPrimaryKey :: Maybe ServiceConfiguration) <- getValueFromPrimaryKey pKey
-            valueFromSecondaryKeys<- (snd . partialHead) <$> getValueFromSecondaryKeys secKeys
+            valueFromSecondaryKeys <- (snd . partialHead) <$> getValueFromSecondaryKeys secKeys
             asserting $ valueFromPrimaryKey `shouldBe` valueFromSecondaryKeys
+          )
+    itFlow "Should fetch a created entry using primary key" $ do
+        withServiceConfig $ (\serviceConfig dbConf -> do
+            eitherSC <- DB.findOne' dbConf meshConfig Nothing [Is id (Eq $ serviceConfig.id)]
+            when (isLeft eitherSC) $ error $ show eitherSC
+            asserting $ (join $ hush eitherSC) `shouldBe` (Just serviceConfig)
           )
 
 dummyServiceConfig :: L.Flow ServiceConfiguration

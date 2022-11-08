@@ -3,7 +3,7 @@ module KV.TestHelper where
 import           EulerHS.Prelude
 
 import           KV.FlowHelper
-import           KV.TestSchema.Sctest
+import           KV.TestSchema.ServiceConfiguration
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
 import qualified Data.Aeson as A

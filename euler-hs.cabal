@@ -193,7 +193,7 @@ test-suite language
     Scenario1
     SQLArtSpec
     KV.FlowHelper
-    KV.TestSchema.Sctest
+    KV.TestSchema.ServiceConfiguration
     KV.SckvSpec
     KV.TestSchema.ThUtils
     KV.TestSchema.Mesh

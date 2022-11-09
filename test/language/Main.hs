@@ -9,7 +9,7 @@ import           EulerHS.Prelude hiding (bracket)
 -- import qualified MaskingSpec as MaskSpec
 -- import qualified FlowSpec as Flow
 -- import qualified HttpAPISpec as HttpAPISpec
-import qualified KV.SckvSpec as KV
+import qualified KV.InsertSpec as KV
 -- import qualified KVDBArtSpec as KVDB
 -- import qualified PubSubSpec as PubSub
 -- import qualified SQLArtSpec as SQL

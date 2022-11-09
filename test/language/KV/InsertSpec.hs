@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module KV.SckvSpec where
+module KV.InsertSpec where
 
 import           EulerHS.Prelude hiding(id)
 

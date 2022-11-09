@@ -194,7 +194,7 @@ test-suite language
     SQLArtSpec
     KV.FlowHelper
     KV.TestSchema.ServiceConfiguration
-    KV.SckvSpec
+    KV.InsertSpec
     KV.TestSchema.ThUtils
     KV.TestSchema.Mesh
     KV.TestHelper

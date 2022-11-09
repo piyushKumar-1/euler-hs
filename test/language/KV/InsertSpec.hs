@@ -31,10 +31,10 @@ spec :: HasCallStack => Spec
 spec = flowSpec $ do
     itFlow "Should add/increment value for auto increment id in KV" $ do 
         sc <- dummyServiceConfig
-        prevAutoId <- fromRightErr <$> DB.getAutoIncId meshConfig (tableName @ServiceConfiguration)
+        prevAutoId <- fromJustErr <$> peekAutoIncrId (tableName @ServiceConfiguration)
         withTableEntry sc $ (\_serviceConfig _dbConf -> do
-          newAutoId <- fromRightErr <$> DB.getAutoIncId meshConfig (tableName @ServiceConfiguration)
-          asserting $ (prevAutoId + 2) `shouldBe` newAutoId
+          newAutoId <- fromJustErr <$> peekAutoIncrId (tableName @ServiceConfiguration)
+          asserting $ (prevAutoId + 1) `shouldBe` newAutoId
           )
     itFlow "Should fetch a created entry using secondary key" $ do
         sc <- dummyServiceConfig

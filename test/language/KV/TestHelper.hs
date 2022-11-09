@@ -3,10 +3,11 @@ module KV.TestHelper where
 import           EulerHS.Prelude
 
 import           KV.FlowHelper
--- import           KV.TestSchema.ServiceConfiguration
+import qualified Data.Aeson as A
+import qualified Data.Text as Text
+import           Text.Casing (quietSnake)
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
-import qualified Data.Aeson as A
 import qualified EulerHS.CachedSqlDBQuery as DB
 import           Database.Beam.MySQL (MySQLM)
 import qualified EulerHS.Types as T
@@ -56,6 +57,14 @@ partialHead xs =
 
 fromRightErr :: (HasCallStack,Show a) => Either a b -> b
 fromRightErr eitherVal = either (error . show) (id) eitherVal
+
+fromJustErr :: HasCallStack => Maybe a -> a
+fromJustErr mbVal = maybe (error "Value not present") id mbVal
+
+peekAutoIncrId :: Text -> L.Flow (Maybe Integer)
+peekAutoIncrId tName = do
+  let key = (Text.pack . quietSnake . Text.unpack) tName <> "_auto_increment_id"
+  getValueFromPrimaryKey key
 
 withTableEntry ::
     ( HasCallStack

@@ -7,6 +7,12 @@ import           KV.TestSchema.ServiceConfiguration
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
 import qualified Data.Aeson as A
+import qualified EulerHS.CachedSqlDBQuery as DB
+import           Database.Beam.MySQL (MySQLM)
+import qualified EulerHS.Types as T
+import           KV.TestSchema.Mesh
+import qualified Database.Beam.MySQL as BM
+import           Sequelize (Model)
 
 getValueFromPrimaryKey :: (HasCallStack,FromJSON a) => Text -> L.Flow (Maybe a)
 getValueFromPrimaryKey pKey = do
@@ -31,8 +37,8 @@ getValueFromSecondaryKeys secKeys = do
                 Just res -> Just (key,res)
                 Nothing -> Nothing
 
-deleteServiceConfigValueFromKV :: (KVConnector (table Identity)) => table Identity -> L.Flow ()
-deleteServiceConfigValueFromKV sc = do
+deleteTableEntryValueFromKV :: (KVConnector (table Identity)) => table Identity -> L.Flow ()
+deleteTableEntryValueFromKV sc = do
   let pKey = getLookupKeyByPKey sc
   let secKeys = getSecondaryLookupKeys sc
   void $ hush <$> (L.runKVDB kvRedis $ L.del ([encodeUtf8 pKey]))
@@ -43,3 +49,19 @@ partialHead xs =
   case listToMaybe xs of
     Just x -> x
     Nothing -> error "Found empty List" 
+
+
+withTableEntry ::
+    ( HasCallStack
+    , Model BM.MySQL table
+    , FromJSON (table Identity)
+    , ToJSON (table Identity)
+    , KVConnector (table Identity)
+    , Show (table Identity)) 
+    => table Identity -> ((table Identity) -> T.DBConfig MySQLM -> L.Flow a) -> L.Flow a
+withTableEntry tableEntry act = do
+  dbConf <- getEulerDbConf
+  fmap fst $ generalBracket
+    (DB.createReturning dbConf meshConfig tableEntry Nothing)
+    (\_ _ -> deleteTableEntryValueFromKV tableEntry)
+    (\eitherSC -> either (\err -> error $ show err) (\entry -> act entry dbConf) eitherSC)

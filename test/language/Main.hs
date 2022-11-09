@@ -10,6 +10,7 @@ import           EulerHS.Prelude hiding (bracket)
 -- import qualified FlowSpec as Flow
 -- import qualified HttpAPISpec as HttpAPISpec
 import qualified KV.InsertSpec as KV
+import qualified KV.FindSpec as KVFind
 -- import qualified KVDBArtSpec as KVDB
 -- import qualified PubSubSpec as PubSub
 -- import qualified SQLArtSpec as SQL
@@ -32,6 +33,7 @@ main = do
       -- MaskSpec.spec
       -- Flow.spec logsDisabled
       KV.spec
+      KVFind.spec
       -- Wait for Redis on CI
       -- CachedSqlDBQuery.spec
 

@@ -166,6 +166,18 @@ dateHSLocalToPSDate t =
 toLazy :: BS.ByteString -> BSL.ByteString
 toLazy s = BSL.fromChunks [s]
 
+
+dummyServiceConfig :: L.Flow ServiceConfiguration
+dummyServiceConfig = do
+  randomName <- Text.take 5 <$> L.generateGUID
+  pure $ ServiceConfiguration
+    { id = 0
+    , version = 0
+    , name = "KV_TEST" <> randomName
+    , value = Just "VALUE"
+    }
+
+
 $(meshMetaInstancesD ''ServiceConfigurationT)
 $(kvConnectorInstancesD ''ServiceConfiguration ['id] [['name]])
 

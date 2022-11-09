@@ -173,6 +173,14 @@ dummyServiceConfig = do
     , value = Just "VALUE"
     }
 
+mkServiceConfig :: Text -> Text -> ServiceConfiguration
+mkServiceConfig name' value' =
+  ServiceConfiguration
+    { id = 0
+    , version = 0
+    , name = name'
+    , value = Just value'
+    }
 
 $(meshMetaInstancesD ''ServiceConfigurationT)
 $(kvConnectorInstancesD ''ServiceConfiguration ['id] [['name]])

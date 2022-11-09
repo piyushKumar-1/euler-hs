@@ -198,7 +198,7 @@ test-suite language
     KV.TestSchema.ThUtils
     KV.TestSchema.Mesh
     KV.TestHelper
-    KV.FindSpec
+    KV.FindOneSpec
 
   build-depends:
     , aeson

@@ -86,10 +86,6 @@ aesonDBMeshOptions = A.defaultOptions
   { A.omitNothingFields = True
   }
 
-
--- instance ToJSON ServiceConfiguration where
---   toJSON = toPSJSONOrderReference . A.genericToJSON aesonDBMeshOptions
-
 serviceConfigurationEMod :: B.EntityModification
   (B.DatabaseEntity be db) be (B.TableEntity ServiceConfigurationT)
 serviceConfigurationEMod = B.modifyTableFields serviceConfigurationTMod

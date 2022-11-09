@@ -10,10 +10,7 @@ import qualified EulerHS.CachedSqlDBQuery as DB
 import           Test.Hspec
 import           Sequelize (Clause(..), Term(..))
 import           KV.TestSchema.Mesh
--- import qualified EulerHS.Language as L
 import EulerHS.KVConnector.Types hiding(kvRedis)
--- import qualified EulerHS.Types as T
--- import           Database.Beam.MySQL (MySQLM)
 import           KV.TestHelper
 
 {-
@@ -32,6 +29,13 @@ Things to test againt find
 
 spec :: HasCallStack => Spec
 spec = flowSpec $ do
+    itFlow "Should add/increment value for auto increment id in KV" $ do 
+        sc <- dummyServiceConfig
+        prevAutoId <- fromRightErr <$> DB.getAutoIncId meshConfig (tableName @ServiceConfiguration)
+        withTableEntry sc $ (\_serviceConfig _dbConf -> do
+          newAutoId <- fromRightErr <$> DB.getAutoIncId meshConfig (tableName @ServiceConfiguration)
+          asserting $ (prevAutoId + 2) `shouldBe` newAutoId
+          )
     itFlow "Should fetch a created entry using secondary key" $ do
         sc <- dummyServiceConfig
         withTableEntry sc $ (\serviceConfig dbConf -> do

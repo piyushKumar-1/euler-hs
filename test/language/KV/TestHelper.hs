@@ -3,7 +3,7 @@ module KV.TestHelper where
 import           EulerHS.Prelude
 
 import           KV.FlowHelper
-import           KV.TestSchema.ServiceConfiguration
+-- import           KV.TestSchema.ServiceConfiguration
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
 import qualified Data.Aeson as A
@@ -41,8 +41,12 @@ deleteTableEntryValueFromKV :: (KVConnector (table Identity)) => table Identity 
 deleteTableEntryValueFromKV sc = do
   let pKey = getLookupKeyByPKey sc
   let secKeys = getSecondaryLookupKeys sc
-  void $ hush <$> (L.runKVDB kvRedis $ L.del ([encodeUtf8 pKey]))
-  void $ hush <$> (L.runKVDB kvRedis $ L.del (encodeUtf8 <$> secKeys))
+  void $ fromEitherToMaybe <$> (L.runKVDB kvRedis $ L.del ([encodeUtf8 pKey]))
+  void $ fromEitherToMaybe <$> (L.runKVDB kvRedis $ L.del (encodeUtf8 <$> secKeys))
+
+fromEitherToMaybe :: Either a b -> Maybe b
+fromEitherToMaybe (Left _) = Nothing
+fromEitherToMaybe (Right r) = Just r
 
 partialHead :: HasCallStack => [a] -> a
 partialHead xs = 
@@ -50,6 +54,8 @@ partialHead xs =
     Just x -> x
     Nothing -> error "Found empty List" 
 
+fromRightErr :: (HasCallStack,Show a) => Either a b -> b
+fromRightErr eitherVal = either (error . show) (id) eitherVal
 
 withTableEntry ::
     ( HasCallStack

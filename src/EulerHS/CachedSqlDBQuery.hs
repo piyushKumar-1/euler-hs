@@ -19,6 +19,7 @@ module EulerHS.CachedSqlDBQuery
   , findAllSql
   , findAllExtended
   , findAllWithKVConnector
+  , getAutoIncId
   , SqlReturning(..)
   )
 where
@@ -35,7 +36,7 @@ import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import           EulerHS.KVConnector.Types (MeshConfig, KVConnector, MeshResult, MeshMeta, MeshError(..))
-import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector, updateWithKVConnector, findAllWithKVConnector)
+import           EulerHS.KVConnector.Flow (createWithKVConnector, findWithKVConnector, updateWithKVConnector, findAllWithKVConnector,getAutoIncId)
 import qualified EulerHS.SqlDB.Language as DB
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBError (DBError),

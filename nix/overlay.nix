@@ -17,6 +17,12 @@ let
   };
   hedis-path = hedis-repo;
 
+  cereal-repo = builtins.fetchTarball {
+    url = "https://github.com/juspay/cereal/archive/b28057181d99fd6263e2993285d542956672d3f7.tar.gz";
+    sha256 = "13sx69wy11vy5mpdvv70khaq7apkrrm1j4n4nsyjak14hffvn85h";
+  };
+  cereal-path = cereal-repo;
+
 in 
 super.eulerBuild.mkEulerHaskellOverlay self super
   (hself: hsuper: {
@@ -76,6 +82,12 @@ super.eulerBuild.mkEulerHaskellOverlay self super
         ver = "0.18.3";
         sha256 = "1x0f3kalzrwj2blgsmk269m37bb7sygw6lr7dbp0rk6jbrfrkjm1";
       } { });
+      overrides = {
+        enableProfiling = true;
+      };
+    };
+    cereal = self.eulerBuild.fastBuildExternal {
+      drv = super.haskell.lib.unmarkBroken (hself.callCabal2nix "cereal" cereal-path { });
       overrides = {
         enableProfiling = true;
       };

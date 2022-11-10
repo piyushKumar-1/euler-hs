@@ -96,6 +96,8 @@ library
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
     EulerHS.KVConnector.DBSync
+    EulerHS.KVConnector.Encoding 
+    EulerHS.KVConnector.Utils
 
   build-depends:
     , QuickCheck
@@ -143,7 +145,7 @@ library
     , reflection
     , resource-pool
     , scientific
-    , sequelize             ^>=1.1.1.0
+    , sequelize             
     , servant
     , servant-client        ^>=0.18.3
     , servant-client-core   ^>=0.18.3

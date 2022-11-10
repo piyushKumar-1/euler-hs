@@ -109,11 +109,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1666271095,
-        "narHash": "sha256-Uxb5zxKgSGYnp6YNhbCRiaT4oNxtVdIrA6B4vB7iAMM=",
+        "lastModified": 1668084278,
+        "narHash": "sha256-aFKMzHShDje3k6ttra71u2BelXinq1WG2yFEMzkXyAI=",
         "ref": "EUL-5049/kv_where_support",
-        "rev": "70068106fde21fee3b50bab8d49a409dde247de2",
-        "revCount": 99,
+        "rev": "3a93e4ee9981e4bac3403878de08dfc87eeb2ebc",
+        "revCount": 104,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/haskell-sequelize"
       },

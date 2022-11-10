@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -18,7 +19,6 @@ import qualified EulerHS.Language as L
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
-import           Database.Beam.MySQL (MySQL)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
@@ -73,14 +73,14 @@ class MeshState a where
   getKVDirtyKey     :: a -> Maybe Text
   isDBMeshEnabled   :: a -> Bool
 
-class MeshMeta table where
+class MeshMeta be table where
   meshModelFieldModification :: table (FieldModification (TableField table))
   valueMapper :: Map.Map Text (A.Value -> A.Value)
-  parseFieldAndGetClause :: A.Value -> Text -> Parser (TermWrap MySQL table)
-  parseSetClause :: [(Text, A.Value)] -> Parser [Set MySQL table]
+  parseFieldAndGetClause :: A.Value -> Text -> Parser (TermWrap be table)
+  parseSetClause :: [(Text, A.Value)] -> Parser [Set be table]
 
 data TermWrap be (table :: (* -> *) -> *) where
-  TermWrap :: (B.BeamSqlBackendCanSerialize be a, A.ToJSON a, Ord a, B.HasSqlEqualityCheck be a, Show a) 
+  TermWrap :: (B.BeamSqlBackendCanSerialize be a, A.ToJSON a, Ord a, B.HasSqlEqualityCheck be a, Show a)
               => Column table a -> a -> TermWrap be table
 
 type MeshResult a = Either MeshError a
@@ -119,8 +119,6 @@ data MeshConfig = MeshConfig
 -- meshConfig = MeshConfig
 --   { meshEnabled = True
 --   , memcacheEnabled = False
---   , isTrackerTable = const True
---   , isConfigTable = const False
 --   , meshDBName = "ECRDB"
 --   , ecRedisDBStream = "db-sync-stream"
 --   , kvRedis = "KVRedis"

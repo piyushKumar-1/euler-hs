@@ -17,7 +17,7 @@ dependencies:
     revision: 1371202ebc3ec7e9ef3e16d1e99f805596022217
   haskell-sequelize:
     branch: EUL-5049/kv_where_support
-    revision: 70068106fde21fee3b50bab8d49a409dde247de2
+    revision: 3a93e4ee9981e4bac3403878de08dfc87eeb2ebc
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e
@@ -64,6 +64,15 @@ overrides:
     version: 0.18.3
     source: hackage
     sha256: 1x0f3kalzrwj2blgsmk269m37bb7sygw6lr7dbp0rk6jbrfrkjm1
+    enable-profiling: true
+
+  cereal:
+    # version: 0.5.8.4
+    owner: juspay
+    repo: cereal
+    commit: b28057181d99fd6263e2993285d542956672d3f7
+    sha256: 13sx69wy11vy5mpdvv70khaq7apkrrm1j4n4nsyjak14hffvn85h
+    source: github
     enable-profiling: true
 
   # disable tests

@@ -54,10 +54,10 @@ getUpdateQuery cmdVersion tag timestamp dbName updateCommand = A.object
     , "tag" .= ("Update" :: Text)
     ]
 
-getDbUpdateCommandJson :: forall be table. (Model be table, MeshMeta table) => Text -> [(Text, A.Value)] -> Where be table -> A.Value
+getDbUpdateCommandJson :: forall be table. (Model be table, MeshMeta be table) => Text -> [(Text, A.Value)] -> Where be table -> A.Value
 getDbUpdateCommandJson model upd whereClause = A.object
   [ "contents" .= A.toJSON
-      [ updValToJSON . (toPSJSON @table) <$> upd
+      [ updValToJSON . (toPSJSON @be @table) <$> upd
       , [whereClauseToJson whereClause]
       ]
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
@@ -66,7 +66,7 @@ getDbUpdateCommandJson model upd whereClause = A.object
 updValToJSON :: (Text, A.Value) -> A.Value
 updValToJSON (k, v) = A.object [ "value0" .= k, "value1" .= v ]
 
-whereClauseToJson :: (Model be table, MeshMeta table) => Where be table -> A.Value
+whereClauseToJson :: (Model be table, MeshMeta be table) => Where be table -> A.Value
 whereClauseToJson whereClause = A.object
     [ ("value0" :: Text) .= ("where" :: Text)
     , "value1" .= modelEncodeWhere whereClause
@@ -74,14 +74,14 @@ whereClauseToJson whereClause = A.object
 
 modelEncodeWhere ::
   forall be table.
-  (Model be table, MeshMeta table) =>
+  (Model be table, MeshMeta be table) =>
   Where be table ->
   A.Object
 modelEncodeWhere = encodeWhere meshModelTableEntityDescriptor
 
 encodeWhere ::
   forall be table.
-  (B.Beamable table, MeshMeta table) =>
+  (B.Beamable table, MeshMeta be table) =>
   B.DatabaseEntityDescriptor be (B.TableEntity table) ->
   Where be table ->
   A.Object
@@ -89,7 +89,7 @@ encodeWhere dt = encodeClause dt . And
 
 encodeClause ::
   forall be table.
-  (B.Beamable table, MeshMeta table) =>
+  (B.Beamable table, MeshMeta be table) =>
   B.DatabaseEntityDescriptor be (B.TableEntity table) ->
   Clause be table ->
   A.Object
@@ -114,7 +114,7 @@ encodeClause dt w =
          in HM.singleton key $ (encodeTerm @table) key term
    in foldWhere' w
 
-encodeTerm :: forall table be value. (A.ToJSON value, MeshMeta table) => Text -> Term be value -> A.Value
+encodeTerm :: forall table be value. (A.ToJSON value, MeshMeta be table) => Text -> Term be value -> A.Value
 encodeTerm key = \case
   In vals -> array "$in" (modifyToPsFormat <$> vals)
   Eq val -> modifyToPsFormat val
@@ -132,10 +132,10 @@ encodeTerm key = \case
   _ -> error "Error while encoding - Term not supported"
 
   where
-    modifyToPsFormat val = snd $ (toPSJSON @table) (key, A.toJSON val)
+    modifyToPsFormat val = snd $ (toPSJSON @be @table) (key, A.toJSON val)
 
-toPSJSON :: forall table. MeshMeta table => (Text, A.Value) -> (Text, A.Value)
-toPSJSON (k, v) = (k, Map.findWithDefault id k (valueMapper @table) v)
+toPSJSON :: forall be table. MeshMeta be table => (Text, A.Value) -> (Text, A.Value)
+toPSJSON (k, v) = (k, Map.findWithDefault id k (valueMapper @be @table) v)
 
 array :: Text -> [A.Value] -> A.Value
 array k vs = A.toJSON $ HM.singleton k vs
@@ -145,14 +145,14 @@ single k v = A.toJSON $ HM.singleton k v
 
 meshModelTableEntityDescriptor ::
   forall table be.
-  (Model be table, MeshMeta table) =>
+  (Model be table, MeshMeta be table) =>
   B.DatabaseEntityDescriptor be (B.TableEntity table)
 meshModelTableEntityDescriptor = let B.DatabaseEntity x = (meshModelTableEntity @table) in x
 
 meshModelTableEntity ::
   forall table be db.
-  (Model be table, MeshMeta table) =>
+  (Model be table, MeshMeta be table) =>
   B.DatabaseEntity be db (B.TableEntity table)
 meshModelTableEntity =
-  let B.EntityModification modification = B.modifyTableFields (meshModelFieldModification @table)
+  let B.EntityModification modification = B.modifyTableFields (meshModelFieldModification @be @table)
   in appEndo modification $ B.DatabaseEntity $ B.dbEntityAuto (modelTableName @table)

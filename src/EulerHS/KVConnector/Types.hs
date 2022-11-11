@@ -1,27 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-star-is-type #-}
 
 module EulerHS.KVConnector.Types where
 
-import Prelude
+import EulerHS.Prelude
 import qualified Data.Aeson as A
 import           Data.Aeson.Types (Parser)
-import           Data.List (sortBy)
-import           Data.Function (on)
-import           Data.Functor.Identity (Identity)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import qualified Database.Beam as B
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
-import           Database.Beam.MySQL (MySQL)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
@@ -55,8 +52,8 @@ getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table 
 getSecondaryLookupKeys table = do
   let tName = tableName @(table Identity)
   let skeys = secondaryKeys table
-  let tupList = Prelude.map (\(SKey s) -> s) skeys
-  let list = Prelude.map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
+  let tupList = map (\(SKey s) -> s) skeys
+  let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
   list
 
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
@@ -77,14 +74,14 @@ class MeshState a where
   getKVDirtyKey     :: a -> Maybe Text
   isDBMeshEnabled   :: a -> Bool
 
-class MeshMeta table where
+class MeshMeta be table where
   meshModelFieldModification :: table (FieldModification (TableField table))
   valueMapper :: Map.Map Text (A.Value -> A.Value)
-  parseFieldAndGetClause :: A.Value -> Text -> Parser (TermWrap MySQL table)
-  parseSetClause :: [(Text, A.Value)] -> Parser [Set MySQL table]
+  parseFieldAndGetClause :: A.Value -> Text -> Parser (TermWrap be table)
+  parseSetClause :: [(Text, A.Value)] -> Parser [Set be table]
 
 data TermWrap be (table :: (* -> *) -> *) where
-  TermWrap :: (B.BeamSqlBackendCanSerialize be a, A.ToJSON a, Ord a, B.HasSqlEqualityCheck be a, Show a) 
+  TermWrap :: (B.BeamSqlBackendCanSerialize be a, A.ToJSON a, Ord a, B.HasSqlEqualityCheck be a, Show a)
               => Column table a -> a -> TermWrap be table
 
 type MeshResult a = Either MeshError a
@@ -96,27 +93,33 @@ data MeshError
   | MDecodingError Text
   | MUpdateFailed Text
   | MMultipleKeysFound Text
-  deriving Show
+  | UnexpectedError Text
+  deriving (Show, Generic)
+
+instance ToJSON MeshError where
+  toJSON (MRedisError r) = A.object
+    [
+      "contents" A..= (show r :: Text),
+      "tag" A..= ("MRedisError" :: Text)
+    ]
+  toJSON a = A.toJSON a
 
 data QueryPath = KVPath | SQLPath
 
 data MeshConfig = MeshConfig
   { meshEnabled     :: Bool
   , memcacheEnabled :: Bool
-  , isTrackerTable  :: Text -> Bool
-  , isConfigTable   :: Text -> Bool
   , meshDBName      :: Text
   , ecRedisDBStream :: Text
   , kvRedis         :: Text
   , redisTtl        :: L.KVDBDuration
   }
+  deriving (Generic, Eq, Show, A.ToJSON)
 
 -- meshConfig :: MeshConfig
 -- meshConfig = MeshConfig
 --   { meshEnabled = True
 --   , memcacheEnabled = False
---   , isTrackerTable = const True
---   , isConfigTable = const False
 --   , meshDBName = "ECRDB"
 --   , ecRedisDBStream = "db-sync-stream"
 --   , kvRedis = "KVRedis"

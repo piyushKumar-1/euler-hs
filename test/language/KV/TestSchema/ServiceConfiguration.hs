@@ -5,9 +5,12 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS -fno-warn-unused-imports #-}
+{-# OPTIONS -fno-warn-missing-signatures #-} 
+{-# OPTIONS -fno-warn-type-defaults #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 
 module KV.TestSchema.ServiceConfiguration where
 
@@ -16,7 +19,7 @@ import qualified Database.Beam as B
 import           EulerHS.Prelude hiding (id)
 import           Sequelize (ModelMeta (modelFieldModification, modelTableName))
 import qualified EulerHS.Language as L
-import           EulerHS.CachedSqlDBQuery (findOne')
+-- import           EulerHS.CachedSqlDBQuery (findOne')
 import           Sequelize (ModelMeta (modelFieldModification, modelTableName, mkExprWithDefault), Clause(..), Term(..),Set (..))
 import           KV.FlowHelper
 import           KV.TestSchema.ThUtils
@@ -31,6 +34,9 @@ import           Data.Scientific (floatingOrInteger)
 import Data.Maybe (fromJust)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
+import KV.TestSchema.ThUtils (meshMetaInstancesD, kvConnectorInstancesD, enableKV)
+import Data.Cereal.TH
+import Data.Cereal.Instances ()
 
 data ServiceConfigurationT f = ServiceConfiguration
   { id      :: B.C f Int64
@@ -52,14 +58,20 @@ instance ModelMeta ServiceConfigurationT where
   modelFieldModification = serviceConfigurationTMod
   modelTableName = "service_configuration"
   mkExprWithDefault t = B.insertExpressions [(B.val_ t){ id = B.default_ }]
-
-serviceConfigurationTModMesh :: ServiceConfigurationT (B.FieldModification (B.TableField ServiceConfigurationT))
-serviceConfigurationTModMesh = B.tableModification
-     { id = B.fieldNamed "id"
+serviceConfigurationToMesh :: ServiceConfigurationT (B.FieldModification (B.TableField ServiceConfigurationT))
+serviceConfigurationToMesh = B.tableModification
+    { id = B.fieldNamed "id"
      , version = B.fieldNamed "version"
      , name = B.fieldNamed "name"
      , value = B.fieldNamed "value"
      }
+-- serviceConfigurationTModMesh :: ServiceConfigurationT (B.FieldModification (B.TableField ServiceConfigurationT))
+-- serviceConfigurationTModMesh = B.tableModification
+--      { id = B.fieldNamed "id"
+--      , version = B.fieldNamed "version"
+--      , name = B.fieldNamed "name"
+--      , value = B.fieldNamed "value"
+--      }
 
 type ServiceConfiguration = ServiceConfigurationT Identity
 type ServiceConfigurationId = B.PrimaryKey ServiceConfigurationT Identity
@@ -182,6 +194,9 @@ mkServiceConfig name' value' =
     , value = Just value'
     }
 
-$(meshMetaInstancesD ''ServiceConfigurationT)
-$(kvConnectorInstancesD ''ServiceConfiguration ['id] [['name]])
+-- $(meshMetaInstancesD ''ServiceConfigurationT)
+$(enableKV ''ServiceConfigurationT ['id] [['name]])
 
+
+$(makeCerealIdentity ''ServiceConfigurationT)
+-- $(makeCereal ''ServiceConfiguration)

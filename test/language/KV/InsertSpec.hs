@@ -6,7 +6,7 @@ import           EulerHS.Prelude hiding(id)
 
 import           KV.FlowHelper
 import           KV.TestSchema.ServiceConfiguration
-import qualified EulerHS.CachedSqlDBQuery as DB
+import qualified EulerHS.KVConnector.Flow as DB
 import           Test.Hspec
 import           Sequelize (Clause(..), Term(..))
 import           KV.TestSchema.Mesh
@@ -39,7 +39,7 @@ spec = flowSpec $ do
     itFlow "Should fetch a created entry using secondary key" $ do
         sc <- dummyServiceConfig
         withTableEntry sc $ (\serviceConfig dbConf -> do
-            eitherSC <- DB.findOne' dbConf meshConfig Nothing [Is name (Eq $ serviceConfig.name)]
+            eitherSC <- DB.findWithKVConnector dbConf meshConfig [Is name (Eq $ serviceConfig.name)]
             when (isLeft eitherSC) $ error $ show eitherSC
             asserting $ (join $ hush eitherSC) `shouldBe` (Just serviceConfig)
           )
@@ -55,7 +55,7 @@ spec = flowSpec $ do
     itFlow "Should fetch a created entry using primary key" $ do
         sc <- dummyServiceConfig
         withTableEntry sc $ (\serviceConfig dbConf -> do
-            eitherSC <- DB.findOne' dbConf meshConfig Nothing [Is id (Eq $ serviceConfig.id)]
+            eitherSC <- DB.findWithKVConnector dbConf meshConfig [Is id (Eq $ serviceConfig.id)]
             when (isLeft eitherSC) $ error $ show eitherSC
             asserting $ (join $ hush eitherSC) `shouldBe` (Just serviceConfig)
           )
@@ -63,6 +63,6 @@ spec = flowSpec $ do
         sc <- dummyServiceConfig
         -- Assuming name column of service config table has a unique key constraint
         withTableEntry sc $ (\serviceConfig dbConf -> do
-            eitherEntry <- DB.createReturning dbConf meshConfig serviceConfig Nothing
+            eitherEntry <- DB.createWithKVConnector dbConf meshConfig serviceConfig
             asserting $ (isLeft eitherEntry) `shouldBe` True
           )

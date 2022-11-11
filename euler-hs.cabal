@@ -66,6 +66,7 @@ library
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
+    EulerHS.KVConnector.Flow
     EulerHS.KVConnector.Types
 
   other-modules:
@@ -94,8 +95,9 @@ library
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
-    EulerHS.KVConnector.Flow
     EulerHS.KVConnector.DBSync
+    EulerHS.KVConnector.Encoding 
+    EulerHS.KVConnector.Utils
 
   build-depends:
     , QuickCheck
@@ -143,7 +145,7 @@ library
     , reflection
     , resource-pool
     , scientific
-    , sequelize             ^>=1.1.1.0
+    , sequelize             
     , servant
     , servant-client        ^>=0.18.3
     , servant-client-core   ^>=0.18.3
@@ -249,6 +251,7 @@ test-suite language
     , casing
     , scientific
     , hspec-core
+    , cereal
 
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language

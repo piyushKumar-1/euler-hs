@@ -8,12 +8,13 @@ import qualified Data.Text as Text
 import           Text.Casing (quietSnake)
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
-import qualified EulerHS.CachedSqlDBQuery as DB
+import qualified EulerHS.KVConnector.Flow as DB
 import           Database.Beam.MySQL (MySQLM)
 import qualified EulerHS.Types as T
 import           KV.TestSchema.Mesh
 import qualified Database.Beam.MySQL as BM
 import           Sequelize (Model)
+import qualified Data.Serialize as Serialize
 
 getValueFromPrimaryKey :: (HasCallStack,FromJSON a) => Text -> L.Flow (Maybe a)
 getValueFromPrimaryKey pKey = do
@@ -72,11 +73,12 @@ withTableEntry ::
     , FromJSON (table Identity)
     , ToJSON (table Identity)
     , KVConnector (table Identity)
-    , Show (table Identity)) 
+    , Show (table Identity)
+    , Serialize.Serialize (table Identity)) 
     => table Identity -> ((table Identity) -> T.DBConfig MySQLM -> L.Flow a) -> L.Flow a
 withTableEntry tableEntry act = do
   dbConf <- getEulerDbConf
   fmap fst $ generalBracket
-    (DB.createReturning dbConf meshConfig tableEntry Nothing)
+    (DB.createWithKVConnector dbConf meshConfig tableEntry)
     (\_ _ -> deleteTableEntryValueFromKV tableEntry)
     (\eitherSC -> either (\err -> error $ show err) (\entry -> act entry dbConf) eitherSC)

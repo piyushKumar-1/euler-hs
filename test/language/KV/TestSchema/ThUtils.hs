@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS -fno-warn-name-shadowing #-}
 module KV.TestSchema.ThUtils where
-
 import           EulerHS.Prelude hiding (Type, words)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshMeta(..), PrimaryKey(..), SecondaryKey(..), TermWrap(..), MeshMeta)
 import qualified Data.Aeson as A
@@ -9,10 +8,36 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
 import           Data.List ((!!))
 import qualified Data.Text as T
+import qualified Database.Beam as B
+import           Database.Beam.MySQL (MySQL)
 import           Language.Haskell.TH
 import qualified Sequelize as S
 import           Text.Casing (camel)
 import           Prelude (head)
+
+enableKV :: Name -> [Name] -> [[Name]] -> Q [Dec]
+enableKV name pKeyN sKeysN = do
+    [tModeMeshDec] <- tableTModMeshD name
+    [kvConnectorDec] <- kvConnectorInstancesD name pKeyN sKeysN
+    [meshMetaDec] <- meshMetaInstancesD name
+    pure $ [tModeMeshDec, meshMetaDec, kvConnectorDec]
+
+
+tableTModMeshD :: Name -> Q [Dec]
+tableTModMeshD name = do
+    let tableTModMeshN = mkName $ camel (nameBase name) <> "ModMesh"
+        psToHs = mkName "psToHs"
+        applyFieldModifier field = AppE (AppE (AppE (VarE 'HM.findWithDefault) (LitE $ StringL field)) (LitE $ StringL field)) (VarE psToHs)
+    names <- extractRecFields . head . extractConstructors <$> reify name
+    let recExps = (\name' -> (name', AppE (VarE 'B.fieldNamed) (applyFieldModifier $ nameBase name'))) <$> names
+    return [FunD tableTModMeshN [Clause [] (NormalB (RecUpdE (VarE 'B.tableModification) recExps)) []]]
+
+------------------------------------------------------------------
+-- class KVConnector table where
+--   tableName :: Text
+--   keyMap :: HM.HashMap Text Bool -- True implies it is primary key and False implies secondary
+--   primaryKey :: table -> PrimaryKey
+--   secondaryKeys:: table -> [SecondaryKey]
 
 kvConnectorInstancesD :: Name -> [Name] -> [[Name]] -> Q [Dec]
 kvConnectorInstancesD name pKeyN sKeysN = do
@@ -29,7 +54,7 @@ kvConnectorInstancesD name pKeyN sKeysN = do
         primaryKeyD = FunD primaryKey [Clause [] (NormalB getPrimaryKeyE) []]
         secondaryKeysD = FunD secondaryKeys [Clause [] (NormalB getSecondaryKeysE) []]
 
-    return [InstanceD Nothing [] (AppT (ConT ''KVConnector) (ConT name)) [tableNameD, keyMapD, primaryKeyD, secondaryKeysD]]
+    return [InstanceD Nothing [] (AppT (ConT ''KVConnector) (AppT (ConT name) (ConT $ mkName "Identity"))) [tableNameD, keyMapD, primaryKeyD, secondaryKeysD]]
 
     where
         getPrimaryKeyE =
@@ -69,7 +94,7 @@ meshMetaInstancesD name = do
     let parseFieldAndGetClauseD = getParseFieldAndGetClauseD name names
         parseSetClauseD = getParseSetClauseD name names
 
-    return [InstanceD Nothing [] (AppT (ConT ''MeshMeta) (ConT name)) [meshModelFieldModificationD, valueMapperD, parseFieldAndGetClauseD, parseSetClauseD]]
+    return [InstanceD Nothing [] (AppT (AppT (ConT ''MeshMeta) (ConT ''MySQL)) (ConT name)) [meshModelFieldModificationD, valueMapperD, parseFieldAndGetClauseD, parseSetClauseD]]
 
 --------------- parseFieldAndGetClause instance -------------------
 getParseFieldAndGetClauseD :: Name -> [Name] -> Dec

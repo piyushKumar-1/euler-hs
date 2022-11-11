@@ -15,8 +15,8 @@ meshConfig :: MeshConfig
 meshConfig = MeshConfig
   { meshEnabled = dbMeshEnabledEnvVar
   , memcacheEnabled = memCacheEnabledEnvVar
-  , isTrackerTable = (`Set.member` dbMeshTrackerTables)
-  , isConfigTable = (`Set.member` dbMeshConfigTables)
+  -- , isTrackerTable = (`Set.member` dbMeshTrackerTables)
+  -- , isConfigTable = (`Set.member` dbMeshConfigTables)
   , meshDBName = "ECRDB"
   , ecRedisDBStream = "db-sync-stream"
   , kvRedis = "KVRedis"

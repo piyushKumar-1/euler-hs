@@ -31,7 +31,7 @@ dbMeshConfigTables :: Set.Set Text
 dbMeshConfigTables = Set.fromList ["service_configuration" , "merchant_account", "merchant_iframe_preferences","merchant_gateway_account", "feature","reseller_account", "merchant_key", "ingress_rule"]
 
 dbMeshEnabledEnvVar :: Bool
-dbMeshEnabledEnvVar = fromMaybe False $ readMaybe =<< lookupEnv "DB_MESH_ENABLED"
+dbMeshEnabledEnvVar = fromMaybe True $ readMaybe =<< lookupEnv "DB_MESH_ENABLED"
 
 memCacheEnabledEnvVar :: Bool
 memCacheEnabledEnvVar = fromMaybe False $ readMaybe =<< lookupEnv "MEM_CACHE_ENABLED"

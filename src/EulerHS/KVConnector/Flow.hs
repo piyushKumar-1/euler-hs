@@ -80,7 +80,7 @@ createWithKVConnector dbConf meshCfg value = do
           case foldEither revMappingRes of
             Left err -> pure $ Left $ MRedisError err
             Right _ -> do
-              kvRes <- L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+              kvRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
                 _ <- L.xaddTx
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
                       L.AutoID
@@ -171,40 +171,66 @@ updateObjectRedis :: forall beM be table m.
   ) =>
   MeshConfig -> [(Text, A.Value)] -> Where be table -> table Identity -> m (MeshResult (table Identity))
 updateObjectRedis meshCfg updVals whereClause obj = do
-  if isAnySkeyModified
-    then pure $ Left (MUpdateFailed "Update failed - A part of skey is present in set clause")
-    else do
-    case ((updateModel @be @table) obj updVals) of
-      Left err -> return $ Left err
-      Right updatedModel -> do
-        time <- fromIntegral <$> L.getCurrentDateInMillis
-        let pKeyText = getLookupKeyByPKey obj
-            shard = getShardedHashTag pKeyText
-            pKey = fromString . T.unpack $ pKeyText <> shard
-        let updateCmd = getDbUpdateCommandJson (modelTableName @table) updVals whereClause
-            qCmd = getUpdateQuery V1 (pKeyText <> shard) time meshCfg.meshDBName updateCmd
-        case resultToEither $ A.fromJSON updatedModel of
-          Right value -> do
-            kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
-              _ <- L.xaddTx 
-                    (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
-                    L.AutoID
-                    [("command", BSL.toStrict $ Encoding.encode qCmd)]
-              L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode updatedModel)
-            L.logDebug @Text "RedisUpdAnswer" . T.pack . show $ kvdbRes
-            case kvdbRes of
-              Right _ -> pure $ Right value
-              Left err -> pure $ Left $ MRedisError err
-          Left err -> pure $ Left $ MDecodingError err
+  case (updateModel @be @table) obj updVals of
+    Left err -> return $ Left err
+    Right updatedModel -> do
+      time <- fromIntegral <$> L.getCurrentDateInMillis
+      let pKeyText = getLookupKeyByPKey obj
+          shard = getShardedHashTag pKeyText
+          pKey = fromString . T.unpack $ pKeyText <> shard
+      let updateCmd = getDbUpdateCommandJson (modelTableName @table) updVals whereClause
+          qCmd = getUpdateQuery V1 (pKeyText <> shard) time meshCfg.meshDBName updateCmd
+      case resultToEither $ A.fromJSON updatedModel of
+        Right value -> do
+          let olderSkeys = map (\(SKey s) -> s) (secondaryKeys obj)
+          skeysUpdationRes <- modifySKeysRedis olderSkeys value
+          case skeysUpdationRes of
+            Right _ -> do
+              kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
+                _ <- L.xaddTx 
+                      (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
+                      L.AutoID
+                      [("command", BSL.toStrict $ Encoding.encode qCmd)]
+                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode updatedModel)
+              L.logDebug @Text "RedisUpdAnswer" . T.pack . show $ kvdbRes
+              case kvdbRes of
+                Right _ -> pure $ Right value
+                Left err -> pure $ Left $ MRedisError err
+            Left err -> pure $ Left err
+        Left err -> pure $ Left $ MDecodingError err
 
   where
-    isAnySkeyModified :: Bool -- TODO: Optimise this
-    isAnySkeyModified = do
-      let olderSkeys = map (\(SKey s) -> s) (secondaryKeys obj)
+    modifySKeysRedis :: [[(Text, Text)]] -> table Identity -> m (MeshResult (table Identity)) -- TODO: Optimise this logic
+    modifySKeysRedis olderSkeys table = do
+      let pKeyText = getLookupKeyByPKey table
+          pKey = fromString . T.unpack $ pKeyText
+      let tName = tableName @(table Identity)
           updValsMap = HM.fromList (map (\p -> (fst p, True)) updVals)
-          (modifiedSkeysValues, _) = applyFPair (map getSortedKeyAndValue) $
+          (modifiedSkeysValues, unModifiedSkeysValues) = applyFPair (map getSortedKeyAndValue) $
                                                 span (`isKeyModified` updValsMap) olderSkeys
-      not (null modifiedSkeysValues)
+          newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeys table)
+      let unModifiedSkeys = map (\x -> tName <> "_" <> fst x <> "_" <> snd x) unModifiedSkeysValues
+      let modifiedSkeysValuesMap = HM.fromList modifiedSkeysValues
+      mapM_ ((\key -> L.runKVDB meshCfg.kvRedis $ L.expire key meshCfg.redisTtl) . (fromString . T.unpack)) unModifiedSkeys
+      mapM_ (addNewSkey pKey tName) (foldSkeysFunc modifiedSkeysValuesMap newSkeysValues)
+      pure $ Right table
+
+    foldSkeysFunc :: HashMap Text Text -> [(Text, Text)] -> [(Text, Text, Text)]
+    foldSkeysFunc _ [] = []
+    foldSkeysFunc hm (x : xs) = do
+      case HM.lookup (fst x) hm of
+        Just val -> (fst x, snd x, show val) : foldSkeysFunc hm xs
+        Nothing -> foldSkeysFunc hm xs
+        
+
+    addNewSkey :: ByteString -> Text -> (Text, Text, Text) -> m (MeshResult ())
+    addNewSkey pKey tName (k, v1, v2) = do
+      let newSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v1
+          oldSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v2
+      _ <- L.runKVDB meshCfg.kvRedis $ L.srem oldSKey [pKey]
+      _ <- L.runKVDB meshCfg.kvRedis $ L.sadd newSKey [pKey]
+      _ <- L.runKVDB meshCfg.kvRedis $ L.expire newSKey meshCfg.redisTtl
+      pure $ Right ()
 
     getSortedKeyAndValue :: [(Text,Text)] -> (Text, Text)
     getSortedKeyAndValue kvTup = do

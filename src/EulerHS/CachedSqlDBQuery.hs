@@ -230,9 +230,9 @@ updateAllSql ::
   DBConfig beM ->
   [Set be table] ->
   Where be table ->
-  m (DBResult [table Identity])
+  m (DBResult ())
 updateAllSql dbConf newVals whereClause = do
-  let updateQuery = DB.updateRowsReturningList $ sqlUpdate
+  let updateQuery = DB.updateRows $ sqlUpdate
         ! #set newVals
         ! #where_ whereClause
   runQuery dbConf updateQuery

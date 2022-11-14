@@ -113,6 +113,9 @@ interpretKeyValueF runRedis (L.XReadGroup groupName consumerName streamsAndIds o
     parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
     parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
 
+interpretKeyValueF runRedis (L.XDel stream ids next) =
+  fmap next $ runRedis $ R.xdel stream ids
+
 interpretKeyValueF runRedis (L.XRevRange stream send sstart count next) =
   fmap next $
     runRedis $ do
@@ -172,6 +175,9 @@ interpretKeyValueTxF (L.HGet k field next) =
 
 interpretKeyValueTxF (L.XLen stream next) =
   next <$> R.xlen stream
+
+interpretKeyValueTxF (L.XDel stream ids next) =
+  next <$> R.xdel stream ids
 
 interpretKeyValueTxF (L.XAdd stream entryId items next) =
   next . fmap parseStreamEntryId <$> R.xadd stream (makeStreamEntryId entryId) items

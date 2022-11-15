@@ -442,12 +442,14 @@ createSqlMySQL dbConf value = do
     Left e -> return $ Left e
 
 createSqlWoReturing ::
-  forall m  table.
   ( HasCallStack,
-    Model BM.MySQL table,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
     L.MonadFlow m
   ) =>
-  DBConfig BM.MySQLM ->
+  DBConfig beM ->
   table Identity ->
   m (Either DBError ())
 createSqlWoReturing dbConf value = runQuery dbConf $ DB.insertRows $ sqlCreate value

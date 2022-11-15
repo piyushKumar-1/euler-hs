@@ -20,6 +20,7 @@ import           GHC.Generics ()
 import qualified EulerHS.Logger.Types as Log (LogMaskingConfig (..))
 import           EulerHS.Masking (defaultMaskText, getContentTypeForServant,
                                   maskServantHeaders,
+                                  maskQueryStrings,
                                   parseRequestResponseBody, shouldMaskKey)
 import           EulerHS.Prelude
 import qualified Servant.Client as SC
@@ -62,22 +63,28 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
   , res_body :: A.Value
   , res_headers :: A.Value
   , latency :: Integer
+  , req_query_params :: A.Value
   }
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
 
 mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
 mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
-  { url = baseUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
-  , method = method'
-  , req_headers = req_headers'
-  , req_body = req_body'
-  , res_code = res_code'
-  , res_body = res_body'
-  , res_headers = res_headers'
-  , latency = lat
-  }
+    { url = baseUrl <> (LBS.toString $ toLazyByteString (SCC.requestPath req))
+    , method = method'
+    , req_headers = req_headers'
+    , req_body = req_body'
+    , res_code = res_code'
+    , res_body = res_body'
+    , res_headers = res_headers'
+    , latency = lat
+    , req_query_params = queryParams
+    }
   where
+    queryParams = queryToJson
+      $ fmap (bimap TE.decodeUtf8 (TE.decodeUtf8 <$>))
+      $ maskQueryStrings (shouldMaskKey mbMaskConfig) getMaskText
+      $ SCC.requestQueryString req
     method' = TE.decodeUtf8 $ SCC.requestMethod req
     req_headers' = headersToJson
       $ fmap (bimap (TE.decodeUtf8 . CI.original) TE.decodeUtf8)
@@ -100,6 +107,10 @@ mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry
       $ SCC.responseHeaders res
     getMaskText :: Text
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
+    queryToJson :: Seq (Text, Maybe Text) -> A.Value
+    queryToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
+
     headersToJson :: Seq (Text, Text) -> A.Value
     headersToJson = A.toJSON . foldl' (\m (k,v) -> HM.insert k v m) HM.empty
 

@@ -18,7 +18,7 @@ module EulerHS.KVDB.Language
   -- **** For hash values
   , hset, hget
   -- **** For streams
-  , xadd, xlen, xread, xrevrange, xreadGroup, xdel
+  , xadd, xlen, xread, xrevrange, xreadGroup, xdel, xgroupCreate
   -- **** For both
   , exists, del, expire
   -- *** Transactional
@@ -106,6 +106,7 @@ data KeyValueF f next where
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
   XReadGroup :: KVDBGroupName -> KVDBConsumerName -> [(KVDBStream, RecordID)] -> R.XReadOpts -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
+  XGroupCreate :: KVDBStream -> KVDBGroupName -> RecordID -> (f R.Status -> next) -> KeyValueF f next
   XDel    :: KVDBStream -> [RecordID] -> (f Integer -> next) -> KeyValueF f next
   XRevRange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> (f [KVDBStreamReadResponseRecord] -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
@@ -127,6 +128,7 @@ instance Functor (KeyValueF f) where
   fmap f (XAdd s entryId items next)     = XAdd s entryId items (f . next)
   fmap f (XRead s entryId next)          = XRead s entryId (f . next)
   fmap f (XReadGroup gName cName s opts next) = XReadGroup gName cName s opts (f . next)
+  fmap f (XGroupCreate s gName startId next)  = XGroupCreate s gName startId (f . next)
   fmap f (XDel s ids next)               = XDel s ids (f . next)
   fmap f (XRevRange strm send sstart count next) = XRevRange strm send sstart count (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
@@ -248,6 +250,9 @@ xread stream entryId = ExceptT $ liftFC $ KV $ XRead stream entryId id
 
 xreadGroup :: KVDBGroupName -> KVDBConsumerName -> [(KVDBStream, RecordID)] -> Maybe Integer -> Maybe Integer -> Bool -> KVDB (Maybe [KVDBStreamReadResponse])
 xreadGroup groupName consumerName streamsAndIds mBlock mCount noack = ExceptT $ liftFC $ KV $ XReadGroup groupName consumerName streamsAndIds (R.XReadOpts mBlock mCount noack) id
+
+xgroupCreate :: KVDBStream -> KVDBGroupName -> RecordID -> KVDB R.Status
+xgroupCreate stream groupName startId = ExceptT $ liftFC $ KV $ XGroupCreate stream groupName startId id
 
 xdel :: KVDBStream -> [RecordID] -> KVDB Integer
 xdel stream ids = ExceptT $ liftFC $ KV $ XDel stream ids id

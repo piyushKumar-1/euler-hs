@@ -67,8 +67,8 @@ runLogger mbFlowGuid loggerRt = foldF (interpretLogger mbFlowGuid loggerRt)
 
 compareLevel :: T.LogLevel -> T.LogLevel -> Bool
 compareLevel loglevel loglevelset =
-  case loglevelset of
-    Debug ->  loglevel `elem` [Debug ,Info , Warning ,Error]
-    Info ->  loglevel `elem` [Info, Warning, Error]
-    Warning ->  loglevel `elem` [Warning , Error]
-    Error ->  loglevel `elem` [Error]
+  case loglevel of
+    Debug ->  loglevelset `elem` [Debug ,Info , Warning ,Error]
+    Info ->  loglevelset `elem` [Info, Warning, Error]
+    Warning ->  loglevelset `elem` [Warning , Error]
+    Error ->  loglevelset `elem` [Error]

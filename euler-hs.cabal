@@ -114,6 +114,7 @@ library
     , cereal
     , connection
     , containers
+    , ctrie
     , data-default
     , dlist
     , exceptions

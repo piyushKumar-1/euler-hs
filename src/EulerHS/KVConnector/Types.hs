@@ -6,6 +6,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-star-is-type #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module EulerHS.KVConnector.Types where
 
@@ -15,8 +16,10 @@ import           Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import           Data.Time (UTCTime)
 import qualified EulerHS.Language as L
 import qualified Database.Beam as B
+import           Database.Beam.Backend (BeamSqlBackend, HasSqlValueSyntax (sqlValueSyntax), autoSqlValueSyntax)
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Sequelize (Column, Set)
@@ -124,3 +127,23 @@ data MeshConfig = MeshConfig
 --   , kvRedis = "KVRedis"
 --   , redisTtl = 43200
 --   }
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be UTCTime where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance BeamSqlBackend be => B.HasSqlEqualityCheck be UTCTime
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be A.Value where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance BeamSqlBackend be => B.HasSqlEqualityCheck be A.Value
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be (Vector Int) where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance HasSqlValueSyntax be String => HasSqlValueSyntax be (Vector Text) where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance BeamSqlBackend be => B.HasSqlEqualityCheck be (Vector Int)
+
+instance BeamSqlBackend be => B.HasSqlEqualityCheck be (Vector Text)

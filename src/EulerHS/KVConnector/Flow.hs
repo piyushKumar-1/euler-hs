@@ -1,4 +1,3 @@
-
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -31,7 +30,7 @@ import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
-import           Sequelize (fromColumnar', columnize, sqlSelect, sqlUpdate, Model, Where, Clause(..), Term(..), Set(..), OrderBy(..))
+import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Term(..), Set(..), OrderBy(..))
 import           EulerHS.CachedSqlDBQuery (createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning)
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
@@ -285,7 +284,7 @@ updateObjectRedis meshCfg updVals whereClause obj = do
           case skeysUpdationRes of
             Right _ -> do
               kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
-                _ <- L.xaddTx 
+                _ <- L.xaddTx
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
                       L.AutoID
                       [("command", BSL.toStrict $ Encoding.encode qCmd)]
@@ -319,7 +318,7 @@ updateObjectRedis meshCfg updVals whereClause obj = do
       case HM.lookup (fst x) hm of
         Just val -> (fst x, snd x, show val) : foldSkeysFunc hm xs
         Nothing -> foldSkeysFunc hm xs
-        
+
 
     addNewSkey :: ByteString -> Text -> (Text, Text, Text) -> m (MeshResult ())
     addNewSkey pKey tName (k, v1, v2) = do
@@ -518,6 +517,8 @@ findOneFromDB dbConf whereClause = do
   let findQuery = DB.findRow (sqlSelect ! #where_ whereClause ! defaults)
   mapLeft MDBError <$> runQuery dbConf findQuery
 
+
+-- Need to recheck offset implementation
 findAllWithOptionsKVConnector :: forall be table beM m.
   ( HasCallStack,
     BeamRuntime be beM,
@@ -525,22 +526,17 @@ findAllWithOptionsKVConnector :: forall be table beM m.
     MeshMeta be table,
     KVConnector (table Identity),
     Serialize.Serialize (table Identity),
+    Show (table Identity),
     FromJSON (table Identity),
     L.MonadFlow m, B.HasQBuilder be, BeamRunner beM) =>
   DBConfig beM ->
   MeshConfig ->
   Where be table ->
   OrderBy table ->
-  Int ->
-  Int ->
+  Maybe Int ->
+  Maybe Int ->
   m (MeshResult [table Identity])
-findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy limit offset = do
-  let findAllQuery = DB.findRows (sqlSelect
-        ! #where_ whereClause
-        ! #orderBy [orderBy]
-        ! #limit limit
-        ! #offset offset
-        ! defaults)
+findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffset = do
   if meshCfg.meshEnabled
     then do
       L.logDebug @Text "findAllWithOptionsKVConnector" "Taking KV Path"
@@ -548,34 +544,45 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy limit offset = 
       case kvRes of
         Right kvRows -> do
           let matchedKVRows = findAllMatching whereClause kvRows
+              offset = fromMaybe 0 mbOffset
               shift = length matchedKVRows
               updatedOffset = if offset - shift >= 0 then offset - shift else 0
-              findAllQueryUpdated = DB.findRows (sqlSelect
+              findAllQueryUpdated = DB.findRows (sqlSelect'
                 ! #where_ whereClause
-                ! #orderBy [orderBy]
-                ! #limit (limit + shift)
-                ! #offset updatedOffset
+                ! #orderBy (Just [orderBy])
+                ! #limit ((shift +) <$> mbLimit)
+                ! #offset (Just updatedOffset) -- Offset is 0 in case mbOffset Nothing
                 ! defaults)
           dbRes <- runQuery dbConf findAllQueryUpdated
-          pure $ case dbRes of
-            Left err -> Left $ MDBError err
-            Right [] -> Right $ applyOptions offset (findAllMatching whereClause kvRows)
+          case dbRes of
+            Left err -> pure $ Left $ MDBError err
+            Right [] -> pure $ Right $ applyOptions offset matchedKVRows
             Right dbRows -> do
-              let noOfRowsFelledLeftSide = calculateLeftFelledRedisEntries kvRows dbRows
-                  mergedRows = (mergeKVAndDBResults dbRows . findAllMatching whereClause) kvRows
-              Right $ applyOptions (noOfRowsFelledLeftSide + if updatedOffset == 0 then offset else shift) mergedRows
+              let mergedRows = mergeKVAndDBResults dbRows matchedKVRows
+              if isJust mbOffset
+                then do
+                  let noOfRowsFelledLeftSide = calculateLeftFelledRedisEntries kvRows dbRows
+                  pure $ Right $ applyOptions ((if updatedOffset == 0 then offset else shift) - noOfRowsFelledLeftSide) mergedRows
+                else pure $ Right $ applyOptions 0 mergedRows
         Left err -> pure $ Left err
     else do
+      let findAllQuery = DB.findRows (sqlSelect'
+            ! #where_ whereClause
+            ! #orderBy (Just [orderBy])
+            ! #limit mbLimit
+            ! #offset mbOffset
+            ! defaults)
       L.logDebug @Text "findAllWithOptionsKVConnector" "Taking SQLDB Path"
       mapLeft MDBError <$> runQuery dbConf findAllQuery
 
     where
       applyOptions :: Int -> [table Identity] -> [table Identity]
-      applyOptions shift = do
+      applyOptions shift rows = do
         let cmp = case orderBy of
               (Asc col) -> compareCols (fromColumnar' . col . columnize) True
               (Desc col) -> compareCols (fromColumnar' . col . columnize) False
-        take limit . drop shift . sortBy cmp
+        let resWithoutLimit = (drop shift . sortBy cmp) rows
+        maybe resWithoutLimit (`take` resWithoutLimit) mbLimit
 
       compareCols :: (Ord value) => (table Identity -> value) -> Bool -> table Identity -> table Identity -> Ordering
       compareCols col isAsc r1 r2 = if isAsc then compare (col r1) (col r2) else compare (col r2) (col r1)

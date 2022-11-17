@@ -86,12 +86,15 @@ getAutoIncId meshCfg tName = do
 unsafeJSONSet :: forall a b. (ToJSON a, FromJSON b, ToJSON b) => Text -> a -> b -> b
 unsafeJSONSet field value obj =
   case A.toJSON obj of
-    A.Object o ->
-      let jsonVal = A.toJSON value
-          newObj =  A.Object (HM.insert field jsonVal o)
-      in case resultToEither $ A.fromJSON newObj of
-        Right r -> r
-        Left e  -> error e
+    A.Object o -> do
+      if HM.member field o
+        then obj
+        else do
+          let jsonVal = A.toJSON value
+              newObj = A.Object (HM.insert field jsonVal o)
+          case resultToEither $ A.fromJSON newObj of
+            Right r -> r
+            Left e  -> error e
     _ -> error "Can't set  value of JSON which isn't a object."
 
 foldEither :: [Either a b] -> Either a [b]

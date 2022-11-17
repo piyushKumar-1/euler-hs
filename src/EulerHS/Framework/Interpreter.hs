@@ -200,12 +200,9 @@ modify302RedirectionResponse resp = do
     (_  , _           )   -> resp
   
   where 
-    modifyRedirectingUrl val = do
-      let val' = Text.splitOn "Redirecting to " val
-      case val' of
-        [x]      -> Just x
-        (_ : xs) -> Just $ (Text.intercalate "Redirecting to " xs)
-        _        -> Nothing
+    status = getResponseStatus resp
+    modifyRedirectingUrl = Text.stripPrefix (status <> ". Redirecting to ")
+
 
 translateResponseHeaders
   :: [(CI.CI Strict.ByteString, Strict.ByteString)]

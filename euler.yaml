@@ -70,8 +70,8 @@ overrides:
     # version: 0.5.8.4
     owner: juspay
     repo: cereal
-    commit: b28057181d99fd6263e2993285d542956672d3f7
-    sha256: 13sx69wy11vy5mpdvv70khaq7apkrrm1j4n4nsyjak14hffvn85h
+    commit: 213f145ccbd99e630ee832d2f5b22894c810d3cc
+    sha256: 1w925sg7wsycq40ay124mbwnp9hhbn0gkl39d210vq6qki632k0n
     source: github
     enable-profiling: true
 

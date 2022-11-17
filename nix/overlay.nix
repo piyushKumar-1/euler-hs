@@ -18,12 +18,12 @@ let
   hedis-path = hedis-repo;
 
   cereal-repo = builtins.fetchTarball {
-    url = "https://github.com/juspay/cereal/archive/b28057181d99fd6263e2993285d542956672d3f7.tar.gz";
-    sha256 = "13sx69wy11vy5mpdvv70khaq7apkrrm1j4n4nsyjak14hffvn85h";
+    url = "https://github.com/juspay/cereal/archive/213f145ccbd99e630ee832d2f5b22894c810d3cc.tar.gz";
+    sha256 = "1w925sg7wsycq40ay124mbwnp9hhbn0gkl39d210vq6qki632k0n";
   };
   cereal-path = cereal-repo;
 
-in 
+in
 super.eulerBuild.mkEulerHaskellOverlay self super
   (hself: hsuper: {
     hedis = self.eulerBuild.fastBuildExternal {

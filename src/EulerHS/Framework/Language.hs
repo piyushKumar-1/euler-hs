@@ -737,6 +737,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+  forkFlowM
+    :: HasCallStack
+    => Flow a -> m ()
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do
@@ -812,6 +816,9 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM flow = do
+    forkFlow "test" flow
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -876,6 +883,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -940,6 +949,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1004,6 +1015,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1068,6 +1081,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1132,6 +1147,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 
 --
@@ -1329,7 +1346,7 @@ withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
+forkFlow :: HasCallStack => Description -> Flow a -> Flow ()
 forkFlow description flow = do
   flowGUID <- generateGUID
   void $ forkFlow'' description flowGUID $ do

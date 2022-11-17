@@ -19,10 +19,6 @@ module EulerHS.CachedSqlDBQuery
   , findAllExtended
   , deleteExtended
   , deleteWithReturningPG
-  , createWithKVConnector
-  , findWithKVConnector
-  , updateWithKVConnector
-  , findAllWithKVConnector
   , SqlReturning(..)
   )
 where
@@ -35,7 +31,6 @@ import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
-import           Data.Either.Extra (mapLeft)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.SqlDB.Language as DB

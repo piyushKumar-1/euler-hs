@@ -9,6 +9,7 @@ module EulerHS.Extra.EulerDB (
   EulerPsqlDbAdditionalCfg(..),
   getEulerDbConf,
   getEulerDbConfR1,
+  getEulerPsqlDbConf,
   withEulerDB,
   withEulerDBR1,
   withEulerPsqlDB,
@@ -56,6 +57,19 @@ getEulerDbConf = getEulerDbByConfig EulerDbCfg
 
 getEulerDbConfR1 :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
 getEulerDbConfR1 = getEulerDbByConfig EulerDbCfgR1
+
+getEulerPsqlDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
+getEulerPsqlDbConf = getEulerPsqlDbByConfig EulerPsqlDbCfg
+
+getEulerPsqlDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig BP.Pg))
+  => k -> e -> m (DBConfig BP.Pg)
+getEulerPsqlDbByConfig dbConf internalError = do
+  dbcfg <- getOption dbConf
+  case dbcfg of
+    Just cfg -> pure cfg
+    Nothing -> do
+      logErrorT "MissingPsqlDB identifier" "Can't find EulerPsqlDB identifier in options"
+      throwException internalError
 
 getEulerDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM))
   => k -> e -> m (DBConfig MySQLM)

@@ -438,7 +438,7 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     , getRequestMethod = request.getRequestMethod
-    , getRequestURL = request.getRequestURL
+    , getRequestURL = maskRequestURL
     , getRequestTimeout = request.getRequestTimeout
     , getRequestRedirects = request.getRequestRedirects
     }
@@ -448,6 +448,8 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
     requestBody = request.getRequestBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+    
+    maskRequestURL = Text.takeWhile (== ('?')) request.getRequestURL
 
     maskedRequestBody =
           parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)

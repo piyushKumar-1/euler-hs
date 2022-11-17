@@ -19,6 +19,7 @@ import qualified Data.Text as T
 import           Data.Time (UTCTime)
 import qualified EulerHS.Language as L
 import qualified Database.Beam as B
+import           Database.Beam.MySQL (MySQL)
 import           Database.Beam.Backend (BeamSqlBackend, HasSqlValueSyntax (sqlValueSyntax), autoSqlValueSyntax)
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
@@ -128,22 +129,22 @@ data MeshConfig = MeshConfig
 --   , redisTtl = 43200
 --   }
 
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be UTCTime where
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL UTCTime where
   sqlValueSyntax = autoSqlValueSyntax
 
-instance BeamSqlBackend be => B.HasSqlEqualityCheck be UTCTime
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL UTCTime
 
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be A.Value where
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL A.Value where
   sqlValueSyntax = autoSqlValueSyntax
 
-instance BeamSqlBackend be => B.HasSqlEqualityCheck be A.Value
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL A.Value
 
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be (Vector Int) where
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL (Vector Int) where
   sqlValueSyntax = autoSqlValueSyntax
 
-instance HasSqlValueSyntax be String => HasSqlValueSyntax be (Vector Text) where
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL (Vector Text) where
   sqlValueSyntax = autoSqlValueSyntax
 
-instance BeamSqlBackend be => B.HasSqlEqualityCheck be (Vector Int)
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Int)
 
-instance BeamSqlBackend be => B.HasSqlEqualityCheck be (Vector Text)
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Text)

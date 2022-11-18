@@ -899,7 +899,7 @@ getFieldsAndValuesFromClause dt = \case
   Or cs -> processOr cs
   Is column (Eq val) -> do
     let key = B._fieldName . fromColumnar' . column . columnize $ B.dbTableSettings dt
-    [[(key, show . snd $ (toPSJSON @be @table) (key, A.toJSON val))]]
+    [[(key, showVal . snd $ (toPSJSON @be @table) (key, A.toJSON val))]]
   _ -> []
 
   where
@@ -907,6 +907,14 @@ getFieldsAndValuesFromClause dt = \case
     processAnd [] ys = ys
     processAnd xs ys = [x ++ y | x <-xs, y <- ys]
     processOr xs = concatMap (getFieldsAndValuesFromClause dt) xs
+
+    showVal res = case res of
+      A.String r -> r
+      A.Number n -> T.pack $ show n
+      A.Array l  -> T.pack $ show l
+      A.Object o -> T.pack $ show o
+      A.Bool b -> T.pack $ show b
+      A.Null -> T.pack "" 
 
 getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
 getPrimaryKeyFromFieldsAndValues _ _ _ [] = pure $ Right []

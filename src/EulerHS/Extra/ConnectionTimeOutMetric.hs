@@ -20,7 +20,7 @@ data ConnectionTimeOutMetricHandle = ConnectionTimeOutMetricHandle
 
 data TimeoutCounter
   = RedisConnectionTimeout
-  | MysqlConnectionTimeout
+  | DBConnectionTimeout
 
 mkConnectionTimeOutHandle :: IO ConnectionTimeOutMetricHandle
 mkConnectionTimeOutHandle = do
@@ -28,20 +28,20 @@ mkConnectionTimeOutHandle = do
   pure $ ConnectionTimeOutMetricHandle $ \case
     (RedisConnectionTimeout, redisName)   ->
       inc (metrics </> #redis_connection_timeout) redisName
-    (MysqlConnectionTimeout,dbName)    ->
-      inc (metrics </> #mysql_connection_timeout) dbName
+    (DBConnectionTimeout,dbName)    ->
+      inc (metrics </> #db_connection_timeout) dbName
 
 redis_connection_timeout = counter #redis_connection_timeout
       .& lbl @"redis_name" @Text
       .& build
 
-mysql_connection_timeout = counter #mysql_connection_timeout
+db_connection_timeout = counter #db_connection_timeout
       .& lbl @"db_name" @Text
       .& build
 
 collectionLock =
      redis_connection_timeout
-  .> mysql_connection_timeout
+  .> db_connection_timeout
   .> MNil
 
 

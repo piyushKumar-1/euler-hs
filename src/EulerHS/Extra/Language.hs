@@ -63,6 +63,7 @@ module EulerHS.Extra.Language
   , unsafeInsertRow
   , insertRowMySQL
   , unsafeInsertRowMySQL
+  , incrementDbMetric
   ) where
 
 import qualified Data.Aeson as A
@@ -226,6 +227,7 @@ withDB' run conf act = do
       res <- run conn act
       case res of
         Left err  -> do
+          incrementDbMetric err conf
           L.logError @Text "SqlDB interaction" . show $ err
           L.throwException err500
         Right val -> pure val
@@ -705,4 +707,16 @@ incrementRedisMetric err cName =
     then do
       env <- L.getOption CTM.EulerRedisCfg
       maybe (pure ()) (\val -> CTM.incrementConnectionTimeOutMetric val CTM.RedisConnectionTimeout cName) env
+    else pure ()
+
+incrementDbMetric :: (HasCallStack, L.MonadFlow m) => T.DBError -> T.DBConfig beM -> m ()
+incrementDbMetric err dbConf =
+  if Text.isInfixOf "Network.Socket.connect" $ show err
+    then do
+      env <- L.getOption CTM.EulerRedisCfg
+      case env of
+        Just val -> case dbConf of
+          (T.MySQLPoolConf dbName _ _) -> CTM.incrementConnectionTimeOutMetric val CTM.DBConnectionTimeout dbName
+          _                          -> CTM.incrementConnectionTimeOutMetric val CTM.DBConnectionTimeout "UNKNOWNDB"
+        Nothing -> pure ()
     else pure ()

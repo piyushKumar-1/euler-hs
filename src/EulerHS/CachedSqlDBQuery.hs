@@ -24,7 +24,7 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
-import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
+import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, incrementDbMetric)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.SqlDB.Language as DB
@@ -34,7 +34,6 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
 import           Named (defaults, (!))
 import           Sequelize (Model, Set, Where, mkExprWithDefault,
                             modelTableEntity, sqlSelect, sqlUpdate)
-import qualified EulerHS.Extra.ConnectionTimeOutMetric as CTM
 
 -- TODO: What KVDB should be used
 cacheName :: String
@@ -321,21 +320,9 @@ runQuery dbConf query = do
       case result of
         Right _ -> pure result
         Left err -> do
-          incrementMetric err
+          incrementDbMetric err dbConf
           pure result
     Left  e -> return $ Left e
-
-  where
-    incrementMetric err =
-      if T.isInfixOf "Network.Socket.connect" $ show err
-        then do
-          env <- L.getOption CTM.EulerRedisCfg
-          case env of
-            Just val -> case dbConf of
-              (MySQLPoolConf dbName _ _) -> CTM.incrementConnectionTimeOutMetric val CTM.MysqlConnectionTimeout dbName
-              _                          -> CTM.incrementConnectionTimeOutMetric val CTM.MysqlConnectionTimeout "UNKNOWNDB"
-            Nothing -> pure ()
-        else pure ()
 
 runQueryMySQL ::
   ( HasCallStack,

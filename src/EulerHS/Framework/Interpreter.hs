@@ -6,6 +6,7 @@ module EulerHS.Framework.Interpreter
   ( -- * Flow Interpreter
     runFlow
   , runFlow'
+  , modify302RedirectionResponse
   ) where
 
 import           Control.Concurrent.MVar (modifyMVar)
@@ -188,6 +189,22 @@ translateHttpResponse response = do
     , getResponseStatus  = status
     }
 
+modify302RedirectionResponse :: HTTPResponse -> HTTPResponse 
+modify302RedirectionResponse resp = do
+  let contentType = Map.lookup "content-type" (getResponseHeaders resp)
+  case (getResponseCode resp, contentType) of 
+    (302 , Just "text/plain") -> do
+      let lbs = getLBinaryString $ getResponseBody resp
+      case A.decode lbs :: Maybe Text of 
+        Nothing -> resp
+        Just val -> maybe resp (\correctUrl -> resp { getResponseBody =  (LBinaryString . A.encode) correctUrl })  (modifyRedirectingUrl val)
+    (_  , _           )   -> resp
+  
+  where 
+    status = getResponseStatus resp
+    modifyRedirectingUrl = Text.stripPrefix (status <> ". Redirecting to ")
+
+
 translateResponseHeaders
   :: [(CI.CI Strict.ByteString, Strict.ByteString)]
   -> Either Text (Map.Map Text.Text Text.Text)
@@ -276,7 +293,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
           logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
-          case translateHttpResponse httpResponse of
+          case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
               logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg

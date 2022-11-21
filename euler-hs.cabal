@@ -26,6 +26,7 @@ common common-lang
     , base                     >=4.13   && <5
     , record-dot-preprocessor  ^>=0.2.14
     , record-hasfield
+    , euler-events-hs          ^>=2.0.0
 
   default-extensions:
     NoImplicitPrelude
@@ -61,6 +62,7 @@ library
     EulerHS.Extra.Test
     EulerHS.Extra.Time
     EulerHS.Extra.Validation
+    EulerHS.Extra.ConnectionTimeOutMetric
     EulerHS.Interpreters
     EulerHS.Language
     EulerHS.Prelude

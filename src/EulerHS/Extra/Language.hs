@@ -94,6 +94,7 @@ import           EulerHS.SqlDB.Language (SqlDB, insertRowReturningMySQL,
                                          insertRowsReturningList)
 import qualified EulerHS.SqlDB.Types as T
 import           Servant (err500)
+import qualified EulerHS.Extra.ConnectionTimeOutMetric as CTM
 
 type RedisName = Text
 type TextKey = Text
@@ -490,6 +491,7 @@ rGetB cName k = do
     Right mval -> pure mval
     Left err -> do
       L.logError @Text "Redis get" $ show err
+      incrementRedisMetric err cName
       pure Nothing
 
 rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
@@ -547,6 +549,7 @@ rSetexB cName k v t = do
       pure res
     Left err -> do
       L.logError @Text "Redis setex" $ show err
+      incrementRedisMetric err cName
       pure res
 
 rSetexT :: (HasCallStack, ToJSON v, Integral t, L.MonadFlow m) =>
@@ -573,6 +576,7 @@ rSetexBulkB cName kvMap t = do
       pure res
     Left err -> do
       L.logError @Text "Redis setexBulk" $ show err
+      incrementRedisMetric err cName
       pure res
 
 -- ----------------------------------------------------------------------------
@@ -604,6 +608,7 @@ rSetOptsB cName k v ttl cond = do
     Right _ -> pure res
     Left err -> do
       L.logError @Text "Redis setOpts" $ show err
+      incrementRedisMetric err cName
       pure res
 
 rSetOptsT
@@ -691,3 +696,13 @@ updateLoggerContext updateLCtx rt@FlowRuntime{..} =
               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
               -- the next line is courtesy to Kyrylo Havryliuk ;-)
               LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}
+
+------------------------------------------
+
+incrementRedisMetric :: (HasCallStack, L.MonadFlow m) => KVDBReply -> RedisName -> m ()
+incrementRedisMetric err cName =
+  if Text.isInfixOf "Network.Socket.connect" $ show err
+    then do
+      env <- L.getOption CTM.EulerRedisCfg
+      maybe (pure ()) (\val -> CTM.incrementConnectionTimeOutMetric val CTM.RedisConnectionTimeout cName) env
+    else pure ()

@@ -7,6 +7,7 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-star-is-type #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.KVConnector.Types where
 
@@ -148,3 +149,15 @@ instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL (Vector Text)
 instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Int)
 
 instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Text)
+
+data IsKVEnabled = IsKVEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity IsKVEnabled Bool
+
+data KVCEnabledTables = KVCEnabledTables
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity KVCEnabledTables [Text]

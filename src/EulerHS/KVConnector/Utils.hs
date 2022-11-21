@@ -16,13 +16,21 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig)
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..), IsKVEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..))
 import           Unsafe.Coerce (unsafeCoerce)
 
+
+isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --NOTE: This is for testing purpose
+isKVEnabled modelName = do
+  (mbKvEnabledtables :: Maybe [Text]) <- L.getOption KVCEnabledTables
+  (mbIsKVEnabled :: Maybe Bool) <- L.getOption IsKVEnabled
+  pure $ case (mbIsKVEnabled, mbKvEnabledtables) of
+    (Just isEnabled, Just kvEnabledtables) -> isEnabled && elem modelName kvEnabledtables
+    _ -> False
 
 jsonKeyValueUpdates ::
   forall be table. (Model be table, MeshMeta be table)

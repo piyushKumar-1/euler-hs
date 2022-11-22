@@ -764,9 +764,9 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
-  forkFlowM
+  fork
     :: HasCallStack
-    => Flow a -> m ()
+    => m a -> m ()
 
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
@@ -852,8 +852,8 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
-  {-# INLINEABLE forkFlowM #-}
-  forkFlowM flow = do
+  {-# INLINEABLE fork #-}
+  fork flow = do
     forkFlow "test" flow
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
@@ -925,8 +925,10 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
-  {-# INLINEABLE forkFlowM #-}
-  forkFlowM = lift . forkFlowM
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    env <- ask
+    lift . fork $ runReaderT flow env
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -997,8 +999,10 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
-  {-# INLINEABLE forkFlowM #-}
-  forkFlowM = lift . forkFlowM
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    s <- get
+    lift . fork $ evalStateT flow s
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1069,8 +1073,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
-  {-# INLINEABLE forkFlowM #-}
-  forkFlowM = lift . forkFlowM
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1141,8 +1145,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
-  {-# INLINEABLE forkFlowM #-}
-  forkFlowM = lift . forkFlowM
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1213,8 +1217,9 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
-  {-# INLINEABLE forkFlowM #-}
-  forkFlowM = lift . forkFlowM
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
+
 
 
 --

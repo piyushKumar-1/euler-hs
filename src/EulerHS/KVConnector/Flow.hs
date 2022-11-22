@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DerivingStrategies  #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module EulerHS.KVConnector.Flow
@@ -17,12 +18,13 @@ module EulerHS.KVConnector.Flow
     findAllWithOptionsKVConnector
   )
  where
-
+import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, getLookupKeyByPKey, getSecondaryLookupKeys, applyFPair)
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, toPSJSON, DBCommandVersion(..))
 import           EulerHS.KVConnector.Utils
 import qualified Data.Aeson as A
+import           Data.Aeson ((.=))
 import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum, findIndices)
@@ -41,6 +43,7 @@ import           Named (defaults, (!))
 import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
 import           Safe (atMay)
+import           System.CPUTime (getCPUTime)
 
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
@@ -61,7 +64,9 @@ createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM
   m (MeshResult ())
 createWoReturingKVConnector dbConf meshCfg value = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebug @Text "createWoReturingKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       mapRight (const ()) <$> createKV meshCfg value
@@ -71,6 +76,21 @@ createWoReturingKVConnector dbConf meshCfg value = do
       case res of
         Right _ -> return $ Right ()
         Left e -> return $ Left $ MDBError e
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "CREATE"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right _  -> A.Null
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 
 createWithKVConnector ::
@@ -93,7 +113,9 @@ createWithKVConnector ::
   m (MeshResult (table Identity))
 createWithKVConnector dbConf meshCfg value = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebug @Text "createWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       createKV meshCfg value
@@ -103,6 +125,21 @@ createWithKVConnector dbConf meshCfg value = do
       case res of
         Right val -> return $ Right val
         Left e -> return $ Left $ MDBError e
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "CREATE"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right m  -> A.toJSON m -- check for cereal ??
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 createKV :: forall (table :: (Type -> Type) -> Type) m.
   ( FromJSON (table Identity),
@@ -168,7 +205,9 @@ updateWoReturningWithKVConnector :: forall be table beM m.
   m (MeshResult ())
 updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebug @Text "updateWoReturningWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)) )
       mapRight (const ()) <$> updateKV dbConf meshCfg setClause whereClause
@@ -179,6 +218,21 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       case res of
         Right val -> return $ Right val
         Left e -> return $ Left $ MDBError e
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "UPDATE"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right _  -> A.Null
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 updateWithKVConnector :: forall table m.
   ( HasCallStack,
@@ -199,7 +253,9 @@ updateWithKVConnector :: forall table m.
   m (MeshResult (Maybe (table Identity)))
 updateWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebug @Text "updateWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       updateKV dbConf meshCfg setClause whereClause
@@ -216,6 +272,21 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
           L.logError @Text "updateWithKVConnector" message
           return $ Left $ UnexpectedError message
         Left e -> return $ Left $ MDBError e
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "UPDATE"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right m  -> A.toJSON m
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 updateKV :: forall be table beM m.
   ( HasCallStack,
@@ -459,7 +530,9 @@ updateAllWithKVConnector :: forall be table beM m.
   m (MeshResult ())
 updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebug @Text "updateAllWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
@@ -475,6 +548,21 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
       case res of
         Right x -> return $ Right x
         Left e -> return $ Left $ MDBError e
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "UPDATE_ALL"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right _  -> A.Null
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 updateKVAndDBResults :: forall be table beM m.
   ( HasCallStack,
@@ -513,6 +601,7 @@ findWithKVConnector :: forall be table beM m.
     MeshMeta be table,
     KVConnector (table Identity),
     FromJSON (table Identity),
+    ToJSON (table Identity),
     Serialize.Serialize (table Identity),
     L.MonadFlow m,
     Show (table Identity)
@@ -523,7 +612,9 @@ findWithKVConnector :: forall be table beM m.
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebug @Text "findWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       eitherKvRows <- findOneFromRedis meshCfg whereClause
@@ -539,6 +630,21 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       L.logDebug @Text "findWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       whereClauseDiffCheck whereClause
       findOneFromDB dbConf whereClause
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "FIND"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right m  -> A.toJSON m -- check for cereal ??
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.
@@ -842,3 +948,26 @@ whereClauseDiffCheck whereClause = do
       case HM.member k keyHashMap of
         True -> False
         _ -> checkForPrimaryOrSecondary keyHashMap xs
+data DBLogEntry a = DBLogEntry
+  { _log_type     :: Text
+  , _action       :: Text
+  , _data         :: a
+  , _latency      :: Int
+  , _model        :: Text
+  , _cpuLatency   :: Integer
+  , _source       :: Text
+  }
+  deriving stock (Generic)
+  -- deriving anyclass (ToJSON)
+instance (ToJSON a) => ToJSON (DBLogEntry a) where
+  toJSON val = A.object [ "log_type" .= _log_type val
+                        , "action" .= _action val
+                        , "latency" .= _latency val
+                        , "model" .= _model val
+                        , "cpuLatency" .= _cpuLatency val
+                        , "data" .= _data val
+                        , "source" .= _source val
+                      ]
+
+getLatencyInMicroSeconds :: Integer -> Integer
+getLatencyInMicroSeconds execTime = execTime `div` 1000000

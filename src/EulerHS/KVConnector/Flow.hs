@@ -292,7 +292,7 @@ updateObjectRedis meshCfg updVals whereClause obj = do
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
                       L.AutoID
                       [("command", BSL.toStrict $ A.encode qCmd)]
-                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode updatedModel)
+                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode value)
               L.logDebug @Text "RedisUpdAnswer" . T.pack . show $ kvdbRes
               case kvdbRes of
                 Right _ -> pure $ Right value
@@ -747,8 +747,12 @@ decodeToField val =
                                  Left _ -> case Cereal.decodeLazy v of
                                               Right r''' -> decodeField @a r'''
                                               Left err' -> Left $ MDecodingError $ T.pack err'
-        _ ->
+        "JSON" ->
           case A.eitherDecode v of
+            Right r' -> decodeField @a r'
+            Left e   -> Left $ MDecodingError $ T.pack e
+        _      -> 
+          case A.eitherDecode val of
             Right r' -> decodeField @a r'
             Left e   -> Left $ MDecodingError $ T.pack e
 

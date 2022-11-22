@@ -330,6 +330,25 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
     let newMap = Map.delete k m
     putMVar _options newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetOptionLocal k next) =
+  fmap next $ do
+    m <- readMVar _optionsLocal
+    pure $ do
+      valAny <- Map.lookup k m
+      pure $ unsafeCoerce valAny
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetOptionLocal k v next) =
+  fmap next $ do
+    m <- takeMVar _optionsLocal
+    let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
+    putMVar _optionsLocal newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.DelOptionLocal k next) =
+  fmap next $ do
+    m <- takeMVar _optionsLocal
+    let newMap = Map.delete k m
+    putMVar _optionsLocal newMap
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetConfig k next) =
   fmap next $ do
     m <- readMVar _configCache

@@ -56,6 +56,8 @@ data FlowRuntime = FlowRuntime
   -- ^ LRU cache of Managers.
   , _options                  :: MVar (Map Text Any)
   -- ^ Typed key-value storage
+  , _optionsLocal             :: MVar (Map Text Any)
+  -- ^ Typed key-value storage - New Ref for every api call
   , _kvdbConnections          :: MVar (Map Text NativeKVDBConn)
   -- ^ Connections for key-value databases
   , _sqldbConnections         :: MVar (Map ConnTag NativeSqlPool)
@@ -137,6 +139,7 @@ createFlowRuntime :: R.CoreRuntime -> IO FlowRuntime
 createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
+  optionsLocalVar       <- newMVar mempty
   configCacheVar        <- newMVar mempty
   configCacheLockVar    <- newMVar =<< CMap.empty
   kvdbConnections       <- newMVar Map.empty
@@ -148,6 +151,7 @@ createFlowRuntime coreRt = do
     , _defaultHttpClientManager = defaultManagerVar
     , _httpClientManagers       = mempty
     , _options                  = optionsVar
+    , _optionsLocal             = optionsLocalVar
     , _configCache              = configCacheVar
     , _configCacheLock          = configCacheLockVar
     , _kvdbConnections          = kvdbConnections
@@ -167,6 +171,8 @@ clearFlowRuntime :: FlowRuntime  -> IO ()
 clearFlowRuntime FlowRuntime{..} = do
   _ <- takeMVar _options
   putMVar _options mempty
+  _ <- takeMVar _optionsLocal
+  putMVar _optionsLocal mempty
   kvConns <- takeMVar _kvdbConnections
   putMVar _kvdbConnections mempty
   traverse_ kvDisconnect kvConns

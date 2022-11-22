@@ -13,7 +13,8 @@ module EulerHS.KVConnector.Flow
     updateWithKVConnector,
     findAllWithKVConnector,
     updateAllWithKVConnector,
-    findAllWithOptionsKVConnector
+    findAllWithOptionsKVConnector,
+    getFieldsAndValuesFromClause
   )
  where
 

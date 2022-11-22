@@ -69,6 +69,7 @@ library
     EulerHS.SqlDB.Language
     EulerHS.KVConnector.Flow
     EulerHS.KVConnector.Types
+    EulerHS.KVConnector.DBSync
 
   other-modules:
     EulerHS.Api
@@ -95,7 +96,6 @@ library
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
-    EulerHS.KVConnector.DBSync
     EulerHS.KVConnector.Encoding 
     EulerHS.KVConnector.Utils
 

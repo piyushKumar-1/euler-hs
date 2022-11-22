@@ -17,13 +17,16 @@ module EulerHS.KVConnector.Flow
   )
  where
 
+import           Control.Monad.Extra (notM)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, getLookupKeyByPKey, getSecondaryLookupKeys, applyFPair)
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, toPSJSON, DBCommandVersion(..))
 import           EulerHS.KVConnector.Utils
+import           EulerHS.Runtime(ConfigEntry(..))
 import qualified Data.Aeson as A
 import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.Fixed as Fixed
 import           Data.List (span, maximum)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
@@ -38,6 +41,9 @@ import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
 import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
+import Data.Time.LocalTime (addLocalTime)
+import Data.Time.Clock (secondsToNominalDiffTime)
+import           System.Random (randomRIO)
 
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
@@ -440,6 +446,15 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
         (Left err, _) -> pure $ Left (MDBError err)
 
 ---------------- Find -----------------------
+
+data InMemCacheResult = EntryValid Text | 
+                        EntryExpired Text (Maybe KeyForInMemConfig) | 
+                        EntryNotFound (KeyForInMemConfig) |
+                        TableIneligible | 
+                        UnknownError MeshError 
+
+type KeyForInMemConfig = Text
+
 findWithKVConnector :: forall be table beM m.
   ( HasCallStack,
     BeamRuntime be beM,
@@ -449,6 +464,7 @@ findWithKVConnector :: forall be table beM m.
     MeshMeta be table,
     KVConnector (table Identity),
     FromJSON (table Identity),
+    ToJSON (table Identity),
     Serialize.Serialize (table Identity),
     L.MonadFlow m,
     Show (table Identity)
@@ -460,17 +476,102 @@ findWithKVConnector :: forall be table beM m.
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
   if meshCfg.meshEnabled
     then do
-      eitherKvRows <- findOneFromRedis meshCfg whereClause
-      L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show eitherKvRows)
-      case eitherKvRows of
-        Right [] -> do
-          L.logDebug @Text "findWithKVConnector" "Falling back to SQL - Nothing found in KV"
-          findOneFromDB dbConf whereClause
-        Right rows -> pure $ Right $ findOneMatching whereClause rows
-        Left err -> pure $ Left err
+      let 
+        shouldSearchInMemoryCache = memCacheable @(table Identity)
+        entryToTable = return . Right . A.decode . encodeUtf8
+      inMemResult <- if shouldSearchInMemoryCache && length whereClause == 1 
+        then do
+          eitherPKeys <- getPrimaryKeys 
+          case eitherPKeys of
+            Right [] -> return TableIneligible
+            Right [[pKey]] -> do
+              let k = decodeUtf8 pKey
+              mbVal <- L.getConfig k
+              case mbVal of
+                Just val -> do
+                  L.logInfoT "findWithKVConnector" $ "Found key: <" <> k <> "> in in-mem-config"
+                  L.logDebugT "findWithKVConnector" $ "key val: " <> show val
+                  currentTime <- L.getCurrentTimeUTC
+                  if val.ttl > currentTime
+                    then do
+                      L.logInfoT "findWithKVConnector" $ "Key TTL Valid"
+                      return $ EntryValid val.entry
+                    else do
+                      L.logInfoT "findWithKVConnector" $ "Key TTL Not Valid"
+                      ifM (notM $ L.acquireConfigLock k)
+                        (return $ EntryExpired val.entry Nothing)    --then
+                        (return $ EntryExpired val.entry $ Just k)   --else
+                Nothing -> return . EntryNotFound $ k
+            Right _ -> return TableIneligible
+            Left err -> return . UnknownError $ err
+        else
+          return TableIneligible
+
+      case inMemResult of
+        EntryValid valEntry -> entryToTable valEntry
+        TableIneligible -> redisFetch Nothing
+        EntryExpired valEntry Nothing -> entryToTable valEntry
+        EntryExpired valEntry (Just keyForInMemConfig) -> do
+          L.logInfoT "findWithKVConnector" $ "Starting Timeout for redis-fetch for in-mem-config"
+          L.fork $ 
+            do
+              void $ L.runIO $ threadDelayMilisec 5
+              void $ L.releaseConfigLock keyForInMemConfig      -- TODO  Check if release fails
+          L.logInfoT "findWithKVConnector" $ "Initiating updation of key <" <> keyForInMemConfig <>"> in-mem-config"
+          L.fork $ (redisFetch (Just keyForInMemConfig)) 
+          entryToTable valEntry
+        EntryNotFound keyForInMemConfig ->  redisFetch (Just keyForInMemConfig) 
+        UnknownError err -> pure . Left $ err
+
     else do
       L.logDebug @Text "findWithKVConnector" "Taking SQLDB Path"
       findOneFromDB dbConf whereClause
+
+    where
+
+      threadDelayMilisec :: Integer -> IO ()
+      threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
+
+      toPico :: Int -> Fixed.Pico
+      toPico value = Fixed.MkFixed $ ((toInteger value) * 1000000000000)
+
+      getPrimaryKeys :: m (MeshResult [[ByteString]])
+      getPrimaryKeys = do
+        let 
+          keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
+          andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
+          modelName = tableName @(table Identity)
+          keyHashMap = keyMap @(table Identity)
+        L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
+        eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
+        L.logDebugT "findWithKVConnector" (show eitherKeyRes)
+        pure $ foldEither eitherKeyRes
+
+      redisFetch :: Maybe Text -> m (MeshResult (Maybe (table Identity)))
+      redisFetch keyForInMemConfig = do
+        eitherKvRows <- findOneFromRedis meshCfg whereClause
+        L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show eitherKvRows)
+        case eitherKvRows of
+          Right [] -> do
+            L.logDebug @Text "findWithKVConnector" "Falling back to SQL - Nothing found in KV"
+            findOneFromDB dbConf whereClause
+          Right rows -> do
+            let 
+              mbval  =  findOneMatching whereClause rows
+              mbvalT =  decodeUtf8 . A.encode <$> mbval
+            case (keyForInMemConfig, mbvalT) of
+              (Just k, Just v) -> setInConfig k v
+              _ -> pure ()
+            pure $ Right $ mbval
+          Left err -> pure $ Left err
+
+      setInConfig :: Text -> Text -> m ()
+      setInConfig k redisValue = do
+        currentTime <- L.getCurrentTimeUTC
+        noise <- L.runIO' "random seconds" $ randomRIO (1, 900)
+        let newTtl = addLocalTime (secondsToNominalDiffTime $ toPico (45 * 60 + noise)) currentTime
+        L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
+        void $ L.setConfig k (ConfigEntry  newTtl redisValue) 
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.

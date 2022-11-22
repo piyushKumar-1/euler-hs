@@ -139,7 +139,7 @@ createKV meshCfg value = do
                   (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
                   L.AutoID
                   [("command", BSL.toStrict $ A.encode qCmd)]
-            L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode val)
+            L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled val)
           case kvRes of
             Right _ -> pure $ Right val
             Left err -> pure $ Left (MRedisError err)
@@ -292,7 +292,7 @@ updateObjectRedis meshCfg updVals whereClause obj = do
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
                       L.AutoID
                       [("command", BSL.toStrict $ A.encode qCmd)]
-                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode value)
+                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled value)
               L.logDebug @Text "RedisUpdAnswer" . T.pack . show $ kvdbRes
               case kvdbRes of
                 Right _ -> pure $ Right value

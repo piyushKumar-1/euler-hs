@@ -112,6 +112,7 @@ data QueryPath = KVPath | SQLPath
 
 data MeshConfig = MeshConfig
   { meshEnabled     :: Bool
+  , cerealEnabled   :: Bool
   , memcacheEnabled :: Bool
   , meshDBName      :: Text
   , ecRedisDBStream :: Text

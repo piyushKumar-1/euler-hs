@@ -13,9 +13,9 @@ import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
 import Data.Cereal.Instances ()
 
-encode :: (Aeson.ToJSON a, Cereal.Serialize a) => a -> BSL.ByteString
-encode val =
-  if True
+encode :: (Aeson.ToJSON a, Cereal.Serialize a) => Bool -> a -> BSL.ByteString
+encode isEnabled val =
+  if isEnabled
      then BSL.fromStrict $ "CBOR" <> Cereal.encode val
      else "JSON" <> Aeson.encode val
 

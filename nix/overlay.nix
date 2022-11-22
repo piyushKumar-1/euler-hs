@@ -23,7 +23,7 @@ let
   };
   cereal-path = cereal-repo;
 
-in 
+in
 super.eulerBuild.mkEulerHaskellOverlay self super
   (hself: hsuper: {
     hedis = self.eulerBuild.fastBuildExternal {

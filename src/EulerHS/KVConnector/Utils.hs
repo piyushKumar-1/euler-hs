@@ -27,7 +27,7 @@ import           Unsafe.Coerce (unsafeCoerce)
 isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --NOTE: This is for testing purpose
 isKVEnabled modelName = do
   (mbKvEnabledtables :: Maybe [Text]) <- L.getOption KVCEnabledTables
-  (mbIsKVEnabled :: Maybe Bool) <- L.getOption IsKVEnabled
+  (mbIsKVEnabled :: Maybe Bool) <- L.getOptionLocal IsKVEnabled
   pure $ case (mbIsKVEnabled, mbKvEnabledtables) of
     (Just isEnabled, Just kvEnabledtables) -> isEnabled && elem modelName kvEnabledtables
     _ -> False

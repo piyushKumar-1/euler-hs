@@ -303,7 +303,10 @@ findAllExtended dbConf mKey sel = case mKey of
     go :: m (Either DBError [table Identity])
     go = do
       eConn <- getOrInitSqlConn dbConf
-      join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
+      rows <- join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
+      case rows of
+        Left err -> incrementDbMetric err dbConf *> pure rows
+        Right _ -> pure rows
 
 ------------ Helper functions ------------
 runQuery ::
@@ -332,7 +335,11 @@ runQueryMySQL ::
 runQueryMySQL dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
-    Right c -> L.runTransaction c query
+    Right c -> do
+      rows <- L.runTransaction c query
+      case rows of
+        Left err -> incrementDbMetric err dbConf *> pure rows
+        Right _ -> pure rows
     Left  e -> return $ Left e
 
 sqlCreate ::
@@ -382,7 +389,7 @@ createSqlMySQL dbConf value = do
     Right Nothing -> do
       let message = "DB returned \"" <> "Nothing" <> "\" after inserting \"" <> show value <> "\""
       L.logError @Text "createSqlMySQL" message
-      return $ Left $ DBError UnexpectedResult message
+      return $ Left $ DBError UnexpectedResult message -- do we add metric here ?
     Left e -> return $ Left e
 
 findOneSql ::
@@ -413,7 +420,10 @@ findAllSql ::
 findAllSql dbConf whereClause = do
   let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
   sqlConn <- getOrInitSqlConn dbConf
-  join <$> mapM (`L.runDB` findQuery) sqlConn
+  rows <- join <$> mapM (`L.runDB` findQuery) sqlConn
+  case rows of
+    Right _ -> pure rows
+    Left err -> incrementDbMetric err dbConf *> pure rows
 
 cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> m ()
 cacheWithKey key row = do

@@ -84,9 +84,9 @@ import           EulerHS.Extra.Aeson (obfuscate)
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.KVDB.Language as L
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
-                                     KVDBError (KVDBConnectionDoesNotExist),
-                                     KVDBReply, KVDBReplyF (KVDBError),
+                                     KVDBReply, KVDBReplyF (..), KVDBError(..),
                                      KVDBStatus)
+import qualified EulerHS.KVDB.Types as T
 import           EulerHS.Logger.Types (LogContext)
 import           EulerHS.Prelude hiding (get, id)
 import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
@@ -96,6 +96,7 @@ import           EulerHS.SqlDB.Language (SqlDB, insertRowReturningMySQL,
 import qualified EulerHS.SqlDB.Types as T
 import           Servant (err500)
 import qualified EulerHS.Extra.ConnectionTimeOutMetric as CTM
+import qualified Juspay.Extra.Config as Conf
 
 type RedisName = Text
 type TextKey = Text
@@ -221,6 +222,7 @@ withDB' run conf act = do
   mConn <- L.getSqlDBConnection conf
   case mConn of
     Left err   -> do
+      incrementDbMetric err conf
       L.logError @Text "SqlDB connect" . show $ err
       L.throwException err500
     Right conn -> do
@@ -309,7 +311,12 @@ getOrInitSqlConn :: (HasCallStack, L.MonadFlow m) =>
 getOrInitSqlConn cfg = do
   eConn <- L.getSqlDBConnection cfg
   case eConn of
-    Left (T.DBError T.ConnectionDoesNotExist _) -> L.initSqlDBConnection cfg
+    Left err -> do
+      incrementDbMetric err cfg
+      newCon <- L.initSqlDBConnection cfg
+      case newCon of
+        Left err' -> incrementDbMetric err' cfg *> pure newCon
+        val -> pure val
     res                                         -> pure res
 
 -- | Get existing Redis connection, or init a new connection.
@@ -337,6 +344,7 @@ rExpireB cName k t = do
       -- L.logInfo @Text "Redis expire" $ show r
       pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis expire" $ show err
       pure res
 
@@ -355,6 +363,7 @@ rDelB cName ks = do
       -- L.logInfo @Text "Redis del" $ show r
       pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis del" $ show err
       pure res
 
@@ -373,6 +382,7 @@ rExistsB cName k = do
       -- L.logInfo @Text "Redis exists" $ show r
       pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis exists" $ show err
       pure res
 
@@ -400,6 +410,7 @@ rHget cName k f = do
           pure $ Just v'
     Right Nothing -> pure Nothing
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis rHget" $ show err
       pure Nothing
 
@@ -411,6 +422,7 @@ rHgetB cName k f = do
     Right (Just val) -> pure $ Just val
     Right Nothing -> pure Nothing
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis hget" $ show err
       pure Nothing
 
@@ -434,6 +446,7 @@ rHsetB cName k f v = do
       -- L.logInfo @Text "Redis hset" $ show r
       pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis hset" $ show err
       pure res
 
@@ -452,6 +465,7 @@ rIncrB cName k = do
       -- L.logInfo @Text "Redis incr" $ show r
       pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis incr" $ show err
       pure res
 
@@ -473,6 +487,7 @@ rSetB cName k v = do
       -- L.logInfo @Text "Redis set" $ show r
       pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis set" $ show err
       pure res
 
@@ -642,7 +657,8 @@ rXreadB :: (HasCallStack, L.MonadFlow m) =>
 rXreadB cName strm entryId = do
   res <- L.runKVDB cName $ L.xread strm entryId
   _ <-  case res of
-    Left err -> 
+    Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis xread" $ show err
     Right _ -> pure ()
   pure res
@@ -660,7 +676,8 @@ rXrevrangeB :: (HasCallStack,L.MonadFlow m) =>
 rXrevrangeB cName strm send sstart count = do
   res <- L.runKVDB cName $ L.xrevrange strm send sstart count
   _ <- case res of
-    Left err ->
+    Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis xrevrange" $ show err
     Right _ -> pure ()
   pure res
@@ -673,6 +690,7 @@ rSadd cName k v = do
   case res of
     Right _ -> pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis sadd" $ show err
       pure res
 
@@ -683,6 +701,7 @@ rSismember cName k v = do
   case res of
     Right _ -> pure res
     Left err -> do
+      incrementRedisMetric err cName
       L.logError @Text "Redis sismember" $ show err
       pure res
 
@@ -701,22 +720,42 @@ updateLoggerContext updateLCtx rt@FlowRuntime{..} =
 
 ------------------------------------------
 
-incrementRedisMetric :: (HasCallStack, L.MonadFlow m) => KVDBReply -> RedisName -> m ()
-incrementRedisMetric err cName =
-  if Text.isInfixOf "Network.Socket.connect" $ show err
-    then do
-      env <- L.getOption CTM.EulerRedisCfg
-      maybe (pure ()) (\val -> CTM.incrementConnectionTimeOutMetric val CTM.RedisConnectionTimeout cName) env
-    else pure ()
+incrementRedisMetric :: (HasCallStack, L.MonadFlow m) => T.KVDBReply -> RedisName -> m ()
+incrementRedisMetric err cName = if CTM.isDBMetricEnabled
+  then case err of
+    T.KVDBError KVDBConnectionFailed _ -> incrementMetric CTM.ConnectionFailed cName
+    T.KVDBError KVDBConnectionAlreadyExists _ -> incrementMetric CTM.ConnectionAlreadyExists cName
+    T.KVDBError KVDBConnectionDoesNotExist _ -> incrementMetric CTM.ConnectionDoesNotExist cName
+    T.ExceptionMessage _ ->
+      if Text.isInfixOf "Network.Socket.connect" $ show err
+        then incrementMetric CTM.ConnectionTimeout cName
+        else incrementMetric CTM.RedisExceptionMessage cName
+    _ -> pure ()
+  else pure ()
 
 incrementDbMetric :: (HasCallStack, L.MonadFlow m) => T.DBError -> T.DBConfig beM -> m ()
-incrementDbMetric err dbConf =
-  if Text.isInfixOf "Network.Socket.connect" $ show err
-    then do
-      env <- L.getOption CTM.EulerRedisCfg
-      case env of
-        Just val -> case dbConf of
-          (T.MySQLPoolConf dbName _ _) -> CTM.incrementConnectionTimeOutMetric val CTM.DBConnectionTimeout dbName
-          _                          -> CTM.incrementConnectionTimeOutMetric val CTM.DBConnectionTimeout "UNKNOWNDB"
-        Nothing -> pure ()
-    else pure ()
+incrementDbMetric (T.DBError err msg) dbConf = if CTM.isDBMetricEnabled
+  then case err of
+    T.ConnectionFailed -> incrementMetric CTM.ConnectionFailed (dbConfigToTag dbConf)
+    T.ConnectionAlreadyExists -> incrementMetric CTM.ConnectionAlreadyExists (dbConfigToTag dbConf)
+    T.ConnectionDoesNotExist -> incrementMetric CTM.ConnectionDoesNotExist (dbConfigToTag dbConf)
+    T.TransactionRollbacked -> incrementMetric CTM.TransactionRollbacked (dbConfigToTag dbConf)
+    T.UnexpectedResult -> incrementMetric CTM.UnexpectedDBResult (dbConfigToTag dbConf)
+    T.UnrecognizedError -> if Text.isInfixOf "Network.Socket.connect" $ show msg
+      then incrementMetric CTM.ConnectionTimeout (dbConfigToTag dbConf)
+      else incrementMetric CTM.UnrecognizedDBError (dbConfigToTag dbConf)
+    _ -> pure ()
+  else pure ()
+
+incrementMetric :: (HasCallStack, L.MonadFlow m) => CTM.TimeoutCounter -> Text -> m ()
+incrementMetric metric dbName = do
+  env <- L.getOption CTM.EulerRedisCfg
+  case env of
+    Just val -> CTM.incrementConnectionTimeOutMetric val metric dbName (fromMaybe "" $ Conf.lookupEnvT "HOSTNAME")
+    Nothing -> pure ()
+
+dbConfigToTag :: T.DBConfig beM -> Text
+dbConfigToTag = \case
+  T.PostgresPoolConf t _ _ -> t
+  T.MySQLPoolConf t _ _    -> t
+  T.SQLitePoolConf t _ _   -> t

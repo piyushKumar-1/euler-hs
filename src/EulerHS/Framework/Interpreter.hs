@@ -530,7 +530,7 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
       wrapException' :: SomeException -> DBError
       wrapException' e = fromMaybe (DBError UnrecognizedError $ show e)
         (sqliteErrorToDbError   (show e) <$> fromException e <|>
-          mysqlErrorToDbError    (show e) <$> fromException e <|>
+          mysqlErrorToDbError    (show e) <$> fromException  e <|>
             postgresErrorToDbError (show e) <$> fromException e)
 
       connPoolExceptionWrapper :: Either SomeException (Either DBError _a1, [Text]) -> (Either DBError _a1, [Text])

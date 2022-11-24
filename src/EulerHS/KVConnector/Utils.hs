@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module EulerHS.KVConnector.Utils where
 
@@ -16,21 +17,51 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..), IsKVEnabled(..))
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..), IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
+import           Servant (err500)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..))
+import           System.Random (randomRIO)
 import           Unsafe.Coerce (unsafeCoerce)
 
 
-isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --NOTE: This is for testing purpose
+isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --TODO: Move this to euler-db
 isKVEnabled modelName = do
-  (mbKvEnabledtables :: Maybe [Text]) <- L.getOption KVCEnabledTables
+  (mbKVTablesCutover :: Maybe FeatureConfig) <- L.getOptionLocal KVCEnabledTables
   (mbIsKVEnabled :: Maybe Bool) <- L.getOptionLocal IsKVEnabled
-  pure $ case (mbIsKVEnabled, mbKvEnabledtables) of
-    (Just isEnabled, Just kvEnabledtables) -> isEnabled && elem modelName kvEnabledtables
-    _ -> False
+  case (mbIsKVEnabled, mbKVTablesCutover) of
+    (Just isEnabled, Just ktc) -> (isEnabled &&) <$> checkKeyEnabled ktc modelName
+    (Nothing, _) -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled is not set" *> L.throwException err500
+    (_, Nothing) -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error KVCEnabledTables is not set" *> L.throwException err500
+
+  where
+    checkKeyEnabled :: (L.MonadFlow m) => FeatureConfig -> Text -> m Bool
+    checkKeyEnabled conf key =
+      isKeyEnabled conf key <$>
+        if enableAll conf
+        -- Enabled for all
+        then
+          case enableAllRollout conf of
+            Just rollout -> do
+              randomIntV <- L.runIO' "randomRIO" $ randomRIO (1, 100)
+              pure $ randomIntV <= rollout
+            Nothing -> pure True
+        else do
+          let optMConf = find (\mConf -> name mConf == key) (enabledKeys conf)
+          case optMConf of
+            Just mconf -> do
+              randomIntV <- L.runIO' "randomRIO" $ randomRIO (1, 100)
+              pure $ randomIntV <= (rollout mconf)
+            -- Merchant Key not set
+            Nothing -> pure False
+
+    isKeyEnabled :: FeatureConfig -> Text -> Bool -> Bool
+    isKeyEnabled FeatureConfig{disableAny} key res =
+      case (res, disableAny) of
+        (True, Just disableList) -> not $ elem key disableList
+        (_ , _)  -> res
 
 jsonKeyValueUpdates ::
   forall be table. (Model be table, MeshMeta be table)

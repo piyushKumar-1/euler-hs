@@ -161,4 +161,18 @@ data KVCEnabledTables = KVCEnabledTables
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-instance T.OptionEntity KVCEnabledTables [Text]
+instance T.OptionEntity KVCEnabledTables FeatureConfig
+
+data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
+  { enableAll        :: Bool
+  , disableAny       :: Maybe [Text]
+  , enableAllRollout :: Maybe Int
+  , enabledKeys      :: [RolloutConfig]
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data RolloutConfig = RolloutConfig
+  { name        :: Text
+  , rollout    :: Int
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

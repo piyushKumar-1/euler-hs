@@ -98,6 +98,8 @@ library
     EulerHS.KVConnector.DBSync
     EulerHS.KVConnector.Encoding 
     EulerHS.KVConnector.Utils
+    EulerHS.KVConnector.InMemConfig.Types
+    EulerHS.KVConnector.InMemConfig.Flow
 
   build-depends:
     , QuickCheck

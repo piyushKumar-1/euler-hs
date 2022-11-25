@@ -169,3 +169,6 @@ getConfigEntryNewTtl = do
     currentTime <- L.getCurrentTimeUTC
     noise <- L.runIO' "random seconds" $ randomRIO (1, 900)
     return $ addLocalTime (secondsToNominalDiffTime $ toPico (45 * 60 + noise)) currentTime
+
+threadDelayMilisec :: Integer -> IO ()
+threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000

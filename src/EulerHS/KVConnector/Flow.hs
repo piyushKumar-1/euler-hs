@@ -2,7 +2,6 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module EulerHS.KVConnector.Flow
@@ -22,9 +21,10 @@ import           Control.Monad.Extra (notM)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, getLookupKeyByPKey, getSecondaryLookupKeys, applyFPair)
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, toPSJSON, DBCommandVersion(..))
+import           EulerHS.KVConnector.InMemConfig.Types (InMemCacheResult (..))
+import           EulerHS.KVConnector.InMemConfig.Flow (checkAndStartLooper)
 import           EulerHS.KVConnector.Utils
 import           EulerHS.Runtime (ConfigEntry(..))
-import           EulerHS.Options (OptionEntity)
 import qualified Data.Aeson as A
 import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
@@ -483,27 +483,6 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
 
 ---------------- Find -----------------------
 
-data InMemCacheResult = EntryValid Text | 
-                        EntryExpired Text (Maybe KeyForInMemConfig) | 
-                        EntryNotFound (KeyForInMemConfig) |
-                        TableIneligible | 
-                        UnknownError MeshError 
-
-type KeyForInMemConfig = Text
-
-data LooperStarted = LooperStarted
-  deriving (Generic, A.ToJSON, Typeable)
-
-instance OptionEntity LooperStarted Bool
-
-data RecordId = RecordId
-  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
-
-instance OptionEntity RecordId Text
-
-type LatestRecordId = Text
-type RecordKeyValues = (Text, Text)
-
 findWithKVConnector :: forall be table beM m.
   ( HasCallStack,
     BeamRuntime be beM,
@@ -531,7 +510,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       inMemResult <- if shouldSearchInMemoryCache && length whereClause == 1 
         then do
           eitherPKeys <- getPrimaryKeys 
-          checkAndStartLooper
+          checkAndStartLooper meshCfg
           case eitherPKeys of
             Right [] -> return TableIneligible
             Right [[pKey]] -> do
@@ -578,86 +557,6 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       findOneFromDB dbConf whereClause
 
     where
-
-      checkAndStartLooper :: (L.MonadFlow m) => m ()
-      checkAndStartLooper = do
-        hasLooperStarted <- L.getOption LooperStarted
-        case hasLooperStarted of
-          _hasLooperStarted
-            | _hasLooperStarted == Just True ->  pure ()
-            | otherwise ->  do
-                streamName <- getRandomStream meshCfg
-                L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> ">"
-                L.fork $ looperForRedisStream meshCfg.kvRedis streamName
-                L.setOption LooperStarted True
-
-      looperForRedisStream :: (L.MonadFlow m) => Text -> Text -> m ()
-      looperForRedisStream redisName streamName = forever $ do
-        maybeRId <- L.getOption RecordId
-        case maybeRId of
-          Nothing -> do
-            rId <- T.pack . show <$> L.getCurrentDateInMillis
-            initRecords <- getRecordsFromStream redisName streamName rId
-            case initRecords of 
-              Nothing -> do
-                L.setOption RecordId rId
-                return ()
-              Just (latestId, rs) -> do
-                  L.setOption RecordId latestId
-                  mapM_ setInMemCache rs
-          Just rId -> do
-            newRecords <- getRecordsFromStream redisName streamName rId
-            case newRecords of
-              Nothing -> return ()
-              Just (latestId, rs) -> do
-                  L.setOption RecordId latestId
-                  mapM_ setInMemCache rs
-        void $ looperDelayInSec
-
-      looperDelayInSec :: (L.MonadFlow m) => m ()
-      looperDelayInSec = L.runIO $ threadDelay $ getConfigStreamLooperDelayInSec * 1000000
-
-      setInMemCache :: RecordKeyValues -> (L.MonadFlow m) => m ()
-      setInMemCache (key,value) = do
-        newTtl <- getConfigEntryNewTtl
-        void $ L.setConfig key $ ConfigEntry newTtl value
-        return ()
-
-      extractRecordsFromStreamResponse :: [L.KVDBStreamReadResponseRecord] -> [RecordKeyValues]
-      extractRecordsFromStreamResponse  = foldMap (fmap (bimap decodeUtf8 decodeUtf8) . L.records) 
-
-      getRecordsFromStream :: Text -> Text -> LatestRecordId -> (L.MonadFlow m) => m (Maybe (LatestRecordId, [RecordKeyValues]))
-      getRecordsFromStream redisName streamName lastRecordId = do
-        eitherReadResponse <- L.rXreadT redisName streamName lastRecordId
-        case eitherReadResponse of
-          Left err -> do
-            L.delOption RecordId    -- TODO Necessary?
-            L.logErrorT "getRecordsFromStream" $ "Error getting initial records from stream <" <> streamName <> ">" <> show err
-            return Nothing
-          Right maybeRs -> case maybeRs of
-              Nothing -> do
-                -- L.delOption RecordId    -- Maybe stream doesn't exist or Maybe no new records
-                logEmptyResponseAndReturn
-              Just [] -> do             -- Never seems to occur
-                logEmptyResponseAndReturn
-              Just rs -> case filter (\rec-> (decodeUtf8 rec.streamName) == streamName) rs of
-                [] -> do
-                  logEmptyResponseAndReturn
-                (rss : _) -> do
-                  case uncons . reverse . L.response $ rss of
-                    Nothing -> logEmptyResponseAndReturn
-                    Just (latestRecord, _) -> do
-                      L.logInfoT "getRecordsFromStream" $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
-                      return . Just . bimap (decodeUtf8 . L.recordId) (extractRecordsFromStreamResponse . L.response ) $ (latestRecord, rss)
-        where
-          logEmptyResponseAndReturn :: (L.MonadFlow m) => m (Maybe (LatestRecordId, [RecordKeyValues]))
-          logEmptyResponseAndReturn = do
-            L.logDebugT "getRecordsFromStream" $ "No new records in stream <" <> streamName <> ">"
-            return Nothing
-
-
-      threadDelayMilisec :: Integer -> IO ()
-      threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
 
       getPrimaryKeys :: m (MeshResult [[ByteString]])
       getPrimaryKeys = do

@@ -62,10 +62,10 @@ createWoReturingKVConnector dbConf meshCfg value = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "createWoReturingKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "createWoReturingKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       mapRight (const ()) <$> createKV meshCfg value
     else do
-      L.logDebug @Text "createWoReturingKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "createWoReturingKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       res <- createSqlWoReturing dbConf value
       case res of
         Right _ -> return $ Right ()
@@ -94,10 +94,10 @@ createWithKVConnector dbConf meshCfg value = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "createWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "createWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       createKV meshCfg value
     else do
-      L.logDebug @Text "createWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "createWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       res <- createReturning dbConf value Nothing
       case res of
         Right val -> return $ Right val
@@ -135,7 +135,7 @@ createKV meshCfg value = do
         Right _ -> do
           kvRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
             _ <- L.xaddTx
-                  (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
+                  (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                   L.AutoID
                   [("command", BSL.toStrict $ A.encode qCmd)]
             L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled val)
@@ -169,10 +169,10 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "updateWoReturningWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "updateWoReturningWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)) )
       mapRight (const ()) <$> updateKV dbConf meshCfg setClause whereClause
     else do
-      L.logDebug @Text "updateWoReturningWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "updateWoReturningWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       res <- updateOneSqlWoReturning dbConf setClause whereClause
       case res of
         Right val -> return $ Right val
@@ -199,18 +199,18 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "updateWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "updateWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       updateKV dbConf meshCfg setClause whereClause
     else do
-      L.logDebug @Text "updateWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "updateWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
         Right [x] -> return $ Right (Just x)
         Right [] -> return $ Right Nothing
         Right xs -> do
-          let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> (show (tableName @(table Identity)))
-          L.logError @Text "updateWithKVConnector" message 
+          let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> show (tableName @(table Identity))
+          L.logError @Text "updateWithKVConnector" message
           return $ Left $ UnexpectedError message
         Left e -> return $ Left $ MDBError e
 
@@ -287,7 +287,7 @@ updateObjectRedis meshCfg updVals whereClause obj = do
             Right _ -> do
               kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
                 _ <- L.xaddTx
-                      (encodeUtf8 (meshCfg.ecRedisDBStream <> getShardedHashTag pKeyText))
+                      (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                       L.AutoID
                       [("command", BSL.toStrict $ A.encode qCmd)]
                 L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled value)
@@ -302,7 +302,8 @@ updateObjectRedis meshCfg updVals whereClause obj = do
     modifySKeysRedis :: [[(Text, Text)]] -> table Identity -> m (MeshResult (table Identity)) -- TODO: Optimise this logic
     modifySKeysRedis olderSkeys table = do
       let pKeyText = getLookupKeyByPKey table
-          pKey = fromString . T.unpack $ pKeyText
+          shard = getShardedHashTag pKeyText
+          pKey = fromString . T.unpack $ pKeyText <> shard
       let tName = tableName @(table Identity)
           updValsMap = HM.fromList (map (\p -> (fst p, True)) updVals)
           (modifiedSkeysValues, unModifiedSkeysValues) = applyFPair (map getSortedKeyAndValue) $
@@ -310,15 +311,20 @@ updateObjectRedis meshCfg updVals whereClause obj = do
           newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeys table)
       let unModifiedSkeys = map (\x -> tName <> "_" <> fst x <> "_" <> snd x) unModifiedSkeysValues
       let modifiedSkeysValuesMap = HM.fromList modifiedSkeysValues
-      mapM_ ((\key -> L.runKVDB meshCfg.kvRedis $ L.expire key meshCfg.redisTtl) . (fromString . T.unpack)) unModifiedSkeys
-      mapM_ (addNewSkey pKey tName) (foldSkeysFunc modifiedSkeysValuesMap newSkeysValues)
-      pure $ Right table
+      L.logDebugT ("modifySKeysRedis " <> tName) (show (map fst modifiedSkeysValues))
+      mapRight (const table) <$> runExceptT (do
+                                    mapM_ ((ExceptT . resetTTL) . (fromString . T.unpack)) unModifiedSkeys
+                                    mapM_ (ExceptT . addNewSkey pKey tName) (foldSkeysFunc modifiedSkeysValuesMap newSkeysValues))
+
+    resetTTL key= do
+      x <- L.runKVDB meshCfg.kvRedis $ L.expire key meshCfg.redisTtl
+      pure $ mapLeft MRedisError x
 
     foldSkeysFunc :: HashMap Text Text -> [(Text, Text)] -> [(Text, Text, Text)]
     foldSkeysFunc _ [] = []
     foldSkeysFunc hm (x : xs) = do
       case HM.lookup (fst x) hm of
-        Just val -> (fst x, snd x, show val) : foldSkeysFunc hm xs
+        Just val -> (fst x, snd x, val) : foldSkeysFunc hm xs
         Nothing -> foldSkeysFunc hm xs
 
 
@@ -326,10 +332,13 @@ updateObjectRedis meshCfg updVals whereClause obj = do
     addNewSkey pKey tName (k, v1, v2) = do
       let newSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v1
           oldSKey = fromString . T.unpack $ tName <> "_" <> k <> "_" <> v2
-      _ <- L.runKVDB meshCfg.kvRedis $ L.srem oldSKey [pKey]
-      _ <- L.runKVDB meshCfg.kvRedis $ L.sadd newSKey [pKey]
-      _ <- L.runKVDB meshCfg.kvRedis $ L.expire newSKey meshCfg.redisTtl
-      pure $ Right ()
+      res <- runExceptT $ do
+        _ <- ExceptT $ L.runKVDB meshCfg.kvRedis $ L.srem oldSKey [pKey]
+        _ <- ExceptT $ L.runKVDB meshCfg.kvRedis $ L.sadd newSKey [pKey]
+        ExceptT $ L.runKVDB meshCfg.kvRedis $ L.expire newSKey meshCfg.redisTtl
+      case res of
+        Right _ -> pure $ Right ()
+        Left err -> pure $ Left (MRedisError err)
 
     getSortedKeyAndValue :: [(Text,Text)] -> (Text, Text)
     getSortedKeyAndValue kvTup = do
@@ -381,7 +390,9 @@ updateDBRowInRedis :: forall beM be table m.
   ) =>
   MeshConfig -> [(Text, A.Value)] -> Where be table -> table Identity -> m (MeshResult (table Identity))
 updateDBRowInRedis meshCfg updVals whereClause obj = do
-  let pKey = fromString . T.unpack $ getLookupKeyByPKey obj
+  let pKeyText = getLookupKeyByPKey obj
+      shard = getShardedHashTag pKeyText
+      pKey = fromString . T.unpack $ pKeyText <> shard
   mapM_ (\secIdx -> do -- Recaching Skeys in redis
     let sKey = fromString . T.unpack $ secIdx
     _ <- L.runKVDB meshCfg.kvRedis $ L.sadd sKey [pKey]
@@ -409,14 +420,14 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "updateAllReturningWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "updateAllReturningWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
           updVals = jsonKeyValueUpdates setClause
       kvRows <- redisFindAll meshCfg whereClause
       dbRows <- runQuery dbConf findAllQuery
       updateKVAndDBResults meshCfg whereClause dbRows kvRows updVals
     else do
-      L.logDebug @Text "updateAllReturningWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "updateAllReturningWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -446,14 +457,14 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "updateAllWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "updateAllWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
           updVals = jsonKeyValueUpdates setClause
       kvRows <- redisFindAll meshCfg whereClause
       dbRows <- runQuery dbConf findAllQuery
       mapRight (const ()) <$> updateKVAndDBResults meshCfg whereClause dbRows kvRows updVals
     else do
-      L.logDebug @Text "updateAllWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "updateAllWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -509,7 +520,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "findWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "findWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       eitherKvRows <- findOneFromRedis meshCfg whereClause
       case eitherKvRows of
         Right [] -> do
@@ -520,7 +531,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           pure $ Right $ findOneMatching whereClause rows
         Left err -> pure $ Left err
     else do
-      L.logDebug @Text "findWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "findWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       findOneFromDB dbConf whereClause
 
 -- TODO: Once record matched in redis stop and return it
@@ -542,9 +553,9 @@ findOneFromRedis meshCfg whereClause = do
       andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
       modelName = tableName @(table Identity)
       keyHashMap = keyMap @(table Identity)
-  L.logDebugT "findWithKVConnector" (show $ length $  keyAndValueCombinations)
+  L.logDebugT "findWithKVConnector" (show $ length keyAndValueCombinations)
   eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
-  L.logDebugT "findWithKVConnector" (show $ length $ eitherKeyRes)
+  L.logDebugT "findWithKVConnector" (show $ length eitherKeyRes)
   case foldEither eitherKeyRes of
     Right keyRes -> do
       allRowsRes <- mapM (getDataFromPKeysRedis meshCfg) keyRes
@@ -590,7 +601,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "findAllWithOptionsKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "findAllWithOptionsKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       kvRes <- redisFindAll meshCfg whereClause
       case kvRes of
         Right kvRows -> do
@@ -623,7 +634,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
             ! #limit mbLimit
             ! #offset mbOffset
             ! defaults)
-      L.logDebug @Text "findAllWithOptionsKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "findAllWithOptionsKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       mapLeft MDBError <$> runQuery dbConf findAllQuery
 
     where
@@ -666,7 +677,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
   if isEnabled
     then do
-      L.logDebug @Text "findAllWithKVConnector" (("Taking KV Path for" <> (show (tableName @(table Identity)) )))
+      L.logDebug @Text "findAllWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
       kvRes <- redisFindAll meshCfg whereClause
       case kvRes of
         Right kvRows -> do
@@ -676,7 +687,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
             Right dbRows -> pure $ Right $ (mergeKVAndDBResults dbRows . findAllMatching whereClause) kvRows
         Left err -> pure $ Left err
     else do
-      L.logDebug @Text "findAllWithKVConnector" (("Taking SQLDB Path for" <> (show (tableName @(table Identity)))))
+      L.logDebug @Text "findAllWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
       mapLeft MDBError <$> runQuery dbConf findAllQuery
 
 redisFindAll :: forall be table beM m.
@@ -697,7 +708,7 @@ redisFindAll meshCfg whereClause = do
       modelName = tableName @(table Identity)
       keyHashMap = keyMap @(table Identity)
   eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
-  L.logDebugT "redisFindAll" ((show $ length eitherKeyRes) <> " rows" )
+  L.logDebugT "redisFindAll" (show (length eitherKeyRes) <> " rows" )
   case foldEither eitherKeyRes of
     Right keyRes -> do
       allRowsRes <- mapM (getDataFromPKeysRedis meshCfg) keyRes
@@ -748,7 +759,7 @@ decodeToField val =
           case A.eitherDecode v of
             Right r' -> decodeField @a r'
             Left e   -> Left $ MDecodingError $ T.pack e
-        _      -> 
+        _      ->
           case A.eitherDecode val of
             Right r' -> decodeField @a r'
             Left e   -> Left $ MDecodingError $ T.pack e

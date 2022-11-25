@@ -161,6 +161,25 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  GetOptionLocal
+    :: HasCallStack
+    => Text
+    -> (Maybe a -> next)
+    -> FlowMethod next
+
+  SetOptionLocal
+    :: HasCallStack
+    => Text
+    -> a
+    -> (() -> next)
+    -> FlowMethod next
+
+  DelOptionLocal
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
   GetConfig
     :: HasCallStack
     => Text
@@ -351,6 +370,9 @@ instance Functor FlowMethod where
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
+    GetOptionLocal k cont -> GetOptionLocal k (f . cont)
+    SetOptionLocal k v cont -> SetOptionLocal k v (f . cont)
+    DelOptionLocal k cont -> DelOptionLocal k (f . cont)
     GetConfig k cont -> GetConfig k (f . cont)
     SetConfig k v cont -> SetConfig k v (f . cont)
     TrySetConfig k v cont -> TrySetConfig k v (f . cont)
@@ -513,6 +535,12 @@ class (MonadMask m) => MonadFlow m where
 
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
+
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m (Maybe v)
+
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
+
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
   getConfig :: HasCallStack => Text -> m (Maybe ConfigEntry)
 
@@ -794,6 +822,15 @@ instance MonadFlow Flow where
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
+  getOptionLocal k = liftFC $ GetOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
+  setOptionLocal k v = liftFC $ SetOptionLocal (mkOptionKey @k @v k) v id
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
+  delOptionLocal k = liftFC $ DelOptionLocal (mkOptionKey @k @v k) id
   {-# INLINEABLE getConfig #-}
   getConfig :: HasCallStack => Text -> Flow (Maybe ConfigEntry)
   getConfig k = liftFC $ GetConfig k id
@@ -877,6 +914,12 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -951,6 +994,12 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1025,6 +1074,12 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1097,6 +1152,12 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1169,6 +1230,12 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}

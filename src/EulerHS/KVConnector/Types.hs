@@ -7,6 +7,7 @@
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-star-is-type #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.KVConnector.Types where
 
@@ -112,6 +113,7 @@ data QueryPath = KVPath | SQLPath
 
 data MeshConfig = MeshConfig
   { meshEnabled     :: Bool
+  , cerealEnabled   :: Bool
   , memcacheEnabled :: Bool
   , meshDBName      :: Text
   , ecRedisDBStream :: Text
@@ -149,3 +151,29 @@ instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL (Vector Text)
 instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Int)
 
 instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Text)
+
+data IsKVEnabled = IsKVEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity IsKVEnabled Bool
+
+data KVCEnabledTables = KVCEnabledTables
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity KVCEnabledTables FeatureConfig
+
+data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
+  { enableAll        :: Bool
+  , disableAny       :: Maybe [Text]
+  , enableAllRollout :: Maybe Int
+  , enabledKeys      :: [RolloutConfig]
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data RolloutConfig = RolloutConfig
+  { name        :: Text
+  , rollout    :: Int
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

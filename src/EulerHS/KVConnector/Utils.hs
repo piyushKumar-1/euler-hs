@@ -22,6 +22,13 @@ import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..))
 import           Unsafe.Coerce (unsafeCoerce)
+import Data.Time.LocalTime (addLocalTime, LocalTime)
+import Data.Time.Clock (secondsToNominalDiffTime)
+import           System.Random (randomRIO)
+import           Juspay.Extra.Config (lookupEnvT)
+import qualified Data.Fixed as Fixed
+
+
 
 
 jsonKeyValueUpdates ::
@@ -136,3 +143,29 @@ termQueryMatch columnVal = \case
   Not (Eq literal)        -> columnVal /= literal
   Not term                -> not (termQueryMatch columnVal term)
   _                       -> error "Term query not supported"
+
+toPico :: Int -> Fixed.Pico
+toPico value = Fixed.MkFixed $ ((toInteger value) * 1000000000000)
+
+getRandomStream :: (L.MonadFlow m) => MeshConfig -> m Text
+getRandomStream meshCfg = do
+  streamShard <- L.runIO' "random shard" $ randomRIO (1, getConfigStreamMaxShards)
+  return $ meshCfg.ecRedisDBStream <> "-" <> getConfigStreamBasename <> "{shard-" <> (show streamShard) <> "}"
+
+getConfigStreamNames :: MeshConfig -> [Text]
+getConfigStreamNames meshCfg = fmap (\shardNo -> meshCfg.ecRedisDBStream <> "-" <> getConfigStreamBasename <> "{shard-" <> (show shardNo) <> "}") [1..getConfigStreamMaxShards]
+
+getConfigStreamBasename :: Text
+getConfigStreamBasename = fromMaybe "ConfigStream" $ lookupEnvT "CONFIG_STREAM_BASE_NAME"
+
+getConfigStreamMaxShards :: Int
+getConfigStreamMaxShards = fromMaybe 20 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_MAX_SHARDS"
+
+getConfigStreamLooperDelayInSec :: Int
+getConfigStreamLooperDelayInSec = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_LOOPER_DELAY_IN_SEC"
+
+getConfigEntryNewTtl :: (L.MonadFlow m) => m LocalTime
+getConfigEntryNewTtl = do
+    currentTime <- L.getCurrentTimeUTC
+    noise <- L.runIO' "random seconds" $ randomRIO (1, 900)
+    return $ addLocalTime (secondsToNominalDiffTime $ toPico (45 * 60 + noise)) currentTime

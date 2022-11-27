@@ -70,6 +70,7 @@ library
     EulerHS.KVConnector.Flow
     EulerHS.KVConnector.Types
     EulerHS.KVConnector.DBSync
+    EulerHS.KVConnector.Utils
 
   other-modules:
     EulerHS.Api
@@ -97,7 +98,6 @@ library
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
     EulerHS.KVConnector.Encoding 
-    EulerHS.KVConnector.Utils
 
   build-depends:
     , QuickCheck

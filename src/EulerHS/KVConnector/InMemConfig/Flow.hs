@@ -8,24 +8,32 @@ import           EulerHS.Prelude
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.InMemConfig.Types
-import           EulerHS.KVConnector.Types (MeshConfig)
-import           EulerHS.Runtime (ConfigEntry(..))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName)
+import           EulerHS.Runtime (mkConfigEntry)
 import           EulerHS.KVConnector.Utils
 
-checkAndStartLooper :: (L.MonadFlow m) => MeshConfig -> m ()
-checkAndStartLooper meshCfg = do
-    hasLooperStarted <- L.getOption LooperStarted
+checkAndStartLooper :: forall table m.
+    (
+    HasCallStack,
+    KVConnector (table Identity),
+    L.MonadFlow m) => MeshConfig -> (ByteString -> Maybe (table Identity)) -> m ()
+checkAndStartLooper meshCfg decodeTable = do
+    hasLooperStarted <- L.getOption $ (LooperStarted (tableName @(table Identity)))
     case hasLooperStarted of
         _hasLooperStarted
             | _hasLooperStarted == Just True ->  pure ()
             | otherwise ->  do
                 streamName <- getRandomStream meshCfg
                 L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> ">"
-                L.fork $ looperForRedisStream meshCfg.kvRedis streamName
-                L.setOption LooperStarted True
+                L.fork $ looperForRedisStream  decodeTable meshCfg.kvRedis streamName
+                L.setOption (LooperStarted (tableName @(table Identity))) True
 
-looperForRedisStream :: (L.MonadFlow m) => Text -> Text -> m ()
-looperForRedisStream redisName streamName = forever $ do
+looperForRedisStream :: forall table m.(
+    HasCallStack,
+    L.MonadFlow m
+    ) => 
+    (ByteString -> Maybe (table Identity)) -> Text -> Text -> m ()
+looperForRedisStream decodeTable redisName streamName = forever $ do
     maybeRId <- L.getOption RecordId
     case maybeRId of
         Nothing -> do
@@ -37,28 +45,36 @@ looperForRedisStream redisName streamName = forever $ do
                     return ()
                 Just (latestId, rs) -> do
                     L.setOption RecordId latestId
-                    mapM_ setInMemCache rs
+                    mapM_ (setInMemCache decodeTable) rs
         Just rId -> do
             newRecords <- getRecordsFromStream redisName streamName rId
             case newRecords of
                 Nothing -> return ()
                 Just (latestId, rs) -> do
                     L.setOption RecordId latestId
-                    mapM_ setInMemCache rs
+                    mapM_ (setInMemCache decodeTable) rs
     void $ looperDelayInSec
 
 
 looperDelayInSec :: (L.MonadFlow m) => m ()
 looperDelayInSec = L.runIO $ threadDelay $ getConfigStreamLooperDelayInSec * 1000000
 
-setInMemCache :: RecordKeyValues -> (L.MonadFlow m) => m ()
-setInMemCache (key,value) = do
-    newTtl <- getConfigEntryNewTtl
-    void $ L.setConfig key $ ConfigEntry newTtl value
-    return ()
+setInMemCache :: forall table m.(
+    HasCallStack,
+    L.MonadFlow m
+    ) => 
+    (ByteString -> Maybe (table Identity)) ->
+    RecordKeyValues -> m ()
+setInMemCache decodeTable (key,value) = do
+    case decodeTable value of
+        Nothing -> return ()
+        Just x -> do
+            newTtl <- getConfigEntryNewTtl
+            void $ L.setConfig key $ mkConfigEntry newTtl x
+            return ()
 
 extractRecordsFromStreamResponse :: [L.KVDBStreamReadResponseRecord] -> [RecordKeyValues]
-extractRecordsFromStreamResponse  = foldMap (fmap (bimap decodeUtf8 decodeUtf8) . L.records) 
+extractRecordsFromStreamResponse  = foldMap (fmap (bimap decodeUtf8 id) . L.records) 
 
 getRecordsFromStream :: Text -> Text -> LatestRecordId -> (L.MonadFlow m) => m (Maybe (LatestRecordId, [RecordKeyValues]))
 getRecordsFromStream redisName streamName lastRecordId = do

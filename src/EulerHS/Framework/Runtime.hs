@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE DerivingVia     #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -7,6 +8,7 @@ module EulerHS.Framework.Runtime
     -- * Framework Runtime
     FlowRuntime(..)
   , ConfigEntry(..)
+  , mkConfigEntry
   , createFlowRuntime
   , createFlowRuntime'
   , withFlowRuntime
@@ -20,7 +22,6 @@ module EulerHS.Framework.Runtime
 
 import           Control.Monad.Trans.Except (throwE)
 import qualified Control.Concurrent.Map as CMap
-import           Data.Aeson as A
 import qualified Data.Map as Map (empty)
 import qualified Data.LruCache as LRU
 import qualified Data.Pool as DP (destroyAllResources)
@@ -43,6 +44,7 @@ import           Network.TLS.Extra.Cipher (ciphersuite_default)
 import           System.IO.Unsafe (unsafePerformIO)
 import qualified System.Mem as SYSM (performGC)
 import           EulerHS.HttpAPI
+import           Unsafe.Coerce (unsafeCoerce)
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
@@ -67,17 +69,23 @@ data FlowRuntime = FlowRuntime
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
   , _configCache              :: MVar (Map Text ConfigEntry)
+
   , _configCacheLock          :: MVar (CMap.Map Text ())
   
   }
 
-data ConfigEntry = ConfigEntry
+data ConfigEntry =   ConfigEntry
   {
       ttl :: LocalTime
-    , entry :: Text
+    , entry :: Any
   }
-  deriving stock (Show, Generic)
-  deriving anyclass (A.FromJSON, A.ToJSON)
+
+deriving instance Show ConfigEntry
+
+mkConfigEntry :: LocalTime -> a -> ConfigEntry
+mkConfigEntry valTtl val = ConfigEntry valTtl (unsafeCoerce @_ @Any val)
+-- deriving instance Generic ConfigEntry
+  -- deriving anyclass (A.FromJSON, A.ToJSON)
 -- | Possible issues that can arise when registering certificates.
 --
 -- @since 2.0.4.3

@@ -25,7 +25,8 @@ import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, get
 import           EulerHS.KVConnector.InMemConfig.Types (InMemCacheResult (..))
 import           EulerHS.KVConnector.InMemConfig.Flow (checkAndStartLooper)
 import           EulerHS.KVConnector.Utils
-import           EulerHS.Runtime (ConfigEntry(..))
+import           EulerHS.Runtime (mkConfigEntry)
+import           Unsafe.Coerce (unsafeCoerce)
 import qualified Data.Aeson as A
 import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
@@ -279,11 +280,14 @@ updateObjectInMemConfig meshCfg _ updVals obj = do
         shard = getShardedHashTag pKeyText
         pKey =  pKeyText <> shard
         updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
-      L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
-      newTtl <- getConfigEntryNewTtl
-      L.setConfig pKey (ConfigEntry  newTtl updatedModelT) 
-      mapM_ (pushToConfigStream pKey updatedModelT) (getConfigStreamNames meshCfg)
-      pure . Right $ ()
+      case A.fromJSON updatedModel of
+        A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
+        A.Success (updatedModel' :: table Identity)  -> do
+          L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
+          newTtl <- getConfigEntryNewTtl
+          L.setConfig pKey (mkConfigEntry newTtl updatedModel') 
+          mapM_ (pushToConfigStream pKey updatedModelT) (getConfigStreamNames meshCfg)
+          pure . Right $ ()
   where
     pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()
     pushToConfigStream k v streamName = 
@@ -566,11 +570,15 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
     then do
       let 
         shouldSearchInMemoryCache = memCacheable @(table Identity)
-        entryToTable = return . Right . A.decode . encodeUtf8
+        entryToTable :: forall a. a -> m (MeshResult (Maybe (table Identity)))
+        entryToTable x = return . Right . Just $ ((unsafeCoerce @_ @(table Identity)) x)
       inMemResult <- if shouldSearchInMemoryCache && length whereClause == 1 
         then do
           eitherPKeys <- getPrimaryKeys 
-          checkAndStartLooper meshCfg
+          let
+            decodeTable :: ByteString -> Maybe (table Identity)
+            decodeTable = A.decode . BSL.fromStrict
+          checkAndStartLooper meshCfg decodeTable
           case eitherPKeys of
             Right [] -> return TableIneligible
             Right [[pKey]] -> do
@@ -642,18 +650,17 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           Right rows -> do
             let 
               mbval  =  findOneMatching whereClause rows
-              mbvalT =  decodeUtf8 . A.encode <$> mbval
-            case (keyForInMemConfig, mbvalT) of
+            case (keyForInMemConfig, mbval) of
               (Just k, Just v) -> setInConfig k v
               _ -> pure ()
             pure $ Right $ mbval
           Left err -> pure $ Left err
 
-      setInConfig :: Text -> Text -> m ()
-      setInConfig k redisValue = do
+      setInConfig :: Text -> table Identity -> m ()
+      setInConfig k model = do
         newTtl <- getConfigEntryNewTtl
         L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
-        void $ L.setConfig k (ConfigEntry  newTtl redisValue) 
+        void $ L.setConfig k (mkConfigEntry  newTtl model) 
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.

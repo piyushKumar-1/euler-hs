@@ -8,16 +8,16 @@ import qualified Data.Aeson as A
 import           EulerHS.Options (OptionEntity)
 import           EulerHS.KVConnector.Types (MeshError)
 
-data InMemCacheResult = EntryValid Text | 
-                        EntryExpired Text (Maybe KeyForInMemConfig) | 
+data InMemCacheResult =  EntryValid Any | 
+                        EntryExpired Any (Maybe KeyForInMemConfig) | 
                         EntryNotFound (KeyForInMemConfig) |
                         TableIneligible | 
                         UnknownError MeshError 
 
 type KeyForInMemConfig = Text
 
-data LooperStarted = LooperStarted
-  deriving (Generic, A.ToJSON, Typeable)
+data LooperStarted  = LooperStarted Text
+  deriving (Generic, A.ToJSON, Typeable, Show)
 
 instance OptionEntity LooperStarted Bool
 
@@ -27,4 +27,4 @@ data RecordId = RecordId
 instance OptionEntity RecordId Text
 
 type LatestRecordId = Text
-type RecordKeyValues = (Text, Text)
+type RecordKeyValues = (Text, ByteString)

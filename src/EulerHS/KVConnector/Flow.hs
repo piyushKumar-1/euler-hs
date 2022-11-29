@@ -26,7 +26,7 @@ import           EulerHS.KVConnector.Utils
 import qualified Data.Aeson as A
 import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
-import           Data.List (span, maximum)
+import           Data.List (span, maximum, findIndices)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
@@ -41,6 +41,7 @@ import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
 import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
+import           Safe (atMay)
 
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
@@ -174,6 +175,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       mapRight (const ()) <$> updateKV dbConf meshCfg setClause whereClause
     else do
       L.logDebug @Text "updateWoReturningWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       res <- updateOneSqlWoReturning dbConf setClause whereClause
       case res of
         Right val -> return $ Right val
@@ -204,6 +206,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
       updateKV dbConf meshCfg setClause whereClause
     else do
       L.logDebug @Text "updateWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -429,6 +432,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       updateKVAndDBResults meshCfg whereClause dbRows kvRows updVals
     else do
       L.logDebug @Text "updateAllReturningWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -466,6 +470,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
       mapRight (const ()) <$> updateKVAndDBResults meshCfg whereClause dbRows kvRows updVals
     else do
       L.logDebug @Text "updateAllWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -533,6 +538,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         Left err -> pure $ Left err
     else do
       L.logDebug @Text "findWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       findOneFromDB dbConf whereClause
 
 -- TODO: Once record matched in redis stop and return it
@@ -636,6 +642,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
             ! #offset mbOffset
             ! defaults)
       L.logDebug @Text "findAllWithOptionsKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
 
     where
@@ -689,6 +696,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
         Left err -> pure $ Left err
     else do
       L.logDebug @Text "findAllWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+      whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
 
 redisFindAll :: forall be table beM m.
@@ -815,3 +823,23 @@ nonEmptySubsequences         :: [Text] -> [[Text]]
 nonEmptySubsequences []      =  []
 nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
   where f ys r = ys : (x : ys) : r
+
+whereClauseDiffCheck :: forall be table m. 
+  ( L.MonadFlow m
+  , Model be table
+  , MeshMeta be table
+  , KVConnector (table Identity)
+  ) =>
+  Where be table -> m ()
+whereClauseDiffCheck whereClause = do
+  let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
+      andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
+      keyHashMap = keyMap @(table Identity)
+      failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
+  when (not $ null failedKeys) $ L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show (map (map fst) failedKeys))
+  where
+    checkForPrimaryOrSecondary _ [] = True
+    checkForPrimaryOrSecondary keyHashMap ((k, _) : xs) =
+      case HM.member k keyHashMap of
+        True -> False
+        _ -> checkForPrimaryOrSecondary keyHashMap xs

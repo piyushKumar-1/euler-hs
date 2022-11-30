@@ -62,7 +62,6 @@ library
     EulerHS.Extra.Test
     EulerHS.Extra.Time
     EulerHS.Extra.Validation
-    EulerHS.Extra.ConnectionTimeOutMetric
     EulerHS.Interpreters
     EulerHS.Language
     EulerHS.Prelude

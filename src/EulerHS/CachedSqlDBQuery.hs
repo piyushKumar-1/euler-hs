@@ -24,7 +24,7 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
-import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, incrementDbMetric)
+import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.SqlDB.Language as DB
@@ -305,7 +305,7 @@ findAllExtended dbConf mKey sel = case mKey of
       eConn <- getOrInitSqlConn dbConf
       rows <- join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
       case rows of
-        Left err -> incrementDbMetric err dbConf *> pure rows
+        Left err -> L.incrementDbMetric err dbConf *> pure rows
         Right _ -> pure rows
 
 ------------ Helper functions ------------
@@ -323,7 +323,7 @@ runQuery dbConf query = do
       case result of
         Right _ -> pure result
         Left err -> do
-          incrementDbMetric err dbConf
+          L.incrementDbMetric err dbConf
           pure result
     Left  e -> return $ Left e
 
@@ -338,7 +338,7 @@ runQueryMySQL dbConf query = do
     Right c -> do
       rows <- L.runTransaction c query
       case rows of
-        Left err -> incrementDbMetric err dbConf *> pure rows
+        Left err -> L.incrementDbMetric err dbConf *> pure rows
         Right _ -> pure rows
     Left  e -> return $ Left e
 
@@ -423,7 +423,7 @@ findAllSql dbConf whereClause = do
   rows <- join <$> mapM (`L.runDB` findQuery) sqlConn
   case rows of
     Right _ -> pure rows
-    Left err -> incrementDbMetric err dbConf *> pure rows
+    Left err -> L.incrementDbMetric err dbConf *> pure rows
 
 cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> m ()
 cacheWithKey key row = do

@@ -1,10 +1,214 @@
 cradle:
   cabal:
-    - path: "."
-      component: "euler-hs"
-    - path: "src"
+    - path: "test/extra/Main.hs"
+      component: "euler-hs:test:extra"
+
+    - path: "test/extra/Options.hs"
+      component: "euler-hs:test:extra"
+
+    - path: "testDB/Main.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/KVDB/KVDBSpec.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/TestData/Connections.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/TestData/Scenarios/MySQL.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/TestData/Scenarios/Postgres.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/TestData/Scenarios/SQLite.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/TestData/Types.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/Tests/MySQLDBSpec.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/Tests/PostgresDBSpec.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/Tests/QueryExamplesSpec.hs"
+      component: "euler-hs:test:db"
+
+    - path: "testDB/SQLDB/Tests/SQLiteDBSpec.hs"
+      component: "euler-hs:test:db"
+
+    - path: "test/language/Main.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/ArtSpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/Client.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/Common.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/DBSetup.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/EulerHS/TestData/Types.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/EulerHS/Testing/Flow/Interpreter.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/EulerHS/Testing/Types.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/HttpAPISpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/FlowSpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/KVDBArtSpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/MaskingSpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/PubSubSpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/Scenario1.hs"
+      component: "euler-hs:test:language"
+
+    - path: "test/language/SQLArtSpec.hs"
+      component: "euler-hs:test:language"
+
+    - path: "src/EulerHS/CachedSqlDBQuery.hs"
       component: "lib:euler-hs"
-    - path: "test"
-      component: "test:language"
-    - path: "testDB"
-      component: "test:db"
+
+    - path: "src/EulerHS/Extra/AltValidation.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/Aeson.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/Combinators.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/EulerDB.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/Test.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/Time.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/Validation.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Interpreters.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Prelude.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Runtime.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Types.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVConnector/Flow.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVConnector/Types.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Api.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/BinaryString.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Common.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Extra/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Framework/Interpreter.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Framework/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Framework/Runtime.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/HttpAPI.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVDB/Interpreter.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVDB/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVDB/Types.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Logger/Interpreter.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Logger/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Logger/Runtime.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Logger/TinyLogger.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Logger/Types.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Masking.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/Options.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/PubSub/Interpreter.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/PubSub/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/SqlDB/Interpreter.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/SqlDB/Language.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/SqlDB/MySQL.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/SqlDB/Postgres.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/SqlDB/Types.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVConnector/DBSync.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVConnector/Encoding.hs"
+      component: "lib:euler-hs"
+
+    - path: "src/EulerHS/KVConnector/Utils.hs"
+      component: "lib:euler-hs"

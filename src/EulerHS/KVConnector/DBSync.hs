@@ -63,6 +63,24 @@ getDbUpdateCommandJson model upd whereClause = A.object
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
   ]
 
+getDeleteQuery :: DBCommandVersion -> Tag -> Double -> DBName -> A.Value -> A.Value
+getDeleteQuery cmdVersion tag timestamp dbName deleteCommand = A.object
+  [ "contents" .= A.toJSON
+      [ A.toJSON cmdVersion
+      , A.toJSON tag
+      , A.toJSON timestamp
+      , A.toJSON dbName
+      , deleteCommand
+      ]
+  , "tag" .= ("Delete" :: Text)
+  ]
+
+getDbDeleteCommandJson :: forall be table. (Model be table, MeshMeta be table) => Text -> Where be table -> A.Value
+getDbDeleteCommandJson model whereClause = A.object
+  [ "contents" .= whereClauseToJson whereClause
+  , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
+  ]
+
 updValToJSON :: (Text, A.Value) -> A.Value
 updValToJSON (k, v) = A.object [ "value0" .= k, "value1" .= v ]
 

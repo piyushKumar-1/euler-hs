@@ -72,6 +72,7 @@ class (B.BeamSqlBackend be, B.MonadBeam be beM) => BeamRuntime be beM
   rtUpdate              :: B.SqlUpdate be table -> beM ()
   rtUpdateReturningList :: forall table. (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlUpdate be table -> beM [table Identity]
   rtDelete              :: B.SqlDelete be table -> beM ()
+  rtDeleteReturningList :: forall table. (B.Beamable table, B.FromBackendRow be (table Identity)) => B.SqlDelete be table -> beM [table Identity]
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRuntime BS.Sqlite BS.SqliteM where
@@ -82,6 +83,7 @@ instance BeamRuntime BS.Sqlite BS.SqliteM where
   rtUpdate = B.runUpdate
   rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
+  rtDeleteReturningList = error "Not implemented"
 
 -- TODO: move somewhere (it's implementation)
 instance BeamRuntime BP.Postgres BP.Pg where
@@ -92,6 +94,7 @@ instance BeamRuntime BP.Postgres BP.Pg where
   rtUpdate = B.runUpdate
   rtUpdateReturningList = updateReturningListPG
   rtDelete = B.runDelete
+  rtDeleteReturningList = deleteReturningListPG
 
 deleteReturningListPG
   :: (B.Beamable table, B.FromBackendRow BP.Postgres (table Identity))
@@ -113,6 +116,7 @@ instance BeamRuntime BM.MySQL BM.MySQLM where
   rtUpdate = B.runUpdate
   rtUpdateReturningList = error "Not implemented"
   rtDelete = B.runDelete
+  rtDeleteReturningList = error "Not implemented"
 
 class BeamRunner beM where
   getBeamDebugRunner :: NativeSqlConn -> beM a -> ((Text -> IO ()) -> IO a)

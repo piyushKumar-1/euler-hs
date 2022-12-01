@@ -130,10 +130,10 @@ createWithKVConnector dbConf meshCfg value = do
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
-    , _action       = "CREATE"
+    , _action       = "CREATE_RETURNING"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right m  -> A.toJSON m -- check for cereal ??
+                        Right _  -> A.Null
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
@@ -277,10 +277,10 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
-    , _action       = "UPDATE"
+    , _action       = "UPDATE_RETURNING"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right m  -> A.toJSON m
+                        Right _  -> A.Null
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
@@ -492,7 +492,9 @@ updateAllReturningWithKVConnector :: forall table m.
   m (MeshResult [table Identity])
 updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebugT "updateAllReturningWithKVConnector" ("Taking KV Path for " <> tableName @(table Identity))
       let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
@@ -508,6 +510,21 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       case res of
         Right x -> return $ Right x
         Left e -> return $ Left $ MDBError e
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "FIND_ALL"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right _  -> A.Null
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 updateAllWithKVConnector :: forall be table beM m.
   ( HasCallStack,
@@ -638,7 +655,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
     , _action       = "FIND"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right m  -> A.toJSON m -- check for cereal ??
+                        Right _  -> A.Null
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
@@ -711,7 +728,9 @@ findAllWithOptionsKVConnector :: forall be table beM m.
   m (MeshResult [table Identity])
 findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffset = do
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebugT "findAllWithOptionsKVConnector" ("Taking KV Path for " <> tableName @(table Identity))
       kvRes <- redisFindAll meshCfg whereClause
@@ -749,6 +768,21 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
       L.logDebugT "findAllWithOptionsKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
       whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "FIND_ALL"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right _  -> A.Null
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
     where
       applyOptions :: Int -> [table Identity] -> [table Identity]
@@ -788,7 +822,9 @@ findAllWithKVConnector :: forall be table beM m.
 findAllWithKVConnector dbConf meshCfg whereClause = do
   let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
   isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  res <- if isEnabled
     then do
       L.logDebugT "findAllWithKVConnector" ("Taking KV Path for " <> tableName @(table Identity))
       kvRes <- redisFindAll meshCfg whereClause
@@ -803,6 +839,21 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
       L.logDebugT "findAllWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
       whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  L.logInfoV ("DB" :: Text) (
+    DBLogEntry {
+      _log_type     = "DB"
+    , _action       = "FIND_ALL"
+    , _data        = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right _  -> A.Null
+    , _latency      = t2 - t1
+    , _model        = tableName @(table Identity)
+    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
+    , _source       = if isEnabled then "KV" else "DB"
+    })
+  pure res
 
 redisFindAll :: forall be table beM m.
   ( HasCallStack,

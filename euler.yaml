@@ -24,9 +24,9 @@ dependencies:
 
 overrides:
   hedis:
-    owner: MrRobo24
+    owner: juspay
     repo: hedis
-    commit: 9cae3a99f2538f029cc9243e2b256e16f2ec3e3b
+    commit: 7cc372d8c2ba97a99799ff64e0ac655383c6b49b
     sha256: 1qkhnlm29ad1y5id7wx25pixq9czywwq8dps2qjzw5mvpi7f4r9h
     source: github
 

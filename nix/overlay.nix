@@ -12,12 +12,12 @@ let
   };
 
   hedis-repo = builtins.fetchTarball {
-    url = "https://github.com/MrRobo24/hedis/archive/9cae3a99f2538f029cc9243e2b256e16f2ec3e3b.tar.gz";
+    url = "https://github.com/juspay/hedis/archive/7cc372d8c2ba97a99799ff64e0ac655383c6b49b.tar.gz";
     sha256 = "1qkhnlm29ad1y5id7wx25pixq9czywwq8dps2qjzw5mvpi7f4r9h";
   };
   hedis-path = hedis-repo;
 
-in 
+in
 super.eulerBuild.mkEulerHaskellOverlay self super
   (hself: hsuper: {
     hedis = self.eulerBuild.fastBuildExternal {
@@ -94,7 +94,7 @@ super.eulerBuild.mkEulerHaskellOverlay self super
       drv = super.haskell.lib.addBuildTools (hself.callCabal2nix "euler-hs" euler-hs-src { }) (with self; [ redis ]);
       overrides = {
         # We want to run tests for our packages most of the time
-        runTests = false;
+        runTests = true;
       };
     };
   })

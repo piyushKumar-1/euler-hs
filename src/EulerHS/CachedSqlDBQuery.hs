@@ -17,6 +17,7 @@ module EulerHS.CachedSqlDBQuery
   , findAllSql
   , findAllExtended
   , createMultiSql
+  , createMultiSqlWoReturning
   , SqlReturning(..)
   )
 where
@@ -452,8 +453,18 @@ createMultiSql ::
   DBConfig beM ->
   [table Identity] ->
   m (Either DBError [table Identity])
-createMultiSql dbConf value = do
-  res <- runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
-  case res of
-    Right val -> return $ Right val
-    Left e -> return $ Left e
+createMultiSql dbConf value = runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
+
+
+createMultiSqlWoReturning ::
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  m (Either DBError ())
+createMultiSqlWoReturning dbConf value = runQuery dbConf $ DB.insertRows $ sqlMultiCreate value

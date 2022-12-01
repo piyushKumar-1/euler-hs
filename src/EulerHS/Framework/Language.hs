@@ -1541,7 +1541,7 @@ data DBAndRedisMetricHandler = DBAndRedisMetricHandler
   }
 
 data DBAndRedisMetric
-  = ConnectionTimeout
+  = ConnectionLost
   | ConnectionFailed
   | ConnectionDoesNotExist
   | ConnectionAlreadyExists
@@ -1555,7 +1555,7 @@ mkDBAndRedisMetricHandler :: IO DBAndRedisMetricHandler
 mkDBAndRedisMetricHandler = do
   metrics <- register collectionLock
   pure $ DBAndRedisMetricHandler $ \case
-    (ConnectionTimeout, dbName, hostName)   ->
+    (ConnectionLost, dbName, hostName)   ->
       inc (metrics </> #connection_timeout) dbName hostName
     (ConnectionFailed, dbName, hostName)    ->
       inc (metrics </> #connection_failed) dbName hostName
@@ -1656,7 +1656,7 @@ incrementRedisMetric err cName = when (isDBMetricEnabled) $
     T.KVDBError T.KVDBConnectionDoesNotExist _ -> incrementMetric ConnectionDoesNotExist cName
     T.ExceptionMessage _ ->
       if Text.isInfixOf "Network.Socket.connect" $ show err
-        then incrementMetric ConnectionTimeout cName
+        then incrementMetric ConnectionLost cName
         else incrementMetric RedisExceptionMessage cName
     _ -> pure ()
 
@@ -1669,7 +1669,7 @@ incrementDbMetric (T.DBError err msg) dbConf = when isDBMetricEnabled $
     T.TransactionRollbacked -> incrementMetric TransactionRollbacked (dbConfigToTag dbConf)
     T.UnexpectedResult -> incrementMetric UnexpectedDBResult (dbConfigToTag dbConf)
     T.UnrecognizedError -> if Text.isInfixOf "Network.Socket.connect" $ show msg
-      then incrementMetric ConnectionTimeout (dbConfigToTag dbConf)
+      then incrementMetric ConnectionLost (dbConfigToTag dbConf)
       else incrementMetric UnrecognizedDBError (dbConfigToTag dbConf)
     _ -> pure ()
 

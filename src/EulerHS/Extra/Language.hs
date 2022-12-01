@@ -500,7 +500,7 @@ rGetB cName k = do
 rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
-  L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
+  -- L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
   mv <- rGetB cName (TE.encodeUtf8 k)
   case mv of
     Just val -> case A.eitherDecode' @A.Value $ BSL.fromStrict val of

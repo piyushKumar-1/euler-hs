@@ -1556,7 +1556,7 @@ mkDBAndRedisMetricHandler = do
   metrics <- register collectionLock
   pure $ DBAndRedisMetricHandler $ \case
     (ConnectionLost, dbName, hostName)   ->
-      inc (metrics </> #connection_timeout) dbName hostName
+      inc (metrics </> #connection_lost) dbName hostName
     (ConnectionFailed, dbName, hostName)    ->
       inc (metrics </> #connection_failed) dbName hostName
     (ConnectionDoesNotExist, dbName, hostName)    ->
@@ -1574,7 +1574,7 @@ mkDBAndRedisMetricHandler = do
     (RedisExceptionMessage, dbName, hostName)    ->
       inc (metrics </> #redis_exception_msg) dbName hostName
 
-connection_timeout = counter #connection_timeout
+connection_lost = counter #connection_lost
       .& lbl @"db_name" @Text
       .& lbl @"host_name" @Text
       .& build
@@ -1621,7 +1621,7 @@ redis_exception_msg = counter #redis_exception_msg
       .& build
 
 collectionLock =
-     connection_timeout
+     connection_lost
   .> connection_failed
   .> connection_doesnot_exist
   .> connection_already_exists

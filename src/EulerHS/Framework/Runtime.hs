@@ -68,7 +68,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Subscribe controller
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
-  , _configCache              :: MVar (Map Text ConfigEntry)
+  , _configCache              :: IORef (Map Text ConfigEntry)
 
   , _configCacheLock          :: MVar (CMap.Map Text ())
   
@@ -148,7 +148,7 @@ createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
   optionsLocalVar       <- newMVar mempty
-  configCacheVar        <- newMVar mempty
+  configCacheVar        <- newIORef mempty
   configCacheLockVar    <- newMVar =<< CMap.empty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty

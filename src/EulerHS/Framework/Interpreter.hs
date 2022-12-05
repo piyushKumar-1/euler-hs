@@ -351,30 +351,35 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DelOptionLocal k next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetConfig k next) =
   fmap next $ do
-    m <- readMVar _configCache
-    pure $ do
-      Map.lookup k m
+    m <- readIORef _configCache
+    return $ Map.lookup k m
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.SetConfig k v next) =
   fmap next $ do
-    m <- takeMVar _configCache
-    let newMap = Map.insert k v m
-    putMVar _configCache newMap
+    atomicModifyIORef' _configCache (modifyConfig k v)
+  where
+    modifyConfig :: Text -> R.ConfigEntry -> (Map Text R.ConfigEntry) -> (Map Text R.ConfigEntry, ())
+    modifyConfig key val configMap = 
+      let m' = Map.insert key val configMap
+      in (m', ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelConfig k next) =
   fmap next $ do
-    m <- takeMVar _configCache
-    let newMap = Map.delete k m
-    putMVar _configCache newMap
+    atomicModifyIORef' _configCache (deleteConfig k)
+  where
+    deleteConfig :: Text -> (Map Text R.ConfigEntry) -> (Map Text R.ConfigEntry, ())
+    deleteConfig key configMap = 
+      let m' = Map.delete key configMap
+      in (m', ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.TrySetConfig k v next) =
   fmap next $ do
-    mbM <- tryTakeMVar _configCache
-    case mbM of
-      Nothing -> pure Nothing
-      Just m -> do
-        let newMap = Map.insert k v m
-        Just <$> putMVar _configCache newMap
+    atomicModifyIORef' _configCache (modifyConfig k v)
+  where
+    modifyConfig :: Text -> R.ConfigEntry -> (Map Text R.ConfigEntry) -> (Map Text R.ConfigEntry, Maybe ())
+    modifyConfig key val configMap = 
+      let m' = Map.insert key val configMap
+      in (m', Just ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.AcquireConfigLock k next) =
   fmap next $ do

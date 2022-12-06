@@ -13,6 +13,7 @@ data InMemCacheResult =  EntryValid Any |
                         EntryNotFound (KeyForInMemConfig) |
                         TableIneligible | 
                         UnknownError MeshError 
+  deriving (Show)
 
 type KeyForInMemConfig = Text
 

@@ -565,102 +565,121 @@ findWithKVConnector :: forall be table beM m.
   Where be table ->
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
-  isEnabled <- isKVEnabled (tableName @(table Identity))
-  if isEnabled
-    then do
+  L.logDebugT "findWithKVConnector: " $ "whereClause : " <> (tname <> ":" <> (show . length $ whereClause))
+  inMemResult <- searchInMemoryCache
+  L.logDebugT "findWithKVConnector" $ tname <> ":" <> "In Mem result : " <> (show inMemResult)
+  case inMemResult of
+    EntryValid valEntry -> entryToTable valEntry
+    TableIneligible -> kvFetch 
+    EntryExpired valEntry Nothing -> entryToTable valEntry
+    EntryExpired valEntry (Just keyForInMemConfig) -> useExpiredAndForkKvFetchAndSave keyForInMemConfig valEntry
+    EntryNotFound keyForInMemConfig ->  kvFetchAndSave keyForInMemConfig 
+    UnknownError err -> pure . Left $ err
+
+  where
+
+    tname :: Text = (tableName @(table Identity))
+    
+    useExpiredAndForkKvFetchAndSave :: forall a. Text -> a -> m (MeshResult (Maybe (table Identity)))
+    useExpiredAndForkKvFetchAndSave key val = do
+      L.logInfoT "findWithKVConnector" $ "Starting Timeout for redis-fetch for in-mem-config"
+      L.fork $ 
+        do
+          void $ L.runIO $ threadDelayMilisec 5
+          void $ L.releaseConfigLock key      -- TODO  Check if release fails
+      L.logInfoT "findWithKVConnector" $ "Initiating updation of key <" <> key <>"> in-mem-config"
+      L.fork $ (kvFetchAndSave key) 
+      entryToTable val
+
+    searchInMemoryCache :: m (InMemCacheResult)
+    searchInMemoryCache = do
       let 
         shouldSearchInMemoryCache = memCacheable @(table Identity)
-        entryToTable :: forall a. a -> m (MeshResult (Maybe (table Identity)))
-        entryToTable x = return . Right . Just $ ((unsafeCoerce @_ @(table Identity)) x)
-      inMemResult <- if shouldSearchInMemoryCache && length whereClause == 1 
+      L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show shouldSearchInMemoryCache)
+      if shouldSearchInMemoryCache && length whereClause == 1 
+      then do
+        eitherPKeys <- getPrimaryKeys 
+        L.logDebugT "findWithKVConnector: " $ "eitherPKeys: " <> (tname <> ":" <> show eitherPKeys)
+        let
+          decodeTable :: ByteString -> Maybe (table Identity)
+          decodeTable = A.decode . BSL.fromStrict
+        checkAndStartLooper meshCfg decodeTable
+        case eitherPKeys of
+          Right [] -> return TableIneligible
+          Right [[pKey]] -> do
+            let k = decodeUtf8 pKey
+            mbVal <- L.getConfig k
+            case mbVal of
+              Just val -> do
+                L.logInfoT "findWithKVConnector" $ "Found key: <" <> k <> "> in in-mem-config"
+                L.logDebugT "findWithKVConnector" $ "key val: " <> show val
+                currentTime <- L.getCurrentTimeUTC
+                if val.ttl > currentTime
+                  then do
+                    L.logInfoT "findWithKVConnector" $ "Key TTL Valid"
+                    return $ EntryValid val.entry
+                  else do
+                    L.logInfoT "findWithKVConnector" $ "Key TTL Not Valid"
+                    ifM (notM $ L.acquireConfigLock k)
+                      (return $ EntryExpired val.entry Nothing)    --then
+                      (return $ EntryExpired val.entry $ Just k)   --else
+              Nothing -> return . EntryNotFound $ k
+          Right _ -> return TableIneligible
+          Left err -> return . UnknownError $ err
+      else
+        return TableIneligible
+
+    entryToTable :: forall a. a -> m (MeshResult (Maybe (table Identity)))
+    entryToTable x = return . Right . Just $ ((unsafeCoerce @_ @(table Identity)) x)
+
+    getPrimaryKeys :: m (MeshResult [[ByteString]])
+    getPrimaryKeys = do
+      let 
+        keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
+        andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
+        modelName = tableName @(table Identity)
+        keyHashMap = keyMap @(table Identity)
+      L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
+      eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
+      L.logDebugT "findWithKVConnector" (show eitherKeyRes)
+      pure $ foldEither eitherKeyRes
+
+    kvFetchAndSave :: Text -> m (MeshResult (Maybe (table Identity)))
+    kvFetchAndSave key = do
+      val <- kvFetch
+      case val of
+        Right (Just val') -> do
+          void $ setInConfig key val'
+        _ -> return ()
+      pure val
+
+    kvFetch :: m (MeshResult (Maybe (table Identity)))
+    kvFetch = do
+      isEnabled <- isKVEnabled (tableName @(table Identity))
+      L.logDebugT "findWithKVConnector: isEnabled: "  (tname <> ":" <> show isEnabled)
+      if isEnabled
         then do
-          eitherPKeys <- getPrimaryKeys 
-          let
-            decodeTable :: ByteString -> Maybe (table Identity)
-            decodeTable = A.decode . BSL.fromStrict
-          checkAndStartLooper meshCfg decodeTable
-          case eitherPKeys of
-            Right [] -> return TableIneligible
-            Right [[pKey]] -> do
-              let k = decodeUtf8 pKey
-              mbVal <- L.getConfig k
-              case mbVal of
-                Just val -> do
-                  L.logInfoT "findWithKVConnector" $ "Found key: <" <> k <> "> in in-mem-config"
-                  L.logDebugT "findWithKVConnector" $ "key val: " <> show val
-                  currentTime <- L.getCurrentTimeUTC
-                  if val.ttl > currentTime
-                    then do
-                      L.logInfoT "findWithKVConnector" $ "Key TTL Valid"
-                      return $ EntryValid val.entry
-                    else do
-                      L.logInfoT "findWithKVConnector" $ "Key TTL Not Valid"
-                      ifM (notM $ L.acquireConfigLock k)
-                        (return $ EntryExpired val.entry Nothing)    --then
-                        (return $ EntryExpired val.entry $ Just k)   --else
-                Nothing -> return . EntryNotFound $ k
-            Right _ -> return TableIneligible
-            Left err -> return . UnknownError $ err
-        else
-          return TableIneligible
+          L.logDebug @Text "findWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
+          eitherKvRows <- findOneFromRedis meshCfg whereClause
+          L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show eitherKvRows)
+          case eitherKvRows of
+            Right [] -> do
+              L.logDebug @Text "findWithKVConnector" "Falling back to SQL - Nothing found in KV"
+              findOneFromDB dbConf whereClause
+            Right rows -> do
+              L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show (length rows) <> "rows")
+              pure $ Right $ findOneMatching whereClause rows
+            Left err -> pure $ Left err
+      else do
+        L.logDebug @Text "findWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
+        findOneFromDB dbConf whereClause
 
-      case inMemResult of
-        EntryValid valEntry -> entryToTable valEntry
-        TableIneligible -> redisFetch Nothing
-        EntryExpired valEntry Nothing -> entryToTable valEntry
-        EntryExpired valEntry (Just keyForInMemConfig) -> do
-          L.logInfoT "findWithKVConnector" $ "Starting Timeout for redis-fetch for in-mem-config"
-          L.fork $ 
-            do
-              void $ L.runIO $ threadDelayMilisec 5
-              void $ L.releaseConfigLock keyForInMemConfig      -- TODO  Check if release fails
-          L.logInfoT "findWithKVConnector" $ "Initiating updation of key <" <> keyForInMemConfig <>"> in-mem-config"
-          L.fork $ (redisFetch (Just keyForInMemConfig)) 
-          entryToTable valEntry
-        EntryNotFound keyForInMemConfig ->  redisFetch (Just keyForInMemConfig) 
-        UnknownError err -> pure . Left $ err
+    setInConfig :: Text -> table Identity -> m ()
+    setInConfig k model = do
+      newTtl <- getConfigEntryNewTtl
+      L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
+      void $ L.setConfig k (mkConfigEntry  newTtl model) 
 
-    else do
-      L.logDebug @Text "findWithKVConnector" ("Taking SQLDB Path for" <> show (tableName @(table Identity)))
-      findOneFromDB dbConf whereClause
-
-    where
-
-      getPrimaryKeys :: m (MeshResult [[ByteString]])
-      getPrimaryKeys = do
-        let 
-          keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
-          andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
-          modelName = tableName @(table Identity)
-          keyHashMap = keyMap @(table Identity)
-        L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
-        eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
-        L.logDebugT "findWithKVConnector" (show eitherKeyRes)
-        pure $ foldEither eitherKeyRes
-
-      redisFetch :: Maybe Text -> m (MeshResult (Maybe (table Identity)))
-      redisFetch keyForInMemConfig = do
-        L.logDebug @Text "findWithKVConnector" ("Taking KV Path for" <> show (tableName @(table Identity)))
-        eitherKvRows <- findOneFromRedis meshCfg whereClause
-        L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show eitherKvRows)
-        case eitherKvRows of
-          Right [] -> do
-            L.logDebug @Text "findWithKVConnector" "Falling back to SQL - Nothing found in KV"
-            findOneFromDB dbConf whereClause
-          Right rows -> do
-            let 
-              mbval  =  findOneMatching whereClause rows
-            case (keyForInMemConfig, mbval) of
-              (Just k, Just v) -> setInConfig k v
-              _ -> pure ()
-            pure $ Right $ mbval
-          Left err -> pure $ Left err
-
-      setInConfig :: Text -> table Identity -> m ()
-      setInConfig k model = do
-        newTtl <- getConfigEntryNewTtl
-        L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
-        void $ L.setConfig k (mkConfigEntry  newTtl model) 
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.

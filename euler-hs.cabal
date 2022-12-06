@@ -133,6 +133,7 @@ library
     , http-media
     , http-types
     , juspay-extra          ^>=1.0.1.5
+    , lrucache
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named

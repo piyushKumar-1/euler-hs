@@ -24,6 +24,7 @@ import           Control.Monad.Trans.Except (throwE)
 import qualified Control.Concurrent.Map as CMap
 import qualified Data.Map as Map (empty)
 import qualified Data.LruCache as LRU
+import qualified Data.Cache.LRU as SimpleLRU
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.Time (LocalTime)
 import           Data.X509.CertificateStore (readCertificateStore)
@@ -68,7 +69,7 @@ data FlowRuntime = FlowRuntime
   -- ^ Subscribe controller
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
-  , _configCache              :: IORef (Map Text ConfigEntry)
+  , _configCache              :: IORef (SimpleLRU.LRU Text ConfigEntry)
 
   , _configCacheLock          :: MVar (CMap.Map Text ())
   
@@ -148,7 +149,7 @@ createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
   optionsLocalVar       <- newMVar mempty
-  configCacheVar        <- newIORef mempty
+  configCacheVar        <- newIORef $ SimpleLRU.newLRU $ Just 4096
   configCacheLockVar    <- newMVar =<< CMap.empty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty

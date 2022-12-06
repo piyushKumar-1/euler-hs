@@ -21,7 +21,7 @@ import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
-import           Servant (err500)
+-- import           Servant (err500)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..))
 import           System.Random (randomRIO)
 import           Unsafe.Coerce (unsafeCoerce)
@@ -39,8 +39,9 @@ isKVEnabled modelName = do
   (mbIsKVEnabled :: Maybe Bool) <- L.getOptionLocal IsKVEnabled
   case (mbIsKVEnabled, mbKVTablesCutover) of
     (Just isEnabled, Just ktc) -> (isEnabled &&) <$> checkKeyEnabled ktc modelName
-    (Nothing, _) -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled is not set" *> L.throwException err500
-    (_, Nothing) -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error KVCEnabledTables is not set" *> L.throwException err500
+    (Nothing, Nothing)         -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled and KVCEnabledTables are not set" $> False
+    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled is not set" $> False
+    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error KVCEnabledTables is not set" $> False
 
   where
     checkKeyEnabled :: (L.MonadFlow m) => FeatureConfig -> Text -> m Bool

@@ -9,9 +9,9 @@ pipeline {
         sh "nix-build build.nix --arg inCI true"
       }
 
-      options {
-        timeout(time: 60, unit: 'MINUTES')
-      }
+      // options {
+      //   timeout(time: 60, unit: 'MINUTES')
+      // }
     }
   }
 }

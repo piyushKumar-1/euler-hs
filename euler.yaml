@@ -4,7 +4,7 @@ allowed-paths:
   - test
   - euler-hs.cabal
 
-disable-tests: true
+disable-tests: false
 dependencies:
   euler-build:
     branch: master
@@ -13,8 +13,8 @@ dependencies:
     branch: master
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
-    branch: trace_changes_for_txns
-    revision: c4ea256b356f1ce3e9e6474509db881a159acd75
+    branch: master
+    revision: 35bf370801ca931de0cb1e10273c57cf031c72fd
   haskell-sequelize:
     branch: EUL-5049/kv_where_support
     revision: 3a93e4ee9981e4bac3403878de08dfc87eeb2ebc
@@ -26,8 +26,8 @@ overrides:
   hedis:
     owner: juspay
     repo: hedis
-    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
-    sha256: 1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595
+    commit: 7cc372d8c2ba97a99799ff64e0ac655383c6b49b
+    sha256: 1qkhnlm29ad1y5id7wx25pixq9czywwq8dps2qjzw5mvpi7f4r9h
     source: github
 
   record-dot-preprocessor:

@@ -50,7 +50,7 @@ import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   getRequestURL, getResponseBody,
                                   getResponseCode, getResponseHeaders,
                                   getResponseStatus, maskHTTPRequest,
-                                  maskHTTPResponse, mkHttpApiCallLogEntry)
+                                  mkHttpApiCallLogEntry)
 import           EulerHS.KVDB.Interpreter (runKVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer,
                                      KVDBConfig (KVDBClusterConfig, KVDBConfig),
@@ -299,9 +299,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do
-                let logEntry = mkHttpApiCallLogEntry lat
-                                (maskHTTPRequest getLoggerMaskConfig request)
-                                (maskHTTPResponse getLoggerMaskConfig response)
+                let logEntry = mkHttpApiCallLogEntry lat Nothing Nothing
                 logJson Debug logEntry
               pure $ Right response
   where

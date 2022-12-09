@@ -1479,7 +1479,7 @@ withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: HasCallStack => Description -> Flow a -> Flow ()
+forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
 forkFlow description flow = void $ forkFlow' description $ do
   eitherResult <- runSafeFlow flow
   case eitherResult of

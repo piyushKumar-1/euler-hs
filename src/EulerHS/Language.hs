@@ -33,7 +33,12 @@ module EulerHS.Language
     Y.withRunFlow,
     Y.forkFlow,
     Y.forkFlow',
-    Y.foldFlow
+    Y.foldFlow,
+    -- * dbAndRedisMetric
+    Y.DBAndRedisMetricHandler,
+    Y.DBAndRedisMetric (..),
+    Y.mkDBAndRedisMetricHandler,
+    Y.DBMetricCfg (..)
   ) where
 
 import           EulerHS.Extra.Language as X

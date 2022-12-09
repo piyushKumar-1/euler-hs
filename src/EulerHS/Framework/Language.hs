@@ -70,7 +70,7 @@ import           EulerHS.Api (EulerClient)
 import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  ManagerSelector (ManagerSelector),
                                  Microseconds, SafeFlowGUID)
-import           EulerHS.Framework.Runtime (FlowRuntime)
+import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
                                   HTTPResponse, withClientTls)
 import           EulerHS.KVDB.Language (KVDB)
@@ -159,6 +159,63 @@ data FlowMethod (next :: Type) where
     :: HasCallStack
     => Text
     -> (() -> next)
+    -> FlowMethod next
+
+  GetOptionLocal
+    :: HasCallStack
+    => Text
+    -> (Maybe a -> next)
+    -> FlowMethod next
+
+  SetOptionLocal
+    :: HasCallStack
+    => Text
+    -> a
+    -> (() -> next)
+    -> FlowMethod next
+
+  DelOptionLocal
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  GetConfig
+    :: HasCallStack
+    => Text
+    -> (Maybe ConfigEntry -> next)
+    -> FlowMethod next
+
+  SetConfig
+    :: HasCallStack
+    => Text
+    -> ConfigEntry
+    -> (() -> next)
+    -> FlowMethod next
+
+  TrySetConfig
+    :: HasCallStack
+    => Text
+    -> ConfigEntry
+    -> (Maybe () -> next)
+    -> FlowMethod next
+
+  DelConfig
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  AcquireConfigLock
+    :: HasCallStack
+    => Text
+    -> (Bool -> next)
+    -> FlowMethod next
+  
+  ReleaseConfigLock
+    :: HasCallStack
+    => Text
+    -> (Bool -> next)
     -> FlowMethod next
 
   GenerateGUID
@@ -313,6 +370,15 @@ instance Functor FlowMethod where
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
     DelOption k cont -> DelOption k (f . cont)
+    GetOptionLocal k cont -> GetOptionLocal k (f . cont)
+    SetOptionLocal k v cont -> SetOptionLocal k v (f . cont)
+    DelOptionLocal k cont -> DelOptionLocal k (f . cont)
+    GetConfig k cont -> GetConfig k (f . cont)
+    SetConfig k v cont -> SetConfig k v (f . cont)
+    TrySetConfig k v cont -> TrySetConfig k v (f . cont)
+    DelConfig k cont -> DelConfig k (f . cont)
+    AcquireConfigLock k cont -> AcquireConfigLock k (f . cont)
+    ReleaseConfigLock k cont -> ReleaseConfigLock k (f . cont)
     GenerateGUID cont -> GenerateGUID (f . cont)
     RunSysCmd cmd cont -> RunSysCmd cmd (f . cont)
     Fork desc guid flow cont -> Fork desc guid flow (f . cont)
@@ -470,6 +536,23 @@ class (MonadMask m) => MonadFlow m where
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m (Maybe v)
+
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
+
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
+
+  getConfig :: HasCallStack => Text -> m (Maybe ConfigEntry)
+
+  setConfig :: HasCallStack => Text -> ConfigEntry -> m ()
+
+  trySetConfig :: HasCallStack => Text -> ConfigEntry -> m (Maybe ())
+
+  delConfig :: HasCallStack => Text -> m ()
+
+  acquireConfigLock :: HasCallStack => Text -> m Bool
+
+  releaseConfigLock :: HasCallStack => Text -> m Bool
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
   --
@@ -709,6 +792,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+  forkFlowM
+    :: HasCallStack
+    => Flow a -> m ()
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do
@@ -735,6 +822,33 @@ instance MonadFlow Flow where
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
+  getOptionLocal k = liftFC $ GetOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
+  setOptionLocal k v = liftFC $ SetOptionLocal (mkOptionKey @k @v k) v id
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
+  delOptionLocal k = liftFC $ DelOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE getConfig #-}
+  getConfig :: HasCallStack => Text -> Flow (Maybe ConfigEntry)
+  getConfig k = liftFC $ GetConfig k id
+  {-# INLINEABLE setConfig #-}
+  setConfig :: HasCallStack => Text -> ConfigEntry -> Flow ()
+  setConfig k v = liftFC $ SetConfig k v id
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig :: HasCallStack => Text -> ConfigEntry -> Flow (Maybe ())
+  trySetConfig k v = liftFC $ TrySetConfig k v id
+  {-# INLINEABLE delConfig #-}
+  delConfig :: HasCallStack => Text -> Flow ()
+  delConfig k = liftFC $ DelConfig k id
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock :: HasCallStack => Text -> Flow Bool
+  acquireConfigLock k = liftFC $ AcquireConfigLock k id
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock :: HasCallStack => Text -> Flow Bool
+  releaseConfigLock k = liftFC $ ReleaseConfigLock k id
   {-# INLINEABLE generateGUID #-}
   generateGUID = liftFC $ GenerateGUID id
   {-# INLINEABLE runSysCmd #-}
@@ -775,6 +889,9 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM flow = do
+    forkFlow "test" flow
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -797,6 +914,24 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -833,6 +968,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -855,6 +992,24 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -891,6 +1046,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -913,6 +1070,24 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -949,6 +1124,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -971,6 +1148,24 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1007,6 +1202,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1029,6 +1226,24 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   setOption k = lift . setOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1065,6 +1280,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 
 --
@@ -1285,9 +1502,9 @@ forkFlow' :: HasCallStack =>
 forkFlow' description flow = do
     flowGUID <- generateGUID
     logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
-      Nothing ->
+      Just _ ->
         "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
-      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+      Nothing  -> "Flow forked. GUID: " +| flowGUID |+ ""
     liftFC $ Fork description flowGUID flow id
 
 

@@ -29,6 +29,10 @@ module EulerHS.Extra.Language
   , rSetex
   , rSetexB
   , rSetexT  -- alias for rSetex (back compat)
+  , rXreadB
+  , rXreadT
+  , rXrevrangeT
+  , rXrevrangeB
   , rSetexBulk
   , rSetexBulkB
   , rSetOpts
@@ -491,7 +495,7 @@ rGetB cName k = do
 rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
-  L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
+  -- L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
   mv <- rGetB cName (TE.encodeUtf8 k)
   case mv of
     Just val -> case A.eitherDecode' @A.Value $ BSL.fromStrict val of
@@ -615,6 +619,44 @@ rSetOptsT cName k v = rSetOptsB cName k' v'
     k' = TE.encodeUtf8 k
     v' = TE.encodeUtf8 v
 
+rXreadT
+  :: (HasCallStack, L.MonadFlow m)
+  => RedisName
+  -> Text
+  ->  Text
+  -> m (Either KVDBReply (Maybe [L.KVDBStreamReadResponse]))
+rXreadT cName k v = rXreadB cName k' v'
+  where
+    k' = TE.encodeUtf8 k
+    v' = TE.encodeUtf8 v
+
+rXreadB :: (HasCallStack, L.MonadFlow m) =>
+  RedisName -> L.KVDBStream -> L.RecordID -> m (Either KVDBReply (Maybe [L.KVDBStreamReadResponse]))
+rXreadB cName strm entryId = do
+  res <- L.runKVDB cName $ L.xread strm entryId
+  _ <-  case res of
+    Left err -> 
+      L.logError @Text "Redis xread" $ show err
+    Right _ -> pure ()
+  pure res
+
+rXrevrangeT :: (HasCallStack,L.MonadFlow m) =>
+  RedisName -> Text -> Text -> Text -> Maybe Integer -> m (Either KVDBReply ([L.KVDBStreamReadResponseRecord]))
+rXrevrangeT cName strm send sstart count = rXrevrangeB cName s' se' ss' count
+  where
+    s' = TE.encodeUtf8 strm
+    se' = TE.encodeUtf8 send
+    ss' = TE.encodeUtf8 sstart
+
+rXrevrangeB :: (HasCallStack,L.MonadFlow m) =>
+  RedisName -> L.KVDBStream -> L.KVDBStreamEnd -> L.KVDBStreamStart -> Maybe Integer -> m (Either KVDBReply ([L.KVDBStreamReadResponseRecord]))
+rXrevrangeB cName strm send sstart count = do
+  res <- L.runKVDB cName $ L.xrevrange strm send sstart count
+  _ <- case res of
+    Left err ->
+      L.logError @Text "Redis xrevrange" $ show err
+    Right _ -> pure ()
+  pure res
 -- ------------------------------------------------------------------------------
 
 rSadd :: (HasCallStack, L.MonadFlow m) =>

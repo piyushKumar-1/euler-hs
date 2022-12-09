@@ -6,6 +6,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# OPTIONS_GHC -Wno-star-is-type #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module EulerHS.KVConnector.Types where
 
@@ -15,8 +17,11 @@ import           Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import           Data.Time (UTCTime)
 import qualified EulerHS.Language as L
 import qualified Database.Beam as B
+import           Database.Beam.MySQL (MySQL)
+import           Database.Beam.Backend (BeamSqlBackend, HasSqlValueSyntax (sqlValueSyntax), autoSqlValueSyntax)
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Sequelize (Column, Set)
@@ -108,6 +113,7 @@ data QueryPath = KVPath | SQLPath
 
 data MeshConfig = MeshConfig
   { meshEnabled     :: Bool
+  , cerealEnabled   :: Bool
   , memcacheEnabled :: Bool
   , meshDBName      :: Text
   , ecRedisDBStream :: Text
@@ -125,3 +131,49 @@ data MeshConfig = MeshConfig
 --   , kvRedis = "KVRedis"
 --   , redisTtl = 43200
 --   }
+
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL UTCTime where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL UTCTime
+
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL A.Value where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL A.Value
+
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL (Vector Int) where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance HasSqlValueSyntax MySQL String => HasSqlValueSyntax MySQL (Vector Text) where
+  sqlValueSyntax = autoSqlValueSyntax
+
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Int)
+
+instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Text)
+
+data IsKVEnabled = IsKVEnabled
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity IsKVEnabled Bool
+
+data KVCEnabledTables = KVCEnabledTables
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity KVCEnabledTables FeatureConfig
+
+data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
+  { enableAll        :: Bool
+  , disableAny       :: Maybe [Text]
+  , enableAllRollout :: Maybe Int
+  , enabledKeys      :: [RolloutConfig]
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data RolloutConfig = RolloutConfig
+  { name        :: Text
+  , rollout    :: Int
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

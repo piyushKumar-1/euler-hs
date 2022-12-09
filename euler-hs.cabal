@@ -68,6 +68,7 @@ library
     EulerHS.Types
     EulerHS.KVConnector.Flow
     EulerHS.KVConnector.Types
+    EulerHS.KVConnector.Utils
 
   other-modules:
     EulerHS.Api
@@ -97,7 +98,6 @@ library
     EulerHS.SqlDB.Types
     EulerHS.KVConnector.DBSync
     EulerHS.KVConnector.Encoding 
-    EulerHS.KVConnector.Utils
 
   build-depends:
     , QuickCheck
@@ -114,6 +114,7 @@ library
     , cereal
     , connection
     , containers
+    , ctrie
     , data-default
     , dlist
     , exceptions
@@ -144,6 +145,7 @@ library
     , random
     , reflection
     , resource-pool
+    , safe
     , scientific
     , sequelize             
     , servant

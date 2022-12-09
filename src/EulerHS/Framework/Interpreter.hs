@@ -27,6 +27,9 @@ import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Encoding
+import           Data.Time.Clock (diffTimeToPicoseconds)
+import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
+import           Data.Time.Clock.TAI (diffAbsoluteTime)
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import           EulerHS.Api (runEulerClient)
@@ -46,7 +49,8 @@ import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   getRequestRedirects, getRequestTimeout,
                                   getRequestURL, getResponseBody,
                                   getResponseCode, getResponseHeaders,
-                                  getResponseStatus, maskHTTPRequest)
+                                  getResponseStatus, maskHTTPRequest,
+                                  mkHttpApiCallLogEntry)
 import           EulerHS.KVDB.Interpreter (runKVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer,
                                      KVDBConfig (KVDBClusterConfig, KVDBConfig),
@@ -279,7 +283,10 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
 interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) =
     fmap next $ do
       httpLibRequest <- getHttpLibRequest request
+      start <- systemToTAITime <$> getSystemTime
       eResponse <- try $! HTTP.httpLbs httpLibRequest manager
+      end <- liftIO $ systemToTAITime <$> getSystemTime
+      let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
@@ -290,8 +297,14 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
             Left errMsg -> do
               logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
-            Right response -> pure $ Right response
+            Right response -> do
+              when shouldLogAPI $ do
+                let logEntry = mkHttpApiCallLogEntry lat Nothing Nothing
+                logJson Debug logEntry
+              pure $ Right response
   where
+    picoMilliDiff :: Integer
+    picoMilliDiff = 1000000000
     logJsonError :: Text -> HTTPRequestMasked -> IO ()
     logJsonError err = logJson Error . HTTPIOException err
     logJson :: ToJSON a => LogLevel -> a -> IO ()
@@ -300,6 +313,8 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
         . L.logMessage' debugLevel ("callHTTP" :: String)
         $ Message Nothing (Just $ A.toJSON msg)
 
+    shouldLogAPI =
+      R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
     getLoggerMaskConfig =
       R.getLogMaskingConfig . R._loggerRuntime . R._coreRuntime $ flowRt
 

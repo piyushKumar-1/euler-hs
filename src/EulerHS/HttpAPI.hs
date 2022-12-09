@@ -308,27 +308,27 @@ type HeaderName = Text
 type HeaderValue = Text
 
 data HttpApiCallLogEntry = HttpApiCallLogEntry
-  { url         :: Text
-  , method      :: Text
-  , req_headers :: A.Value
+  { url         :: Maybe Text
+  , method      :: Maybe Text
+  , req_headers :: Maybe A.Value
   , req_body    :: Maybe A.Value
-  , res_code    :: Int
-  , res_body    :: A.Value
-  , res_headers :: A.Value
+  , res_code    :: Maybe Int
+  , res_body    :: Maybe A.Value
+  , res_headers :: Maybe A.Value
   , latency     :: Integer
   }
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
 
-mkHttpApiCallLogEntry :: Integer -> HTTPRequestMasked -> HTTPResponseMasked -> HttpApiCallLogEntry
+mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> HttpApiCallLogEntry
 mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
-  { url = req.getRequestURL
-  , method = show $ req.getRequestMethod
-  , req_headers = A.toJSON $ req.getRequestHeaders
-  , req_body = req.getRequestBody
-  , res_code = res.getResponseCode
-  , res_body = res.getResponseBody
-  , res_headers = A.toJSON $ res.getResponseHeaders
+  { url = (\x -> x.getRequestURL) <$> req
+  , method = (\x -> show $ x.getRequestMethod) <$> req
+  , req_headers = (\x -> A.toJSON $ x.getRequestHeaders) <$> req
+  , req_body = join $ (\x -> x.getRequestBody) <$> req
+  , res_code = (\x -> x.getResponseCode) <$> res
+  , res_body = (\x -> x.getResponseBody) <$> res
+  , res_headers = (\x -> A.toJSON $ x.getResponseHeaders) <$> res
   , latency = lat
   }
 

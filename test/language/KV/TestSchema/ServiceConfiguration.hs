@@ -39,7 +39,7 @@ import Data.Cereal.TH
 import Data.Cereal.Instances ()
 
 data ServiceConfigurationT f = ServiceConfiguration
-  { id      :: B.C f Int64
+  { id      :: B.C f (Maybe Int64)
   , version :: B.C f Int64
   , name    :: B.C f Text
   , value   :: B.C f (Maybe Text)
@@ -49,7 +49,7 @@ data ServiceConfigurationT f = ServiceConfiguration
 
 instance B.Table ServiceConfigurationT where
   data PrimaryKey ServiceConfigurationT f =
-    ServiceConfigurationId (B.C f Int64)
+    ServiceConfigurationId (B.C f (Maybe Int64))
       deriving stock (Generic)
       deriving anyclass (B.Beamable)
   primaryKey = ServiceConfigurationId . id
@@ -179,7 +179,7 @@ dummyServiceConfig :: L.Flow ServiceConfiguration
 dummyServiceConfig = do
   randomName <- Text.take 5 <$> L.generateGUID
   pure $ ServiceConfiguration
-    { id = 0
+    { id = Nothing
     , version = 0
     , name = "KV_TEST" <> randomName
     , value = Just "VALUE"
@@ -188,15 +188,10 @@ dummyServiceConfig = do
 mkServiceConfig :: Text -> Text -> ServiceConfiguration
 mkServiceConfig name' value' =
   ServiceConfiguration
-    { id = 0
+    { id = Nothing
     , version = 0
     , name = name'
     , value = Just value'
     }
 
--- $(meshMetaInstancesD ''ServiceConfigurationT)
 $(enableKV ''ServiceConfigurationT ['id] [['name]])
-
-
-$(makeCerealIdentity ''ServiceConfigurationT)
--- $(makeCereal ''ServiceConfiguration)

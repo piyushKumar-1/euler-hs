@@ -15,8 +15,7 @@ meshConfig :: MeshConfig
 meshConfig = MeshConfig
   { meshEnabled = dbMeshEnabledEnvVar
   , memcacheEnabled = memCacheEnabledEnvVar
-  -- , isTrackerTable = (`Set.member` dbMeshTrackerTables)
-  -- , isConfigTable = (`Set.member` dbMeshConfigTables)
+  , cerealEnabled = cerealEnabledEnvVar
   , meshDBName = "ECRDB"
   , ecRedisDBStream = "db-sync-stream"
   , kvRedis = "KVRedis"
@@ -35,6 +34,9 @@ dbMeshEnabledEnvVar = fromMaybe True $ readMaybe =<< lookupEnv "DB_MESH_ENABLED"
 
 memCacheEnabledEnvVar :: Bool
 memCacheEnabledEnvVar = fromMaybe False $ readMaybe =<< lookupEnv "MEM_CACHE_ENABLED"
+
+cerealEnabledEnvVar :: Bool
+cerealEnabledEnvVar = fromMaybe False $ readMaybe =<< lookupEnv "CEREAL_ENABLED"
 
 {-# NOINLINE environmentVars #-}
 environmentVars :: Map String String

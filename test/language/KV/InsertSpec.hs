@@ -10,7 +10,8 @@ import qualified EulerHS.KVConnector.Flow as DB
 import           Test.Hspec
 import           Sequelize (Clause(..), Term(..))
 import           KV.TestSchema.Mesh
-import EulerHS.KVConnector.Types hiding(kvRedis)
+import           EulerHS.KVConnector.Utils (getPKeyWithShard, getSecondaryLookupKeys)
+import           EulerHS.KVConnector.Types hiding(kvRedis, name)
 import           KV.TestHelper
 
 {-
@@ -46,7 +47,7 @@ spec = flowSpec $ do
     itFlow "Should add primary key and secondary keys to redis on insert command" $ do
         sc <- dummyServiceConfig
         withTableEntry sc $ (\serviceConfig _dbConf -> do
-            let pKey = getLookupKeyByPKey serviceConfig
+            let pKey = getPKeyWithShard serviceConfig
             let secKeys = getSecondaryLookupKeys serviceConfig
             (valueFromPrimaryKey :: Maybe ServiceConfiguration) <- getValueFromPrimaryKey pKey
             valueFromSecondaryKeys <- (snd . partialHead) <$> getValueFromSecondaryKeys secKeys

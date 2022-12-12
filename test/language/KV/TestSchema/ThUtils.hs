@@ -6,7 +6,7 @@ import           EulerHS.KVConnector.Types (KVConnector(..), MeshMeta(..), Prima
 import qualified Data.Aeson as A
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as M
-import           Data.List ((!!))
+import           Data.List ((!!), init)
 import qualified Data.Text as T
 import qualified Database.Beam as B
 import           Database.Beam.MySQL (MySQL)
@@ -14,13 +14,16 @@ import           Language.Haskell.TH
 import qualified Sequelize as S
 import           Text.Casing (camel)
 import           Prelude (head)
+import Data.Cereal.TH
+import Data.Cereal.Instances ()
 
 enableKV :: Name -> [Name] -> [[Name]] -> Q [Dec]
 enableKV name pKeyN sKeysN = do
     [tModeMeshDec] <- tableTModMeshD name
     [kvConnectorDec] <- kvConnectorInstancesD name pKeyN sKeysN
     [meshMetaDec] <- meshMetaInstancesD name
-    pure $ [tModeMeshDec, meshMetaDec, kvConnectorDec]
+    cerealDec <- cerealInstancesD name
+    pure $ [tModeMeshDec, meshMetaDec, kvConnectorDec] ++ cerealDec
 
 
 tableTModMeshD :: Name -> Q [Dec]
@@ -49,7 +52,7 @@ kvConnectorInstancesD name pKeyN sKeysN = do
     let pKeyPair = TupE [LitE $ StringL $ sortAndGetKey pKeyN, ConE 'True]
         sKeyPairs = map (\k -> TupE [LitE $ StringL $ sortAndGetKey k, ConE 'False]) sKeysN
 
-    let tableNameD = FunD tableName [Clause [] (NormalB (LitE (StringL $ camel (nameBase name)))) []]
+    let tableNameD = FunD tableName [Clause [] (NormalB (LitE (StringL $ init $ camel (nameBase name)))) []]
         keyMapD = FunD keyMap [Clause [] (NormalB (AppE (VarE 'HM.fromList) (ListE (pKeyPair : sKeyPairs)))) []]
         primaryKeyD = FunD primaryKey [Clause [] (NormalB getPrimaryKeyE) []]
         secondaryKeysD = FunD secondaryKeys [Clause [] (NormalB getSecondaryKeysE) []]
@@ -67,7 +70,11 @@ kvConnectorInstancesD name pKeyN sKeysN = do
                 (\sKey -> AppE (ConE 'SKey) (ListE (map (\n -> TupE [keyNameTextE n, getRecFieldE n obj]) sKey)))
                 sKeysN)
 
-        getRecFieldE f obj = AppE (VarE 'T.pack) (AppE (VarE 'show) (AppE (VarE $ mkName (splitColon $ nameBase f)) (VarE obj)))
+        getRecFieldE f obj =
+            let fieldName = (splitColon $ nameBase f)
+                instanceModifier = mkName $ (T.unpack . T.dropEnd 1 . T.pack $ camel (nameBase name)) <> "ToPSModifiers"
+            in (AppE (AppE (AppE (VarE 'utilTransform) (VarE instanceModifier)) (LitE . StringL $ fieldName)) (AppE (VarE $ mkName fieldName) (VarE obj)))
+        
         keyNameTextE n = AppE (VarE 'T.pack) (LitE $ StringL (splitColon $ nameBase n))
 
 sortAndGetKey :: [Name] -> String
@@ -78,6 +85,19 @@ sortAndGetKey names = do
 --"$sel:merchantId:OrderReference" -> "merchantId"
 splitColon :: String -> String
 splitColon s = T.unpack $ (T.splitOn ":" (T.pack s)) !! 1
+
+
+-------------------------------------------------------------------------------
+
+cerealInstancesD :: Name -> Q [Dec]
+cerealInstancesD name = do
+    tableCerealD <- makeCerealIdentity name
+    types <- filter noCerealInstance <$> extractRecTypes . head . extractConstructors <$> reify name
+    columnsCerealD <- concat <$> sequence (map makeCereal types)
+    return (columnsCerealD ++ tableCerealD)
+
+    where
+        noCerealInstance n = nameBase n `notElem` ["Text", "LocalTime", "Int", "Double", "Bool", "Int64", "Int32", "Scientific"]
 
 -------------------------------------------------------------------------------
 meshMetaInstancesD :: Name -> Q [Dec]
@@ -166,3 +186,28 @@ extractConstructors _ = []
 extractRecFields :: Con -> [Name]
 extractRecFields (RecC _ bangs) = handleVarBang <$> bangs where handleVarBang (a, _, _) = a
 extractRecFields  _             = []
+
+extractRecTypes :: Con -> [Name]
+extractRecTypes (RecC _ bangs) = foldl' handleVarBang [] bangs
+    where
+        handleVarBang b (_, _, AppT _ (ConT n)) = n : b
+        handleVarBang b (_, _, AppT _ (AppT _ (ConT n))) = n : b
+        handleVarBang b _ = b
+extractRecTypes  _             = []
+
+extractRecTypes' :: Con -> [Type]
+extractRecTypes' (RecC _ bangs) = handleVarBang <$> bangs where handleVarBang (_, _, t) = t
+extractRecTypes'  _             = []
+
+utilTransform :: (ToJSON a) => Map Text (A.Value -> A.Value) -> Text -> a -> Text
+utilTransform modifyMap field value = do
+  let res = case (M.lookup field modifyMap) of
+                Just fn -> fn . A.toJSON $ value 
+                Nothing -> A.toJSON value
+  case res of
+    A.String r -> r
+    A.Number n -> T.pack $ show n
+    A.Bool b -> T.pack $ show b
+    A.Array l  -> T.pack $ show l
+    A.Object o -> T.pack $ show o
+    A.Null -> T.pack "" 

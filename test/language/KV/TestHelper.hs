@@ -3,11 +3,13 @@ module KV.TestHelper where
 import           EulerHS.Prelude
 
 import           KV.FlowHelper
-import qualified Data.Aeson as A
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as Text
 import           Text.Casing (quietSnake)
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
+import           EulerHS.KVConnector.Encoding (eitherDecode)
+import           EulerHS.KVConnector.Utils (getPKeyWithShard, getSecondaryLookupKeys)
 import qualified EulerHS.KVConnector.Flow as DB
 import           Database.Beam.MySQL (MySQLM)
 import qualified EulerHS.Types as T
@@ -16,22 +18,22 @@ import qualified Database.Beam.MySQL as BM
 import           Sequelize (Model)
 import qualified Data.Serialize as Serialize
 
-getValueFromPrimaryKey :: (HasCallStack,FromJSON a) => Text -> L.Flow (Maybe a)
+getValueFromPrimaryKey :: (HasCallStack,FromJSON a, Serialize a) => Text -> L.Flow (Maybe a)
 getValueFromPrimaryKey pKey = do
   res <- L.runKVDB kvRedis $ L.get $ encodeUtf8 pKey
   case res of
-    Right (Just val) -> either (error . show) (pure . Just) (A.eitherDecodeStrict val)
+    Right (Just val) -> either (error . show) (pure . Just) (eitherDecode $ BSL.fromChunks [val])
     Right Nothing -> L.logInfoT "KEY_NOT_FOUND" pKey $> Nothing
     Left err -> error $ show err
 
-getValueFromSecondaryKeys :: (HasCallStack,FromJSON a) => [Text] -> L.Flow [(Text,a)]
+getValueFromSecondaryKeys :: (HasCallStack,FromJSON a, Serialize a) => [Text] -> L.Flow [(Text,a)]
 getValueFromSecondaryKeys secKeys = do
-  eitherRefKeys <- L.runKVDB kvRedis $ L.lrange (encodeUtf8 $ partialHead secKeys) 0 (-1)
+  eitherRefKeys <- L.runKVDB kvRedis $ L.smembers (encodeUtf8 $ partialHead secKeys)
   case eitherRefKeys of
     Right refKeys -> fmap catMaybes $ sequence $ go <$> refKeys
     Left err -> error $ show err
   where
-    go :: FromJSON a => ByteString -> L.Flow (Maybe (Text,a))
+    go :: (FromJSON a, Serialize a) => ByteString -> L.Flow (Maybe (Text,a))
     go bkey = do
       let key = decodeUtf8 bkey
       mbRes <- getValueFromPrimaryKey key
@@ -41,7 +43,7 @@ getValueFromSecondaryKeys secKeys = do
 
 deleteTableEntryValueFromKV :: (KVConnector (table Identity)) => table Identity -> L.Flow ()
 deleteTableEntryValueFromKV sc = do
-  let pKey = getLookupKeyByPKey sc
+  let pKey = getPKeyWithShard sc
   let secKeys = getSecondaryLookupKeys sc
   void $ fromEitherToMaybe <$> (L.runKVDB kvRedis $ L.del ([encodeUtf8 pKey]))
   void $ fromEitherToMaybe <$> (L.runKVDB kvRedis $ L.del (encodeUtf8 <$> secKeys))

@@ -66,6 +66,7 @@ library
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
+    EulerHS.KVConnector.Encoding
     EulerHS.KVConnector.Flow
     EulerHS.KVConnector.Types
     EulerHS.KVConnector.Utils
@@ -96,8 +97,7 @@ library
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
-    EulerHS.KVConnector.DBSync
-    EulerHS.KVConnector.Encoding 
+    EulerHS.KVConnector.DBSync 
 
   build-depends:
     , QuickCheck

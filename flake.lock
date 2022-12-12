@@ -61,6 +61,26 @@
         "type": "indirect"
       }
     },
+    "euler-events-hs": {
+      "inputs": {
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1650883593,
+        "narHash": "sha256-eZ79EYGtWwSolxTO5A9jzF0ze59db8mpSU8cF02ZqFs=",
+        "ref": "master",
+        "rev": "661920e09652ef1c27e8eb10d2f52c3dc82859c9",
+        "revCount": 174,
+        "type": "git",
+        "url": "ssh://git@bitbucket.org/juspay/euler-events-hs"
+      },
+      "original": {
+        "id": "euler-events-hs",
+        "type": "indirect"
+      }
+    },
     "euler-haskell-common": {
       "inputs": {
         "euler-build": [
@@ -162,6 +182,7 @@
         "beam": "beam",
         "beam-mysql": "beam-mysql",
         "euler-build": "euler-build",
+        "euler-events-hs": "euler-events-hs",
         "euler-haskell-common": "euler-haskell-common",
         "haskell-sequelize": "haskell-sequelize"
       }

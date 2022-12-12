@@ -21,6 +21,9 @@ dependencies:
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e
+  euler-events-hs:
+    branch: master
+    revision: 661920e09652ef1c27e8eb10d2f52c3dc82859c9
 
 overrides:
   hedis:

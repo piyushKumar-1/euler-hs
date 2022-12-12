@@ -7,6 +7,11 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DerivingStrategies  #-}
+
 module EulerHS.Framework.Language
   (
   -- * Flow language
@@ -52,6 +57,14 @@ module EulerHS.Framework.Language
   , forkFlow'
   -- ** Interpretation
   , foldFlow
+  -- ** DBAndRedisMetric
+  , incrementDbAndRedisMetric
+  , DBAndRedisMetricHandler
+  , DBAndRedisMetric (..)
+  , mkDBAndRedisMetricHandler
+  , isDBMetricEnabled
+  , DBMetricCfg (..)
+  , incrementDbMetric
   ) where
 
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
@@ -76,6 +89,7 @@ import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
+import qualified EulerHS.KVDB.Types as T
 import           EulerHS.Logger.Language (Logger, logMessage')
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
                                        Message (Message))
@@ -85,6 +99,9 @@ import qualified EulerHS.PubSub.Language as PSL
 import           EulerHS.SqlDB.Language (SqlDB)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBResult, SqlConn)
+import qualified EulerHS.SqlDB.Types as T
+import           Euler.Events.MetricApi.MetricApi
+import qualified Juspay.Extra.Config as Conf
 
 data AwaitingError = AwaitingTimeout | ForkedFlowError Text
   deriving stock (Show, Eq, Ord, Generic)
@@ -792,6 +809,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+  forkFlowM
+    :: HasCallStack
+    => Flow a -> m ()
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do
@@ -872,7 +893,11 @@ instance MonadFlow Flow where
     safeFlowGUID <- generateGUID
     liftFC $ RunSafeFlow safeFlowGUID flow id
   {-# INLINEABLE runKVDB #-}
-  runKVDB cName act = liftFC $ RunKVDB cName act id
+  runKVDB cName act = do
+    res <- liftFC $ RunKVDB cName act id
+    case res of
+      Left err -> incrementRedisMetric err cName *> pure res
+      Right _ -> pure res
   {-# INLINEABLE runPubSub #-}
   runPubSub act = liftFC $ RunPubSub act id
   {-# INLINEABLE publish #-}
@@ -885,6 +910,10 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM flow = do
+    forkFlow "test" flow
+
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -961,6 +990,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1037,6 +1068,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1113,6 +1146,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1189,6 +1224,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1265,7 +1302,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
-
+  {-# INLINEABLE forkFlowM #-}
+  forkFlowM = lift . forkFlowM
 
 --
 --
@@ -1575,3 +1613,159 @@ logWarningV = logV Warning
 -- >   pure content
 runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
+
+
+-------------------------------------------------------
+incrementDbAndRedisMetric :: MonadFlow m => DBAndRedisMetricHandler -> DBAndRedisMetric -> Text -> Text -> m ()
+incrementDbAndRedisMetric handle metric dbName hostName = do
+  runIO $ ((dBAndRedisCounter handle) (metric, dbName, hostName))
+
+data DBAndRedisMetricHandler = DBAndRedisMetricHandler
+  { dBAndRedisCounter :: (DBAndRedisMetric, Text, Text) -> IO ()
+  }
+
+data DBAndRedisMetric
+  = ConnectionLost
+  | ConnectionFailed
+  | ConnectionDoesNotExist
+  | ConnectionAlreadyExists
+  | TransactionRollbacked
+--   | SQLQueryError
+  | UnrecognizedDBError
+  | UnexpectedDBResult
+  | RedisExceptionMessage
+
+mkDBAndRedisMetricHandler :: IO DBAndRedisMetricHandler
+mkDBAndRedisMetricHandler = do
+  metrics <- register collectionLock
+  pure $ DBAndRedisMetricHandler $ \case
+    (ConnectionLost, dbName, hostName)   ->
+      inc (metrics </> #connection_lost) dbName hostName
+    (ConnectionFailed, dbName, hostName)    ->
+      inc (metrics </> #connection_failed) dbName hostName
+    (ConnectionDoesNotExist, dbName, hostName)    ->
+      inc (metrics </> #connection_doesnot_exist) dbName hostName
+    (ConnectionAlreadyExists, dbName, hostName)    ->
+      inc (metrics </> #connection_already_exists) dbName hostName
+    (TransactionRollbacked, dbName, hostName)    ->
+      inc (metrics </> #transaction_rollbacked) dbName hostName
+    -- (SQLQueryError,dbName, hostName)    ->
+    --   inc (metrics </> #sql_query_error) dbName hostName
+    (UnrecognizedDBError, dbName, hostName)    ->
+      inc (metrics </> #unrecognized_db_error) dbName hostName
+    (UnexpectedDBResult, dbName, hostName)    ->
+      inc (metrics </> #unexpected_db_result) dbName hostName
+    (RedisExceptionMessage, dbName, hostName)    ->
+      inc (metrics </> #redis_exception_msg) dbName hostName
+
+connection_lost = counter #connection_lost
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+connection_failed = counter #connection_failed
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+connection_doesnot_exist = counter #connection_doesnot_exist
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+connection_already_exists = counter #connection_already_exists
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+-- sql_query_error = counter #sql_query_error
+--       .& lbl @"db_name" @Text
+--       .& lbl @"host_name" @Text
+--       .& build
+
+transaction_rollbacked = counter #transaction_rollbacked
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+unrecognized_db_error = counter #unrecognized_db_error
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+
+unexpected_db_result = counter #unexpected_db_result
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+redis_exception_msg = counter #redis_exception_msg
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+collectionLock =
+     connection_lost
+  .> connection_failed
+  .> connection_doesnot_exist
+  .> connection_already_exists
+--   .> sql_query_error
+  .> transaction_rollbacked
+  .> unrecognized_db_error
+  .> unexpected_db_result
+  .> redis_exception_msg
+  .> MNil
+
+
+---------------------------------------------------------
+
+data DBMetricCfg = DBMetricCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity DBMetricCfg DBAndRedisMetricHandler
+
+---------------------------------------------------------
+
+isDBMetricEnabled :: Bool
+isDBMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "DB_METRIC_ENABLED"
+
+---------------------------------------------------------
+
+incrementRedisMetric :: (HasCallStack, MonadFlow m) => T.KVDBReply -> Text -> m ()
+incrementRedisMetric err cName = when (isDBMetricEnabled) $
+  case err of
+    T.KVDBError T.KVDBConnectionFailed _ -> incrementMetric ConnectionFailed cName
+    T.KVDBError T.KVDBConnectionAlreadyExists _ -> incrementMetric ConnectionAlreadyExists cName
+    T.KVDBError T.KVDBConnectionDoesNotExist _ -> incrementMetric ConnectionDoesNotExist cName
+    T.ExceptionMessage _ ->
+      if Text.isInfixOf "Network.Socket.connect" $ show err
+        then incrementMetric ConnectionLost cName
+        else incrementMetric RedisExceptionMessage cName
+    _ -> pure ()
+
+incrementDbMetric :: (HasCallStack, MonadFlow m) => T.DBError -> T.DBConfig beM -> m ()
+incrementDbMetric (T.DBError err msg) dbConf = when isDBMetricEnabled $
+  case err of
+    T.ConnectionFailed -> incrementMetric ConnectionFailed (dbConfigToTag dbConf)
+    T.ConnectionAlreadyExists -> incrementMetric ConnectionAlreadyExists (dbConfigToTag dbConf)
+    T.ConnectionDoesNotExist -> incrementMetric ConnectionDoesNotExist (dbConfigToTag dbConf)
+    T.TransactionRollbacked -> incrementMetric TransactionRollbacked (dbConfigToTag dbConf)
+    T.UnexpectedResult -> incrementMetric UnexpectedDBResult (dbConfigToTag dbConf)
+    T.UnrecognizedError -> if Text.isInfixOf "Network.Socket.connect" $ show msg
+      then incrementMetric ConnectionLost (dbConfigToTag dbConf)
+      else incrementMetric UnrecognizedDBError (dbConfigToTag dbConf)
+    _ -> pure ()
+
+incrementMetric :: (HasCallStack, MonadFlow m) => DBAndRedisMetric -> Text -> m ()
+incrementMetric metric dbName = do
+  env <- getOption DBMetricCfg
+  case env of
+    Just val -> incrementDbAndRedisMetric val metric dbName (fromMaybe "" $ Conf.lookupEnvT "HOSTNAME")
+    Nothing -> pure ()
+
+dbConfigToTag :: T.DBConfig beM -> Text
+dbConfigToTag = \case
+  T.PostgresPoolConf t _ _ -> t
+  T.MySQLPoolConf t _ _    -> t
+  T.SQLitePoolConf t _ _   -> t

@@ -809,8 +809,6 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
-
-
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do

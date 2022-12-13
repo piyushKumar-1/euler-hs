@@ -167,13 +167,8 @@ library
     , x509-system
     , x509-validation
     , safe-exceptions
-    -- , regex-pcre
-    -- , regex-tdfa
     , pcre-heavy
-    -- , string-conversions
     , pcre-light
-    , pcre2
-    -- , regex-compat
 
   hs-source-dirs:  src
 

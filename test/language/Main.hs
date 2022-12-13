@@ -5,10 +5,11 @@ module Main (main) where
 -- import qualified ArtSpec as Art
 -- import           Control.Exception.Safe (bracket)
 import           EulerHS.Prelude hiding (bracket)
--- import qualified EulerHS.Types as T
--- import qualified MaskingSpec as MaskSpec
--- import qualified FlowSpec as Flow
--- import qualified HttpAPISpec as HttpAPISpec
+import qualified EulerHS.Types as T
+import qualified MaskingSpec as MaskSpec
+import qualified FlowSpec as Flow
+import qualified HttpAPISpec as HttpAPISpec
+import           KV.FlowHelper (lookupEnv)
 import qualified KV.InsertSpec as KV
 import qualified KV.FindOneSpec as KVFind
 -- import qualified KVDBArtSpec as KVDB
@@ -20,20 +21,21 @@ import qualified KV.FindOneSpec as KVFind
 -- import           System.FilePath ((<.>), (</>))
 -- import           System.Process.Typed (proc, startProcess, stopProcess)
 -- import           System.Random (getStdRandom, random)
--- import           Test.Hspec
+-- import           Test.Hspec (hspec)
 import           Test.Hspec.Core.Runner
--- import           Test.Hspec.Core.Formatters
 
 main :: IO ()
 main = do
     -- Redis not works on CI
     -- withRedis $
+    let shouldRunKVConnectorTestCases = fromMaybe False $ readMaybe =<< lookupEnv "KV_CONNECTOR_TESTS_ENABLED"
     hspecWith defaultConfig{ configPrintCpuTime = True, configColorMode = ColorAlways} $ do
-      -- HttpAPISpec.spec
-      -- MaskSpec.spec
-      -- Flow.spec logsDisabled
-      KV.spec
-      KVFind.spec
+      HttpAPISpec.spec
+      MaskSpec.spec
+      Flow.spec logsDisabled
+      when shouldRunKVConnectorTestCases $ do
+        KV.spec
+        KVFind.spec
       -- Wait for Redis on CI
       -- CachedSqlDBQuery.spec
 
@@ -42,12 +44,9 @@ main = do
       -- KVDB.spec
       -- SQL.spec
       -- PubSub.spec
-  -- where
-  --   logsDisabled :: Maybe T.LoggerConfig
-  --   logsDisabled = Nothing
-  -- where
-  --   defOptions =
-      
+  where
+    logsDisabled :: Maybe T.LoggerConfig
+    logsDisabled = Nothing
 
 
 

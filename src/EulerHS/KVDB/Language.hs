@@ -32,6 +32,7 @@ module EulerHS.KVDB.Language
   , sismember
   -- *** Raw
   , rawRequest
+  , pingRequest
   ) where
 
 import qualified Database.Redis as R
@@ -107,6 +108,7 @@ data KeyValueF f next where
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
+  Ping    :: (f R.Status -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
   fmap f (Set k value next)              = Set k value (f . next)
@@ -126,6 +128,7 @@ instance Functor (KeyValueF f) where
   fmap f (SAdd k v next)                 = SAdd k v (f . next)
   fmap f (SMem k v next)                 = SMem k v (f . next)
   fmap f (Raw args next)                 = Raw args (f . next)
+  fmap f (Ping next)                     = Ping (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
 
@@ -269,3 +272,6 @@ multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
 -- @since 2.0.3.2
 rawRequest :: (R.RedisResult a) => [ByteString] -> KVDB a
 rawRequest args = ExceptT . liftFC . KV . Raw args $ id
+
+pingRequest :: KVDB R.Status
+pingRequest = ExceptT $ liftFC $ KV $ Ping id

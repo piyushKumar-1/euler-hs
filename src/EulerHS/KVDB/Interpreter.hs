@@ -123,6 +123,8 @@ interpretKeyValueF runRedis (L.SMem k v next) =
 
 interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest args)
 
+interpretKeyValueF runRedis (L.Ping next) = fmap next $ runRedis $ R.ping
+
 interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
   next . fmap fromRdStatus <$> R.set k v
@@ -197,6 +199,7 @@ interpretKeyValueTxF (L.SMem k v next) =
 
 interpretKeyValueTxF (L.Raw args next) = next <$> R.sendRequest args
 
+interpretKeyValueTxF (L.Ping next) = next <$> R.ping
 
 interpretTransactionF
   :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))

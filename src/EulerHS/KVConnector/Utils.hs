@@ -18,6 +18,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..), IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..))
+import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
@@ -32,6 +33,20 @@ import qualified Data.Fixed as Fixed
 
 
 
+isInMemConfigEnabled :: (L.MonadFlow m) => Text -> m Bool
+isInMemConfigEnabled modelName = do
+  (mbIMCEnabledTables :: Maybe [Text]) <- L.getOptionLocal IMCEnabledTables
+  (mbIsIMCEnabled :: Maybe Bool) <- L.getOptionLocal IsIMCEnabled
+  case (mbIsIMCEnabled, mbIMCEnabledTables) of
+    (Just isEnabled, Just enabledTables)  -> do
+      L.logDebugT "IsIMCEnabled" (show isEnabled)
+      L.logDebugT "IMCEnabledTables" (show enabledTables)
+      L.logDebugT "modelName" modelName
+      L.logDebugT "IsModelNameElem" (show $ elem modelName enabledTables)
+      return $ isEnabled && (elem modelName enabledTables)
+    (Nothing, Nothing)         -> L.logErrorT "IS_IMC_ENABLED_ERROR" "Error IsIMCEnabled and IMCEnabledTables are not set" $> False
+    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsIMCEnabled is not set" $> False
+    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IMCEnabledTables is not set" $> False
 
 isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --TODO: Move this to euler-db
 isKVEnabled modelName = do

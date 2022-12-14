@@ -35,6 +35,7 @@ import           EulerHS.Prelude
 import           EulerHS.SqlDB.Types (ConnTag,
                                       NativeSqlPool (NativeMySQLPool, NativePGPool, NativeSQLitePool))
 import           GHC.Conc (labelThread)
+import           Juspay.Extra.Config (lookupEnvT)
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
 import           Network.HTTP.Client.TLS (mkManagerSettings)
@@ -82,6 +83,14 @@ data ConfigEntry =   ConfigEntry
   }
 
 deriving instance Show ConfigEntry
+
+configCacheSize :: Integer
+configCacheSize = 
+  let
+    mbSize :: Maybe Integer
+    mbSize = readMaybe =<< lookupEnvT "CONFIG_CACHE_SIZE"
+
+  in fromMaybe 4096 mbSize
 
 mkConfigEntry :: LocalTime -> a -> ConfigEntry
 mkConfigEntry valTtl val = ConfigEntry valTtl (unsafeCoerce @_ @Any val)
@@ -149,7 +158,7 @@ createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
   optionsLocalVar       <- newMVar mempty
-  configCacheVar        <- newIORef $ SimpleLRU.newLRU $ Just 4096
+  configCacheVar        <- newIORef $ SimpleLRU.newLRU $ Just configCacheSize
   configCacheLockVar    <- newMVar =<< CMap.empty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty

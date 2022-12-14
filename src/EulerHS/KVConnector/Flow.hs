@@ -704,8 +704,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
 
     searchInMemoryCache :: m (InMemCacheResult)
     searchInMemoryCache = do
-      let 
-        shouldSearchInMemoryCache = memCacheable @(table Identity)
+      shouldSearchInMemoryCache <- isInMemConfigEnabled $ tableName @(table Identity)
       L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show shouldSearchInMemoryCache)
       if shouldSearchInMemoryCache && length whereClause == 1 
       then do

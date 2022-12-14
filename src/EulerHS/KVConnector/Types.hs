@@ -37,8 +37,6 @@ class KVConnector table where
   keyMap :: HM.HashMap Text Bool -- True implies it is primary key and False implies secondary
   primaryKey :: table -> PrimaryKey
   secondaryKeys:: table -> [SecondaryKey]
-  memCacheable :: Bool
-
 
 
 ------------- UTILS EXPOSED ------------------

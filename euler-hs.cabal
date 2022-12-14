@@ -68,6 +68,7 @@ library
     EulerHS.Types
     EulerHS.SqlDB.Language
     EulerHS.Extra.Regex
+    EulerHS.Masking
 
   other-modules:
     EulerHS.Api
@@ -86,7 +87,6 @@ library
     EulerHS.Logger.Runtime
     EulerHS.Logger.TinyLogger
     EulerHS.Logger.Types
-    EulerHS.Masking
     EulerHS.Options
     EulerHS.PubSub.Interpreter
     EulerHS.PubSub.Language

@@ -17,7 +17,8 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..), IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..))
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..),
+                  IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..), KVConnector(..), PrimaryKey(..), SecondaryKey(..))
 import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
@@ -130,11 +131,47 @@ runQuery dbConf query = do
     Right c -> L.runDB c query
     Left  e -> return $ Left e
 
+------------- KEY UTILS ------------------
+
+keyDelim:: Text
+keyDelim = "_"
+
+getPKeyWithShard :: forall table. (KVConnector (table Identity)) => table Identity -> Text
+getPKeyWithShard table =
+  let pKey = getLookupKeyByPKey table
+  in pKey <> getShardedHashTag pKey
+
+getLookupKeyByPKey :: forall table. (KVConnector (table Identity)) => table Identity -> Text
+getLookupKeyByPKey table = do
+  let tName = tableName @(table Identity)
+  let (PKey k) = primaryKey table
+  let lookupKey = getSortedKey k
+  tName <> keyDelim <> lookupKey
+
+getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table Identity -> [Text]
+getSecondaryLookupKeys table = do
+  let tName = tableName @(table Identity)
+  let skeys = secondaryKeys table
+  let tupList = map (\(SKey s) -> s) skeys
+  let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
+  list
+
+applyFPair :: (t -> b) -> (t, t) -> (b, b)
+applyFPair f (x, y) = (f x, f y)
+
+getSortedKey :: [(Text,Text)] -> Text
+getSortedKey kvTup = do
+  let sortArr = sortBy (compare `on` fst) kvTup
+  let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
+  appendedKeys <> "_" <> appendedValues
+
 getShardedHashTag :: Text -> Text
 getShardedHashTag key = do
   let slot = unsafeCoerce @_ @Word16 $ L.keyToSlot $ encodeUtf8 key
       streamShard = slot `mod` 128
   "{shard-" <> show streamShard <> "}"
+
+------------------------------------------
 
 getAutoIncId :: (L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult Integer)
 getAutoIncId meshCfg tName = do

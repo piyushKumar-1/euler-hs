@@ -83,8 +83,7 @@ import           EulerHS.Extra.Aeson (obfuscate)
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.KVDB.Language as L
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
-                                     KVDBError (KVDBConnectionDoesNotExist),
-                                     KVDBReply, KVDBReplyF (KVDBError),
+                                     KVDBReply, KVDBReplyF (..), KVDBError(..),
                                      KVDBStatus)
 import           EulerHS.Logger.Types (LogContext)
 import           EulerHS.Prelude hiding (get, id)
@@ -225,6 +224,7 @@ withDB' run conf act = do
       res <- run conn act
       case res of
         Left err  -> do
+          L.incrementDbMetric err conf
           L.logError @Text "SqlDB interaction" . show $ err
           L.throwException err500
         Right val -> pure val
@@ -306,7 +306,12 @@ getOrInitSqlConn :: (HasCallStack, L.MonadFlow m) =>
 getOrInitSqlConn cfg = do
   eConn <- L.getSqlDBConnection cfg
   case eConn of
-    Left (T.DBError T.ConnectionDoesNotExist _) -> L.initSqlDBConnection cfg
+    Left err -> do
+      L.incrementDbMetric err cfg
+      newCon <- L.initSqlDBConnection cfg
+      case newCon of
+        Left err' -> L.incrementDbMetric err' cfg *> pure newCon
+        val -> pure val
     res                                         -> pure res
 
 -- | Get existing Redis connection, or init a new connection.
@@ -495,7 +500,7 @@ rGetB cName k = do
 rGet :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
   RedisName -> TextKey -> m (Maybe v)
 rGet cName k = do
-  L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
+  -- L.logDebug @Text "rGet" $ "looking up key: " <> k <> " in redis: " <> cName
   mv <- rGetB cName (TE.encodeUtf8 k)
   case mv of
     Just val -> case A.eitherDecode' @A.Value $ BSL.fromStrict val of
@@ -635,7 +640,7 @@ rXreadB :: (HasCallStack, L.MonadFlow m) =>
 rXreadB cName strm entryId = do
   res <- L.runKVDB cName $ L.xread strm entryId
   _ <-  case res of
-    Left err -> 
+    Left err ->
       L.logError @Text "Redis xread" $ show err
     Right _ -> pure ()
   pure res
@@ -691,3 +696,4 @@ updateLoggerContext updateLCtx rt@FlowRuntime{..} =
               MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
               -- the next line is courtesy to Kyrylo Havryliuk ;-)
               LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}
+

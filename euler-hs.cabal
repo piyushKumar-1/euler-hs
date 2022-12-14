@@ -99,7 +99,7 @@ library
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
-    EulerHS.KVConnector.DBSync
+    EulerHS.KVConnector.DBSync 
     EulerHS.KVConnector.InMemConfig.Flow
 
   build-depends:

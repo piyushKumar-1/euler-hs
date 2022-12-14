@@ -20,6 +20,7 @@ import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.LruCache as LRU
+import qualified Data.Cache.LRU as SimpleLRU
 import qualified Data.Map as Map
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
@@ -351,30 +352,35 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DelOptionLocal k next) =
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetConfig k next) =
   fmap next $ do
-    m <- readMVar _configCache
-    pure $ do
-      Map.lookup k m
+    m <- readIORef _configCache
+    return . snd $ SimpleLRU.lookup k m
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.SetConfig k v next) =
   fmap next $ do
-    m <- takeMVar _configCache
-    let newMap = Map.insert k v m
-    putMVar _configCache newMap
+    atomicModifyIORef' _configCache (modifyConfig k v)
+  where
+    modifyConfig :: Text -> R.ConfigEntry -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, ())
+    modifyConfig key val configLRU = 
+      let m' = SimpleLRU.insert key val configLRU
+      in (m', ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelConfig k next) =
   fmap next $ do
-    m <- takeMVar _configCache
-    let newMap = Map.delete k m
-    putMVar _configCache newMap
+    atomicModifyIORef' _configCache (deleteConfig k)
+  where
+    deleteConfig :: Text -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, ())
+    deleteConfig key configLRU = 
+      let m' = SimpleLRU.delete key configLRU
+      in (fst m', ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.TrySetConfig k v next) =
   fmap next $ do
-    mbM <- tryTakeMVar _configCache
-    case mbM of
-      Nothing -> pure Nothing
-      Just m -> do
-        let newMap = Map.insert k v m
-        Just <$> putMVar _configCache newMap
+    atomicModifyIORef' _configCache (modifyConfig k v)
+  where
+    modifyConfig :: Text -> R.ConfigEntry -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, Maybe ())
+    modifyConfig key val configLRU = 
+      let m' = SimpleLRU.insert key val configLRU
+      in (m', Just ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.AcquireConfigLock k next) =
   fmap next $ do

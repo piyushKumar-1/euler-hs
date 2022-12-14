@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE DerivingVia     #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -7,6 +8,7 @@ module EulerHS.Framework.Runtime
     -- * Framework Runtime
     FlowRuntime(..)
   , ConfigEntry(..)
+  , mkConfigEntry
   , createFlowRuntime
   , createFlowRuntime'
   , withFlowRuntime
@@ -20,9 +22,9 @@ module EulerHS.Framework.Runtime
 
 import           Control.Monad.Trans.Except (throwE)
 import qualified Control.Concurrent.Map as CMap
-import           Data.Aeson as A
 import qualified Data.Map as Map (empty)
 import qualified Data.LruCache as LRU
+import qualified Data.Cache.LRU as SimpleLRU
 import qualified Data.Pool as DP (destroyAllResources)
 import           Data.Time (LocalTime)
 import           Data.X509.CertificateStore (readCertificateStore)
@@ -33,6 +35,7 @@ import           EulerHS.Prelude
 import           EulerHS.SqlDB.Types (ConnTag,
                                       NativeSqlPool (NativeMySQLPool, NativePGPool, NativeSQLitePool))
 import           GHC.Conc (labelThread)
+import           Juspay.Extra.Config (lookupEnvT)
 import           Network.Connection (TLSSettings (TLSSettings))
 import           Network.HTTP.Client (Manager, newManager)
 import           Network.HTTP.Client.TLS (mkManagerSettings)
@@ -43,6 +46,7 @@ import           Network.TLS.Extra.Cipher (ciphersuite_default)
 import           System.IO.Unsafe (unsafePerformIO)
 import qualified System.Mem as SYSM (performGC)
 import           EulerHS.HttpAPI
+import           Unsafe.Coerce (unsafeCoerce)
 
 -- | FlowRuntime state and options.
 data FlowRuntime = FlowRuntime
@@ -66,18 +70,32 @@ data FlowRuntime = FlowRuntime
   -- ^ Subscribe controller
   , _pubSubConnection         :: Maybe RD.Connection
   -- ^ Connection being used for Publish
-  , _configCache              :: MVar (Map Text ConfigEntry)
+  , _configCache              :: IORef (SimpleLRU.LRU Text ConfigEntry)
+
   , _configCacheLock          :: MVar (CMap.Map Text ())
   
   }
 
-data ConfigEntry = ConfigEntry
+data ConfigEntry =   ConfigEntry
   {
       ttl :: LocalTime
-    , entry :: Text
+    , entry :: Any
   }
-  deriving stock (Show, Generic)
-  deriving anyclass (A.FromJSON, A.ToJSON)
+
+deriving instance Show ConfigEntry
+
+configCacheSize :: Integer
+configCacheSize = 
+  let
+    mbSize :: Maybe Integer
+    mbSize = readMaybe =<< lookupEnvT "CONFIG_CACHE_SIZE"
+
+  in fromMaybe 4096 mbSize
+
+mkConfigEntry :: LocalTime -> a -> ConfigEntry
+mkConfigEntry valTtl val = ConfigEntry valTtl (unsafeCoerce @_ @Any val)
+-- deriving instance Generic ConfigEntry
+  -- deriving anyclass (A.FromJSON, A.ToJSON)
 -- | Possible issues that can arise when registering certificates.
 --
 -- @since 2.0.4.3
@@ -140,7 +158,7 @@ createFlowRuntime coreRt = do
   defaultManagerVar     <- newManager $ buildSettings mempty
   optionsVar            <- newMVar mempty
   optionsLocalVar       <- newMVar mempty
-  configCacheVar        <- newMVar mempty
+  configCacheVar        <- newIORef $ SimpleLRU.newLRU $ Just configCacheSize
   configCacheLockVar    <- newMVar =<< CMap.empty
   kvdbConnections       <- newMVar Map.empty
   sqldbConnections      <- newMVar Map.empty

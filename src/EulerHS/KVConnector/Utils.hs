@@ -16,7 +16,7 @@ import           Data.Either.Extra (mapRight)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
-import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
+-- import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..),
                   IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..), KVConnector(..), PrimaryKey(..), SecondaryKey(..))
 import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
@@ -24,7 +24,7 @@ import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 -- import           Servant (err500)
-import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..))
+import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..), modelTableName)
 import           System.Random (randomRIO)
 import           Unsafe.Coerce (unsafeCoerce)
 import Data.Time.LocalTime (addLocalTime, LocalTime)
@@ -159,6 +159,21 @@ getSecondaryLookupKeys table = do
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
 applyFPair f (x, y) = (f x, f y)
 
+getPKeyAndValueList :: forall table be. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
+getPKeyAndValueList table = do
+  let tName = tableName @(table Identity)
+      (PKey k) = primaryKey table
+      keyValueList = sortBy (compare `on` fst) k
+      rowObject = A.toJSON table
+  case rowObject of
+    A.Object hm -> foldl' (\ acc x -> (go hm x) : acc) [] keyValueList
+    _ -> error "Cannot work on row that isn't an Object"
+
+  where 
+    go hm x = case HM.lookup (fst x) hm of
+      Just val -> (fst x, val)
+      Nothing  -> error $ "Cannot find " <> (fst x) <> " field in the row"
+
 getSortedKey :: [(Text,Text)] -> Text
 getSortedKey kvTup = do
   let sortArr = sortBy (compare `on` fst) kvTup
@@ -193,7 +208,7 @@ unsafeJSONSet field value obj =
           case resultToEither $ A.fromJSON newObj of
             Right r -> r
             Left e  -> error e
-    _ -> error "Can't set  value of JSON which isn't a object."
+    _ -> error "Can't set value of JSON which isn't a object."
 
 foldEither :: [Either a b] -> Either a [b]
 foldEither [] = Right []
@@ -266,3 +281,17 @@ getConfigEntryNewTtl = do
 
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
+
+meshModelTableEntityDescriptor ::
+  forall table be.
+  (Model be table, MeshMeta be table) =>
+  B.DatabaseEntityDescriptor be (B.TableEntity table)
+meshModelTableEntityDescriptor = let B.DatabaseEntity x = (meshModelTableEntity @table) in x
+
+meshModelTableEntity ::
+  forall table be db.
+  (Model be table, MeshMeta be table) =>
+  B.DatabaseEntity be db (B.TableEntity table)
+meshModelTableEntity =
+  let B.EntityModification modification = B.modifyTableFields (meshModelFieldModification @be @table)
+  in appEndo modification $ B.DatabaseEntity $ B.dbEntityAuto (modelTableName @table)

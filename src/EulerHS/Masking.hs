@@ -2,19 +2,19 @@
 
 module EulerHS.Masking where
 
+import           Data.HashSet (member)
+import           EulerHS.Prelude
+import Data.String.Conversions hiding ((<>))
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HashMap
-import           Data.HashSet (member)
+import qualified Data.HashSet as HS
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import qualified EulerHS.Logger.Types as Log
-import           EulerHS.Prelude
-import qualified Network.HTTP.Types as HTTP
 import qualified EulerHS.Extra.Regex as Regex
-import qualified Data.HashSet as HS
-import Data.String.Conversions hiding ((<>))
+import qualified EulerHS.Logger.Types as Log
+import qualified Network.HTTP.Types as HTTP
 
 shouldMaskKey :: Maybe Log.LogMaskingConfig -> Text -> Bool
 shouldMaskKey Nothing _ = False
@@ -110,7 +110,7 @@ maskXMLForTAG key xmlToMask =
     Right cRegex -> Regex.replace cRegex (("<"  <> (toSBSFromText key) <>  ">FILTERED</" <> (toSBSFromText key) <> ">") :: SBS) xmlToMask 
 
 toSBSFromText :: Text.Text -> ByteString
-toSBSFromText str = encodeUtf8 $ str
+toSBSFromText = encodeUtf8
 
 -- This is taken from euler-ps 
 defaultMaskingKeys :: HS.HashSet Text 

@@ -18,8 +18,8 @@ instance CE.Exception RegExException
 regex' :: BT.ByteString -> Either T.Text PCRE.Regex
 regex' re = 
     case PCRE.compileM formatRe [] of
-        Right val -> Right $ val
-        Left err -> CE.throw $ RegExException $ (T.pack $ err) <> " " <> (T.pack $ show $ re)
+        Right val -> Right val
+        Left err -> CE.throw $ RegExException $ (T.pack $ err) <> " " <> (T.pack $ show re)
     where
         formatRe = encodeUtf8 $ T.replace "[^]" "[^-]" (decodeUtf8 re)
 

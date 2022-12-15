@@ -1,14 +1,14 @@
 module EulerHS.Extra.Regex where
 
-import Prelude
 import Data.String.Conversions hiding ((<>))
-import qualified Data.Maybe as DM
-import qualified Data.ByteString as BT
+import Data.Text.Encoding (encodeUtf8,decodeUtf8)
+import Prelude
 import qualified Control.Exception as CE
+import qualified Data.ByteString as BT
+import qualified Data.Maybe as DM
 import qualified Data.Text as T
 import qualified Text.Regex.PCRE.Heavy as PCRE
 import qualified Text.Regex.PCRE.Light.Char8 as TRPLC
-import Data.Text.Encoding (encodeUtf8,decodeUtf8)
 
 data RegExException = RegExException T.Text
     deriving Show

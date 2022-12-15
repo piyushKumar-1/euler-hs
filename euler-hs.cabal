@@ -67,6 +67,8 @@ library
     EulerHS.Runtime
     EulerHS.Types
     EulerHS.SqlDB.Language
+    EulerHS.Extra.Regex
+    EulerHS.Masking
 
   other-modules:
     EulerHS.Api
@@ -85,7 +87,6 @@ library
     EulerHS.Logger.Runtime
     EulerHS.Logger.TinyLogger
     EulerHS.Logger.Types
-    EulerHS.Masking
     EulerHS.Options
     EulerHS.PubSub.Interpreter
     EulerHS.PubSub.Language
@@ -165,6 +166,9 @@ library
     , x509-store
     , x509-system
     , x509-validation
+    , safe-exceptions
+    , pcre-heavy
+    , pcre-light
 
   hs-source-dirs:  src
 

@@ -23,7 +23,7 @@ checkAndStartLooper meshCfg decodeTable = do
         _hasLooperStarted
             | _hasLooperStarted == Just True ->  pure ()
             | otherwise ->  do
-                streamName <- getRandomStream meshCfg
+                streamName <- getRandomStream 
                 L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> ">"
                 L.fork $ looperForRedisStream  decodeTable meshCfg.kvRedis streamName
                 L.setOption (LooperStarted (tableName @(table Identity))) True

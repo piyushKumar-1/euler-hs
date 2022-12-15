@@ -238,13 +238,16 @@ termQueryMatch columnVal = \case
 toPico :: Int -> Fixed.Pico
 toPico value = Fixed.MkFixed $ ((toInteger value) * 1000000000000)
 
-getRandomStream :: (L.MonadFlow m) => MeshConfig -> m Text
-getRandomStream meshCfg = do
-  streamShard <- L.runIO' "random shard" $ randomRIO (1, getConfigStreamMaxShards)
-  return $ meshCfg.ecRedisDBStream <> "-" <> getConfigStreamBasename <> "{shard-" <> (show streamShard) <> "}"
+getStreamName :: String -> Text
+getStreamName shard = getConfigStreamBasename <> "-" <> (T.pack shard) <> ""
 
-getConfigStreamNames :: MeshConfig -> [Text]
-getConfigStreamNames meshCfg = fmap (\shardNo -> meshCfg.ecRedisDBStream <> "-" <> getConfigStreamBasename <> "{shard-" <> (show shardNo) <> "}") [1..getConfigStreamMaxShards]
+getRandomStream :: (L.MonadFlow m) => m Text
+getRandomStream = do
+  streamShard <- L.runIO' "random shard" $ randomRIO (1, getConfigStreamMaxShards)
+  return $ getStreamName (show streamShard)
+
+getConfigStreamNames :: [Text]
+getConfigStreamNames = fmap (\shardNo -> getStreamName (show shardNo) ) [1..getConfigStreamMaxShards]
 
 getConfigStreamBasename :: Text
 getConfigStreamBasename = fromMaybe "ConfigStream" $ lookupEnvT "CONFIG_STREAM_BASE_NAME"

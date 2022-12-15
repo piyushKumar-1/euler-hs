@@ -361,7 +361,7 @@ updateObjectInMemConfig meshCfg _ updVals obj = do
           L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
           newTtl <- getConfigEntryNewTtl
           L.setConfig pKey (mkConfigEntry newTtl updatedModel') 
-          mapM_ (pushToConfigStream pKey updatedModelT) (getConfigStreamNames meshCfg)
+          mapM_ (pushToConfigStream pKey updatedModelT) getConfigStreamNames
           pure . Right $ ()
   where
     pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()

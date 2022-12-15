@@ -15,7 +15,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
-import           Sequelize (Model, Where, Clause(..), Term(..), Column, fromColumnar', columnize, modelTableName)
+import           Sequelize (Model, Where, Clause(..), Term(..), Column, fromColumnar', columnize)
 import           Text.Casing (pascal)
 
 
@@ -73,7 +73,7 @@ getDbUpdateCommandJsonWithPrimaryKey model upd table whereClause = A.object
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
   ]  
 
-whereClauseJsonWithPrimaryKey :: forall table be. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> A.Value -> A.Value
+whereClauseJsonWithPrimaryKey :: forall table. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> A.Value -> A.Value
 whereClauseJsonWithPrimaryKey table whereClause =
   case whereClause of
     A.Object o -> 

@@ -23,7 +23,7 @@ import           Database.Beam.MySQL (MySQL)
 import           Database.Beam.Backend (BeamSqlBackend, HasSqlValueSyntax (sqlValueSyntax), autoSqlValueSyntax)
 import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
-import           Sequelize (Model, Column, Set)
+import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
 
 

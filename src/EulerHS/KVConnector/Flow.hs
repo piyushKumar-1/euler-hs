@@ -30,8 +30,6 @@ import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, get
 import           EulerHS.KVConnector.Utils
 import           EulerHS.Runtime (mkConfigEntry)
 import           Unsafe.Coerce (unsafeCoerce)
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap)
-import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDeleteQuery, getDbDeleteCommandJson, getDbUpdateCommandJson, toPSJSON, DBCommandVersion(..))
 import           EulerHS.KVDB.Types (KVDBReply)
 import qualified Data.Aeson as A
 import           Data.Aeson ((.=))
@@ -39,7 +37,6 @@ import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum, findIndices, head)
 import qualified Data.Text as T
-import           Data.Maybe (fromJust)
 import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
@@ -334,7 +331,7 @@ updateKV dbConf meshCfg setClause whereClause = do
             [] -> pure $ Right Nothing
             _ -> pure $ Left $ MUpdateFailed "Found more than one record in DB"
         Left err -> pure $ Left (MDBError err)
-    Right (kvLiveRows, kvDeadRows) -> case kvLiveRows of
+    Right (kvLiveRows, _) -> case kvLiveRows of
       [obj] -> mapRight Just <$> updateKVRowInRedis meshCfg whereClause updVals obj
       _ -> do 
         L.logDebugT "updateKV" "Found more than one record in redis - Update failed"
@@ -766,7 +763,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
                       xs -> return $ Right . Just $ head xs
                   Nothing    -> return $ Right Nothing
                 Left err -> return $ Left err
-            Right (kvLiveRows, kvDeadRows) -> pure $ Right $ findOneMatching whereClause kvLiveRows
+            Right (kvLiveRows, _) -> pure $ Right $ findOneMatching whereClause kvLiveRows
             Left err -> pure $ Left err
         else do
           L.logDebugT "findWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))

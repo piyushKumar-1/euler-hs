@@ -10,8 +10,6 @@ import qualified Text.Regex.PCRE.Heavy as PCRE
 import qualified Text.Regex.PCRE.Light.Char8 as TRPLC
 import Data.Text.Encoding (encodeUtf8,decodeUtf8)
 
-type Regex = PCRE.Regex
-
 data RegExException = RegExException T.Text
     deriving Show
 

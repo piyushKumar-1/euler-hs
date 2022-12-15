@@ -2,15 +2,18 @@
 
 module EulerHS.Masking where
 
+import           Data.HashSet (member)
+import           EulerHS.Prelude
+import Data.String.Conversions hiding ((<>))
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HashMap
-import           Data.HashSet (member)
+import qualified Data.HashSet as HS
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import qualified EulerHS.Extra.Regex as Regex
 import qualified EulerHS.Logger.Types as Log
-import           EulerHS.Prelude
 import qualified Network.HTTP.Types as HTTP
 
 shouldMaskKey :: Maybe Log.LogMaskingConfig -> Text -> Bool
@@ -87,3 +90,49 @@ getContentTypeForHTTP header = getContentTypeForServant getTupleList
   where
     getTupleList = makeHeaderLableCI <$> Map.assocs header
     makeHeaderLableCI (headerName,headerValue) = (CI.mk $ encodeUtf8 headerName, encodeUtf8 headerValue)
+
+-- PS Implemention for masking XML [blacklisting]
+-- TODO: move away from regex
+maskXMLText :: Maybe (HS.HashSet Text) -> Text.Text -> Text.Text
+maskXMLText (Just customMaskingKeys) xml = foldl' (\acc x -> maskXMLForTAG x $ maskXMLForAttribute x acc) xml customMaskingKeys
+maskXMLText Nothing xml = foldl' (\acc x -> maskXMLForTAG x $ maskXMLForAttribute x acc) xml defaultMaskingKeys
+
+maskXMLForAttribute :: Text.Text -> Text.Text -> Text.Text
+maskXMLForAttribute key xmlToMask =
+  case (Regex.regex ("(" <> key <> ")=\"[^>]*(\")" :: Text.Text)) of
+    Left _ -> "[HIDDEN]" -- "ISSUE WITH REGEX"
+    Right cRegex -> Regex.replace cRegex (((toSBSFromText key) <>  "=\"FILTERED\"") :: SBS) xmlToMask 
+
+maskXMLForTAG :: Text.Text -> Text.Text -> Text.Text
+maskXMLForTAG key xmlToMask = 
+  case (Regex.regex ("<(" <> key <> ")>[^</]*</(" <> key <> ")>" :: Text.Text)) of
+    Left _ -> "[HIDDEN]" -- "ISSUE WITH REGEX"
+    Right cRegex -> Regex.replace cRegex (("<"  <> (toSBSFromText key) <>  ">FILTERED</" <> (toSBSFromText key) <> ">") :: SBS) xmlToMask 
+
+toSBSFromText :: Text.Text -> ByteString
+toSBSFromText = encodeUtf8
+
+-- This is taken from euler-ps 
+defaultMaskingKeys :: HS.HashSet Text 
+defaultMaskingKeys = HS.fromList ["cardNumber", "card_number", "card_exp_month", "cardExpMonth", "card_exp_year", "cardExpYear", "card_security_code",
+    "cardSecurityCode", "secretKey", "appId", "vpc_CardExp", "vpc_CardNum", "vpc_CardSecurityCode", "vpc_Card", "vpc_AccessCode", "vpc_User",
+    "vpc_Password", "vpc_Merchant", "vpc_key", "paydata", "billDeskMerchantId", "card_expiryMonth", "card_expiryYear", "card_cvv", "card_holder",
+    "accessToken", "olaPublicKey", "merchantPrivateKey", "xTenantKey", "xAuthKey", "access_token", "txnToken", "channelId", "mid", "cardInfo",
+    "clientId", "ccnum", "ccname", "ccvv", "ccexpmon", "ccexpyr", "zero_click_token", "card[number]", "card[name]", "card[expiry_month]",
+    "card[expiry_year]", "card[cvv]", "token", "expyear", "expmonth", "card", "password", "cvv2", "pass", "login", "mdd", "signature",
+    "cnumber", "expmon", "expyr", "tranportalId", "PaymentID", "merchanttypekey", "vpc_SecureHash", "hash", "userAccessToken", "couponCode",
+    "MID", "PAYMENT_DETAILS", "SSOToken", "CHECKSUMHASH", "CHANNEL_ID", "offer_key", "key", "access_code", "X-API-KEY", "ifsc", "bankIFSC",
+    "accountNumber", "IFSC", "payerIfsc", "ifscCode", "encryptionKey", "encryptionIV", "iFSC", "accNo", "beneficiaryAccountNumber",
+    "bankAccountNumber", "merchantGatewayAccount", "merchantAccount", "accountDetails", "cardData", "txnCardInfo", "shippingAddress",
+    "billingAddress", "walletAccount", "object_reference_id", "email", "mobile_number", "first_name", "last_name", "customer_id",
+    "customer_email", "customer_phone", "billing_address", "metadata", "customerPhone", "customerId", "customerEmail", "objectReferenceId",
+    "mobileNumber", "firstName", "lastName", "shipping_address", "api_key", "apiKey", "account_details", "bank_account[account_number]",
+    "bank_account[ifsc]", "expirationMonth", "expirationYear", "cvNumber", "name_on_card", "card_data", "c:proxyPAN", "expiry_date",
+    "phone_number", "phone", "mobile", "contact", "phoneNumber", "contact_number", "contactNumber", "email_id", "customer_ip", "cardIsin",
+    "cardEpYear", "cardReference", "cardFingerprint", "card_holder_name", "card_expiry_date", "number", "enc_card_number", "encrypted_pan",
+    "month", "enc_expiry_month", "expiry_month", "expiry", "card_expiry_month", "encrypted_expiry_month", "year", "enc_expiry_year",
+    "expiry_year", "card_expiry_year", "encrypted_expiry_year", "securityCode", "cvv_number", "cvv", "encryptedcvv", "nameOnCard", "udf1",
+    "cname2", "name", "card_name", "member", "nameoncard", "CUST_MOBILE", "udf3", "customerMobileNumber", "billing_tel", "delivery_tel",
+    "MOBILE_NO", "mobile_no", "mobileNo", "mobileNUmber", "CUST_EMAIL", "udf2", "billing_email", "delivery_email", "EMAIL", "email_address",
+    "Authorization", "authorization", "Cookie", "cookie", "Proxy-Authorization", "proxy-authorization", "expday", "payerVpa"
+  ]

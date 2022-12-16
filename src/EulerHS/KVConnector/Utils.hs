@@ -159,10 +159,9 @@ getSecondaryLookupKeys table = do
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
 applyFPair f (x, y) = (f x, f y)
 
-getPKeyAndValueList :: forall table be. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
+getPKeyAndValueList :: forall table. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
 getPKeyAndValueList table = do
-  let tName = tableName @(table Identity)
-      (PKey k) = primaryKey table
+  let (PKey k) = primaryKey table
       keyValueList = sortBy (compare `on` fst) k
       rowObject = A.toJSON table
   case rowObject of

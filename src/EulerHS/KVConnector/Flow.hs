@@ -347,22 +347,26 @@ updateObjectInMemConfig :: forall beM be table m.
     L.MonadFlow m
   ) => MeshConfig -> Where be table -> [(Text, A.Value)] -> table Identity ->  m (MeshResult ())
 updateObjectInMemConfig meshCfg _ updVals obj = do
-  case (updateModel @be @table) obj updVals of
-    Left err -> return $ Left err
-    Right updatedModel -> do
-      let 
-        pKeyText = getLookupKeyByPKey obj
-        shard = getShardedHashTag pKeyText
-        pKey =  pKeyText <> shard
-        updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
-      case A.fromJSON updatedModel of
-        A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
-        A.Success (updatedModel' :: table Identity)  -> do
-          L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
-          newTtl <- getConfigEntryNewTtl
-          L.setConfig pKey (mkConfigEntry newTtl updatedModel') 
-          mapM_ (pushToConfigStream pKey updatedModelT) getConfigStreamNames
-          pure . Right $ ()
+  shouldSearchInMemoryCache <- isInMemConfigEnabled $ tableName @(table Identity)
+  if not shouldSearchInMemoryCache
+    then pure . Right $ ()
+    else
+      case (updateModel @be @table) obj updVals of
+        Left err -> return $ Left err
+        Right updatedModel -> do
+          let 
+            pKeyText = getLookupKeyByPKey obj
+            shard = getShardedHashTag pKeyText
+            pKey =  pKeyText <> shard
+            updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
+          case A.fromJSON updatedModel of
+            A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
+            A.Success (updatedModel' :: table Identity)  -> do
+              L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
+              newTtl <- getConfigEntryNewTtl
+              L.setConfig pKey (mkConfigEntry newTtl updatedModel') 
+              mapM_ (pushToConfigStream pKey updatedModelT) getConfigStreamNames
+              pure . Right $ ()
   where
     pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()
     pushToConfigStream k v streamName = 

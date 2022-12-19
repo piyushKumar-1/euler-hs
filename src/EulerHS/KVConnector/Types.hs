@@ -85,6 +85,7 @@ data MeshConfig = MeshConfig
   , ecRedisDBStream :: Text
   , kvRedis         :: Text
   , redisTtl        :: L.KVDBDuration
+  , kvHardKilled    :: Bool
   }
   deriving (Generic, Eq, Show, A.ToJSON)
 
@@ -129,6 +130,18 @@ data KVCEnabledTables = KVCEnabledTables
   deriving anyclass (ToJSON, FromJSON)
 
 instance T.OptionEntity KVCEnabledTables FeatureConfig
+
+data IsKvMerchantHardKilled = IsKvMerchantHardKilled
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity IsKvMerchantHardKilled Bool
+
+data KVHardKilledTables = KVHardKilledTables
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity KVHardKilledTables [Text]
 
 data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
   { enableAll        :: Bool

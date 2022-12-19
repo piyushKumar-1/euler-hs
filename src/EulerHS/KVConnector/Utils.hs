@@ -266,3 +266,6 @@ getConfigEntryNewTtl = do
 
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
+
+isRecachingEnabled :: Bool
+isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"

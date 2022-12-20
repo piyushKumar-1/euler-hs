@@ -48,3 +48,5 @@ init/id_rsa
 *~
 
 *.yaml.lock
+
+testlog.json

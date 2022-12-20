@@ -16,7 +16,6 @@ import qualified Data.Aeson as A
 import           Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
 import           Data.Time (UTCTime)
 import qualified EulerHS.Language as L
 import qualified Database.Beam as B
@@ -26,6 +25,7 @@ import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
+
 
 ------------ TYPES AND CLASSES ------------
 
@@ -37,39 +37,6 @@ class KVConnector table where
   keyMap :: HM.HashMap Text Bool -- True implies it is primary key and False implies secondary
   primaryKey :: table -> PrimaryKey
   secondaryKeys:: table -> [SecondaryKey]
-
-
-
-------------- UTILS EXPOSED ------------------
-
-keyDelim:: Text
-keyDelim = "_"
-
-getLookupKeyByPKey :: forall table. (KVConnector (table Identity)) => table Identity -> Text
-getLookupKeyByPKey table = do
-  let tName = tableName @(table Identity)
-  let (PKey k) = primaryKey table
-  let lookupKey = getSortedKey k
-  tName <> keyDelim <> lookupKey
-
-getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table Identity -> [Text]
-getSecondaryLookupKeys table = do
-  let tName = tableName @(table Identity)
-  let skeys = secondaryKeys table
-  let tupList = map (\(SKey s) -> s) skeys
-  let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
-  list
-
-applyFPair :: (t -> b) -> (t, t) -> (b, b)
-applyFPair f (x, y) = (f x, f y)
-
-------------- UTILS HIDDEN ------------------
-
-getSortedKey :: [(Text,Text)] -> Text
-getSortedKey kvTup = do
-  let sortArr = sortBy (compare `on` fst) kvTup
-  let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
-  appendedKeys <> "_" <> appendedValues
 
 --------------- EXISTING DB MESH ---------------
 class MeshState a where
@@ -112,6 +79,7 @@ data QueryPath = KVPath | SQLPath
 
 data MeshConfig = MeshConfig
   { meshEnabled     :: Bool
+  , cerealEnabled   :: Bool
   , memcacheEnabled :: Bool
   , meshDBName      :: Text
   , ecRedisDBStream :: Text
@@ -160,4 +128,18 @@ data KVCEnabledTables = KVCEnabledTables
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-instance T.OptionEntity KVCEnabledTables [Text]
+instance T.OptionEntity KVCEnabledTables FeatureConfig
+
+data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
+  { enableAll        :: Bool
+  , disableAny       :: Maybe [Text]
+  , enableAllRollout :: Maybe Int
+  , enabledKeys      :: [RolloutConfig]
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+data RolloutConfig = RolloutConfig
+  { name        :: Text
+  , rollout    :: Int
+  }
+  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)

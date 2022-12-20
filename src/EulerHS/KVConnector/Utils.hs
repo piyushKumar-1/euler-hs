@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module EulerHS.KVConnector.Utils where
 
@@ -16,21 +17,74 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..), IsKVEnabled(..))
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..),
+                  IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..), KVConnector(..), PrimaryKey(..), SecondaryKey(..))
+import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
+-- import           Servant (err500)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..))
+import           System.Random (randomRIO)
 import           Unsafe.Coerce (unsafeCoerce)
+import Data.Time.LocalTime (addLocalTime, LocalTime)
+import Data.Time.Clock (secondsToNominalDiffTime)
+import           Juspay.Extra.Config (lookupEnvT)
+import qualified Data.Fixed as Fixed
 
 
-isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --NOTE: This is for testing purpose
+
+isInMemConfigEnabled :: (L.MonadFlow m) => Text -> m Bool
+isInMemConfigEnabled modelName = do
+  (mbIMCEnabledTables :: Maybe [Text]) <- L.getOptionLocal IMCEnabledTables
+  (mbIsIMCEnabled :: Maybe Bool) <- L.getOptionLocal IsIMCEnabled
+  case (mbIsIMCEnabled, mbIMCEnabledTables) of
+    (Just isEnabled, Just enabledTables)  -> do
+      L.logDebugT "IsIMCEnabled" (show isEnabled)
+      L.logDebugT "IMCEnabledTables" (show enabledTables)
+      L.logDebugT "modelName" modelName
+      L.logDebugT "IsModelNameElem" (show $ elem modelName enabledTables)
+      return $ isEnabled && (elem modelName enabledTables)
+    (Nothing, Nothing)         -> L.logErrorT "IS_IMC_ENABLED_ERROR" "Error IsIMCEnabled and IMCEnabledTables are not set" $> False
+    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsIMCEnabled is not set" $> False
+    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IMCEnabledTables is not set" $> False
+
+isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --TODO: Move this to euler-db
 isKVEnabled modelName = do
-  (mbKvEnabledtables :: Maybe [Text]) <- L.getOption KVCEnabledTables
-  (mbIsKVEnabled :: Maybe Bool) <- L.getOption IsKVEnabled
-  pure $ case (mbIsKVEnabled, mbKvEnabledtables) of
-    (Just isEnabled, Just kvEnabledtables) -> isEnabled && elem modelName kvEnabledtables
-    _ -> False
+  (mbKVTablesCutover :: Maybe FeatureConfig) <- L.getOptionLocal KVCEnabledTables
+  (mbIsKVEnabled :: Maybe Bool) <- L.getOptionLocal IsKVEnabled
+  case (mbIsKVEnabled, mbKVTablesCutover) of
+    (Just isEnabled, Just ktc) -> (isEnabled &&) <$> checkKeyEnabled ktc modelName
+    (Nothing, Nothing)         -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled and KVCEnabledTables are not set" $> False
+    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled is not set" $> False
+    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error KVCEnabledTables is not set" $> False
+
+  where
+    checkKeyEnabled :: (L.MonadFlow m) => FeatureConfig -> Text -> m Bool
+    checkKeyEnabled conf key =
+      isKeyEnabled conf key <$>
+        if enableAll conf
+        -- Enabled for all
+        then
+          case enableAllRollout conf of
+            Just rollout -> do
+              randomIntV <- L.runIO' "randomRIO" $ randomRIO (1, 100)
+              pure $ randomIntV <= rollout
+            Nothing -> pure True
+        else do
+          let optMConf = find (\mConf -> name mConf == key) (enabledKeys conf)
+          case optMConf of
+            Just mconf -> do
+              randomIntV <- L.runIO' "randomRIO" $ randomRIO (1, 100)
+              pure $ randomIntV <= (rollout mconf)
+            -- Merchant Key not set
+            Nothing -> pure False
+
+    isKeyEnabled :: FeatureConfig -> Text -> Bool -> Bool
+    isKeyEnabled FeatureConfig{disableAny} key res =
+      case (res, disableAny) of
+        (True, Just disableList) -> not $ elem key disableList
+        (_ , _)  -> res
 
 jsonKeyValueUpdates ::
   forall be table. (Model be table, MeshMeta be table)
@@ -77,11 +131,47 @@ runQuery dbConf query = do
     Right c -> L.runDB c query
     Left  e -> return $ Left e
 
+------------- KEY UTILS ------------------
+
+keyDelim:: Text
+keyDelim = "_"
+
+getPKeyWithShard :: forall table. (KVConnector (table Identity)) => table Identity -> Text
+getPKeyWithShard table =
+  let pKey = getLookupKeyByPKey table
+  in pKey <> getShardedHashTag pKey
+
+getLookupKeyByPKey :: forall table. (KVConnector (table Identity)) => table Identity -> Text
+getLookupKeyByPKey table = do
+  let tName = tableName @(table Identity)
+  let (PKey k) = primaryKey table
+  let lookupKey = getSortedKey k
+  tName <> keyDelim <> lookupKey
+
+getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table Identity -> [Text]
+getSecondaryLookupKeys table = do
+  let tName = tableName @(table Identity)
+  let skeys = secondaryKeys table
+  let tupList = map (\(SKey s) -> s) skeys
+  let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
+  list
+
+applyFPair :: (t -> b) -> (t, t) -> (b, b)
+applyFPair f (x, y) = (f x, f y)
+
+getSortedKey :: [(Text,Text)] -> Text
+getSortedKey kvTup = do
+  let sortArr = sortBy (compare `on` fst) kvTup
+  let (appendedKeys, appendedValues) = applyFPair (T.intercalate "_") $ unzip sortArr
+  appendedKeys <> "_" <> appendedValues
+
 getShardedHashTag :: Text -> Text
 getShardedHashTag key = do
   let slot = unsafeCoerce @_ @Word16 $ L.keyToSlot $ encodeUtf8 key
       streamShard = slot `mod` 128
   "{shard-" <> show streamShard <> "}"
+
+------------------------------------------
 
 getAutoIncId :: (L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult Integer)
 getAutoIncId meshCfg tName = do
@@ -144,3 +234,35 @@ termQueryMatch columnVal = \case
   Not (Eq literal)        -> columnVal /= literal
   Not term                -> not (termQueryMatch columnVal term)
   _                       -> error "Term query not supported"
+
+toPico :: Int -> Fixed.Pico
+toPico value = Fixed.MkFixed $ ((toInteger value) * 1000000000000)
+
+getStreamName :: String -> Text
+getStreamName shard = getConfigStreamBasename <> "-" <> (T.pack shard) <> ""
+
+getRandomStream :: (L.MonadFlow m) => m Text
+getRandomStream = do
+  streamShard <- L.runIO' "random shard" $ randomRIO (1, getConfigStreamMaxShards)
+  return $ getStreamName (show streamShard)
+
+getConfigStreamNames :: [Text]
+getConfigStreamNames = fmap (\shardNo -> getStreamName (show shardNo) ) [1..getConfigStreamMaxShards]
+
+getConfigStreamBasename :: Text
+getConfigStreamBasename = fromMaybe "ConfigStream" $ lookupEnvT "CONFIG_STREAM_BASE_NAME"
+
+getConfigStreamMaxShards :: Int
+getConfigStreamMaxShards = fromMaybe 20 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_MAX_SHARDS"
+
+getConfigStreamLooperDelayInSec :: Int
+getConfigStreamLooperDelayInSec = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_LOOPER_DELAY_IN_SEC"
+
+getConfigEntryNewTtl :: (L.MonadFlow m) => m LocalTime
+getConfigEntryNewTtl = do
+    currentTime <- L.getCurrentTimeUTC
+    noise <- L.runIO' "random seconds" $ randomRIO (1, 900)
+    return $ addLocalTime (secondsToNominalDiffTime $ toPico (45 * 60 + noise)) currentTime
+
+threadDelayMilisec :: Integer -> IO ()
+threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000

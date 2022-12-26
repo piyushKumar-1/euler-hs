@@ -73,6 +73,7 @@ library
     EulerHS.KVConnector.Utils
     EulerHS.Extra.Regex
     EulerHS.Masking
+    EulerHS.Extra.URLSanitization
 
   other-modules:
     EulerHS.Api
@@ -177,6 +178,8 @@ library
     , safe-exceptions
     , pcre-heavy
     , pcre-light
+    , attoparsec
+    , tasty-hunit
 
   hs-source-dirs:  src
 

@@ -50,7 +50,7 @@ import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
 import           Safe (atMay)
 import           System.CPUTime (getCPUTime)
-
+import           EulerHS.Types(ApiTag (..))
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
     SqlReturning beM be,
@@ -84,6 +84,7 @@ createWoReturingKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -95,6 +96,7 @@ createWoReturingKVConnector dbConf meshCfg value = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -133,6 +135,7 @@ createWithKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -144,6 +147,7 @@ createWithKVConnector dbConf meshCfg value = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -226,6 +230,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -237,6 +242,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -280,6 +286,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -291,6 +298,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -563,6 +571,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -574,6 +583,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -618,6 +628,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -629,6 +640,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -790,6 +802,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           findOneFromDB dbConf whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
+      apiTag <- L.getOption ApiTag
       L.logInfoV ("DB" :: Text) (
         DBLogEntry {
           _log_type     = "DB"
@@ -801,6 +814,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         , _model        = tableName @(table Identity)
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
         , _source       = if isEnabled then "KV" else "DB"
+        , _apiTag       = apiTag
         })
       pure res
 
@@ -918,6 +932,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -929,6 +944,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -989,6 +1005,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -1000,6 +1017,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -1166,6 +1184,7 @@ data DBLogEntry a = DBLogEntry
   , _model        :: Text
   , _cpuLatency   :: Integer
   , _source       :: Text
+  , _apiTag       :: Maybe Text
   }
   deriving stock (Generic)
   -- deriving anyclass (ToJSON)
@@ -1177,6 +1196,7 @@ instance (ToJSON a) => ToJSON (DBLogEntry a) where
                         , "cpuLatency" .= _cpuLatency val
                         , "data" .= _data val
                         , "source" .= _source val
+                        , "api_tag" .= _apiTag val
                       ]
 
 getLatencyInMicroSeconds :: Integer -> Integer

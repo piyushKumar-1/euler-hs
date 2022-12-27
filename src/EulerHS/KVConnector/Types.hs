@@ -25,7 +25,7 @@ import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
-
+import           Data.Aeson ((.=))
 
 ------------ TYPES AND CLASSES ------------
 
@@ -130,6 +130,11 @@ data KVCEnabledTables = KVCEnabledTables
 
 instance T.OptionEntity KVCEnabledTables FeatureConfig
 
+data MerchantID = MerchantID 
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+instance T.OptionEntity MerchantID Text
+
 data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
   { enableAll        :: Bool
   , disableAny       :: Maybe [Text]
@@ -143,3 +148,28 @@ data RolloutConfig = RolloutConfig
   , rollout    :: Int
   }
   deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+
+
+data DBLogEntry a = DBLogEntry
+  { _log_type     :: Text
+  , _action       :: Text
+  , _data         :: a
+  , _latency      :: Int
+  , _model        :: Text
+  , _cpuLatency   :: Integer
+  , _source       :: Text
+  , _apiTag       :: Maybe Text
+  , _merchant_id  :: Maybe Text
+  }
+  deriving stock (Generic)
+  -- deriving anyclass (ToJSON)
+instance (ToJSON a) => ToJSON (DBLogEntry a) where
+  toJSON val = A.object [ "log_type" .= _log_type val
+                        , "action" .= _action val
+                        , "latency" .= _latency val
+                        , "model" .= _model val
+                        , "cpuLatency" .= _cpuLatency val
+                        , "data" .= _data val
+                        , "source" .= _source val
+                        , "api_tag" .= _apiTag val
+                      ]

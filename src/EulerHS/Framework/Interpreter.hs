@@ -221,14 +221,14 @@ interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientMana
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
-          let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
-                            then setRequestTimeout defaultTimeout req
-                            else req {HTTP.responseTimeout = mResponseTimeout mngr}
+          -- let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
+          --                   then setRequestTimeout defaultTimeout req
+          --                   else req {HTTP.responseTimeout = mResponseTimeout mngr}
           eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
                                                                           then dbgLogger Debug
                                                                           else const $ return ()
                                                                       ) getLoggerMaskConfig bUrl clientAct) $
-            S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
+            S.ClientEnv manager baseUrl cookieJar (\url -> getResponseTimeout . makeClientRequest url)
           case eitherResult of
             Left err -> do
               dbgLogger Error $ show @Text err
@@ -236,6 +236,20 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             Right response ->
               pure $ Right response
   where
+    customHeader :: CI.CI ByteString
+    customHeader = CI.mk $ encodeUtf8 @Text "X-Euler-CustomTimeout"
+
+    getResponseTimeout req = do
+      let maybeCustomTimeOut = find (\(headerName, _) -> customHeader == headerName) $ requestHeaders req
+      case maybeCustomTimeOut >>= convertSecondToMicro of
+        Just value -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro value}
+        Nothing -> if HTTP.responseTimeout req == HTTP.responseTimeoutNone
+                    then setRequestTimeout defaultTimeout req
+                    else req {HTTP.responseTimeout = mResponseTimeout mngr}
+    
+    convertSecondToMicro :: (a, ByteString) -> Maybe Int
+    convertSecondToMicro (_, value) = ((*) 1000000)  <$> A.decodeStrict value
+
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger debugLevel msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)

@@ -15,7 +15,7 @@ incrementKVMetric :: L.MonadFlow m => KVMetricHandler -> KVMetric -> DBLogEntry 
 incrementKVMetric handle metric dblog = do
   let mid = fromMaybe "" $ _merchant_id dblog
   let tag = fromMaybe "" $ _apiTag dblog
-  let source = show $ _source dblog
+  let source = _source dblog
   let model = _model dblog
   let action = _action dblog
   L.runIO $ ((kvCounter handle) (metric, tag, action, source,model,mid))

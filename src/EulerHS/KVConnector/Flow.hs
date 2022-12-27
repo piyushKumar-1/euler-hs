@@ -84,7 +84,7 @@ createWoReturingKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -135,7 +135,7 @@ createWithKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -230,7 +230,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -286,7 +286,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -571,7 +571,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -628,7 +628,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -802,7 +802,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           findOneFromDB dbConf whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
-      apiTag <- L.getOption ApiTag
+      apiTag <- L.getOptionLocal ApiTag
       L.logInfoV ("DB" :: Text) (
         DBLogEntry {
           _log_type     = "DB"
@@ -932,7 +932,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -1005,7 +1005,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
+  apiTag <- L.getOptionLocal ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"

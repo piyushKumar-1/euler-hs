@@ -4,6 +4,7 @@
 
 module EulerHS.KVConnector.Metrics where
 
+import           GHC.Float (int2Double)
 import           EulerHS.Prelude
 import qualified EulerHS.Language as L
 import           EulerHS.Options  (OptionEntity)
@@ -18,10 +19,12 @@ incrementKVMetric handle metric dblog = do
   let source = _source dblog
   let model = _model dblog
   let action = _action dblog
-  L.runIO $ ((kvCounter handle) (metric, tag, action, source,model,mid))
+      latency = _latency dblog
+      cpuLatency = _cpuLatency dblog
+  L.runIO $ ((kvCounter handle) (metric, tag, action, source, model, mid, latency, cpuLatency))
 
 data KVMetricHandler = KVMetricHandler
-  { kvCounter :: (KVMetric, Text, Text, Text,Text,Text) -> IO ()
+  { kvCounter :: (KVMetric, Text, Text, Text, Text, Text, Int, Integer) -> IO ()
   }
 
 data KVMetric = KVAction
@@ -45,10 +48,12 @@ mkKVMetricHandler :: IO KVMetricHandler
 mkKVMetricHandler = do
   metrics <- register collectionLock
   pure $ KVMetricHandler $ \case
-    (KVAction, tag, action, source, model , mid)   ->
-      inc (metrics </> #kv_action) tag action source model mid
+    (KVAction, tag, action, source, model , mid, latency, cpuLatency) -> do
+      inc (metrics </> #kv_action_counter) tag action source model  mid
+      observe (metrics </> #kv_latency_observe) (int2Double latency) tag action source model
+      observe (metrics </> #kv_cpu_latency_observe) (fromInteger cpuLatency) tag action source model
 
-kv_action = counter #kv_action
+kv_action_counter = counter #kv_action_counter
       .& lbl @"tag" @Text
       .& lbl @"action" @Text
       .& lbl @"source" @Text
@@ -56,8 +61,24 @@ kv_action = counter #kv_action
       .& lbl @"mid" @Text
       .& build
 
+kv_latency_observe = histogram #kv_latency_observe
+      .& lbl @"tag" @Text
+      .& lbl @"action" @Text
+      .& lbl @"source" @Text
+      .& lbl @"model" @Text
+      .& build
+
+kv_cpu_latency_observe = histogram #kv_cpu_latency_observe
+      .& lbl @"tag" @Text
+      .& lbl @"action" @Text
+      .& lbl @"source" @Text
+      .& lbl @"model" @Text
+      .& build
+
 collectionLock =
-     kv_action
+     kv_action_counter
+  .> kv_latency_observe
+  .> kv_cpu_latency_observe
   .> MNil
 
 

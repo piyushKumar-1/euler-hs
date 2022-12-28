@@ -50,7 +50,7 @@ import qualified Data.Serialize as Serialize
 import qualified EulerHS.KVConnector.Encoding as Encoding
 import           Safe (atMay)
 import           System.CPUTime (getCPUTime)
-
+import           EulerHS.Types(ApiTag (..))
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
     SqlReturning beM be,
@@ -84,6 +84,7 @@ createWoReturingKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -94,7 +95,8 @@ createWoReturingKVConnector dbConf meshCfg value = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isEnabled then "KV" else "DB"
+    , _source       = if isEnabled then "KV" else "SQL"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -133,6 +135,7 @@ createWithKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -143,7 +146,8 @@ createWithKVConnector dbConf meshCfg value = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isEnabled then "KV" else "DB"
+    , _source       = if isEnabled then "KV" else "SQL"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -226,6 +230,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -236,7 +241,8 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isDisabled then "DB" else "KV"
+    , _source       = if isDisabled then "SQL" else "KV"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -258,7 +264,7 @@ updateWithKVConnector :: forall table m.
   Where BP.Postgres table ->
   m (MeshResult (Maybe (table Identity)))
 updateWithKVConnector dbConf meshCfg setClause whereClause = do
-  let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+  let isDisabled = meshCfg.kvHardKilled  
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
@@ -280,6 +286,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -290,7 +297,8 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isDisabled then "DB" else "KV"
+    , _source       = if isDisabled then "SQL" else "KV"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -567,7 +575,7 @@ updateAllReturningWithKVConnector :: forall table m.
   Where BP.Postgres table ->
   m (MeshResult [table Identity])
 updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
-  let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+  let isDisabled = meshCfg.kvHardKilled 
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
@@ -588,6 +596,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -598,7 +607,8 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "DB"
+    , _source       = if not isDisabled then "KV" else "SQL"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -622,7 +632,7 @@ updateAllWithKVConnector :: forall be table beM m.
   Where be table ->
   m (MeshResult ())
 updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
-  let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+  let isDisabled = meshCfg.kvHardKilled  
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
@@ -643,6 +653,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -653,7 +664,8 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "DB"
+    , _source       = if not isDisabled then "KV" else "SQL"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -816,7 +828,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
 
     kvFetch :: m (MeshResult (Maybe (table Identity)))
     kvFetch = do
-      let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+      let isDisabled = meshCfg.kvHardKilled 
       t1        <- getCurrentDateInMillis
       cpuT1     <- L.runIO getCPUTime
       res <- if not isDisabled
@@ -837,6 +849,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           findOneFromDB dbConf whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
+      apiTag <- L.getOption ApiTag
       L.logInfoV ("DB" :: Text) (
         DBLogEntry {
           _log_type     = "DB"
@@ -847,7 +860,8 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         , _latency      = t2 - t1
         , _model        = tableName @(table Identity)
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-        , _source       = if not isDisabled then "KV" else "DB"
+        , _source       = if not isDisabled then "KV" else "SQL"
+        , _apiTag       = apiTag
         })
       pure res
 
@@ -922,7 +936,7 @@ findAllWithOptionsKVConnector :: forall be table beM m.
   Maybe Int ->
   m (MeshResult [table Identity])
 findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffset = do
-  let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+  let isDisabled = meshCfg.kvHardKilled  
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
@@ -965,6 +979,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -975,7 +990,8 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "DB"
+    , _source       = if not isDisabled then "KV" else "SQL"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -1016,7 +1032,7 @@ findAllWithKVConnector :: forall be table beM m.
   m (MeshResult [table Identity])
 findAllWithKVConnector dbConf meshCfg whereClause = do
   let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
-  let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+  let isDisabled = meshCfg.kvHardKilled  
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
   res <- if not isDisabled
@@ -1036,6 +1052,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
+  apiTag <- L.getOption ApiTag
   L.logInfoV ("DB" :: Text) (
     DBLogEntry {
       _log_type     = "DB"
@@ -1046,7 +1063,8 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "DB"
+    , _source       = if not isDisabled then "KV" else "SQL"
+    , _apiTag       = apiTag
     })
   pure res
 
@@ -1213,6 +1231,7 @@ data DBLogEntry a = DBLogEntry
   , _model        :: Text
   , _cpuLatency   :: Integer
   , _source       :: Text
+  , _apiTag       :: Maybe Text
   }
   deriving stock (Generic)
   -- deriving anyclass (ToJSON)
@@ -1224,6 +1243,7 @@ instance (ToJSON a) => ToJSON (DBLogEntry a) where
                         , "cpuLatency" .= _cpuLatency val
                         , "data" .= _data val
                         , "source" .= _source val
+                        , "api_tag" .= _apiTag val
                       ]
 
 getLatencyInMicroSeconds :: Integer -> Integer

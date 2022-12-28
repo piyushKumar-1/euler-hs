@@ -172,4 +172,5 @@ instance (ToJSON a) => ToJSON (DBLogEntry a) where
                         , "data" .= _data val
                         , "source" .= _source val
                         , "api_tag" .= _apiTag val
+                        , "merchant_id" .= _merchant_id val
                       ]

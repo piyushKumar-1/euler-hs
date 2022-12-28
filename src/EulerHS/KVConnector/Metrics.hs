@@ -29,18 +29,6 @@ data KVMetricHandler = KVMetricHandler
 
 data KVMetric = KVAction
 
-
--- data DBLogEntry a = DBLogEntry
---   { _log_type     :: Text
---   , _action       :: Text
---   , _data         :: a
---   , _latency      :: Int
---   , _model        :: Text
---   , _cpuLatency   :: Integer
---   , _source       :: Text
---   , _apiTag       :: Maybe Text
---   , _merchant_id  :: Maybe Text
---   }
 data Source = KV | SQL | KV_AND_SQL
     deriving Show
 

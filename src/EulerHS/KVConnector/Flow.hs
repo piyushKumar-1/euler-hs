@@ -22,7 +22,7 @@ module EulerHS.KVConnector.Flow
 import           Control.Monad.Extra (notM)
 import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap)
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, toPSJSON, DBCommandVersion(..))
 import           EulerHS.KVConnector.InMemConfig.Types (InMemCacheResult (..))
 import           EulerHS.KVConnector.InMemConfig.Flow (checkAndStartLooper)
@@ -30,7 +30,6 @@ import           EulerHS.KVConnector.Utils
 import           EulerHS.Runtime (mkConfigEntry)
 import           Unsafe.Coerce (unsafeCoerce)
 import qualified Data.Aeson as A
-import           Data.Aeson ((.=))
 import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum, findIndices)
@@ -51,6 +50,8 @@ import qualified EulerHS.KVConnector.Encoding as Encoding
 import           Safe (atMay)
 import           System.CPUTime (getCPUTime)
 import           EulerHS.Types(ApiTag (..))
+import           EulerHS.KVConnector.Metrics (incrementMetric, KVMetric(..))
+
 createWoReturingKVConnector :: forall (table :: (Type -> Type) -> Type) be m beM.
   ( HasCallStack,
     SqlReturning beM be,
@@ -84,9 +85,9 @@ createWoReturingKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "CREATE"
     , _data        = case res of
@@ -97,7 +98,10 @@ createWoReturingKVConnector dbConf meshCfg value = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 
@@ -135,9 +139,9 @@ createWithKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "CREATE_RETURNING"
     , _data        = case res of
@@ -148,7 +152,10 @@ createWithKVConnector dbConf meshCfg value = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 createKV :: forall (table :: (Type -> Type) -> Type) m.
@@ -230,9 +237,9 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE"
     , _data        = case res of
@@ -243,7 +250,10 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 updateWithKVConnector :: forall table m.
@@ -286,9 +296,10 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+
+  let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE_RETURNING"
     , _data        = case res of
@@ -299,7 +310,10 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 updateKV :: forall be table beM m.
@@ -571,9 +585,9 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "FIND_ALL"
     , _data        = case res of
@@ -584,7 +598,10 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 updateAllWithKVConnector :: forall be table beM m.
@@ -628,9 +645,9 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog = DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE_ALL"
     , _data        = case res of
@@ -641,7 +658,10 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 updateKVAndDBResults :: forall be table beM m.
@@ -802,9 +822,9 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           findOneFromDB dbConf whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
-      apiTag <- L.getOption ApiTag
-      L.logInfoV ("DB" :: Text) (
-        DBLogEntry {
+      apiTag <- L.getOptionLocal ApiTag
+      mid <- L.getOptionLocal MerchantID 
+      let dblog =  DBLogEntry {
           _log_type     = "DB"
         , _action       = "FIND"
         , _data        = case res of
@@ -815,7 +835,10 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
         , _source       = if isEnabled then "KV" else "DB"
         , _apiTag       = apiTag
-        })
+        , _merchant_id = mid
+        }
+      L.logInfoV ("DB" :: Text) dblog
+      incrementMetric KVAction dblog
       pure res
 
     setInConfig :: Text -> table Identity -> m ()
@@ -932,9 +955,9 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog = DBLogEntry {
       _log_type     = "DB"
     , _action       = "FIND_ALL"
     , _data        = case res of
@@ -945,7 +968,10 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+   }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
     where
@@ -1005,9 +1031,9 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOption ApiTag
-  L.logInfoV ("DB" :: Text) (
-    DBLogEntry {
+  apiTag <- L.getOptionLocal ApiTag
+  mid <- L.getOptionLocal MerchantID 
+  let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "FIND_ALL"
     , _data        = case res of
@@ -1018,7 +1044,10 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then "KV" else "DB"
     , _apiTag       = apiTag
-    })
+    , _merchant_id = mid
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
   pure res
 
 redisFindAll :: forall be table beM m.
@@ -1176,28 +1205,7 @@ whereClauseDiffCheck whereClause = do
       case HM.member k keyHashMap of
         True -> False
         _ -> checkForPrimaryOrSecondary keyHashMap xs
-data DBLogEntry a = DBLogEntry
-  { _log_type     :: Text
-  , _action       :: Text
-  , _data         :: a
-  , _latency      :: Int
-  , _model        :: Text
-  , _cpuLatency   :: Integer
-  , _source       :: Text
-  , _apiTag       :: Maybe Text
-  }
-  deriving stock (Generic)
-  -- deriving anyclass (ToJSON)
-instance (ToJSON a) => ToJSON (DBLogEntry a) where
-  toJSON val = A.object [ "log_type" .= _log_type val
-                        , "action" .= _action val
-                        , "latency" .= _latency val
-                        , "model" .= _model val
-                        , "cpuLatency" .= _cpuLatency val
-                        , "data" .= _data val
-                        , "source" .= _source val
-                        , "api_tag" .= _apiTag val
-                      ]
+
 
 getLatencyInMicroSeconds :: Integer -> Integer
 getLatencyInMicroSeconds execTime = execTime `div` 1000000

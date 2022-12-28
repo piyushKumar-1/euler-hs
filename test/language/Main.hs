@@ -9,6 +9,9 @@ import qualified EulerHS.Types as T
 import qualified MaskingSpec as MaskSpec
 import qualified FlowSpec as Flow
 import qualified HttpAPISpec as HttpAPISpec
+import           KV.FlowHelper (lookupEnv)
+import qualified KV.InsertSpec as KV
+import qualified KV.FindOneSpec as KVFind
 -- import qualified KVDBArtSpec as KVDB
 -- import qualified PubSubSpec as PubSub
 -- import qualified SQLArtSpec as SQL
@@ -18,17 +21,21 @@ import qualified HttpAPISpec as HttpAPISpec
 -- import           System.FilePath ((<.>), (</>))
 -- import           System.Process.Typed (proc, startProcess, stopProcess)
 -- import           System.Random (getStdRandom, random)
-import           Test.Hspec (hspec)
+-- import           Test.Hspec (hspec)
+import           Test.Hspec.Core.Runner
 
 main :: IO ()
 main = do
     -- Redis not works on CI
     -- withRedis $
-    hspec $ do
+    let shouldRunKVConnectorTestCases = fromMaybe False $ readMaybe =<< lookupEnv "KV_CONNECTOR_TESTS_ENABLED"
+    hspecWith defaultConfig{ configPrintCpuTime = True, configColorMode = ColorAlways} $ do
       HttpAPISpec.spec
       MaskSpec.spec
       Flow.spec logsDisabled
-
+      when shouldRunKVConnectorTestCases $ do
+        KV.spec
+        KVFind.spec
       -- Wait for Redis on CI
       -- CachedSqlDBQuery.spec
 

@@ -34,7 +34,7 @@ import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.SqlDB.Language as DB
-import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
+import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
                                       DBError (DBError),
                                       DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
@@ -328,7 +328,10 @@ findAllExtended dbConf mKey sel = case mKey of
     go :: m (Either DBError [table Identity])
     go = do
       eConn <- getOrInitSqlConn dbConf
-      join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
+      rows <- join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
+      case rows of
+        Left err -> L.incrementDbMetric err dbConf *> pure rows
+        Right _ -> pure rows
 
 deleteExtended :: forall beM be table m .
   (HasCallStack,
@@ -372,7 +375,13 @@ runQuery ::
 runQuery dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
-    Right c -> L.runDB c query
+    Right c -> do
+      result <- L.runDB c query
+      case result of
+        Right _ -> pure result
+        Left err -> do
+          L.incrementDbMetric err dbConf
+          pure result
     Left  e -> return $ Left e
 
 runQueryMySQL ::
@@ -383,7 +392,11 @@ runQueryMySQL ::
 runQueryMySQL dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
-    Right c -> L.runTransaction c query
+    Right c -> do
+      rows <- L.runTransaction c query
+      case rows of
+        Left err -> L.incrementDbMetric err dbConf *> pure rows
+        Right _ -> pure rows
     Left  e -> return $ Left e
 
 sqlCreate ::
@@ -433,7 +446,7 @@ createSqlMySQL dbConf value = do
     Right Nothing -> do
       let message = "DB returned \"" <> "Nothing" <> "\" after inserting \"" <> show value <> "\""
       L.logError @Text "createSqlMySQL" message
-      return $ Left $ DBError UnexpectedResult message
+      return $ Left $ DBError UnexpectedResult message -- do we add metric here ?
     Left e -> return $ Left e
 
 createSqlWoReturing ::
@@ -477,7 +490,10 @@ findAllSql ::
 findAllSql dbConf whereClause = do
   let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
   sqlConn <- getOrInitSqlConn dbConf
-  join <$> mapM (`L.runDB` findQuery) sqlConn
+  rows <- join <$> mapM (`L.runDB` findQuery) sqlConn
+  case rows of
+    Right _ -> pure rows
+    Left err -> L.incrementDbMetric err dbConf *> pure rows
 
 cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> m ()
 cacheWithKey key row = do

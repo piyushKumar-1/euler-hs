@@ -324,6 +324,18 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetOption k v next) =
     let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
     putMVar _options newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.ModifyOption k fn next) =
+  fmap next $ do
+    m <- takeMVar _options
+    let valAny = Map.lookup k m
+    (newMap,newVal) <- case ( valAny) of
+      Nothing -> pure (m,Nothing)
+      Just val -> do
+        let newVal = fn (unsafeCoerce val)
+        pure (Map.insert k (unsafeCoerce @_ @Any newVal) m,Just newVal)
+    putMVar _options newMap
+    pure newVal
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
   fmap next $ do
     m <- takeMVar _options

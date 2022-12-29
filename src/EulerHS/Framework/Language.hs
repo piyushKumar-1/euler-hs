@@ -536,6 +536,23 @@ class (MonadMask m) => MonadFlow m where
   -- >    delOption MerchantIdKey
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
 
+  -- > Problem Statement :
+  -- > _ <- getOption k 
+  -- > ---- <some calculation> ------- 
+  -- > ----------------------------------------
+  -- > -----<This region is not thread safe>--------
+  -- > ----------------------------------------
+  -- > _ <- setOption k <result of calculations>
+  -- >  
+  -- > Since the above block is not thread safe to modify an option
+  -- > 
+  -- > USE MODIFYOPTION :-)
+  -- > It takes a key and function and applies the function if it finds a val with key
+  -- >
+  -- >
+  -- > Sample usage:
+  -- > counter <- modifyOption MyCounter (\x -> x + 1)
+
   modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v)
 
   -- | Deletes a typed option using a typed key.

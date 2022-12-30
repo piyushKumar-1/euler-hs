@@ -22,7 +22,7 @@ module EulerHS.KVConnector.Flow
 import           Control.Monad.Extra (notM)
 import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..), Source(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, toPSJSON, DBCommandVersion(..))
 import           EulerHS.KVConnector.InMemConfig.Types (InMemCacheResult (..))
 import           EulerHS.KVConnector.InMemConfig.Flow (checkAndStartLooper)
@@ -96,7 +96,7 @@ createWoReturingKVConnector dbConf meshCfg value = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isEnabled then "KV" else "SQL"
+    , _source       = if isEnabled then KV else SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
     }
@@ -150,7 +150,7 @@ createWithKVConnector dbConf meshCfg value = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isEnabled then "KV" else "SQL"
+    , _source       = if isEnabled then KV else SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
     }
@@ -224,15 +224,16 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
-  res <- if not isDisabled
+  (source, res) <- if not isDisabled
     then do
       L.logDebugT "updateWoReturningWithKVConnector" ("Taking KV Path for " <> tableName @(table Identity) )
-      mapRight (const ()) <$> updateKV dbConf meshCfg setClause whereClause True
+      -- Discarding object
+      (\updRes -> (fst updRes, mapRight (const ()) (snd updRes))) <$> updateKV dbConf meshCfg setClause whereClause True
     else do
       L.logDebugT "updateWoReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
       whereClauseDiffCheck whereClause
       res <- updateOneSqlWoReturning dbConf setClause whereClause
-      case res of
+      (SQL,) <$> case res of
         Right val -> return $ Right val
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
@@ -248,7 +249,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isDisabled then "SQL" else "KV"
+    , _source       = source
     , _apiTag       = apiTag
     , _merchant_id = mid
     }
@@ -277,7 +278,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
   let isDisabled = meshCfg.kvHardKilled  
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
-  res <- if not isDisabled
+  (source, res) <- if not isDisabled
     then do
       L.logDebugT "updateWithKVConnector" ("Taking KV Path for " <> tableName @(table Identity))
       updateKV dbConf meshCfg setClause whereClause False
@@ -286,7 +287,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
       whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
-      case res of
+      (SQL, ) <$> case res of
         Right [x] -> return $ Right (Just x)
         Right [] -> return $ Right Nothing
         Right xs -> do
@@ -308,7 +309,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isDisabled then "SQL" else "KV"
+    , _source       = source
     , _apiTag       = apiTag
     , _merchant_id = mid
     }
@@ -335,7 +336,7 @@ updateKV :: forall be table beM m.
   [Set be table] ->
   Where be table ->
   Bool ->
-  m (MeshResult (Maybe (table Identity)))
+  m (Source, MeshResult (Maybe (table Identity)))
 updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
   eitherFindRes <- findOneFromRedis meshCfg whereClause
   let updVals = jsonKeyValueUpdates setClause
@@ -346,13 +347,13 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
           L.logDebugT "updateKV" ("Found nothing from findWithKVConnectorRes - Falling back to DB for " <> tableName @(table Identity) <> "  and recaching")
           let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
           dbRes <- runQuery dbConf findQuery
-          case dbRes of
+          (KV,) <$> case dbRes of
             Right [obj] -> mapRight Just <$> updateDBRowInRedis meshCfg updVals whereClause obj
             Right [] -> pure $ Right Nothing
             Right _ -> pure $ Left $ MUpdateFailed "Found more than one record in DB"
             Left err -> pure $ Left (MDBError err)
         else do
-          if updateWoReturning 
+          (SQL,) <$> if updateWoReturning 
             then do
               L.logDebugT "updateWoReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
               whereClauseDiffCheck whereClause
@@ -374,13 +375,13 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
                   return $ Left $ UnexpectedError message
                 Left e -> return $ Left $ MDBError e
 
-    Right r -> case findAllMatching whereClause r of
+    Right r -> (KV,) <$> case findAllMatching whereClause r of
       [obj] -> mapRight Just <$> updateKVRowInRedis meshCfg whereClause updVals obj
       [] -> pure $ Right Nothing
       _ -> do
         L.logDebugT "updateKV" "Found more than one record in redis - Update failed"
         pure $ Left $ MUpdateFailed "Found more than one record in redis"
-    Left err -> pure $ Left err
+    Left err -> pure $ (KV, Left err)
 
 updateObjectInMemConfig :: forall beM be table m.
   ( HasCallStack,
@@ -614,14 +615,14 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   mid <- L.getOptionLocal MerchantID 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "FIND_ALL"
+    , _action       = "UPDATE_ALL_RETURNING"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right _  -> A.Null
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "SQL"
+    , _source       = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
     }
@@ -681,7 +682,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "SQL"
+    , _source       = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
     }
@@ -851,22 +852,22 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       let isDisabled = meshCfg.kvHardKilled 
       t1        <- getCurrentDateInMillis
       cpuT1     <- L.runIO getCPUTime
-      res <- if not isDisabled
+      (source, res) <- if not isDisabled
         then do
           L.logDebugT "findWithKVConnector" ("Taking KV Path for " <> tableName @(table Identity))
           eitherKvRows <- findOneFromRedis meshCfg whereClause
           case eitherKvRows of
             Right [] -> do
               L.logDebugT "findWithKVConnector" ("Falling back to SQL for " <> tableName @(table Identity) <> "- Nothing found in KV")
-              findOneFromDB dbConf whereClause
+              (SQL,) <$> findOneFromDB dbConf whereClause
             Right rows -> do
               L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show (length rows) <> "rows")
-              pure $ Right $ findOneMatching whereClause rows
-            Left err -> pure $ Left err
+              pure $ (KV, Right $ findOneMatching whereClause rows)
+            Left err -> pure $ (KV, Left err)
         else do
           L.logDebugT "findWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
           whereClauseDiffCheck whereClause
-          findOneFromDB dbConf whereClause
+          (SQL,) <$> findOneFromDB dbConf whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
       apiTag <- L.getOptionLocal ApiTag
@@ -880,7 +881,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         , _latency      = t2 - t1
         , _model        = tableName @(table Identity)
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-        , _source       = if not isDisabled then "KV" else "SQL"
+        , _source       = source
         , _apiTag       = apiTag
         , _merchant_id = mid
         }
@@ -1013,7 +1014,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "SQL"
+    , _source       = if not isDisabled then KV_AND_SQL else SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
    }
@@ -1089,7 +1090,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
     , _latency      = t2 - t1
     , _model        = tableName @(table Identity)
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if not isDisabled then "KV" else "SQL"
+    , _source       = if not isDisabled then KV_AND_SQL else SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
     }

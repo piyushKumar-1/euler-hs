@@ -125,6 +125,9 @@ data MerchantID = MerchantID
 
 instance T.OptionEntity MerchantID Text
 
+data Source = KV | SQL | KV_AND_SQL
+    deriving (Generic, Show, ToJSON)
+
 data DBLogEntry a = DBLogEntry
   { _log_type     :: Text
   , _action       :: Text
@@ -132,7 +135,7 @@ data DBLogEntry a = DBLogEntry
   , _latency      :: Int
   , _model        :: Text
   , _cpuLatency   :: Integer
-  , _source       :: Text
+  , _source       :: Source
   , _apiTag       :: Maybe Text
   , _merchant_id  :: Maybe Text
   }

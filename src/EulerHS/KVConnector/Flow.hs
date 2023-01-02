@@ -1254,9 +1254,5 @@ whereClauseDiffCheck whereClause = do
         True -> False
         _ -> checkForPrimaryOrSecondary keyHashMap xs
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 7dea7894bd12bda7d73b466b8a0b8ede1d0f44cd
 getLatencyInMicroSeconds :: Integer -> Integer
 getLatencyInMicroSeconds execTime = execTime `div` 1000000

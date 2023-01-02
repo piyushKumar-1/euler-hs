@@ -85,6 +85,7 @@ data MeshConfig = MeshConfig
   , ecRedisDBStream :: Text
   , kvRedis         :: Text
   , redisTtl        :: L.KVDBDuration
+  , kvHardKilled    :: Bool
   }
   deriving (Generic, Eq, Show, A.ToJSON)
 
@@ -118,37 +119,14 @@ instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Int)
 
 instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Text)
 
-data IsKVEnabled = IsKVEnabled
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
-
-instance T.OptionEntity IsKVEnabled Bool
-
-data KVCEnabledTables = KVCEnabledTables
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
-
-instance T.OptionEntity KVCEnabledTables FeatureConfig
-
 data MerchantID = MerchantID 
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
+
 instance T.OptionEntity MerchantID Text
 
-data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
-  { enableAll        :: Bool
-  , disableAny       :: Maybe [Text]
-  , enableAllRollout :: Maybe Int
-  , enabledKeys      :: [RolloutConfig]
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-data RolloutConfig = RolloutConfig
-  { name        :: Text
-  , rollout    :: Int
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
+data Source = KV | SQL | KV_AND_SQL
+    deriving (Generic, Show, ToJSON)
 
 data DBLogEntry a = DBLogEntry
   { _log_type     :: Text
@@ -157,7 +135,7 @@ data DBLogEntry a = DBLogEntry
   , _latency      :: Int
   , _model        :: Text
   , _cpuLatency   :: Integer
-  , _source       :: Text
+  , _source       :: Source
   , _apiTag       :: Maybe Text
   , _merchant_id  :: Maybe Text
   }

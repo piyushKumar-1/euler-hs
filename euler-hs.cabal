@@ -26,6 +26,7 @@ common common-lang
     , base                     >=4.13   && <5
     , record-dot-preprocessor  ^>=0.2.14
     , record-hasfield
+    , euler-events-hs          ^>=2.0.0
 
   default-extensions:
     NoImplicitPrelude
@@ -67,9 +68,12 @@ library
     EulerHS.Runtime
     EulerHS.Types
     EulerHS.SqlDB.Language
+    EulerHS.KVConnector.DBSync 
+    EulerHS.KVConnector.Encoding
     EulerHS.KVConnector.Flow
+    EulerHS.KVConnector.Metrics
     EulerHS.KVConnector.Types
-    EulerHS.KVConnector.DBSync
+    EulerHS.KVConnector.InMemConfig.Types
     EulerHS.KVConnector.Utils
     EulerHS.Extra.Regex
     EulerHS.Masking
@@ -99,7 +103,7 @@ library
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
     EulerHS.SqlDB.Types
-    EulerHS.KVConnector.Encoding 
+    EulerHS.KVConnector.InMemConfig.Flow
 
   build-depends:
     , QuickCheck
@@ -133,6 +137,7 @@ library
     , http-media
     , http-types
     , juspay-extra          ^>=1.0.1.5
+    , lrucache
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named
@@ -203,6 +208,13 @@ test-suite language
     PubSubSpec
     Scenario1
     SQLArtSpec
+    KV.FlowHelper
+    KV.TestSchema.ServiceConfiguration
+    KV.InsertSpec
+    KV.TestSchema.ThUtils
+    KV.TestSchema.Mesh
+    KV.TestHelper
+    KV.FindOneSpec
 
   build-depends:
     , aeson
@@ -210,6 +222,7 @@ test-suite language
     , async
     , beam-core
     , beam-sqlite
+    , beam-mysql
     , bytestring
     , containers
     , data-default
@@ -246,6 +259,13 @@ test-suite language
     , x509-store
     , tls
     , connection
+    , time
+    , tinylog
+    , template-haskell
+    , casing
+    , scientific
+    , hspec-core
+    , cereal
 
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language

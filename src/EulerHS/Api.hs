@@ -29,6 +29,7 @@ import           Servant.Client.Core.RunClient (RunClient)
 import qualified Servant.Client.Free as SCF
 import qualified Servant.Client.Internal.HttpClient as SCIHC
 import qualified Network.HTTP.Types.Status as HttpStatus
+import qualified EulerHS.Options as T
 
 newtype EulerClient a = EulerClient (Free SCF.ClientF a)
     deriving newtype (Functor, Applicative, Monad, RunClient)
@@ -67,6 +68,12 @@ data ServantApiCallLogEntry = ServantApiCallLogEntry
   }
     deriving stock (Show,Generic)
     deriving anyclass A.ToJSON
+
+data ApiTag = ApiTag
+  deriving stock (Eq, Show, Generic, Ord)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance T.OptionEntity ApiTag Text
 
 mkServantApiCallLogEntry :: Maybe Log.LogMaskingConfig -> SCF.BaseUrl -> SCC.Request -> SCC.Response -> Integer -> ServantApiCallLogEntry
 mkServantApiCallLogEntry mbMaskConfig bUrl req res lat = ServantApiCallLogEntry

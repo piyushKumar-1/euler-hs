@@ -721,7 +721,7 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows updVals updat
           let kvRows = findAllMatching whereClause allKVRows
           updateKVRowRes <- mapM (updateObjectRedis meshCfg updVals whereClause) kvRows
           kvres <- pure $ foldEither updateKVRowRes
-          if updateWoReturning
+          if not updateWoReturning
             then do
               L.logDebugT "updateAllReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
               let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause

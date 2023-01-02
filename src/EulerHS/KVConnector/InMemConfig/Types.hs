@@ -11,6 +11,8 @@ import           EulerHS.Options (OptionEntity)
 import           EulerHS.KVConnector.Types (MeshError)
 import qualified EulerHS.Types as T
 
+type KeysRequiringRedisFetch = Text
+
 data IMCEnabledTables = IMCEnabledTables
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)

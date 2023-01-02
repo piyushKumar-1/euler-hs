@@ -85,7 +85,7 @@ setInMemCache :: forall table m.(
     (ByteString -> Maybe (table Identity)) ->
     RecordKeyValues -> m ()
 setInMemCache tName decodeTable (key,value) = do
-  when (tName == key) $
+  when (tName == key) $                             -- decode only when entry is for the looper's table
     case decodeTable value of
         Nothing -> return ()
         Just x -> do
@@ -172,34 +172,33 @@ searchInMemoryCache meshCfg whereClause = do
           (Left e) -> return . Left $ e
           Right results -> do
               let
-                validResult = catMaybes $ results <&> (
-                    \r -> case r of
-                    EntryValid v -> Just $ v
-                    EntryExpired v _ -> Just $ v
-                    _ -> Nothing
-                    )
-                keysRequiringRedisFetch = catMaybes $ results <&> (
-                    \r -> case r of
-                    EntryExpired _ k -> Just $ k
-                    EntryNotFound k -> Just $ k
-                    _ -> Nothing
-                    )
+                validResult = catMaybes $ results <&> getValidResult
+                keysRequiringRedisFetch = catMaybes $ results <&> getKeysRequiringRedisFetch
               L.logDebugT "searchInMemoryCache: validResult : " $ (show validResult)
-              L.logDebugT "searchInMemoryCache: keysRequiringRedisFetch" $ (show keysRequiringRedisFetch)
+              L.logDebugT "searchInMemoryCache: keysRequiringRedisFetch : " $ (show keysRequiringRedisFetch)
               if length validResult == 0
                 then kvFetch keysRequiringRedisFetch
                 else do
-                  lockVal <- L.runIO $ UUID.toText <$> UUID.nextRandom
-                  let lockM = L.acquireConfigLock lockVal
-                  lock <- lockM
-                  L.logDebugT "searchInMemoryCache: lockVal" $ (show lock)
-                  when (lock) (forkKvFetchAndSave keysRequiringRedisFetch lockVal)
+                  lockKey <- L.runIO $ UUID.toText <$> UUID.nextRandom
+                  whenM (L.acquireConfigLock lockKey) (forkKvFetchAndSave keysRequiringRedisFetch lockKey)
                   return . Right $ validResult
     
     Left e -> return . Left $ e
   where
 
     tname :: Text = (tableName @(table Identity))
+
+    getValidResult :: InMemCacheResult (table Identity) -> Maybe (table Identity)
+    getValidResult r = case r of
+      EntryValid v -> Just $ v
+      EntryExpired v _ -> Just $ v
+      _ -> Nothing
+
+    getKeysRequiringRedisFetch :: InMemCacheResult (table Identity) -> Maybe KeysRequiringRedisFetch
+    getKeysRequiringRedisFetch r = case r of
+      EntryExpired _ k -> Just $ k
+      EntryNotFound k -> Just $ k
+      _ -> Nothing
 
     forkKvFetchAndSave :: [Text] -> Text -> m ()
     forkKvFetchAndSave pKeys lockKey = do

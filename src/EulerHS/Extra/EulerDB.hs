@@ -11,6 +11,7 @@ module EulerHS.Extra.EulerDB (
   EulerPsqlDbAdditionalCfg(..),
   getEulerDbConf,
   getEulerDbConfR1,
+  getEulerPsqlDbConf,
   withEulerDB,
   withEulerDBR1,
   withEulerPsqlDB,

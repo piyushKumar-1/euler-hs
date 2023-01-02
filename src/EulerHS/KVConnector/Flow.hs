@@ -19,18 +19,13 @@ module EulerHS.KVConnector.Flow
   )
  where
 
-import           Control.Monad.Extra (notM)
 import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..), Source(..))
-import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, toPSJSON, DBCommandVersion(..))
-import           EulerHS.KVConnector.InMemConfig.Types (InMemCacheResult (..))
-import           EulerHS.KVConnector.InMemConfig.Flow (checkAndStartLooper)
+import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, DBCommandVersion(..))
+import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache)
 import           EulerHS.KVConnector.Utils
-import           EulerHS.Runtime (mkConfigEntry)
-import           Unsafe.Coerce (unsafeCoerce)
 import qualified Data.Aeson as A
-import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum, findIndices)
 import qualified Data.Text as T
@@ -38,10 +33,9 @@ import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
-import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Term(..), Set(..), OrderBy(..))
+import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Set(..), OrderBy(..))
 import           EulerHS.CachedSqlDBQuery (createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning)
 import qualified Database.Beam as B
-import qualified Database.Beam.Schema.Tables as B
 import qualified Database.Beam.Postgres as BP
 import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
@@ -406,14 +400,13 @@ updateObjectInMemConfig meshCfg _ updVals obj = do
             pKeyText = getLookupKeyByPKey obj
             shard = getShardedHashTag pKeyText
             pKey =  pKeyText <> shard
-            updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
           case A.fromJSON updatedModel of
             A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
             A.Success (updatedModel' :: table Identity)  -> do
-              L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
-              newTtl <- getConfigEntryNewTtl
-              L.setConfig pKey (mkConfigEntry newTtl updatedModel') 
-              mapM_ (pushToConfigStream pKey updatedModelT) getConfigStreamNames
+              L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now pushing to in-mem-config stream"
+              let
+                updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel'
+              mapM_ (pushToConfigStream (tableName @(table Identity)) updatedModelT) getConfigStreamNames
               pure . Right $ ()
   where
     pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()
@@ -762,90 +755,21 @@ findWithKVConnector :: forall be table beM m.
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
   L.logDebugT "findWithKVConnector: " $ "whereClause : " <> (tname <> ":" <> (show . length $ whereClause))
-  inMemResult <- searchInMemoryCache
-  L.logDebugT "findWithKVConnector" $ tname <> ":" <> "In Mem result : " <> (show inMemResult)
-  case inMemResult of
-    EntryValid valEntry -> entryToTable valEntry
-    TableIneligible -> kvFetch 
-    EntryExpired valEntry Nothing -> entryToTable valEntry
-    EntryExpired valEntry (Just keyForInMemConfig) -> useExpiredAndForkKvFetchAndSave keyForInMemConfig valEntry
-    EntryNotFound keyForInMemConfig ->  kvFetchAndSave keyForInMemConfig 
-    UnknownError err -> pure . Left $ err
-
+  shouldSearchInMemoryCache <- isInMemConfigEnabled $ tableName @(table Identity)
+  L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show shouldSearchInMemoryCache)
+  if shouldSearchInMemoryCache
+    then do
+      inMemResult <- searchInMemoryCache meshCfg whereClause
+      flip (either (return . Left) ) inMemResult findOneMatchingFromIMC
+    else
+      kvFetch
   where
-
     tname :: Text = (tableName @(table Identity))
-    
-    useExpiredAndForkKvFetchAndSave :: forall a. Text -> a -> m (MeshResult (Maybe (table Identity)))
-    useExpiredAndForkKvFetchAndSave key val = do
-      L.logInfoT "findWithKVConnector" $ "Starting Timeout for redis-fetch for in-mem-config"
-      L.fork $ 
-        do
-          void $ L.runIO $ threadDelayMilisec 5
-          void $ L.releaseConfigLock key      -- TODO  Check if release fails
-      L.logInfoT "findWithKVConnector" $ "Initiating updation of key <" <> key <>"> in-mem-config"
-      L.fork $ (kvFetchAndSave key) 
-      entryToTable val
 
-    searchInMemoryCache :: m (InMemCacheResult)
-    searchInMemoryCache = do
-      L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show meshCfg.memcacheEnabled)
-      if meshCfg.memcacheEnabled && length whereClause == 1 
-      then do
-        eitherPKeys <- getPrimaryKeys 
-        L.logDebugT "findWithKVConnector: " $ "eitherPKeys: " <> (tname <> ":" <> show eitherPKeys)
-        let
-          decodeTable :: ByteString -> Maybe (table Identity)
-          decodeTable = A.decode . BSL.fromStrict
-        checkAndStartLooper meshCfg decodeTable
-        case eitherPKeys of
-          Right [] -> return TableIneligible
-          Right [[pKey]] -> do
-            let k = decodeUtf8 pKey
-            mbVal <- L.getConfig k
-            case mbVal of
-              Just val -> do
-                L.logInfoT "findWithKVConnector" $ "Found key: <" <> k <> "> in in-mem-config"
-                L.logDebugT "findWithKVConnector" $ "key val: " <> show val
-                currentTime <- L.getCurrentTimeUTC
-                if val.ttl > currentTime
-                  then do
-                    L.logInfoT "findWithKVConnector" $ "Key TTL Valid"
-                    return $ EntryValid val.entry
-                  else do
-                    L.logInfoT "findWithKVConnector" $ "Key TTL Not Valid"
-                    ifM (notM $ L.acquireConfigLock k)
-                      (return $ EntryExpired val.entry Nothing)    --then
-                      (return $ EntryExpired val.entry $ Just k)   --else
-              Nothing -> return . EntryNotFound $ k
-          Right _ -> return TableIneligible
-          Left err -> return . UnknownError $ err
-      else
-        return TableIneligible
-
-    entryToTable :: forall a. a -> m (MeshResult (Maybe (table Identity)))
-    entryToTable x = return . Right . Just $ ((unsafeCoerce @_ @(table Identity)) x)
-
-    getPrimaryKeys :: m (MeshResult [[ByteString]])
-    getPrimaryKeys = do
-      let 
-        keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
-        andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
-        modelName = tableName @(table Identity)
-        keyHashMap = keyMap @(table Identity)
-      L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
-      eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
-      L.logDebugT "findWithKVConnector" (show eitherKeyRes)
-      pure $ foldEither eitherKeyRes
-
-    kvFetchAndSave :: Text -> m (MeshResult (Maybe (table Identity)))
-    kvFetchAndSave key = do
-      val <- kvFetch
-      case val of
-        Right (Just val') -> do
-          void $ setInConfig key val'
-        _ -> return ()
-      pure val
+    findOneMatchingFromIMC :: [table Identity] -> m (MeshResult (Maybe (table Identity)))
+    findOneMatchingFromIMC result = do
+      L.logDebugT "findWithKVConnector" $ tname <> ":" <> "In Mem result : " <> (show result)
+      return . Right $ findOneMatching whereClause result
 
     kvFetch :: m (MeshResult (Maybe (table Identity)))
     kvFetch = do
@@ -888,13 +812,6 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       L.logInfoV ("DB" :: Text) dblog
       incrementMetric KVAction dblog
       pure res
-
-    setInConfig :: Text -> table Identity -> m ()
-    setInConfig k model = do
-      newTtl <- getConfigEntryNewTtl
-      L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
-      void $ L.setConfig k (mkConfigEntry  newTtl model) 
-
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.
@@ -1123,116 +1040,12 @@ redisFindAll meshCfg whereClause = do
       pure $ mapRight concat (foldEither allRowsRes)
     Left err -> pure $ Left err
 
-getDataFromPKeysRedis :: forall table m. (
-    KVConnector (table Identity),
-    FromJSON (table Identity),
-    Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> [ByteString] -> m (MeshResult [table Identity])
-getDataFromPKeysRedis _ [] = pure $ Right []
-getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
-  res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
-  case res of
-    Right (Just r) ->
-      case decodeToField $ BSL.fromChunks [r] of
-        Right decodeRes -> do
-            remainingPKeysRes <- getDataFromPKeysRedis meshCfg pKeys
-            pure $ mapRight (decodeRes ++) remainingPKeysRes
-        Left e -> return $ Left e
-    Right Nothing -> do
-      let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
-      L.logWarningT "getCacheWithHash" traceMsg
-      getDataFromPKeysRedis meshCfg pKeys
-    Left e -> return $ Left $ MRedisError e
 
 mergeKVAndDBResults :: KVConnector (table Identity) => [table Identity] -> [table Identity] -> [table Identity]
 mergeKVAndDBResults dbRows kvRows = do
   let kvPkeys = map getLookupKeyByPKey kvRows
       uniqueDbRes = filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows
   kvRows ++ uniqueDbRes
-
---
---
-decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> MeshResult [a]
-decodeToField val =
-  let (h, v) = BSL.splitAt 4 val
-   in case h of
-        "CBOR" -> case Cereal.decodeLazy v of
-                    Right r' -> Right [r']
-                    Left _ -> case Cereal.decodeLazy v of
-                                 Right r'' -> Right r''
-                                 Left _ -> case Cereal.decodeLazy v of
-                                              Right r''' -> decodeField @a r'''
-                                              Left err' -> Left $ MDecodingError $ T.pack err'
-        "JSON" ->
-          case A.eitherDecode v of
-            Right r' -> decodeField @a r'
-            Left e   -> Left $ MDecodingError $ T.pack e
-        _      ->
-          case A.eitherDecode val of
-            Right r' -> decodeField @a r'
-            Left e   -> Left $ MDecodingError $ T.pack e
-
-decodeField :: forall a. (FromJSON a, Serialize.Serialize a) => A.Value -> MeshResult [a]
-decodeField o@(A.Object _) =
-  case A.eitherDecode @a $ A.encode o of
-    Right r -> return [r]
-    Left e  -> Left $ MDecodingError $ T.pack e
-decodeField o@(A.Array _) =
-  mapLeft (MDecodingError . T.pack)
-    $ A.eitherDecode @[a] $ A.encode o
-decodeField o = Left $ MDecodingError
-  ("Expected list or object but got '" <> T.pack (show o) <> "'.")
-
--- getFieldsAndValuesFromClause dt (And [Is DBS.id (Eq (Just 1)), Or [Is DBS.merchantId (Eq (Just "123")), Is DBS.orderId (Eq (Just "oid"))]])
--- [[("id","Just 1"),("merchantId","Just \"123\"")],[("id","Just 1"),("orderId","Just \"oid\"")]]
-getFieldsAndValuesFromClause :: forall table be. (Model be table, MeshMeta be table) =>
-  B.DatabaseEntityDescriptor be (B.TableEntity table) -> Clause be table -> [[(Text, Text)]]
-getFieldsAndValuesFromClause dt = \case
-  And cs -> foldl' processAnd [[]] $ map (getFieldsAndValuesFromClause dt) cs
-  Or cs -> processOr cs
-  Is column (Eq val) -> do
-    let key = B._fieldName . fromColumnar' . column . columnize $ B.dbTableSettings dt
-    [[(key, showVal . snd $ (toPSJSON @be @table) (key, A.toJSON val))]]
-  Is column (In vals) -> do
-    let key = B._fieldName . fromColumnar' . column . columnize $ B.dbTableSettings dt
-    map (\val -> [(key, showVal . snd $ (toPSJSON @be @table) (key, A.toJSON val))]) vals
-  _ -> []
-
-  where
-    processAnd xs [] = xs
-    processAnd [] ys = ys
-    processAnd xs ys = [x ++ y | x <-xs, y <- ys]
-    processOr xs = concatMap (getFieldsAndValuesFromClause dt) xs
-
-    showVal res = case res of
-      A.String r -> r
-      A.Number n -> T.pack $ show n
-      A.Array l  -> T.pack $ show l
-      A.Object o -> T.pack $ show o
-      A.Bool b -> T.pack $ show b
-      A.Null -> T.pack "" 
-
-getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
-getPrimaryKeyFromFieldsAndValues _ _ _ [] = pure $ Right []
-getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
-  case HM.lookup k keyHashMap of
-    Just True -> pure $ Right [fromString $ T.unpack (contructKey <> getShardedHashTag contructKey)]
-    Just False -> do
-      let sKey = contructKey
-      res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack sKey)
-      case res of
-        Right r -> pure $ Right r
-        Left e -> return $ Left $ MRedisError e
-    _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
-  where
-    contructKey = modelName <> "_" <> k <> "_" <> v
-
--- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
--- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
-nonEmptySubsequences         :: [Text] -> [[Text]]
-nonEmptySubsequences []      =  []
-nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
-  where f ys r = ys : (x : ys) : r
 
 whereClauseDiffCheck :: forall be table m. 
   ( L.MonadFlow m

@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
 module EulerHS.KVConnector.InMemConfig.Types 
@@ -9,6 +10,8 @@ import qualified Data.Aeson as A
 import           EulerHS.Options (OptionEntity)
 import           EulerHS.KVConnector.Types (MeshError)
 import qualified EulerHS.Types as T
+
+type KeysRequiringRedisFetch = Text
 
 data IMCEnabledTables = IMCEnabledTables
   deriving stock (Eq, Show, Generic)
@@ -22,12 +25,20 @@ data IsIMCEnabled = IsIMCEnabled
 
 instance T.OptionEntity IsIMCEnabled Bool
 
-data InMemCacheResult =  EntryValid Any | 
-                        EntryExpired Any (Maybe KeyForInMemConfig) | 
-                        EntryNotFound (KeyForInMemConfig) |
-                        TableIneligible | 
-                        UnknownError MeshError 
-  deriving (Show)
+data InMemCacheResult table where
+  EntryValid :: (Show table) => table -> InMemCacheResult table
+  EntryExpired :: (Show table) => table -> Text -> InMemCacheResult table
+  EntryNotFound :: Text -> InMemCacheResult table
+  TableIneligible :: InMemCacheResult table
+  UnknownError :: MeshError -> InMemCacheResult table
+
+
+-- data InMemCacheResult table => (Show table) = EntryValid (table) | 
+--                         EntryExpired (table)  KeyForInMemConfig | 
+--                         EntryNotFound KeyForInMemConfig |
+--                         TableIneligible | 
+--                         UnknownError MeshError 
+--   deriving (Show)
 
 type KeyForInMemConfig = Text
 

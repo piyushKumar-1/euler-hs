@@ -390,7 +390,8 @@ updateObjectInMemConfig :: forall beM be table m.
     L.MonadFlow m
   ) => MeshConfig -> Where be table -> [(Text, A.Value)] -> table Identity ->  m (MeshResult ())
 updateObjectInMemConfig meshCfg _ updVals obj = do
-  if not meshCfg.memcacheEnabled
+  shouldUpdateIMC <- isInMemConfigEnabled $ tableName @(table Identity)
+  if not shouldUpdateIMC
     then pure . Right $ ()
     else
       case (updateModel @be @table) obj updVals of
@@ -759,7 +760,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
   L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show shouldSearchInMemoryCache)
   if shouldSearchInMemoryCache
     then do
-      inMemResult <- searchInMemoryCache meshCfg whereClause
+      inMemResult <- searchInMemoryCache meshCfg dbConf whereClause
       flip (either (return . Left) ) inMemResult findOneMatchingFromIMC
     else
       kvFetch

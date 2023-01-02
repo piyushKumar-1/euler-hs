@@ -94,8 +94,7 @@ configCacheSize =
 
 mkConfigEntry :: LocalTime -> a -> ConfigEntry
 mkConfigEntry valTtl val = ConfigEntry valTtl (unsafeCoerce @_ @Any val)
--- deriving instance Generic ConfigEntry
-  -- deriving anyclass (A.FromJSON, A.ToJSON)
+
 -- | Possible issues that can arise when registering certificates.
 --
 -- @since 2.0.4.3

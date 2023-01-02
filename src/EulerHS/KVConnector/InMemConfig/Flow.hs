@@ -7,8 +7,12 @@ module EulerHS.KVConnector.InMemConfig.Flow
 
     where
 
+import qualified Data.HashMap.Strict as HM
 import           EulerHS.Prelude 
+import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig)
+import qualified EulerHS.SqlDB.Language as DB
 import qualified Data.Aeson as A
+import qualified Database.Beam as B
 -- import           Control.Monad.Extra (notM)
 import qualified Data.Set as Set
 import qualified Data.ByteString.Lazy as BSL
@@ -18,12 +22,13 @@ import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.InMemConfig.Types
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..), MeshError(MDBError))
 import           Unsafe.Coerce (unsafeCoerce)
-import           Data.Either.Extra (mapRight)
+import           Data.Either.Extra (mapLeft, mapRight)
 import           EulerHS.Runtime (mkConfigEntry)
 import           EulerHS.KVConnector.Utils
-import           Sequelize (Model, Where, Clause(..))
+import           Sequelize (Model, Where, Clause(..), sqlSelect)
+import           Named (defaults, (!))
 import           EulerHS.KVConnector.DBSync ( meshModelTableEntityDescriptor)
 import qualified Data.Serialize as Serialize
 
@@ -145,8 +150,11 @@ getDataFromPKeysIMC meshCfg (pKey : pKeys) = do
         else pure $ EntryExpired (unsafeCoerce @_ @(table Identity) val.entry) k
   mapRight (record :) <$> getDataFromPKeysIMC meshCfg pKeys
 
-searchInMemoryCache :: forall be table m.
+searchInMemoryCache :: forall be beM table m.
   (
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
     HasCallStack,
     KVConnector (table Identity),
     Show (table Identity),
@@ -156,9 +164,10 @@ searchInMemoryCache :: forall be table m.
     MeshMeta be table,
     L.MonadFlow m
   ) =>  MeshConfig -> 
+        DBConfig beM ->
         Where be table ->
         m (MeshResult [table Identity])
-searchInMemoryCache meshCfg whereClause = do
+searchInMemoryCache meshCfg dbConf whereClause = do
   eitherPKeys <- getPrimaryKeys 
   L.logDebugT "findWithKVConnector: " $ "eitherPKeys: " <> (tname <> ":" <> show eitherPKeys)
   let
@@ -167,6 +176,7 @@ searchInMemoryCache meshCfg whereClause = do
   checkAndStartLooper meshCfg decodeTable
   case eitherPKeys of
     Right pKeys -> do
+        L.logDebugT "searchInMemoryCache: pKeys : " $ (show pKeys)
         allRowsRes <- mapM (getDataFromPKeysIMC meshCfg) pKeys
         case mapRight concat (foldEither allRowsRes) of
           (Left e) -> return . Left $ e
@@ -220,9 +230,32 @@ searchInMemoryCache meshCfg whereClause = do
         Right mtups -> do
           L.logDebugT "kvFetch" $ "mtups: " <> (show mtups)
           let tups = catMaybes mtups
-          mapM_ (uncurry updateAllKeysInIMC) tups
-          return . Right $ snd <$> tups
+          if length tups == 0
+            then do
+              eDbTups <- dbFetch
+              L.logDebugT "kvFetch" $ "eDbTups: " <> (show eDbTups)
+              case eDbTups of
+                (Left e) -> pure .Left $ e
+                Right dbTups -> do
+                  mapM_ (uncurry updateAllKeysInIMC) dbTups
+                  return . Right $ snd <$> dbTups
+            else do
+              mapM_ (uncurry updateAllKeysInIMC) tups
+              return . Right $ snd <$> tups
 
+    dbFetch :: m (MeshResult [(Text, table Identity)])
+    dbFetch = do
+      let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+      res <- mapLeft MDBError <$> runQuery dbConf findAllQuery
+      case res of
+        Left err -> pure $ Left err
+        Right rows -> pure . Right $ (\row -> (getPKeyFromPKeyText row, row)) <$> rows
+
+    getPKeyFromPKeyText :: table Identity -> Text
+    getPKeyFromPKeyText row = 
+      let
+        pKeyText = getLookupKeyByPKey row
+      in pKeyText  <> getShardedHashTag pKeyText
     getPrimaryKeys :: m (MeshResult [[ByteString]])
     getPrimaryKeys = do
       let 
@@ -231,9 +264,23 @@ searchInMemoryCache meshCfg whereClause = do
         modelName = tableName @(table Identity)
         keyHashMap = keyMap @(table Identity)
       L.logDebugT "findWithKVConnector: kvCombos" (show keyAndValueCombinations)
-      eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
+      eitherKeyRes <- mapM (getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap) andCombinations
       L.logDebugT "findWithKVConnector: eitherKeyRes" (show eitherKeyRes)
       pure $ foldEither eitherKeyRes
+
+    getPrimaryKeyInIMCFromFieldsAndValues :: (L.MonadFlow m) => Text -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
+    getPrimaryKeyInIMCFromFieldsAndValues _ _ [] = pure $ Right []
+    getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap ((k, v) : xs) =
+      case HM.lookup k keyHashMap of
+        Just True -> pure $ Right [fromString $ T.unpack (contructKey <> getShardedHashTag contructKey)]
+        Just False -> do
+          let sKey = contructKey
+          L.getConfig sKey >>= \case
+            Nothing -> getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap xs
+            Just pKeyEntries -> pure . Right $ encodeUtf8 <$> unsafeCoerce @_ @[Text] pKeyEntries.entry
+        _ -> getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap xs
+      where
+        contructKey = modelName <> "_" <> k <> "_" <> v
 
 updateAllKeysInIMC :: forall table m. (KVConnector (table Identity), L.MonadFlow m) => Text -> table Identity -> m ()
 updateAllKeysInIMC pKey val = do

@@ -17,8 +17,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig,
-                  KVConnector(..), PrimaryKey(..), SecondaryKey(..))
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..))
 import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
@@ -35,6 +34,22 @@ import qualified Data.Serialize as Serialize
 import qualified Data.Serialize as Cereal
 import           Data.Either.Extra (mapRight, mapLeft)
 import  EulerHS.KVConnector.Encoding() 
+
+
+isInMemConfigEnabled :: (L.MonadFlow m) => Text -> m Bool
+isInMemConfigEnabled modelName = do
+  (mbIMCEnabledTables :: Maybe [Text]) <- L.getOptionLocal IMCEnabledTables
+  (mbIsIMCEnabled :: Maybe Bool) <- L.getOptionLocal IsIMCEnabled
+  case (mbIsIMCEnabled, mbIMCEnabledTables) of
+    (Just isEnabled, Just enabledTables)  -> do
+      L.logDebugT "IsIMCEnabled" (show isEnabled)
+      L.logDebugT "IMCEnabledTables" (show enabledTables)
+      L.logDebugT "modelName" modelName
+      L.logDebugT "IsModelNameElem" (show $ elem modelName enabledTables)
+      return $ isEnabled && (elem modelName enabledTables)
+    (Nothing, Nothing)         -> L.logErrorT "IS_IMC_ENABLED_ERROR" "Error IsIMCEnabled and IMCEnabledTables are not set" $> False
+    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsIMCEnabled is not set" $> False
+    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IMCEnabledTables is not set" $> False
 
 jsonKeyValueUpdates ::
   forall be table. (Model be table, MeshMeta be table)
@@ -259,9 +274,6 @@ getConfigEntryNewTtl = do
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
 
-isRecachingEnabled :: Bool
-isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"
-
 decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> MeshResult [a]
 decodeToField val =
   let (h, v) = BSL.splitAt 4 val
@@ -343,3 +355,6 @@ nonEmptySubsequences         :: [Text] -> [[Text]]
 nonEmptySubsequences []      =  []
 nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
   where f ys r = ys : (x : ys) : r
+
+isRecachingEnabled :: Bool
+isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"

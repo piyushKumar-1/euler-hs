@@ -331,7 +331,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.ModifyOption k fn next) =
     (newMap,newVal) <- case ( valAny) of
       Nothing -> pure (m,Nothing)
       Just val -> do
-        let newVal = fn (unsafeCoerce val)
+        newVal <- (\() -> pure $ fn (unsafeCoerce val))() `onException` putMVar _options m
         pure (Map.insert k (unsafeCoerce @_ @Any newVal) m,Just newVal)
     putMVar _options newMap
     pure newVal

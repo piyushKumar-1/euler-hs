@@ -100,6 +100,19 @@ interpretKeyValueF runRedis (L.XRead stream entryId next) =
     parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
     parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
 
+interpretKeyValueF runRedis (L.XReadOpts strObjs readOpts next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xreadOpts ((\(a, b) -> (a, makeStreamEntryId b)) <$> strObjs) readOpts
+      pure result
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
+    makeStreamEntryId L.AutoID = "*" 
+
+interpretKeyValueF runRedis (L.XDel stream entryIds next) =
+  fmap next $
+    runRedis $ R.xdel stream ((\(L.KVDBStreamEntryID ms sq) -> show ms <> "-" <> show sq)  <$> entryIds)
+
 interpretKeyValueF runRedis (L.XRevRange stream send sstart count next) =
   fmap next $
     runRedis $ do
@@ -137,6 +150,8 @@ interpretKeyValueF runRedis (L.SMem k v next) =
   fmap next $ runRedis $ R.sismember k v
 
 interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest args)
+
+interpretKeyValueF runRedis (L.Ping next) = fmap next $ runRedis $ R.ping
 
 interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
@@ -227,6 +242,7 @@ interpretKeyValueTxF (L.SMem k v next) =
 
 interpretKeyValueTxF (L.Raw args next) = next <$> R.sendRequest args
 
+interpretKeyValueTxF (L.Ping next) = next <$> R.ping
 
 interpretTransactionF
   :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))

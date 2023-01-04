@@ -28,7 +28,7 @@ module EulerHS.KVDB.Language
   , setTx, getTx, delTx, setexTx
   , lpushTx, lrangeTx
   , hsetTx, hgetTx
-  , xaddTx, xlenTx , xreadTx
+  , xaddTx, xlenTx , xreadTx , xreadOpts, xdel
   , expireTx
   , saddTx
   -- *** Set
@@ -37,6 +37,7 @@ module EulerHS.KVDB.Language
   , sismember
   -- *** Raw
   , rawRequest
+  , pingRequest
   ) where
 
 import qualified Database.Redis as R
@@ -107,6 +108,8 @@ data KeyValueF f next where
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
+  XReadOpts :: [(KVDBStream, KVDBStreamEntryIDInput)] -> R.XReadOpts -> (f (Maybe [R.XReadResponse]) -> next) -> KeyValueF f next
+  XDel    ::KVDBStream -> [KVDBStreamEntryID] -> (f Integer -> next) -> KeyValueF f next
   XRevRange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> (f [KVDBStreamReadResponseRecord] -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
@@ -117,6 +120,7 @@ data KeyValueF f next where
   SMove   :: KVDBKey -> KVDBKey -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
   SMem    :: KVDBKey -> KVDBKey -> (f Bool -> next) -> KeyValueF f next
   Raw     :: (R.RedisResult a) => [ByteString] -> (f a -> next) -> KeyValueF f next
+  Ping    :: (f R.Status -> next) -> KeyValueF f next
 
 instance Functor (KeyValueF f) where
   fmap f (Set k value next)              = Set k value (f . next)
@@ -141,6 +145,9 @@ instance Functor (KeyValueF f) where
   fmap f (SMembers k next)               = SMembers k (f . next)
   fmap f (SMem k v next)                 = SMem k v (f . next)
   fmap f (Raw args next)                 = Raw args (f . next)
+  fmap f (XReadOpts s readOpts next)     = XReadOpts s readOpts (f . next)
+  fmap f (XDel s entryId next)           = XDel s entryId (f . next)
+  fmap f (Ping next)                     = Ping (f . next)
 
 type KVDBTx = F (KeyValueF R.Queued)
 
@@ -263,6 +270,12 @@ xadd stream entryId items = ExceptT $ liftFC $ KV $ XAdd stream entryId items id
 xread :: KVDBStream -> RecordID -> KVDB (Maybe [KVDBStreamReadResponse])
 xread stream entryId = ExceptT $ liftFC $ KV $ XRead stream entryId id
 
+xreadOpts :: [(KVDBStream, KVDBStreamEntryIDInput)] -> R.XReadOpts -> KVDB (Maybe [R.XReadResponse])
+xreadOpts stPair readOpts = ExceptT $ liftFC $ KV $ XReadOpts stPair readOpts id
+
+xdel stream entryId = ExceptT $ liftFC $ KV $ XDel stream entryId id
+xdel :: KVDBStream -> [KVDBStreamEntryID] -> KVDB Integer
+
 xrevrange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> KVDB ([KVDBStreamReadResponseRecord])
 xrevrange stream send sstart count = ExceptT $ liftFC $ KV $ XRevRange stream send sstart count id
 
@@ -308,3 +321,6 @@ multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
 -- @since 2.0.3.2
 rawRequest :: (R.RedisResult a) => [ByteString] -> KVDB a
 rawRequest args = ExceptT . liftFC . KV . Raw args $ id
+
+pingRequest :: KVDB R.Status
+pingRequest = ExceptT $ liftFC $ KV $ Ping id

@@ -16,6 +16,8 @@ module EulerHS.CachedSqlDBQuery
   , findAll
   , findAllSql
   , findAllExtended
+  , createMultiSql
+  , createMultiSqlWoReturning
   , SqlReturning(..)
   )
 where
@@ -35,7 +37,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
                                       DBError (DBError),
                                       DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
-import           Sequelize (Model, Set, Where, mkExprWithDefault,
+import           Sequelize (Model, Set, Where, mkExprWithDefault,  mkMultiExprWithDefault,
                             modelTableEntity, sqlSelect, sqlUpdate)
 
 -- TODO: What KVDB should be used
@@ -445,3 +447,40 @@ cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> 
 cacheWithKey key row = do
   -- TODO: Should we log errors here?
   void $ rSetB (T.pack cacheName) (encodeUtf8 key) (BSL.toStrict $ encode row)
+
+
+sqlMultiCreate ::
+  forall be table.
+  (B.HasQBuilder be, Model be table) =>
+  [table Identity] ->
+  B.SqlInsert be table
+sqlMultiCreate value = B.insert modelTableEntity (mkMultiExprWithDefault value)
+
+createMultiSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    Show (table Identity),
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  m (Either DBError [table Identity])
+createMultiSql dbConf value = runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
+
+
+createMultiSqlWoReturning ::
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  m (Either DBError ())
+createMultiSqlWoReturning dbConf value = runQuery dbConf $ DB.insertRows $ sqlMultiCreate value

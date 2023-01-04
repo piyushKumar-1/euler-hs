@@ -69,6 +69,7 @@ library
     EulerHS.Types
     EulerHS.KVConnector.Encoding
     EulerHS.KVConnector.Flow
+    EulerHS.KVConnector.Metrics
     EulerHS.KVConnector.Types
     EulerHS.KVConnector.DBSync
     EulerHS.Logger.Types

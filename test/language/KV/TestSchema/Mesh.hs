@@ -20,6 +20,7 @@ meshConfig = MeshConfig
   , ecRedisDBStream = "db-sync-stream"
   , kvRedis = "KVRedis"
   , redisTtl = 43200
+  , kvHardKilled = False
   }
 
 dbMeshTrackerTables :: Set.Set Text

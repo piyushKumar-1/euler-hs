@@ -25,7 +25,7 @@ import qualified Database.Beam.Backend.SQL as B
 import           Database.Beam.Schema (FieldModification, TableField)
 import           Sequelize (Column, Set)
 import qualified EulerHS.Types as T
-
+import           Data.Aeson ((.=))
 
 ------------ TYPES AND CLASSES ------------
 
@@ -85,6 +85,7 @@ data MeshConfig = MeshConfig
   , ecRedisDBStream :: Text
   , kvRedis         :: Text
   , redisTtl        :: L.KVDBDuration
+  , kvHardKilled    :: Bool
   }
   deriving (Generic, Eq, Show, A.ToJSON)
 
@@ -118,28 +119,36 @@ instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Int)
 
 instance BeamSqlBackend MySQL => B.HasSqlEqualityCheck MySQL (Vector Text)
 
-data IsKVEnabled = IsKVEnabled
+data MerchantID = MerchantID 
   deriving stock (Eq, Show, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
-instance T.OptionEntity IsKVEnabled Bool
+instance T.OptionEntity MerchantID Text
 
-data KVCEnabledTables = KVCEnabledTables
-  deriving stock (Eq, Show, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+data Source = KV | SQL | KV_AND_SQL
+    deriving (Generic, Show, ToJSON)
 
-instance T.OptionEntity KVCEnabledTables FeatureConfig
-
-data FeatureConfig = FeatureConfig -- TODO: Move this from here to euler-db
-  { enableAll        :: Bool
-  , disableAny       :: Maybe [Text]
-  , enableAllRollout :: Maybe Int
-  , enabledKeys      :: [RolloutConfig]
+data DBLogEntry a = DBLogEntry
+  { _log_type     :: Text
+  , _action       :: Text
+  , _data         :: a
+  , _latency      :: Int
+  , _model        :: Text
+  , _cpuLatency   :: Integer
+  , _source       :: Source
+  , _apiTag       :: Maybe Text
+  , _merchant_id  :: Maybe Text
   }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
-
-data RolloutConfig = RolloutConfig
-  { name        :: Text
-  , rollout    :: Int
-  }
-  deriving (Show, Eq, Ord, Generic, ToJSON, FromJSON)
+  deriving stock (Generic)
+  -- deriving anyclass (ToJSON)
+instance (ToJSON a) => ToJSON (DBLogEntry a) where
+  toJSON val = A.object [ "log_type" .= _log_type val
+                        , "action" .= _action val
+                        , "latency" .= _latency val
+                        , "model" .= _model val
+                        , "cpuLatency" .= _cpuLatency val
+                        , "data" .= _data val
+                        , "source" .= _source val
+                        , "api_tag" .= _apiTag val
+                        , "merchant_id" .= _merchant_id val
+                      ]

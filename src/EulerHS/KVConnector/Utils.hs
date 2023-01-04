@@ -17,9 +17,8 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVCEnabledTables(..),
-                  IsKVEnabled(..), FeatureConfig(..), RolloutConfig(..), KVConnector(..), PrimaryKey(..), SecondaryKey(..))
-import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig,
+                  KVConnector(..), PrimaryKey(..), SecondaryKey(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
@@ -31,60 +30,6 @@ import Data.Time.LocalTime (addLocalTime, LocalTime)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import           Juspay.Extra.Config (lookupEnvT)
 import qualified Data.Fixed as Fixed
-
-
-
-isInMemConfigEnabled :: (L.MonadFlow m) => Text -> m Bool
-isInMemConfigEnabled modelName = do
-  (mbIMCEnabledTables :: Maybe [Text]) <- L.getOptionLocal IMCEnabledTables
-  (mbIsIMCEnabled :: Maybe Bool) <- L.getOptionLocal IsIMCEnabled
-  case (mbIsIMCEnabled, mbIMCEnabledTables) of
-    (Just isEnabled, Just enabledTables)  -> do
-      L.logDebugT "IsIMCEnabled" (show isEnabled)
-      L.logDebugT "IMCEnabledTables" (show enabledTables)
-      L.logDebugT "modelName" modelName
-      L.logDebugT "IsModelNameElem" (show $ elem modelName enabledTables)
-      return $ isEnabled && (elem modelName enabledTables)
-    (Nothing, Nothing)         -> L.logErrorT "IS_IMC_ENABLED_ERROR" "Error IsIMCEnabled and IMCEnabledTables are not set" $> False
-    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsIMCEnabled is not set" $> False
-    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IMCEnabledTables is not set" $> False
-
-isKVEnabled :: (L.MonadFlow m) => Text -> m Bool --TODO: Move this to euler-db
-isKVEnabled modelName = do
-  (mbKVTablesCutover :: Maybe FeatureConfig) <- L.getOptionLocal KVCEnabledTables
-  (mbIsKVEnabled :: Maybe Bool) <- L.getOptionLocal IsKVEnabled
-  case (mbIsKVEnabled, mbKVTablesCutover) of
-    (Just isEnabled, Just ktc) -> (isEnabled &&) <$> checkKeyEnabled ktc modelName
-    (Nothing, Nothing)         -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled and KVCEnabledTables are not set" $> False
-    (Nothing, _)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error IsKVEnabled is not set" $> False
-    (_, Nothing)               -> L.logErrorT "IS_KV_ENABLED_ERROR" "Error KVCEnabledTables is not set" $> False
-
-  where
-    checkKeyEnabled :: (L.MonadFlow m) => FeatureConfig -> Text -> m Bool
-    checkKeyEnabled conf key =
-      isKeyEnabled conf key <$>
-        if enableAll conf
-        -- Enabled for all
-        then
-          case enableAllRollout conf of
-            Just rollout -> do
-              randomIntV <- L.runIO' "randomRIO" $ randomRIO (1, 100)
-              pure $ randomIntV <= rollout
-            Nothing -> pure True
-        else do
-          let optMConf = find (\mConf -> name mConf == key) (enabledKeys conf)
-          case optMConf of
-            Just mconf -> do
-              randomIntV <- L.runIO' "randomRIO" $ randomRIO (1, 100)
-              pure $ randomIntV <= (rollout mconf)
-            -- Merchant Key not set
-            Nothing -> pure False
-
-    isKeyEnabled :: FeatureConfig -> Text -> Bool -> Bool
-    isKeyEnabled FeatureConfig{disableAny} key res =
-      case (res, disableAny) of
-        (True, Just disableList) -> not $ elem key disableList
-        (_ , _)  -> res
 
 jsonKeyValueUpdates ::
   forall be table. (Model be table, MeshMeta be table)
@@ -266,3 +211,6 @@ getConfigEntryNewTtl = do
 
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
+
+isRecachingEnabled :: Bool
+isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"

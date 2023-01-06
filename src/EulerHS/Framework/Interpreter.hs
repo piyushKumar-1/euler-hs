@@ -221,9 +221,6 @@ interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientMana
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
-          -- let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
-          --                   then setRequestTimeout defaultTimeout req
-          --                   else req {HTTP.responseTimeout = mResponseTimeout mngr}
           eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
                                                                           then dbgLogger Debug
                                                                           else const $ return ()
@@ -240,15 +237,15 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
     customHeader = CI.mk $ encodeUtf8 @Text "X-Euler-CustomTimeout"
 
     getResponseTimeout req = do
-      let maybeCustomTimeOut = find (\(headerName, _) -> customHeader == headerName) $ requestHeaders req
+      let (modHeaders, maybeCustomTimeOut) = foldl (\(arr, m) (headerName, v) -> if customHeader == headerName then (arr, Just (headerName, v)) else ([(headerName, v)] <> arr, m)) ([], Nothing) $ requestHeaders req
       case maybeCustomTimeOut >>= convertSecondToMicro of
-        Just value -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro value}
+        Just value -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro value, HTTP.requestHeaders = modHeaders}
         Nothing -> if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                     then setRequestTimeout defaultTimeout req
                     else req {HTTP.responseTimeout = mResponseTimeout mngr}
     
     convertSecondToMicro :: (a, ByteString) -> Maybe Int
-    convertSecondToMicro (_, value) = ((*) 1000000)  <$> A.decodeStrict value
+    convertSecondToMicro (_, value) = (*) 1000  <$> A.decodeStrict value
 
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger debugLevel msg =

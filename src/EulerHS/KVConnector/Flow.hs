@@ -14,6 +14,7 @@ module EulerHS.KVConnector.Flow
     updateWithKVConnector,
     findAllWithKVConnector,
     updateAllWithKVConnector,
+    getFieldsAndValuesFromClause,
     updateAllReturningWithKVConnector,
     findAllWithOptionsKVConnector
   )
@@ -741,7 +742,6 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows updVals updat
     (Left err, _) -> pure $ Left (MDBError err)
 
 ---------------- Find -----------------------
-
 findWithKVConnector :: forall be table beM m.
   ( HasCallStack,
     BeamRuntime be beM,
@@ -1253,7 +1253,6 @@ whereClauseDiffCheck whereClause = do
       case HM.member k keyHashMap of
         True -> False
         _ -> checkForPrimaryOrSecondary keyHashMap xs
-
 
 getLatencyInMicroSeconds :: Integer -> Integer
 getLatencyInMicroSeconds execTime = execTime `div` 1000000

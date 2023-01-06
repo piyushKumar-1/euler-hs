@@ -46,7 +46,7 @@ module EulerHS.Extra.Language
   , throwOnFailedWithLog
   , checkFailedWithLog
   , updateLoggerContext
-  , withLoggerContext
+  -- , withLoggerContext
   , logInfoT
   , logWarningT
   , logErrorT
@@ -87,8 +87,8 @@ import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBStatus)
 import           EulerHS.Logger.Types (LogContext)
 import           EulerHS.Prelude hiding (get, id)
-import           EulerHS.Runtime (CoreRuntime (..), FlowRuntime (..),
-                                  LoggerRuntime (..))
+import           EulerHS.Runtime ( FlowRuntime (..))
+import           EulerHS.Logger.Runtime ( LoggerRuntime (..), CoreRuntime(..))
 import           EulerHS.SqlDB.Language (SqlDB, insertRowReturningMySQL,
                                          insertRowsReturningList)
 import qualified EulerHS.SqlDB.Types as T
@@ -684,16 +684,20 @@ rSismember cName k v = do
       L.logError @Text "Redis sismember" $ show err
       pure res
 
-withLoggerContext :: (HasCallStack, L.MonadFlow m) => (LogContext -> LogContext) -> L.Flow a -> m a
-withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
+-- withLoggerContext :: (HasCallStack, L.MonadFlow m) => (LogContext -> LogContext) -> L.Flow a -> m a
+-- withLoggerContext updateLCtx = L.withModifiedRuntime (updateLoggerContext updateLCtx)
 
-updateLoggerContext :: (LogContext -> LogContext) -> FlowRuntime -> FlowRuntime
-updateLoggerContext updateLCtx rt@FlowRuntime{..} =
- rt { _coreRuntime = _coreRuntime {_loggerRuntime = newLrt} }
+updateLoggerContext :: (IORef LogContext -> IO (IORef LogContext)) -> FlowRuntime -> IO (FlowRuntime)
+updateLoggerContext updateLCtx rt@FlowRuntime{..} = do
+  newLrt <- newLrtIO
+  pure $ rt { _coreRuntime = _coreRuntime {_loggerRuntime = newLrt} }
   where
-    newLrt :: LoggerRuntime
-    newLrt = case _loggerRuntime _coreRuntime of
-              MemoryLoggerRuntime a lc b c d -> MemoryLoggerRuntime a (updateLCtx lc) b c d
+    newLrtIO :: IO LoggerRuntime
+    newLrtIO = case _loggerRuntime _coreRuntime of
+              MemoryLoggerRuntime a lc b c d -> do
+                newCtx <- updateLCtx lc
+                pure $ MemoryLoggerRuntime a newCtx b c d
               -- the next line is courtesy to Kyrylo Havryliuk ;-)
-              LoggerRuntime{_logContext, ..} -> LoggerRuntime {_logContext = updateLCtx _logContext, ..}
-
+              LoggerRuntime{_logContext, ..} -> do
+                newCtx <- updateLCtx _logContext
+                pure $ LoggerRuntime {_logContext = newCtx, ..}

@@ -141,6 +141,7 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
   { RD.connectHost           = connectHost
   , RD.connectPort           = RD.PortNumber $ toEnum $ fromEnum connectPort
   , RD.connectAuth           = encodeUtf8 <$> connectAuth
+  , RD.connectReadOnly       = False
   , RD.connectDatabase       = connectDatabase
   , RD.connectMaxConnections = connectMaxConnections
   , RD.connectMaxIdleTime    = connectMaxIdleTime

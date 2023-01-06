@@ -14,7 +14,7 @@ dependencies:
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
   beam-mysql:
     branch: master
-    revision: 1371202ebc3ec7e9ef3e16d1e99f805596022217
+    revision: 35bf370801ca931de0cb1e10273c57cf031c72fd
   haskell-sequelize:
     branch: master
     revision: 654b99d7adb31e52c06cb862f97446b12b2160c2
@@ -29,8 +29,9 @@ overrides:
   hedis:
     owner: juspay
     repo: hedis
-    commit: c92d376eab732616222a19af5c6ba37f9cb6107f
-    sha256: 1mz7aicz4c974fky00v0jr5n6n726n932hw5fby8c2kg4f1ibm5q
+    branch: cluster
+    commit: f8b11e0512b864f165a4a086713b41a0e3d622ea
+    sha256: 0rgv5r22mwf1qpjlms2x9kbaqgmfsly8kp6v1i3m936c1ii39dr5
     source: github
 
   record-dot-preprocessor:
@@ -93,3 +94,7 @@ nix-shell-tools:
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883
+
+# development:
+#   cabal-project:
+#     beam-mysql: ../beam-mysql

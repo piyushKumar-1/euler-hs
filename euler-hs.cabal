@@ -70,6 +70,7 @@ library
     EulerHS.Types
     EulerHS.KVConnector.Encoding
     EulerHS.KVConnector.Flow
+    EulerHS.KVConnector.Metrics
     EulerHS.KVConnector.Types
     EulerHS.KVConnector.InMemConfig.Types
     EulerHS.KVConnector.Utils

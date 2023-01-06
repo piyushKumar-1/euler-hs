@@ -11,7 +11,7 @@ import           Test.Hspec
 import           Sequelize (Clause(..), Term(..))
 import           KV.TestSchema.Mesh
 import           EulerHS.KVConnector.Utils (getPKeyWithShard, getSecondaryLookupKeys)
-import           EulerHS.KVConnector.Types hiding(kvRedis, name)
+import           EulerHS.KVConnector.Types hiding (kvRedis)
 import           KV.TestHelper
 
 {-

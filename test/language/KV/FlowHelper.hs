@@ -11,7 +11,6 @@ import qualified EulerHS.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.Runtime as R
 import qualified EulerHS.Types as T
-import           EulerHS.KVConnector.Types (KVCEnabledTables(..), IsKVEnabled(..), FeatureConfig(..))
 -- import qualified Offer.Config.Config as Config
 -- import qualified Offer.Config.Options as Opt
 import qualified Database.Beam.MySQL as BM
@@ -83,8 +82,6 @@ asserting = L.runIO
 preparePSqlConnection :: (HasCallStack, L.MonadFlow m) => m ()
 preparePSqlConnection = do
   psqlDbCfg <- L.runIO mysqlDBC
-  L.setOptionLocal IsKVEnabled True
-  L.setOptionLocal KVCEnabledTables (FeatureConfig {enableAll = True, disableAny = Nothing, enableAllRollout = Just 100, enabledKeys = []})
   epool <- L.initSqlDBConnection psqlDbCfg
   kv <- L.initKVDBConnection kvdbClusterConfig
   L.throwOnFailedWithLog kv L.KVDBConnectionFailedException "Failed to connect to Redis Cluster DB."

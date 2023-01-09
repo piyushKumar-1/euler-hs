@@ -6,15 +6,19 @@ module EulerHS.Extra.EulerDB (
   EulerDbCfg(..),
   EulerDbCfgR1(..),
   EulerPsqlDbCfg(..),
+  EulerProcessTrackerDbCfg(..),
+  EulerProcessTrackerDbCfgR1(..),
   EulerPsqlDbAdditionalCfg(..),
   getEulerDbConf,
   getEulerDbConfR1,
-  getEulerPsqlDbConf,
   withEulerDB,
   withEulerDBR1,
   withEulerPsqlDB,
   withEulerDBTransaction,
-  withEulerAdditionalPsqlDB
+  withEulerAdditionalPsqlDB,
+  getEulerPsqlDbConf,
+  getEulerProcessTrackerDbConf,
+  getEulerProcessTrackerDbConfR1,
   ) where
 
 import           EulerHS.Language (MonadFlow, SqlDB, getOption, logErrorT,
@@ -43,6 +47,18 @@ data EulerPsqlDbCfg = EulerPsqlDbCfg
 
 instance OptionEntity EulerPsqlDbCfg (DBConfig BP.Pg)
 
+data EulerProcessTrackerDbCfg = EulerProcessTrackerDbCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerProcessTrackerDbCfg (DBConfig BP.Pg)
+
+data EulerProcessTrackerDbCfgR1 = EulerProcessTrackerDbCfgR1
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity EulerProcessTrackerDbCfgR1 (DBConfig BP.Pg)
+
 data EulerPsqlDbAdditionalCfg = EulerPsqlDbAdditionalCfg
   deriving stock (Generic, Typeable, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
@@ -58,22 +74,29 @@ getEulerDbConf = getEulerDbByConfig EulerDbCfg
 getEulerDbConfR1 :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig MySQLM)
 getEulerDbConfR1 = getEulerDbByConfig EulerDbCfgR1
 
-getEulerPsqlDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
-getEulerPsqlDbConf = getEulerPsqlDbByConfig EulerPsqlDbCfg
-
-getEulerPsqlDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig BP.Pg))
-  => k -> e -> m (DBConfig BP.Pg)
-getEulerPsqlDbByConfig dbConf internalError = do
-  dbcfg <- getOption dbConf
-  case dbcfg of
-    Just cfg -> pure cfg
-    Nothing -> do
-      logErrorT "MissingPsqlDB identifier" "Can't find EulerPsqlDB identifier in options"
-      throwException internalError
 
 getEulerDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig MySQLM))
   => k -> e -> m (DBConfig MySQLM)
 getEulerDbByConfig dbConf internalError = do
+  dbcfg <- getOption dbConf
+  case dbcfg of
+    Just cfg -> pure cfg
+    Nothing -> do
+      logErrorT "MissingDB identifier" "Can't find EulerDB identifier in options"
+      throwException internalError
+
+getEulerPsqlDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
+getEulerPsqlDbConf = getEulerPsqlDbByConfig EulerPsqlDbCfg
+
+getEulerProcessTrackerDbConf :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
+getEulerProcessTrackerDbConf = getEulerPsqlDbByConfig EulerProcessTrackerDbCfg
+
+getEulerProcessTrackerDbConfR1 :: (HasCallStack, MonadFlow m, Exception e) => e -> m (DBConfig BP.Pg)
+getEulerProcessTrackerDbConfR1 = getEulerPsqlDbByConfig EulerProcessTrackerDbCfgR1
+
+getEulerPsqlDbByConfig :: (HasCallStack, MonadFlow m, Exception e, OptionEntity k (DBConfig BP.Pg))
+  => k -> e -> m (DBConfig BP.Pg)
+getEulerPsqlDbByConfig dbConf internalError = do
   dbcfg <- getOption dbConf
   case dbcfg of
     Just cfg -> pure cfg

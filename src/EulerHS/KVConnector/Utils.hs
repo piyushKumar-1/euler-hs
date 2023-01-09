@@ -139,19 +139,25 @@ getAutoIncId meshCfg tName = do
     Right id_ -> return $ Right id_
     Left e    -> return $ Left $ MRedisError e
 
-unsafeJSONSet :: forall a b. (ToJSON a, FromJSON b, ToJSON b) => Text -> a -> b -> b
-unsafeJSONSet field value obj =
-  case A.toJSON obj of
-    A.Object o -> do
-      if HM.member field o
-        then obj
-        else do
-          let jsonVal = A.toJSON value
-              newObj = A.Object (HM.insert field jsonVal o)
-          case resultToEither $ A.fromJSON newObj of
-            Right r -> r
-            Left e  -> error e
-    _ -> error "Can't set value of JSON which isn't a object."
+unsafeJSONSetAutoIncId :: forall table m. (ToJSON (table Identity), FromJSON (table Identity), KVConnector (table Identity), L.MonadFlow m) => 
+  MeshConfig -> table Identity -> m (MeshResult (table Identity))
+unsafeJSONSetAutoIncId meshCfg obj = do
+  let (PKey p) = primaryKey obj
+  case p of
+    [(field, _)] ->
+      case A.toJSON obj of
+        A.Object o -> do
+          if HM.member field o
+            then pure $ Right obj
+            else do
+              value <- getAutoIncId meshCfg (tableName @(table Identity))
+              let jsonVal = A.toJSON value
+                  newObj = A.Object (HM.insert field jsonVal o)
+              case resultToEither $ A.fromJSON newObj of
+                Right r -> pure $ Right r
+                Left e  -> pure $ Left $ MDecodingError (show e)
+        _ -> pure $ Left $ MDecodingError "Can't set AutoIncId value of JSON which isn't a object."
+    _ -> pure $ Right obj
 
 foldEither :: [Either a b] -> Either a [b]
 foldEither [] = Right []

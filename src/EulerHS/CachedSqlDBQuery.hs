@@ -546,6 +546,15 @@ createMultiSql ::
 createMultiSql dbConf value = runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
 
 deleteAllSql :: 
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
   Where be table ->
   m (Either DBError [table Identity])
 deleteAllSql dbConf value = do

@@ -172,11 +172,9 @@ createKV :: forall (table :: (Type -> Type) -> Type) m.
   table Identity ->
   m (MeshResult (table Identity))
 createKV meshCfg value = do
-  autoId <- getAutoIncId meshCfg (tableName @(table Identity))
-  case autoId of
-    Right _id -> do
-      -- TODO: Key - id is hardcoded to replace AutoIncrId. Make it Generic
-      let val = unsafeJSONSet @Text "id" (T.pack . show $ _id) value
+  autoIncIdRes <- unsafeJSONSetAutoIncId meshCfg value
+  case autoIncIdRes of
+    Right val -> do
       let pKeyText = getLookupKeyByPKey val
           shard = getShardedHashTag pKeyText
           pKey = fromString . T.unpack $ pKeyText <> shard

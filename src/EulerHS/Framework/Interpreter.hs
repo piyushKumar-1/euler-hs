@@ -238,14 +238,14 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
 
     getResponseTimeout req = do
       let (modHeaders, maybeCustomTimeOut) = foldl (\(arr, m) (headerName, v) -> if customHeader == headerName then (arr, Just (headerName, v)) else ([(headerName, v)] <> arr, m)) ([], Nothing) $ requestHeaders req
-      case maybeCustomTimeOut >>= convertSecondToMicro of
+      case maybeCustomTimeOut >>= convertMilliSecondToMicro of
         Just value -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro value, HTTP.requestHeaders = modHeaders}
         Nothing -> if HTTP.responseTimeout req == HTTP.responseTimeoutNone
                     then setRequestTimeout defaultTimeout req
                     else req {HTTP.responseTimeout = mResponseTimeout mngr}
     
-    convertSecondToMicro :: (a, ByteString) -> Maybe Int
-    convertSecondToMicro (_, value) = (*) 1000  <$> A.decodeStrict value
+    convertMilliSecondToMicro :: (a, ByteString) -> Maybe Int
+    convertMilliSecondToMicro (_, value) = (*) 1000  <$> A.decodeStrict value
 
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger debugLevel msg =

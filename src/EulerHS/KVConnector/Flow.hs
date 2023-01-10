@@ -540,10 +540,6 @@ updateKVRowInRedis :: forall be table beM m.
   table Identity ->
   m (MeshResult (table Identity))
 updateKVRowInRedis meshCfg whereClause updVals obj = do
-  mapM_ (\secIdx -> do -- Resetting TTls of Skeys
-    let sKey = fromString . T.unpack $ secIdx
-    L.runKVDB meshCfg.kvRedis $  L.expire sKey meshCfg.redisTtl
-    ) $ getSecondaryLookupKeys obj
   configUpdateResult <- updateObjectInMemConfig meshCfg whereClause updVals obj
   case configUpdateResult of
     Left err -> return $ Left err
@@ -728,8 +724,10 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows mbUpdateVals 
                   then mapM (updateObjectRedis meshCfg updVals True whereClause) allRows
                   else mapM (deleteObjectRedis meshCfg True whereClause) allRows
         else do
-          updateKVRowRes <- mapM (updateObjectRedis meshCfg updVals True whereClause) kvLiveRows
-          kvres <- pure $ foldEither updateKVRowRes
+          updateOrDelKVRowRes <- if isLive
+            then mapM (updateObjectRedis meshCfg updVals True whereClause) kvLiveRows
+            else mapM (deleteObjectRedis meshCfg True whereClause) kvLiveRows
+          kvres <- pure $ foldEither updateOrDelKVRowRes
           if not updateWoReturning
             then do
               L.logDebugT "updateAllReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
@@ -1357,10 +1355,9 @@ removeDeleteResults delRows rows = do
 --
 decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> (MeshResult [a], Bool)
 decodeToField val =
-  let mbDecodeRes = Encoding.decodeLiveOrDead val
-    in  case mbDecodeRes of
-          Nothing                   -> (Left $ MDecodingError $ T.pack "No LIVE or DEAD header found.", False)
-          Just (isLive, byteString) -> 
+  let decodeRes = Encoding.decodeLiveOrDead val
+    in  case decodeRes of
+          (isLive, byteString) -> 
             let decodedMeshResult = 
                         let (h, v) = BSL.splitAt 4 byteString
                           in case h of

@@ -150,12 +150,15 @@ unsafeJSONSetAutoIncId meshCfg obj = do
           if HM.member field o
             then pure $ Right obj
             else do
-              value <- getAutoIncId meshCfg (tableName @(table Identity))
-              let jsonVal = A.toJSON value
-                  newObj = A.Object (HM.insert field jsonVal o)
-              case resultToEither $ A.fromJSON newObj of
-                Right r -> pure $ Right r
-                Left e  -> pure $ Left $ MDecodingError (show e)
+              autoIncIdRes <- getAutoIncId meshCfg (tableName @(table Identity))
+              case autoIncIdRes of
+                Right value -> do
+                  let jsonVal = A.toJSON value
+                      newObj = A.Object (HM.insert field jsonVal o)
+                  case resultToEither $ A.fromJSON newObj of
+                    Right r -> pure $ Right r
+                    Left e  -> pure $ Left $ MDecodingError (show e)
+                Left err -> pure $ Left err
         _ -> pure $ Left $ MDecodingError "Can't set AutoIncId value of JSON which isn't a object."
     _ -> pure $ Right obj
 

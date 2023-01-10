@@ -41,13 +41,12 @@ decode = hush . eitherDecode
 encodeLiveOrDead :: Bool -> BSL.ByteString -> BSL.ByteString
 encodeLiveOrDead isLive val = 
   if isLive
-    then "LIVE" <> val
+    then val
     else "DEAD" <> val
 
-decodeLiveOrDead :: BSL.ByteString -> Maybe (Bool, BSL.ByteString)
+decodeLiveOrDead :: BSL.ByteString -> (Bool, BSL.ByteString)
 decodeLiveOrDead val =
   let (h, v) = BSL.splitAt 4 val
     in case h of
-      "LIVE" -> Just (True , v)
-      "DEAD" -> Just (False, v)
-      _   -> Nothing
+      "DEAD" -> (False, v)
+      _      -> (True , val)

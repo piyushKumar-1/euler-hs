@@ -10,12 +10,17 @@ module EulerHS.CachedSqlDBQuery
   , updateOneWoReturning
   , updateOneSql
   , updateOneSqlWoReturning
+  , updateAllSql
   , updateExtended
   , findOne
   , findOneSql
   , findAll
   , findAllSql
   , findAllExtended
+  , deleteExtended
+  , deleteWithReturningPG
+  , createMultiSql
+  , createMultiSqlWoReturning
   , SqlReturning(..)
   )
 where
@@ -27,7 +32,7 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
-import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
+import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.SqlDB.Language as DB
@@ -35,7 +40,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
                                       DBError (DBError),
                                       DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
-import           Sequelize (Model, Set, Where, mkExprWithDefault,
+import           Sequelize (Model, Set, Where, mkExprWithDefault,  mkMultiExprWithDefault,
                             modelTableEntity, sqlSelect, sqlUpdate)
 
 -- TODO: What KVDB should be used
@@ -218,6 +223,25 @@ updateOneSql dbConf newVals whereClause = do
       return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 
+updateAllSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [Set be table] ->
+  Where be table ->
+  m (DBResult ())
+updateAllSql dbConf newVals whereClause = do
+  let updateQuery = DB.updateRows $ sqlUpdate
+        ! #set newVals
+        ! #where_ whereClause
+  runQuery dbConf updateQuery
+
 -- | Perform an arbitrary 'SqlUpdate'. This will cache if successful.
 updateExtended :: (HasCallStack, L.MonadFlow m, BeamRunner beM, BeamRuntime be beM) =>
   DBConfig beM -> Maybe Text -> B.SqlUpdate be table -> m (Either DBError ())
@@ -310,6 +334,38 @@ findAllExtended dbConf mKey sel = case mKey of
       case rows of
         Left err -> L.incrementDbMetric err dbConf *> pure rows
         Right _ -> pure rows
+
+deleteExtended :: forall beM be table m .
+  (HasCallStack,
+   L.MonadFlow m,
+   BeamRunner beM,
+   BeamRuntime be beM) =>
+  DBConfig beM ->
+  Maybe Text ->
+  B.SqlDelete be table ->
+  m (Either DBError ())
+deleteExtended dbConf mKey delQuery = case mKey of
+  Nothing -> go
+  Just k -> do
+    rDel (T.pack cacheName) [k] *> go
+  where
+    go = runQuery dbConf (DB.deleteRows delQuery)
+
+deleteWithReturningPG :: forall table m .
+  (HasCallStack,
+   B.Beamable table,
+   B.FromBackendRow BP.Postgres (table Identity),
+   L.MonadFlow m) =>
+  DBConfig BP.Pg ->
+  Maybe Text ->
+  B.SqlDelete BP.Postgres table ->
+  m (Either DBError [table Identity])
+deleteWithReturningPG dbConf mKey delQuery = case mKey of
+  Nothing -> go
+  Just k -> do
+    rDel (T.pack cacheName) [k] *> go
+  where
+    go = runQuery dbConf (DB.deleteRowsReturningListPG delQuery)
 
 ------------ Helper functions ------------
 runQuery ::
@@ -445,3 +501,39 @@ cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> 
 cacheWithKey key row = do
   -- TODO: Should we log errors here?
   void $ rSetB (T.pack cacheName) (encodeUtf8 key) (BSL.toStrict $ encode row)
+
+
+sqlMultiCreate ::
+  forall be table.
+  (B.HasQBuilder be, Model be table) =>
+  [table Identity] ->
+  B.SqlInsert be table
+sqlMultiCreate value = B.insert modelTableEntity (mkMultiExprWithDefault value)
+
+createMultiSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  m (Either DBError [table Identity])
+createMultiSql dbConf value = runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
+
+
+createMultiSqlWoReturning ::
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  m (Either DBError ())
+createMultiSqlWoReturning dbConf value = runQuery dbConf $ DB.insertRows $ sqlMultiCreate value

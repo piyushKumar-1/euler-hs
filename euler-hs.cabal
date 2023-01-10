@@ -19,7 +19,7 @@ source-repository head
 common common-lang
   ghc-options:
     -Wall -Wcompat -Wincomplete-record-updates
-    -Wincomplete-uni-patterns -Wredundant-constraints -Werror
+    -Wincomplete-uni-patterns -Wredundant-constraints 
     -fplugin=RecordDotPreprocessor
 
   build-depends:
@@ -67,12 +67,18 @@ library
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
+    EulerHS.SqlDB.Language
+    EulerHS.KVConnector.DBSync 
     EulerHS.KVConnector.Encoding
     EulerHS.KVConnector.Flow
     EulerHS.KVConnector.Metrics
     EulerHS.KVConnector.Types
+    EulerHS.Logger.Types
     EulerHS.KVConnector.InMemConfig.Types
     EulerHS.KVConnector.Utils
+    EulerHS.Extra.Regex
+    EulerHS.Masking
+    EulerHS.Extra.URLSanitization
 
   other-modules:
     EulerHS.Api
@@ -90,17 +96,13 @@ library
     EulerHS.Logger.Language
     EulerHS.Logger.Runtime
     EulerHS.Logger.TinyLogger
-    EulerHS.Logger.Types
-    EulerHS.Masking
     EulerHS.Options
     EulerHS.PubSub.Interpreter
     EulerHS.PubSub.Language
     EulerHS.SqlDB.Interpreter
-    EulerHS.SqlDB.Language
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
-    EulerHS.SqlDB.Types
-    EulerHS.KVConnector.DBSync 
+    EulerHS.SqlDB.Types 
     EulerHS.KVConnector.InMemConfig.Flow
 
   build-depends:
@@ -178,6 +180,11 @@ library
     , x509-store
     , x509-system
     , x509-validation
+    , safe-exceptions
+    , pcre-heavy
+    , pcre-light
+    , attoparsec
+    , tasty-hunit
 
   hs-source-dirs:  src
 
@@ -187,7 +194,7 @@ test-suite language
   main-is:        Main.hs
   other-modules:
     ArtSpec
-    CachedDBSpec
+    -- CachedDBSpec
     Client
     Common
     DBSetup

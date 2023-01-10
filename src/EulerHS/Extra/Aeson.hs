@@ -11,6 +11,9 @@ module EulerHS.Extra.Aeson
   , stripLensPrefixOptions
   , unaryRecordOptions
   , untaggedOptions
+  , aesonOptions
+  , aesonOmitNothingOption
+  , aesonOrderCreateOptions
   ) where
 
 import           Data.Aeson (Options (..), SumEncoding (..), Value (..),
@@ -117,3 +120,17 @@ See tests for more examples: test\/extra\/Options.hs
 untaggedOptions :: Options
 untaggedOptions = defaultOptions { sumEncoding = UntaggedValue }
 
+aesonOptions :: Options
+aesonOptions = defaultOptions
+  { omitNothingFields = False
+  }
+
+aesonOmitNothingOption :: Options
+aesonOmitNothingOption = defaultOptions
+  { omitNothingFields = True
+  }
+
+aesonOrderCreateOptions :: Options
+aesonOrderCreateOptions = defaultOptions
+  { omitNothingFields = True
+  }

@@ -188,10 +188,12 @@ searchInMemoryCache meshCfg dbConf whereClause = do
               L.logDebugT "searchInMemoryCache: keysRequiringRedisFetch : " $ (show keysRequiringRedisFetch)
               if length validResult == 0
                 then kvFetch keysRequiringRedisFetch
-                else do
-                  lockKey <- L.runIO $ UUID.toText <$> UUID.nextRandom
-                  whenM (L.acquireConfigLock lockKey) (forkKvFetchAndSave keysRequiringRedisFetch lockKey)
-                  return . Right $ validResult
+                else if length keysRequiringRedisFetch == 0
+                  then return . Right $ validResult
+                  else do
+                    lockKey <- L.runIO $ UUID.toText <$> UUID.nextRandom
+                    whenM (L.acquireConfigLock lockKey) (forkKvFetchAndSave keysRequiringRedisFetch lockKey)
+                    return . Right $ validResult
     
     Left e -> return . Left $ e
   where

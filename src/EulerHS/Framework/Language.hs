@@ -176,7 +176,7 @@ data FlowMethod (next :: Type) where
     :: HasCallStack
     => Text
     -> ( a -> a )
-    -> ((Maybe a) -> next)
+    -> ((Maybe a, Maybe a) -> next)
     -> FlowMethod next
 
   DelOption
@@ -551,9 +551,9 @@ class (MonadMask m) => MonadFlow m where
   -- >
   -- >
   -- > Sample usage:
-  -- > counter <- modifyOption MyCounter (\x -> x + 1)
+  -- > (oldCount,modifiedCount) <- modifyOption MyCounter (\x -> x + 1)
 
-  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v)
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v,Maybe v)
 
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
@@ -832,7 +832,7 @@ instance MonadFlow Flow where
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
   {-# INLINEABLE modifyOption #-}
-  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v)
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v,Maybe v)
   modifyOption k fn = liftFC $ ModifyOption  (mkOptionKey @k @v k) fn id
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()

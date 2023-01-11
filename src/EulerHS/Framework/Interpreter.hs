@@ -234,7 +234,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
               pure $ Right response
   where
     customHeader :: CI.CI ByteString
-    customHeader = CI.mk $ encodeUtf8 @Text "X-Euler-CustomTimeout"
+    customHeader = CI.mk $ encodeUtf8 @Text "x-custom-timeout"
 
     getResponseTimeout req = do
       let (modHeaders, maybeCustomTimeOut) = foldl (\(arr, m) (headerName, v) -> if customHeader == headerName then (arr, Just (headerName, v)) else ([(headerName, v)] <> arr, m)) ([], Nothing) $ requestHeaders req

@@ -881,7 +881,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       let dblog =  DBLogEntry {
           _log_type     = "DB"
         , _action       = "FIND"
-        , _operation    = "FIND "
+        , _operation    = "FIND"
         , _data         = case res of
                             Left err -> A.String (T.pack $ show err)
                             Right _  -> A.Null

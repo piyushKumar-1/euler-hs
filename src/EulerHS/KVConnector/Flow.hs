@@ -194,7 +194,7 @@ createKV meshCfg value = do
                   (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                   L.AutoID
                   [("command", BSL.toStrict $ A.encode qCmd)]
-            L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeLiveOrDead True $ Encoding.encode meshCfg.cerealEnabled val)
+            L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled val)
           case kvRes of
             Right _ -> pure $ Right val
             Left err -> pure $ Left (MRedisError err)
@@ -342,19 +342,16 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
   kvResult <- findOneFromRedis meshCfg whereClause
   let updVals = jsonKeyValueUpdates setClause
   case kvResult of
-    Right ([], kvDeadRows) -> do
+    Right ([], []) -> do
       if isRecachingEnabled
         then do
           L.logDebugT "updateKV" ("Found nothing from findWithKVConnectorRes - Falling back to DB for " <> tableName @(table Identity) <> "  and recaching")
           let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
-          dbResult <- runQuery dbConf findQuery
-          (KV,) <$> case dbResult of
-            Right dbRes -> do
-              let dbRows = removeDeleteResults kvDeadRows dbRes
-              case dbRows of
-                [obj] -> mapRight Just <$> updateDBRowInRedis meshCfg updVals whereClause obj
-                [] -> pure $ Right Nothing
-                _ -> pure $ Left $ MUpdateFailed "Found more than one record in DB"
+          dbRes <- runQuery dbConf findQuery
+          (KV,) <$> case dbRes of
+            Right [obj] -> mapRight Just <$> updateDBRowInRedis meshCfg updVals whereClause obj
+            Right [] -> pure $ Right Nothing
+            Right _ -> pure $ Left $ MUpdateFailed "Found more than one record in DB"
             Left err -> pure $ Left (MDBError err)
         else do
           (SQL,) <$> if updateWoReturning 
@@ -369,7 +366,7 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
               L.logDebugT "updateWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
               whereClauseDiffCheck whereClause
               let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
-              res <- mapRight (removeDeleteResults kvDeadRows) <$> runQuery dbConf updateQuery
+              res <- runQuery dbConf updateQuery
               case res of
                 Right [x] -> return $ Right (Just x)
                 Right [] -> return $ Right Nothing
@@ -378,7 +375,7 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
                   L.logError @Text "updateWithKVConnector" message
                   return $ Left $ UnexpectedError message
                 Left e -> return $ Left $ MDBError e
-
+    Right ([], _) -> pure $ (KV, Right Nothing)
     Right (kvLiveRows, _) -> (KV,) <$> case kvLiveRows of
       [obj] -> mapRight Just <$> updateKVRowInRedis meshCfg whereClause updVals obj
       _ -> do 
@@ -462,7 +459,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                       L.AutoID
                       [("command", BSL.toStrict $ A.encode qCmd)]
-                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeLiveOrDead True $ Encoding.encode meshCfg.cerealEnabled value)
+                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled value)
               case kvdbRes of
                 Right _ -> pure $ Right value
                 Left err -> pure $ Left $ MRedisError err
@@ -541,9 +538,8 @@ updateKVRowInRedis :: forall be table beM m.
   m (MeshResult (table Identity))
 updateKVRowInRedis meshCfg whereClause updVals obj = do
   configUpdateResult <- updateObjectInMemConfig meshCfg whereClause updVals obj
-  case configUpdateResult of
-    Left err -> return $ Left err
-    Right _ -> updateObjectRedis meshCfg updVals False whereClause obj
+  when (isLeft configUpdateResult) $ L.logErrorT "MEMCONFIG_UPDATE_ERROR" (show configUpdateResult)
+  updateObjectRedis meshCfg updVals False whereClause obj
 
 updateDBRowInRedis :: forall beM be table m.
   (
@@ -569,9 +565,8 @@ updateDBRowInRedis meshCfg updVals whereClause obj = do
     L.runKVDB meshCfg.kvRedis $  L.expire sKey meshCfg.redisTtl
     ) $ getSecondaryLookupKeys obj
   configUpdateResult <- updateObjectInMemConfig meshCfg whereClause updVals obj
-  case configUpdateResult of
-    Left err -> return $ Left err
-    Right _ -> updateObjectRedis meshCfg updVals False whereClause obj
+  when (isLeft configUpdateResult) $ L.logErrorT "MEMCONFIG_UPDATE_ERROR" (show configUpdateResult)
+  updateObjectRedis meshCfg updVals False whereClause obj
 
 updateAllReturningWithKVConnector :: forall table m.
   ( HasCallStack,
@@ -662,7 +657,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
       mapRight (const ()) <$> updateKVAndDBResults meshCfg whereClause dbRows kvRows (Just updVals) True dbConf (Just setClause) True
     else do
       L.logDebug @Text "updateAllWithKVConnector" "Taking DB Path"
-      let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
+      let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
         Right _ -> return $ Right ()
@@ -747,7 +742,6 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows mbUpdateVals 
     (Left err, _) -> pure $ Left (MDBError err)
 
     where
-      -- runUpdateOrDelete :: [Set be table] -> m (Either DBError [table Identity])
       runUpdateOrDelete setClause = do
         case (isLive, updateWoReturning) of
           (True, True) -> do
@@ -875,9 +869,10 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
           L.logDebugT "findWithKVConnector" ("Taking KV Path for " <> tableName @(table Identity))
           eitherKvRows <- findOneFromRedis meshCfg whereClause
           case eitherKvRows of
-            Right ([], kvDeadRows) -> do
+            Right ([], []) -> do
               L.logDebugT "findWithKVConnector" ("Falling back to SQL for " <> tableName @(table Identity) <> "- Nothing found in KV")
-              (SQL,) <$> (mapRight (removeIfDeleted kvDeadRows) <$> findOneFromDB dbConf whereClause)
+              (SQL,) <$> findOneFromDB dbConf whereClause
+            Right ([], _) -> pure $ (KV, Right Nothing) -- Return Nothing if row is deleted
             Right (kvLiveRows, _) -> do
               L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show (length kvLiveRows) <> " rows")
               pure $ (KV, Right $ listToMaybe kvLiveRows)
@@ -912,12 +907,6 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       newTtl <- getConfigEntryNewTtl
       L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
       void $ L.setConfig k (mkConfigEntry  newTtl model)
-    
-    removeIfDeleted kvDeadRows mbRow = case mbRow of
-      Just row -> if elem (getLookupKeyByPKey row) (map getLookupKeyByPKey kvDeadRows)
-        then Nothing
-        else Just row
-      Nothing -> Nothing
 
 
 -- TODO: Once record matched in redis stop and return it
@@ -1185,7 +1174,7 @@ deleteObjectRedis meshCfg addPrimaryKeyToWhereClause whereClause obj = do
           (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
           L.AutoID
           [("command", BSL.toStrict $ A.encode qCmd)]
-    L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeLiveOrDead False $ Encoding.encode meshCfg.cerealEnabled obj)
+    L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeDead $ Encoding.encode meshCfg.cerealEnabled obj)
   case kvDbRes of
     Left err -> return . Left $ MRedisError err
     Right _  -> return $ Right obj
@@ -1272,44 +1261,6 @@ deleteAllReturningWithKVConnector dbConf meshCfg whereClause = do
   L.logInfoV ("DB" :: Text) dblog
   incrementMetric KVAction dblog
   pure res
-
--- modifyAllKVAndDBResults :: forall be table beM m.
---   ( HasCallStack,
---     BeamRuntime be beM,
---     BeamRunner beM,
---     Model be table,
---     MeshMeta be table,
---     KVConnector (table Identity),
---     B.HasQBuilder be,
---     FromJSON (table Identity),
---     ToJSON (table Identity),
---     Serialize.Serialize (table Identity),
---     -- Show (table Identity), --debugging purpose
---     L.MonadFlow m
---   ) => MeshConfig -> Where be table -> Either DBError [table Identity] -> MeshResult ([table Identity], [table Identity]) -> Maybe [(Text, A.Value)] -> Bool -> m (MeshResult [table Identity])
--- modifyAllKVAndDBResults meshCfg whereClause eitherDbRows eitherKvResult mbUpdateVals isLive = do
---   case (eitherDbRows, eitherKvResult) of
---     (Right allDBRows, Right allKVRows) -> do
---       let kvLiveRows = fst allKVRows
---           kvDeadRows = snd allKVRows
---           dbRowsWithDeadRows = findAllMatching whereClause allDBRows
---           dbRows = removeDeleteResults kvDeadRows dbRowsWithDeadRows
---       let kvPkeys = map getLookupKeyByPKey kvLiveRows
---           uniqueDbRes = filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows
---       reCacheDBRowsRes <- reCacheDBRows meshCfg uniqueDbRes
---       case reCacheDBRowsRes of
---         Left err -> return $ Left $ MRedisError err
---         Right _  -> do
---           let allRows = kvLiveRows ++ uniqueDbRes
---           delRes <- do
---             if isLive
---               then do
---                 let updateVals = fromMaybe [] mbUpdateVals
---                 mapM (updateObjectRedis meshCfg updateVals True whereClause) allRows
---               else mapM (deleteObjectRedis meshCfg True whereClause) allRows
---           return $ sequence delRes
---     (Right _, Left err) -> pure $ Left err
---     (Left err, _) -> pure $ Left (MDBError err)
 
 getDataFromPKeysRedis :: forall table m. (
     KVConnector (table Identity),

@@ -4,7 +4,7 @@ module EulerHS.KVConnector.Encoding
     encode,
     decode,
     eitherDecode,
-    encodeLiveOrDead,
+    encodeDead,
     decodeLiveOrDead
   )
  where
@@ -38,11 +38,8 @@ decode = hush . eitherDecode
 
 -- LIVE/DEAD marker for values
 
-encodeLiveOrDead :: Bool -> BSL.ByteString -> BSL.ByteString
-encodeLiveOrDead isLive val = 
-  if isLive
-    then val
-    else "DEAD" <> val
+encodeDead :: BSL.ByteString -> BSL.ByteString
+encodeDead val = "DEAD" <> val
 
 decodeLiveOrDead :: BSL.ByteString -> (Bool, BSL.ByteString)
 decodeLiveOrDead val =

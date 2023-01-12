@@ -1015,7 +1015,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
   let dblog = DBLogEntry {
       _log_type     = "DB"
     , _action       = "FIND"
-    , _operation    = "FIND_ALL"
+    , _operation    = "FIND_ALL_WITH_OPTIONS"
     , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right _ -> A.Null

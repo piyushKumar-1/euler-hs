@@ -18,7 +18,7 @@ incrementKVMetric handle metric dblog = do
   let tag = fromMaybe "" $ _apiTag dblog
   let source = _source dblog
   let model = _model dblog
-  let action = _action dblog
+  let action = _operation dblog
       latency = _latency dblog
       cpuLatency = _cpuLatency dblog
   L.runIO $ ((kvCounter handle) (metric, tag, action, source, model, mid, latency, cpuLatency))

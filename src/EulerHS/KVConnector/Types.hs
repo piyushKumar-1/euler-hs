@@ -131,6 +131,7 @@ data Source = KV | SQL | KV_AND_SQL
 data DBLogEntry a = DBLogEntry
   { _log_type     :: Text
   , _action       :: Text
+  , _operation    :: Text
   , _data         :: a
   , _latency      :: Int
   , _model        :: Text
@@ -144,6 +145,7 @@ data DBLogEntry a = DBLogEntry
 instance (ToJSON a) => ToJSON (DBLogEntry a) where
   toJSON val = A.object [ "log_type" .= _log_type val
                         , "action" .= _action val
+                        , "operation" .= _operation val
                         , "latency" .= _latency val
                         , "model" .= _model val
                         , "cpuLatency" .= _cpuLatency val

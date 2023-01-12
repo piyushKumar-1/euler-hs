@@ -1014,7 +1014,7 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
   mid <- L.getOptionLocal MerchantID 
   let dblog = DBLogEntry {
       _log_type     = "DB"
-    , _action       = "FIND_ALL"
+    , _action       = "FIND"
     , _operation    = "FIND_ALL"
     , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
@@ -1091,7 +1091,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
   mid <- L.getOptionLocal MerchantID 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "FIND_ALL"
+    , _action       = "FIND"
     , _operation    = "FIND_ALL"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)

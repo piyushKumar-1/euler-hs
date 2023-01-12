@@ -716,34 +716,37 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows mbUpdateVals 
             then mapM (updateObjectRedis meshCfg updVals True whereClause) kvLiveRows
             else mapM (deleteObjectRedis meshCfg True whereClause) kvLiveRows
           kvres <- pure $ foldEither updateOrDelKVRowRes
-          if not updateWoReturning
-            then do
-              L.logDebugT "updateAllReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-              res <- runUpdateOrDelete setClause
-              case (res, kvres) of
-                (Right x, Right y) -> return $ Right $ (mergeKVAndDBResults x . findAllMatching whereClause) y
-                (Left e , _      ) -> return $ Left $ MDBError e
-                (_      , Left e)  -> return $ Left e
-            else do
-              L.logDebugT "updateAllWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-              whereClauseDiffCheck whereClause
-              res <- runUpdateOrDelete setClause
-              case res of
-                Right _ -> return $ Right []
-                Left e -> return $ Left $ MDBError e
+          case kvres of 
+            Left err -> return $ Left err
+            Right kvRes -> runUpdateOrDelete setClause kvRes
+          
     (_, Left err) -> pure $ Left err
     (Left err, _) -> pure $ Left (MDBError err)
+          
 
     where
-      runUpdateOrDelete setClause = do
+      runUpdateOrDelete setClause kvres = do
         case (isLive, updateWoReturning) of
           (True, True) -> do
+            L.logDebugT "updateAllWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
             let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
-            mapRight (const []) <$> runQuery dbConf updateQuery
+            res <- runQuery dbConf updateQuery
+            case res of
+                Right _ -> return $ Right []
+                Left e -> return $ Left $ MDBError e
           (True, False) -> do
+            L.logDebugT "updateAllReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
             let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
-            runQuery dbConf updateQuery
-          (False, _) -> deleteAllReturning dbConf whereClause
+            res <- runQuery dbConf updateQuery
+            case res of
+                Right x -> return $ Right $ (mergeKVAndDBResults x . findAllMatching whereClause) kvres
+                Left e  -> return $ Left $ MDBError e
+          (False, _) -> do
+            L.logDebugT "deleteAllReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
+            res <- deleteAllReturning dbConf whereClause
+            case res of
+                Right x -> return $ Right $ (mergeKVAndDBResults x . findAllMatching whereClause) kvres
+                Left e  -> return $ Left $ MDBError e
 
 
 ---------------- Find -----------------------

@@ -90,7 +90,8 @@ createWoReturingKVConnector dbConf meshCfg value = do
   mid <- L.getOptionLocal MerchantID 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "CREATE"
+    , _action       = "CREATE" -- For logprocessor
+    , _operation   = "CREATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right _ -> A.toJSON value
@@ -145,6 +146,7 @@ createWithKVConnector dbConf meshCfg value = do
   let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "CREATE"
+    , _operation    = "CREATE_RETURNING"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right m  -> A.toJSON m
@@ -244,7 +246,8 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE"
-    , _data        = case res of
+    , _operation    = "UPDATE"
+    , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right m -> A.toJSON m
     , _latency      = t2 - t1
@@ -304,7 +307,8 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
   let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE"
-    , _data        = case res of
+    , _operation    = "UPDATE_RETURNING"
+    , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right m -> A.toJSON m
     , _latency      = t2 - t1
@@ -617,7 +621,8 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE"
-    , _data        = case res of
+    , _operation    = "UPDATE_ALL_RETURNING"
+    , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right m -> A.toJSON m
     , _latency      = t2 - t1
@@ -677,7 +682,8 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
   let dblog = DBLogEntry {
       _log_type     = "DB"
     , _action       = "UPDATE"
-    , _data        = case res of
+    , _operation    = "UPDATE_ALL"
+    , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right m -> A.toJSON m
     , _latency      = t2 - t1
@@ -875,7 +881,8 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       let dblog =  DBLogEntry {
           _log_type     = "DB"
         , _action       = "FIND"
-        , _data        = case res of
+        , _operation    = "FIND "
+        , _data         = case res of
                             Left err -> A.String (T.pack $ show err)
                             Right _  -> A.Null
         , _latency      = t2 - t1
@@ -1008,7 +1015,8 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
   let dblog = DBLogEntry {
       _log_type     = "DB"
     , _action       = "FIND_ALL"
-    , _data        = case res of
+    , _operation    = "FIND_ALL"
+    , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right _ -> A.Null
     , _latency      = t2 - t1
@@ -1084,6 +1092,7 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
   let dblog =DBLogEntry {
       _log_type     = "DB"
     , _action       = "FIND_ALL"
+    , _operation    = "FIND_ALL"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
                         Right _ -> A.Null

@@ -39,7 +39,7 @@ import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
-import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Term(..), Set(..), OrderBy(..))
+import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, modelTableName, Model, Where, Clause(..), Term(..), Set(..), OrderBy(..))
 import           EulerHS.CachedSqlDBQuery (createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning)
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
@@ -93,9 +93,9 @@ createWoReturingKVConnector dbConf meshCfg value = do
     , _action       = "CREATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right m -> A.toJSON m
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then KV else SQL
     , _apiTag       = apiTag
@@ -144,12 +144,12 @@ createWithKVConnector dbConf meshCfg value = do
   mid <- L.getOptionLocal MerchantID 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "CREATE_RETURNING"
+    , _action       = "CREATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right m  -> A.toJSON m
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isEnabled then KV else SQL
     , _apiTag       = apiTag
@@ -246,9 +246,9 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
     , _action       = "UPDATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right m -> A.toJSON m
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = source
     , _apiTag       = apiTag
@@ -303,12 +303,12 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "UPDATE_RETURNING"
+    , _action       = "UPDATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right m -> A.toJSON m
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = source
     , _apiTag       = apiTag
@@ -616,12 +616,12 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   mid <- L.getOptionLocal MerchantID 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "UPDATE_ALL_RETURNING"
+    , _action       = "UPDATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right m -> A.toJSON m
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
     , _apiTag       = apiTag
@@ -676,12 +676,12 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
   mid <- L.getOptionLocal MerchantID 
   let dblog = DBLogEntry {
       _log_type     = "DB"
-    , _action       = "UPDATE_ALL"
+    , _action       = "UPDATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right m -> A.toJSON m
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
     , _apiTag       = apiTag
@@ -877,9 +877,9 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         , _action       = "FIND"
         , _data        = case res of
                             Left err -> A.String (T.pack $ show err)
-                            Right _  -> A.Null
+                            Right m -> A.toJSON m
         , _latency      = t2 - t1
-        , _model        = tableName @(table Identity)
+        , _model        = modelTableName @table
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
         , _source       = source
         , _apiTag       = apiTag
@@ -1010,9 +1010,9 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
     , _action       = "FIND_ALL"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right _ -> A.Null
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if not isDisabled then KV_AND_SQL else SQL
     , _apiTag       = apiTag
@@ -1086,9 +1086,9 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
     , _action       = "FIND_ALL"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right _ -> A.Null
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if not isDisabled then KV_AND_SQL else SQL
     , _apiTag       = apiTag

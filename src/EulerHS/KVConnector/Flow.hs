@@ -93,7 +93,7 @@ createWoReturingKVConnector dbConf meshCfg value = do
     , _action       = "CREATE"
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right m -> A.toJSON m
+                        Right _ -> A.toJSON value
     , _latency      = t2 - t1
     , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
@@ -877,7 +877,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
         , _action       = "FIND"
         , _data        = case res of
                             Left err -> A.String (T.pack $ show err)
-                            Right m -> A.toJSON m
+                            Right _  -> A.Null
         , _latency      = t2 - t1
         , _model        = modelTableName @table
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)

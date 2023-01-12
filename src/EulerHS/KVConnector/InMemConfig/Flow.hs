@@ -15,10 +15,9 @@ import qualified Data.Aeson as A
 import qualified Database.Beam as B
 -- import           Control.Monad.Extra (notM)
 import qualified Data.Set as Set
+import qualified Data.List as DL
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.UUID as UUID (toText)
 import           Data.Time (LocalTime)
-import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.InMemConfig.Types
@@ -191,7 +190,9 @@ searchInMemoryCache meshCfg dbConf whereClause = do
                 else if length keysRequiringRedisFetch == 0
                   then return . Right $ validResult
                   else do
-                    lockKey <- L.runIO $ UUID.toText <$> UUID.nextRandom
+                    let
+                      lockKey :: Text
+                      lockKey = T.pack . DL.intercalate "_" $ T.unpack <$> keysRequiringRedisFetch
                     whenM (L.acquireConfigLock lockKey) (forkKvFetchAndSave keysRequiringRedisFetch lockKey)
                     return . Right $ validResult
     

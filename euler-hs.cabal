@@ -21,7 +21,6 @@ common common-lang
     -Wall -Wcompat -Wincomplete-record-updates
     -Wincomplete-uni-patterns -Wredundant-constraints -Werror
     -fplugin=RecordDotPreprocessor
-    -fprint-potential-instances
 
   build-depends:
     , base                     >=4.13   && <5

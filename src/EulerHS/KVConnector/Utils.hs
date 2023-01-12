@@ -14,16 +14,12 @@ import qualified Database.Beam.Schema.Tables as B
 import qualified Data.ByteString.Lazy as BSL
 import           Text.Casing (quietSnake)
 import qualified Data.HashMap.Strict as HM
+import           Data.List (findIndices)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
-<<<<<<< HEAD
+import qualified EulerHS.KVConnector.Encoding as Encoding
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig,
                   KVConnector(..), PrimaryKey(..), SecondaryKey(..))
-=======
-import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..))
-import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
->>>>>>> da9b655b0b6182f925b69a64910217ed6b9b0209
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
@@ -38,7 +34,7 @@ import qualified Data.Fixed as Fixed
 import qualified Data.Serialize as Serialize
 import qualified Data.Serialize as Cereal
 import           Data.Either.Extra (mapRight, mapLeft)
-import  EulerHS.KVConnector.Encoding() 
+import           Safe (atMay)
 
 
 jsonKeyValueUpdates ::
@@ -96,7 +92,7 @@ getDataFromRedisForPKey meshCfg pKey = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ pKey)
   case res of
     Right (Just r) ->
-      case decodeToField $ BSL.fromChunks [r] of
+      case fst $ decodeToField $ BSL.fromChunks [r] of
         Right [decodeRes] -> do
             return . Right . Just $ (pKey, decodeRes)
         Right _ -> return . Right $ Nothing   -- Something went wrong
@@ -111,16 +107,22 @@ getDataFromPKeysRedis :: forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> [ByteString] -> m (MeshResult [table Identity])
-getDataFromPKeysRedis _ [] = pure $ Right []
+    L.MonadFlow m) => MeshConfig -> [ByteString] -> m (MeshResult ([table Identity], [table Identity]))
+getDataFromPKeysRedis _ [] = pure $ Right ([], [])
 getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
   case res of
-    Right (Just r) ->
-      case decodeToField $ BSL.fromChunks [r] of
+    Right (Just r) -> do
+      let (decodeResult, isLive) = decodeToField $ BSL.fromChunks [r]
+      case decodeResult of
         Right decodeRes -> do
-            remainingPKeysRes <- getDataFromPKeysRedis meshCfg pKeys
-            pure $ mapRight (decodeRes ++) remainingPKeysRes
+          remainingPKeysResult <- getDataFromPKeysRedis meshCfg pKeys
+          case remainingPKeysResult of
+            Right remainingResult -> do
+              if isLive
+                then return $ Right (decodeRes ++ (fst remainingResult), snd remainingResult)
+                else return $ Right (fst remainingResult, decodeRes ++ (snd remainingResult))
+            Left err -> return $ Left err
         Left e -> return $ Left e
     Right Nothing -> do
       let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
@@ -301,25 +303,33 @@ meshModelTableEntity =
   let B.EntityModification modification = B.modifyTableFields (meshModelFieldModification @be @table)
   in appEndo modification $ B.DatabaseEntity $ B.dbEntityAuto (modelTableName @table)
 
-decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> MeshResult [a]
+toPSJSON :: forall be table. MeshMeta be table => (Text, A.Value) -> (Text, A.Value)
+toPSJSON (k, v) = (k, Map.findWithDefault id k (valueMapper @be @table) v)
+
+decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> (MeshResult [a], Bool)
 decodeToField val =
-  let (h, v) = BSL.splitAt 4 val
-   in case h of
-        "CBOR" -> case Cereal.decodeLazy v of
-                    Right r' -> Right [r']
-                    Left _ -> case Cereal.decodeLazy v of
-                                Right r'' -> Right r''
-                                Left _ -> case Cereal.decodeLazy v of
-                                            Right r''' -> decodeField @a r'''
-                                            Left err' -> Left $ MDecodingError $ T.pack err'
-        "JSON" ->
-          case A.eitherDecode v of
-            Right r' -> decodeField @a r'
-            Left e   -> Left $ MDecodingError $ T.pack e
-        _      ->
-          case A.eitherDecode val of
-            Right r' -> decodeField @a r'
-            Left e   -> Left $ MDecodingError $ T.pack e
+  let decodeRes = Encoding.decodeLiveOrDead val
+    in  case decodeRes of
+          (isLive, byteString) -> 
+            let decodedMeshResult = 
+                        let (h, v) = BSL.splitAt 4 byteString
+                          in case h of
+                                "CBOR" -> case Cereal.decodeLazy v of
+                                            Right r' -> Right [r']
+                                            Left _ -> case Cereal.decodeLazy v of
+                                                        Right r'' -> Right r''
+                                                        Left _ -> case Cereal.decodeLazy v of
+                                                                      Right r''' -> decodeField @a r'''
+                                                                      Left err' -> Left $ MDecodingError $ T.pack err'
+                                "JSON" ->
+                                  case A.eitherDecode v of
+                                    Right r' -> decodeField @a r'
+                                    Left e   -> Left $ MDecodingError $ T.pack e
+                                _      -> 
+                                  case A.eitherDecode val of
+                                    Right r' -> decodeField @a r'
+                                    Left e   -> Left $ MDecodingError $ T.pack e
+              in (decodedMeshResult, isLive)
 
 decodeField :: forall a. (FromJSON a, Serialize.Serialize a) => A.Value -> MeshResult [a]
 decodeField o@(A.Object _) =
@@ -370,6 +380,7 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
       let sKey = contructKey
       res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack sKey)
       case res of
+        Right [] -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
         Right r -> pure $ Right r
         Left e -> return $ Left $ MRedisError e
     _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
@@ -382,6 +393,26 @@ nonEmptySubsequences         :: [Text] -> [[Text]]
 nonEmptySubsequences []      =  []
 nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
   where f ys r = ys : (x : ys) : r
+
+whereClauseDiffCheck :: forall be table m. 
+  ( L.MonadFlow m
+  , Model be table
+  , MeshMeta be table
+  , KVConnector (table Identity)
+  ) =>
+  Where be table -> m ()
+whereClauseDiffCheck whereClause = do
+  let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
+      andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
+      keyHashMap = keyMap @(table Identity)
+      failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
+  when (not $ null failedKeys) $ L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show (map (map fst) failedKeys))
+  where
+    checkForPrimaryOrSecondary _ [] = True
+    checkForPrimaryOrSecondary keyHashMap ((k, _) : xs) =
+      case HM.member k keyHashMap of
+        True -> False
+        _ -> checkForPrimaryOrSecondary keyHashMap xs
 
 isRecachingEnabled :: Bool
 isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"

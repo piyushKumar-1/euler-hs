@@ -28,7 +28,6 @@ import           EulerHS.Runtime (mkConfigEntry)
 import           EulerHS.KVConnector.Utils
 import           Sequelize (Model, Where, Clause(..), sqlSelect)
 import           Named (defaults, (!))
-import           EulerHS.KVConnector.DBSync ( meshModelTableEntityDescriptor)
 import qualified Data.Serialize as Serialize
 
 checkAndStartLooper :: forall table m.

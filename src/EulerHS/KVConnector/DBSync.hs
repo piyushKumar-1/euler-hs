@@ -7,11 +7,10 @@ module EulerHS.KVConnector.DBSync where
 
 import           EulerHS.Prelude
 import           EulerHS.KVConnector.Types (KVConnector, MeshMeta(..))
-import           EulerHS.KVConnector.Utils (getPKeyAndValueList, meshModelTableEntityDescriptor)
+import           EulerHS.KVConnector.Utils (getPKeyAndValueList, meshModelTableEntityDescriptor, toPSJSON)
 import qualified Data.Aeson as A
 import           Data.Aeson ((.=))
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
@@ -187,9 +186,6 @@ encodeTerm key = \case
 
   where
     modifyToPsFormat val = snd $ (toPSJSON @be @table) (key, A.toJSON val)
-
-toPSJSON :: forall be table. MeshMeta be table => (Text, A.Value) -> (Text, A.Value)
-toPSJSON (k, v) = (k, Map.findWithDefault id k (valueMapper @be @table) v)
 
 array :: Text -> [A.Value] -> A.Value
 array k vs = A.toJSON $ HM.singleton k vs

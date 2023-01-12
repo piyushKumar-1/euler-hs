@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module EulerHS.KVConnector.Utils where
 
@@ -12,12 +13,17 @@ import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
 import qualified Data.ByteString.Lazy as BSL
 import           Text.Casing (quietSnake)
-import           Data.Either.Extra (mapRight)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+<<<<<<< HEAD
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig,
                   KVConnector(..), PrimaryKey(..), SecondaryKey(..))
+=======
+import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..))
+import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
+>>>>>>> da9b655b0b6182f925b69a64910217ed6b9b0209
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
@@ -29,6 +35,11 @@ import Data.Time.LocalTime (addLocalTime, LocalTime)
 import Data.Time.Clock (secondsToNominalDiffTime)
 import           Juspay.Extra.Config (lookupEnvT)
 import qualified Data.Fixed as Fixed
+import qualified Data.Serialize as Serialize
+import qualified Data.Serialize as Cereal
+import           Data.Either.Extra (mapRight, mapLeft)
+import  EulerHS.KVConnector.Encoding() 
+
 
 jsonKeyValueUpdates ::
   forall be table. (Model be table, MeshMeta be table)
@@ -74,6 +85,48 @@ runQuery dbConf query = do
   case conn of
     Right c -> L.runDB c query
     Left  e -> return $ Left e
+
+
+getDataFromRedisForPKey ::forall table m. (
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    Serialize.Serialize (table Identity),
+    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, table Identity))) 
+getDataFromRedisForPKey meshCfg pKey = do
+  res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ pKey)
+  case res of
+    Right (Just r) ->
+      case decodeToField $ BSL.fromChunks [r] of
+        Right [decodeRes] -> do
+            return . Right . Just $ (pKey, decodeRes)
+        Right _ -> return . Right $ Nothing   -- Something went wrong
+        Left e -> return $ Left e
+    Right Nothing -> do
+      let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
+      L.logWarningT "getCacheWithHash" traceMsg
+      return $ Right Nothing
+    Left e -> return $ Left $ MRedisError e
+
+getDataFromPKeysRedis :: forall table m. (
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    Serialize.Serialize (table Identity),
+    L.MonadFlow m) => MeshConfig -> [ByteString] -> m (MeshResult [table Identity])
+getDataFromPKeysRedis _ [] = pure $ Right []
+getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
+  res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ decodeUtf8 pKey)
+  case res of
+    Right (Just r) ->
+      case decodeToField $ BSL.fromChunks [r] of
+        Right decodeRes -> do
+            remainingPKeysRes <- getDataFromPKeysRedis meshCfg pKeys
+            pure $ mapRight (decodeRes ++) remainingPKeysRes
+        Left e -> return $ Left e
+    Right Nothing -> do
+      let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
+      L.logWarningT "getCacheWithHash" traceMsg
+      getDataFromPKeysRedis meshCfg pKeys
+    Left e -> return $ Left $ MRedisError e
 
 ------------- KEY UTILS ------------------
 
@@ -247,6 +300,88 @@ meshModelTableEntity ::
 meshModelTableEntity =
   let B.EntityModification modification = B.modifyTableFields (meshModelFieldModification @be @table)
   in appEndo modification $ B.DatabaseEntity $ B.dbEntityAuto (modelTableName @table)
+
+decodeToField :: forall a. (FromJSON a, Serialize.Serialize a) => BSL.ByteString -> MeshResult [a]
+decodeToField val =
+  let (h, v) = BSL.splitAt 4 val
+   in case h of
+        "CBOR" -> case Cereal.decodeLazy v of
+                    Right r' -> Right [r']
+                    Left _ -> case Cereal.decodeLazy v of
+                                Right r'' -> Right r''
+                                Left _ -> case Cereal.decodeLazy v of
+                                            Right r''' -> decodeField @a r'''
+                                            Left err' -> Left $ MDecodingError $ T.pack err'
+        "JSON" ->
+          case A.eitherDecode v of
+            Right r' -> decodeField @a r'
+            Left e   -> Left $ MDecodingError $ T.pack e
+        _      ->
+          case A.eitherDecode val of
+            Right r' -> decodeField @a r'
+            Left e   -> Left $ MDecodingError $ T.pack e
+
+decodeField :: forall a. (FromJSON a, Serialize.Serialize a) => A.Value -> MeshResult [a]
+decodeField o@(A.Object _) =
+  case A.eitherDecode @a $ A.encode o of
+    Right r -> return [r]
+    Left e  -> Left $ MDecodingError $ T.pack e
+decodeField o@(A.Array _) =
+  mapLeft (MDecodingError . T.pack)
+    $ A.eitherDecode @[a] $ A.encode o
+decodeField o = Left $ MDecodingError
+  ("Expected list or object but got '" <> T.pack (show o) <> "'.")
+
+-- getFieldsAndValuesFromClause dt (And [Is DBS.id (Eq (Just 1)), Or [Is DBS.merchantId (Eq (Just "123")), Is DBS.orderId (Eq (Just "oid"))]])
+-- [[("id","Just 1"),("merchantId","Just \"123\"")],[("id","Just 1"),("orderId","Just \"oid\"")]]
+getFieldsAndValuesFromClause :: forall table be. (Model be table, MeshMeta be table) =>
+  B.DatabaseEntityDescriptor be (B.TableEntity table) -> Clause be table -> [[(Text, Text)]]
+getFieldsAndValuesFromClause dt = \case
+  And cs -> foldl' processAnd [[]] $ map (getFieldsAndValuesFromClause dt) cs
+  Or cs -> processOr cs
+  Is column (Eq val) -> do
+    let key = B._fieldName . fromColumnar' . column . columnize $ B.dbTableSettings dt
+    [[(key, showVal . snd $ (toPSJSON @be @table) (key, A.toJSON val))]]
+  Is column (In vals) -> do
+    let key = B._fieldName . fromColumnar' . column . columnize $ B.dbTableSettings dt
+    map (\val -> [(key, showVal . snd $ (toPSJSON @be @table) (key, A.toJSON val))]) vals
+  _ -> []
+
+  where
+    processAnd xs [] = xs
+    processAnd [] ys = ys
+    processAnd xs ys = [x ++ y | x <-xs, y <- ys]
+    processOr xs = concatMap (getFieldsAndValuesFromClause dt) xs
+
+    showVal res = case res of
+      A.String r -> r
+      A.Number n -> T.pack $ show n
+      A.Array l  -> T.pack $ show l
+      A.Object o -> T.pack $ show o
+      A.Bool b -> T.pack $ show b
+      A.Null -> T.pack "" 
+
+getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
+getPrimaryKeyFromFieldsAndValues _ _ _ [] = pure $ Right []
+getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
+  case HM.lookup k keyHashMap of
+    Just True -> pure $ Right [fromString $ T.unpack (contructKey <> getShardedHashTag contructKey)]
+    Just False -> do
+      let sKey = contructKey
+      res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack sKey)
+      case res of
+        Right r -> pure $ Right r
+        Left e -> return $ Left $ MRedisError e
+    _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
+  where
+    contructKey = modelName <> "_" <> k <> "_" <> v
+
+-- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
+-- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
+nonEmptySubsequences         :: [Text] -> [[Text]]
+nonEmptySubsequences []      =  []
+nonEmptySubsequences (x:xs)  =  [x]: foldr f [] (nonEmptySubsequences xs)
+  where f ys r = ys : (x : ys) : r
 
 isRecachingEnabled :: Bool
 isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"

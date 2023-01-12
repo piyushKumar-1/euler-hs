@@ -21,19 +21,14 @@ module EulerHS.KVConnector.Flow
   )
  where
 
-import           Control.Monad.Extra (notM)
 import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..), Source(..))
-import           EulerHS.KVConnector.InMemConfig.Types (InMemCacheResult (..))
-import           EulerHS.KVConnector.InMemConfig.Flow (checkAndStartLooper)
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDeleteQuery, getDbDeleteCommandJson, getDbUpdateCommandJson, getDbUpdateCommandJsonWithPrimaryKey, getDbDeleteCommandJsonWithPrimaryKey, toPSJSON, DBCommandVersion(..))
+import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache)
 import           EulerHS.KVConnector.Utils
-import           EulerHS.Runtime (mkConfigEntry)
-import           Unsafe.Coerce (unsafeCoerce)
 import           EulerHS.KVDB.Types (KVDBReply)
 import qualified Data.Aeson as A
-import qualified Data.Serialize as Cereal
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum, findIndices)
 import qualified Data.Text as T
@@ -41,10 +36,9 @@ import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
-import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Term(..), Set(..), OrderBy(..))
+import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Set(..), OrderBy(..))
 import           EulerHS.CachedSqlDBQuery (findAllSql, createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning(..))
 import qualified Database.Beam as B
-import qualified Database.Beam.Schema.Tables as B
 import qualified Database.Beam.Postgres as BP
 import           Data.Either.Extra (mapRight, mapLeft)
 import           Named (defaults, (!))
@@ -396,7 +390,8 @@ updateObjectInMemConfig :: forall beM be table m.
     L.MonadFlow m
   ) => MeshConfig -> Where be table -> [(Text, A.Value)] -> table Identity ->  m (MeshResult ())
 updateObjectInMemConfig meshCfg _ updVals obj = do
-  if not meshCfg.memcacheEnabled
+  let shouldUpdateIMC = meshCfg.memcacheEnabled
+  if not shouldUpdateIMC
     then pure . Right $ ()
     else
       case (updateModel @be @table) obj updVals of
@@ -406,14 +401,13 @@ updateObjectInMemConfig meshCfg _ updVals obj = do
             pKeyText = getLookupKeyByPKey obj
             shard = getShardedHashTag pKeyText
             pKey =  pKeyText <> shard
-            updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
           case A.fromJSON updatedModel of
             A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
             A.Success (updatedModel' :: table Identity)  -> do
-              L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now setting in in-mem-config"
-              newTtl <- getConfigEntryNewTtl
-              L.setConfig pKey (mkConfigEntry newTtl updatedModel') 
-              mapM_ (pushToConfigStream pKey updatedModelT) getConfigStreamNames
+              L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now pushing to in-mem-config stream"
+              let
+                updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel'
+              mapM_ (pushToConfigStream (tableName @(table Identity)) updatedModelT) getConfigStreamNames
               pure . Right $ ()
   where
     pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()
@@ -773,91 +767,21 @@ findWithKVConnector :: forall be table beM m.
   Where be table ->
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
-  L.logDebugT "findWithKVConnector: " $ "whereClause : " <> (tname <> ":" <> (show . length $ whereClause))
-  inMemResult <- searchInMemoryCache
-  L.logDebugT "findWithKVConnector" $ tname <> ":" <> "In Mem result : " <> (show inMemResult)
-  case inMemResult of
-    EntryValid valEntry -> entryToTable valEntry
-    TableIneligible -> kvFetch 
-    EntryExpired valEntry Nothing -> entryToTable valEntry
-    EntryExpired valEntry (Just keyForInMemConfig) -> useExpiredAndForkKvFetchAndSave keyForInMemConfig valEntry
-    EntryNotFound keyForInMemConfig ->  kvFetchAndSave keyForInMemConfig 
-    UnknownError err -> pure . Left $ err
-
+  let shouldSearchInMemoryCache = meshCfg.memcacheEnabled
+  L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show shouldSearchInMemoryCache)
+  if shouldSearchInMemoryCache
+    then do
+      inMemResult <- searchInMemoryCache meshCfg dbConf whereClause
+      flip (either (return . Left) ) inMemResult findOneMatchingFromIMC
+    else
+      kvFetch
   where
-
     tname :: Text = (tableName @(table Identity))
-    
-    useExpiredAndForkKvFetchAndSave :: forall a. Text -> a -> m (MeshResult (Maybe (table Identity)))
-    useExpiredAndForkKvFetchAndSave key val = do
-      L.logInfoT "findWithKVConnector" $ "Starting Timeout for redis-fetch for in-mem-config"
-      L.fork $ 
-        do
-          void $ L.runIO $ threadDelayMilisec 5
-          void $ L.releaseConfigLock key      -- TODO  Check if release fails
-      L.logInfoT "findWithKVConnector" $ "Initiating updation of key <" <> key <>"> in-mem-config"
-      L.fork $ (kvFetchAndSave key) 
-      entryToTable val
 
-    searchInMemoryCache :: m (InMemCacheResult)
-    searchInMemoryCache = do
-      L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show meshCfg.memcacheEnabled)
-      if meshCfg.memcacheEnabled && length whereClause == 1 
-      then do
-        eitherPKeys <- getPrimaryKeys 
-        L.logDebugT "findWithKVConnector: " $ "eitherPKeys: " <> (tname <> ":" <> show eitherPKeys)
-        let
-          decodeTable :: ByteString -> Maybe (table Identity)
-          decodeTable = A.decode . BSL.fromStrict
-        checkAndStartLooper meshCfg decodeTable
-        case eitherPKeys of
-          Right [] -> return TableIneligible
-          Right [[pKey]] -> do
-            let k = decodeUtf8 pKey
-            mbVal <- L.getConfig k
-            case mbVal of
-              Just val -> do
-                L.logInfoT "findWithKVConnector" $ "Found key: <" <> k <> "> in in-mem-config"
-                L.logDebugT "findWithKVConnector" $ "key val: " <> show val
-                currentTime <- L.getCurrentTimeUTC
-                if val.ttl > currentTime
-                  then do
-                    L.logInfoT "findWithKVConnector" $ "Key TTL Valid"
-                    return $ EntryValid val.entry
-                  else do
-                    L.logInfoT "findWithKVConnector" $ "Key TTL Not Valid"
-                    ifM (notM $ L.acquireConfigLock k)
-                      (return $ EntryExpired val.entry Nothing)    --then
-                      (return $ EntryExpired val.entry $ Just k)   --else
-              Nothing -> return . EntryNotFound $ k
-          Right _ -> return TableIneligible
-          Left err -> return . UnknownError $ err
-      else
-        return TableIneligible
-
-    entryToTable :: forall a. a -> m (MeshResult (Maybe (table Identity)))
-    entryToTable x = return . Right . Just $ ((unsafeCoerce @_ @(table Identity)) x)
-
-    getPrimaryKeys :: m (MeshResult [[ByteString]])
-    getPrimaryKeys = do
-      let 
-        keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
-        andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
-        modelName = tableName @(table Identity)
-        keyHashMap = keyMap @(table Identity)
-      L.logDebugT "findWithKVConnector" (show keyAndValueCombinations)
-      eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinations
-      L.logDebugT "findWithKVConnector" (show eitherKeyRes)
-      pure $ foldEither eitherKeyRes
-
-    kvFetchAndSave :: Text -> m (MeshResult (Maybe (table Identity)))
-    kvFetchAndSave key = do
-      val <- kvFetch
-      case val of
-        Right (Just val') -> do
-          void $ setInConfig key val'
-        _ -> return ()
-      pure val
+    findOneMatchingFromIMC :: [table Identity] -> m (MeshResult (Maybe (table Identity)))
+    findOneMatchingFromIMC result = do
+      L.logDebugT "findWithKVConnector" $ tname <> ":" <> "In Mem result : " <> (show result)
+      return . Right $ findOneMatching whereClause result
 
     kvFetch :: m (MeshResult (Maybe (table Identity)))
     kvFetch = do
@@ -901,13 +825,6 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
       L.logInfoV ("DB" :: Text) dblog
       incrementMetric KVAction dblog
       pure res
-
-    setInConfig :: Text -> table Identity -> m ()
-    setInConfig k model = do
-      newTtl <- getConfigEntryNewTtl
-      L.logInfoT "findWithKVConnector" $ "Found key <" <> k <> "> in redis. Now setting in in-mem-config"
-      void $ L.setConfig k (mkConfigEntry  newTtl model)
-
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.

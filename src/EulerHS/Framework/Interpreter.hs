@@ -325,20 +325,19 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetOption k v next) =
     putMVar _options newMap
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.ModifyOption k fn next) =
-  fmap next $ do
-    curOptions <- takeMVar _options
-    let valAny = Map.lookup k curOptions
-    (newOptions,modifiedVal,oldVal) <- case valAny of
-      Nothing -> pure (curOptions,Nothing,Nothing)
-      Just val -> do
-        let oldVal = unsafeCoerce val
-        modifiedVal <- (\() -> pure $ fn oldVal)() `onException` putMVar _options curOptions
-        pure (Map.insert k (unsafeCoerce @_ @Any modifiedVal) curOptions,
-              Just modifiedVal,
-              Just oldVal
-             )
-    putMVar _options newOptions
-    pure (oldVal,modifiedVal)
+  fmap next $ do 
+    modifyMVar _options modifyAndCallFn
+    where 
+      modifyAndCallFn curOptions = do 
+        let valAny = Map.lookup k curOptions
+        case valAny of
+          Nothing -> pure (curOptions,(Nothing,Nothing))
+          Just val -> do
+            let oldVal = unsafeCoerce val
+                modifiedVal = fn oldVal
+            pure (Map.insert k (unsafeCoerce @_ @Any modifiedVal) curOptions,
+                  (Just oldVal, Just modifiedVal)
+                )
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
   fmap next $ do

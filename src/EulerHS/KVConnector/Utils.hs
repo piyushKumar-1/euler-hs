@@ -226,6 +226,21 @@ resultToEither :: A.Result a -> Either Text a
 resultToEither (A.Success res) = Right res
 resultToEither (A.Error e)     = Left $ T.pack e
 
+mergeKVAndDBResults :: KVConnector (table Identity) => [table Identity] -> [table Identity] -> [table Identity]
+mergeKVAndDBResults dbRows kvRows = do
+  let kvPkeys = map getLookupKeyByPKey kvRows
+      uniqueDbRes = filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows
+  kvRows ++ uniqueDbRes
+
+removeDeleteResults :: KVConnector (table Identity) => [table Identity] -> [table Identity] -> [table Identity]
+removeDeleteResults delRows rows = do
+  let delPKeys = map getLookupKeyByPKey delRows
+      nonDelRows = filter (\r -> getLookupKeyByPKey r `notElem` delPKeys) rows
+  nonDelRows 
+
+getLatencyInMicroSeconds :: Integer -> Integer
+getLatencyInMicroSeconds execTime = execTime `div` 1000000
+
 ---------------- Match where clauses -------------
 findOneMatching :: B.Beamable table => Where be table -> [table Identity] -> Maybe (table Identity)
 findOneMatching whereClause = find (`matchWhereClause` whereClause)

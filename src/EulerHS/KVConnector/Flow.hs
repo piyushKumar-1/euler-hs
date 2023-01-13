@@ -368,7 +368,9 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
                   L.logError @Text "updateWithKVConnector" message
                   return $ Left $ UnexpectedError message
                 Left e -> return $ Left $ MDBError e
-    Right ([], _) -> pure $ (KV, Right Nothing)
+    Right ([], _) -> do
+      L.logInfoT "updateKV" ("Updating nothing - Row is deleted already for " <> tableName @(table Identity))
+      pure $ (KV, Right Nothing)
     Right (kvLiveRows, _) -> (KV,) <$> case kvLiveRows of
       [obj] -> mapRight Just <$> updateKVRowInRedis meshCfg whereClause updVals obj
       _ -> do 
@@ -798,7 +800,9 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
             Right ([], []) -> do
               L.logDebugT "findWithKVConnector" ("Falling back to SQL for " <> tableName @(table Identity) <> "- Nothing found in KV")
               (SQL,) <$> findOneFromDB dbConf whereClause
-            Right ([], _) -> pure $ (KV, Right Nothing) -- Return Nothing if row is deleted
+            Right ([], _) -> do
+              L.logInfoT "findWithKVConnector" ("Returning nothing - Row is deleted already for " <> tableName @(table Identity))
+              pure $ (KV, Right Nothing)
             Right (kvLiveRows, _) -> do
               L.logDebugT "findWithKVConnector" ("findOneFromRedis = " <> show (length kvLiveRows) <> " rows")
               pure $ (KV, Right $ listToMaybe kvLiveRows)

@@ -172,6 +172,13 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  ModifyOption
+    :: HasCallStack
+    => Text
+    -> ( a -> a )
+    -> ((Maybe a, Maybe a) -> next)
+    -> FlowMethod next
+
   DelOption
     :: HasCallStack
     => Text
@@ -367,6 +374,7 @@ instance Functor FlowMethod where
     WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
+    ModifyOption k fn cont -> ModifyOption k fn (f . cont)
     DelOption k cont -> DelOption k (f . cont)
     GetConfig k cont -> GetConfig k (f . cont)
     SetConfig k v cont -> SetConfig k v (f . cont)
@@ -527,6 +535,25 @@ class (MonadMask m) => MonadFlow m where
   -- >    runIO $ putTextLn mKey
   -- >    delOption MerchantIdKey
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
+
+  -- > Problem Statement :
+  -- > _ <- getOption k 
+  -- > ---- <some calculation> ------- 
+  -- > ----------------------------------------
+  -- > -----<This region is not thread safe>--------
+  -- > ----------------------------------------
+  -- > _ <- setOption k <result of calculations>
+  -- >  
+  -- > Since the above block is not thread safe to modify an option
+  -- > 
+  -- > USE MODIFYOPTION :-)
+  -- > It takes a key and function and applies the function if it finds a val with key
+  -- >
+  -- >
+  -- > Sample usage:
+  -- > (oldCount,modifiedCount) <- modifyOption MyCounter (\x -> x + 1)
+
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v,Maybe v)
 
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
@@ -804,6 +831,9 @@ instance MonadFlow Flow where
   {-# INLINEABLE setOption #-}
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
+  {-# INLINEABLE modifyOption #-}
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v,Maybe v)
+  modifyOption k fn = liftFC $ ModifyOption  (mkOptionKey @k @v k) fn id
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
@@ -889,6 +919,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE modifyOption #-}
+  modifyOption k = lift . modifyOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getConfig #-}
@@ -959,6 +991,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getConfig #-}
@@ -1029,6 +1063,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getConfig #-}
@@ -1099,6 +1135,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getConfig #-}
@@ -1169,6 +1207,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getConfig #-}

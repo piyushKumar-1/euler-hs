@@ -21,10 +21,11 @@ incrementKVMetric handle metric dblog = do
   let action = _operation dblog
       latency = _latency dblog
       cpuLatency = _cpuLatency dblog
-  L.runIO $ ((kvCounter handle) (metric, tag, action, source, model, mid, latency, cpuLatency))
+      diffFound = isJust $ _whereDiffCheckRes dblog
+  L.runIO $ ((kvCounter handle) (metric, tag, action, source, model, mid, latency, cpuLatency, diffFound))
 
 data KVMetricHandler = KVMetricHandler
-  { kvCounter :: (KVMetric, Text, Operation, Source, Text, Text, Int, Integer) -> IO ()
+  { kvCounter :: (KVMetric, Text, Operation, Source, Text, Text, Int, Integer, Bool) -> IO ()
   }
 
 data KVMetric = KVAction
@@ -33,10 +34,11 @@ mkKVMetricHandler :: IO KVMetricHandler
 mkKVMetricHandler = do
   metrics <- register collectionLock
   pure $ KVMetricHandler $ \case
-    (KVAction, tag, action, source, model , mid, latency, cpuLatency) -> do
+    (KVAction, tag, action, source, model , mid, latency, cpuLatency, diffFound) -> do
       inc (metrics </> #kv_action_counter) tag action source model  mid
       observe (metrics </> #kv_latency_observe) (int2Double latency) tag action source model
       observe (metrics </> #kv_cpu_latency_observe) (fromInteger cpuLatency) tag action source model
+      when diffFound $ inc (metrics </> #kv_diff_counter) tag action source model
 
 kv_action_counter = counter #kv_action_counter
       .& lbl @"tag" @Text
@@ -44,6 +46,13 @@ kv_action_counter = counter #kv_action_counter
       .& lbl @"source" @Source
       .& lbl @"model" @Text
       .& lbl @"mid" @Text
+      .& build
+
+kv_diff_counter = counter #kv_diff_counter
+      .& lbl @"tag" @Text
+      .& lbl @"action" @Operation
+      .& lbl @"source" @Source
+      .& lbl @"model" @Text
       .& build
 
 kv_latency_observe = histogram #kv_latency_observe
@@ -62,6 +71,7 @@ kv_cpu_latency_observe = histogram #kv_cpu_latency_observe
 
 collectionLock =
      kv_action_counter
+  .> kv_diff_counter
   .> kv_latency_observe
   .> kv_cpu_latency_observe
   .> MNil

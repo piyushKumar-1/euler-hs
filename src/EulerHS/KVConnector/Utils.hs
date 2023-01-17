@@ -327,6 +327,7 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
       let sKey = contructKey
       res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack sKey)
       case res of
+        Right [] -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
         Right r -> pure $ Right r
         Left e -> return $ Left $ MRedisError e
     _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs

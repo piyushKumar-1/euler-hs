@@ -10,7 +10,7 @@ import qualified EulerHS.Language as L
 import           EulerHS.Options  (OptionEntity)
 import           Euler.Events.MetricApi.MetricApi
 import qualified Juspay.Extra.Config as Conf
-import           EulerHS.KVConnector.Types  (DBLogEntry(..), Source(..))
+import           EulerHS.KVConnector.Types  (DBLogEntry(..), Source(..), Operation(..))
 
 incrementKVMetric :: L.MonadFlow m => KVMetricHandler -> KVMetric -> DBLogEntry a -> m ()
 incrementKVMetric handle metric dblog = do
@@ -24,7 +24,7 @@ incrementKVMetric handle metric dblog = do
   L.runIO $ ((kvCounter handle) (metric, tag, action, source, model, mid, latency, cpuLatency))
 
 data KVMetricHandler = KVMetricHandler
-  { kvCounter :: (KVMetric, Text, Text, Source, Text, Text, Int, Integer) -> IO ()
+  { kvCounter :: (KVMetric, Text, Operation, Source, Text, Text, Int, Integer) -> IO ()
   }
 
 data KVMetric = KVAction
@@ -40,7 +40,7 @@ mkKVMetricHandler = do
 
 kv_action_counter = counter #kv_action_counter
       .& lbl @"tag" @Text
-      .& lbl @"action" @Text
+      .& lbl @"action" @Operation
       .& lbl @"source" @Source
       .& lbl @"model" @Text
       .& lbl @"mid" @Text
@@ -48,14 +48,14 @@ kv_action_counter = counter #kv_action_counter
 
 kv_latency_observe = histogram #kv_latency_observe
       .& lbl @"tag" @Text
-      .& lbl @"action" @Text
+      .& lbl @"action" @Operation
       .& lbl @"source" @Source
       .& lbl @"model" @Text
       .& build
 
 kv_cpu_latency_observe = histogram #kv_cpu_latency_observe
       .& lbl @"tag" @Text
-      .& lbl @"action" @Text
+      .& lbl @"action" @Operation
       .& lbl @"source" @Source
       .& lbl @"model" @Text
       .& build

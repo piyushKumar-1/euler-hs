@@ -18,7 +18,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..))
-import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)

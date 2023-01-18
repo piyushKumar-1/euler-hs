@@ -24,7 +24,7 @@ import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..), Source(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDbUpdateCommandJson, meshModelTableEntityDescriptor, DBCommandVersion(..))
-import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache)
+import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache, updateAllKeysInIMC)
 import           EulerHS.KVConnector.Utils
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
@@ -35,7 +35,7 @@ import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
 import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, Model, Where, Clause(..), Set(..), OrderBy(..))
-import           EulerHS.CachedSqlDBQuery (createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning)
+import           EulerHS.CachedSqlDBQuery (createReturning, createSqlWoReturing, updateOneSqlWoReturning, updateOneSql, SqlReturning)
 import qualified Database.Beam as B
 import qualified Database.Beam.Postgres as BP
 import           Data.Either.Extra (mapRight, mapLeft)
@@ -229,7 +229,15 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       whereClauseDiffCheck whereClause
       res <- updateOneSqlWoReturning dbConf setClause whereClause
       (SQL,) <$> case res of
-        Right val -> return $ Right val
+        Right val -> do         
+           {-
+              Since beam-mysql doesn't implement updateRowsReturning, we fetch the row from imc (or lower layers)
+              and then update the json so fetched and finally setting it in the imc.
+            -}
+            if meshCfg.memcacheEnabled
+              then fetchRowFromStorageAndUpdateImc 
+              else return $ Right val
+
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
@@ -251,6 +259,20 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   L.logInfoV ("DB" :: Text) dblog
   incrementMetric KVAction dblog
   pure res
+  
+  where
+    fetchRowFromStorageAndUpdateImc :: m (MeshResult ())
+    fetchRowFromStorageAndUpdateImc = 
+      searchInMemoryCache meshCfg dbConf whereClause >>= \case
+        Right [x] -> do
+          when meshCfg.memcacheEnabled $ void $ (updateObjectInMemConfig @be @table) meshCfg (jsonKeyValueUpdates setClause) x
+          return $ Right ()
+        Right [] -> return $ Right ()
+        Right xs -> do
+          let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> show (tableName @(table Identity))
+          L.logError @Text "updateWoReturningWithKVConnector" message
+          return $ Left $ UnexpectedError message
+        Left e -> return $ Left e
 
 updateWithKVConnector :: forall table m.
   ( HasCallStack,
@@ -283,7 +305,9 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       (SQL, ) <$> case res of
-        Right [x] -> return $ Right (Just x)
+        Right [x] -> do
+          when meshCfg.memcacheEnabled $ updateObjectInImcAndPushToConfigStream meshCfg x
+          return $ Right (Just x)
         Right [] -> return $ Right Nothing
         Right xs -> do
           let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> show (tableName @(table Identity))
@@ -378,38 +402,43 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
         pure $ Left $ MUpdateFailed "Found more than one record in redis"
     Left err -> pure $ (KV, Left err)
 
-updateObjectInMemConfig :: forall beM be table m.
+updateObjectInMemConfig :: forall be table m.
   ( HasCallStack,
-    BeamRuntime be beM,
-    BeamRunner beM,
-    Model be table,
     MeshMeta be table,
-    B.HasQBuilder be,
     KVConnector (table Identity),
     FromJSON (table Identity),
     ToJSON (table Identity),
     L.MonadFlow m
-  ) => MeshConfig -> Where be table -> [(Text, A.Value)] -> table Identity ->  m (MeshResult ())
-updateObjectInMemConfig meshCfg _ updVals obj = do
+  ) => MeshConfig -> [(Text, A.Value)] -> table Identity ->  m (MeshResult ())
+updateObjectInMemConfig meshCfg updVals obj = do
   let shouldUpdateIMC = meshCfg.memcacheEnabled
   if not shouldUpdateIMC
     then pure . Right $ ()
     else
       case (updateModel @be @table) obj updVals of
         Left err -> return $ Left err
-        Right updatedModel -> do
-          let 
-            pKeyText = getLookupKeyByPKey obj
-            shard = getShardedHashTag pKeyText
-            pKey =  pKeyText <> shard
-          case A.fromJSON updatedModel of
+        Right updatedModelJson -> 
+          case A.fromJSON updatedModelJson of
             A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
             A.Success (updatedModel' :: table Identity)  -> do
-              L.logInfoT "updateObjectInMemConfig" $ "Found key <" <> pKey <> "> in redis. Now pushing to in-mem-config stream"
-              let
-                updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel'
-              mapM_ (pushToConfigStream (tableName @(table Identity)) updatedModelT) getConfigStreamNames
+              updateObjectInImcAndPushToConfigStream meshCfg updatedModel'
               pure . Right $ ()
+
+updateObjectInImcAndPushToConfigStream :: forall table m.
+  ( HasCallStack,
+    KVConnector (table Identity),
+    ToJSON (table Identity),
+    L.MonadFlow m
+  ) => MeshConfig -> table Identity -> m ()
+updateObjectInImcAndPushToConfigStream meshCfg updatedModel = do
+  let 
+    pKeyText = getLookupKeyByPKey updatedModel
+    shard = getShardedHashTag pKeyText
+    pKey =  pKeyText <> shard
+    updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
+  L.logInfoT "updateObjectInImcAndPushToConfigStream" $ "Found key <" <> pKey <> "> in redis. Now pushing to in-mem-config stream"
+  mapM_ (pushToConfigStream (tableName @(table Identity)) updatedModelT) getConfigStreamNames
+  pure ()
   where
     pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()
     pushToConfigStream k v streamName = 
@@ -535,7 +564,7 @@ updateKVRowInRedis meshCfg whereClause updVals obj = do
     let sKey = fromString . T.unpack $ secIdx
     L.runKVDB meshCfg.kvRedis $  L.expire sKey meshCfg.redisTtl
     ) $ getSecondaryLookupKeys obj
-  configUpdateResult <- updateObjectInMemConfig meshCfg whereClause updVals obj
+  configUpdateResult <- (updateObjectInMemConfig @be @table) meshCfg updVals obj
   case configUpdateResult of
     Left err -> return $ Left err
     Right _ -> updateObjectRedis meshCfg updVals whereClause obj
@@ -563,7 +592,7 @@ updateDBRowInRedis meshCfg updVals whereClause obj = do
     _ <- L.runKVDB meshCfg.kvRedis $ L.sadd sKey [pKey]
     L.runKVDB meshCfg.kvRedis $  L.expire sKey meshCfg.redisTtl
     ) $ getSecondaryLookupKeys obj
-  configUpdateResult <- updateObjectInMemConfig meshCfg whereClause updVals obj
+  configUpdateResult <- (updateObjectInMemConfig @be @table) meshCfg updVals obj
   case configUpdateResult of
     Left err -> return $ Left err
     Right _ -> updateObjectRedis meshCfg updVals whereClause obj

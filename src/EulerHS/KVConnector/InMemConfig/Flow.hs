@@ -224,7 +224,13 @@ searchInMemoryCache meshCfg dbConf whereClause = do
       L.fork $ void $ kvFetch pKeys
 
     kvFetch :: [Text] -> m (MeshResult [table Identity])
-    kvFetch pKeys = do
+    kvFetch pKeys = 
+      if meshCfg.kvHardKilled       
+        then doDbFetchAndUpdateIMC
+        else useKvcAndUpdateIMC pKeys
+
+    useKvcAndUpdateIMC :: [Text] -> m (MeshResult [table Identity])
+    useKvcAndUpdateIMC pKeys = do
       (eTuples :: MeshResult [Maybe (Text, table Identity)]) <- foldEither <$> mapM (getDataFromRedisForPKey meshCfg)  pKeys
       case eTuples of
         Left err -> do
@@ -234,17 +240,20 @@ searchInMemoryCache meshCfg dbConf whereClause = do
           L.logDebugT "kvFetch" $ "mtups: " <> (show mtups)
           let tups = catMaybes mtups
           if length tups == 0
-            then do
-              eDbTups <- dbFetch
-              L.logDebugT "kvFetch" $ "eDbTups: " <> (show eDbTups)
-              case eDbTups of
-                (Left e) -> pure .Left $ e
-                Right dbTups -> do
-                  mapM_ (uncurry updateAllKeysInIMC) dbTups
-                  return . Right $ snd <$> dbTups
+            then doDbFetchAndUpdateIMC
             else do
               mapM_ (uncurry updateAllKeysInIMC) tups
               return . Right $ snd <$> tups
+
+    doDbFetchAndUpdateIMC :: m (MeshResult [(table Identity)])
+    doDbFetchAndUpdateIMC = do
+      eDbTups <- dbFetch
+      L.logDebugT "kvFetch" $ "eDbTups: " <> (show eDbTups)
+      case eDbTups of
+        (Left e) -> pure .Left $ e
+        Right dbTups -> do
+          mapM_ (uncurry updateAllKeysInIMC) dbTups
+          return . Right $ snd <$> dbTups
 
     dbFetch :: m (MeshResult [(Text, table Identity)])
     dbFetch = do

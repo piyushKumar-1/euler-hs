@@ -125,25 +125,40 @@ data MerchantID = MerchantID
 
 instance T.OptionEntity MerchantID Text
 
+data Operation
+  = CREATE
+  | CREATE_RETURNING
+  | UPDATE
+  | UPDATE_RETURNING
+  | UPDATE_ALL
+  | UPDATE_ALL_RETURNING
+  | FIND
+  | FIND_ALL
+  | FIND_ALL_WITH_OPTIONS
+  deriving (Generic, Show, ToJSON)
+
 data Source = KV | SQL | KV_AND_SQL
     deriving (Generic, Show, ToJSON)
 
 data DBLogEntry a = DBLogEntry
-  { _log_type     :: Text
-  , _action       :: Text
-  , _data         :: a
-  , _latency      :: Int
-  , _model        :: Text
-  , _cpuLatency   :: Integer
-  , _source       :: Source
-  , _apiTag       :: Maybe Text
-  , _merchant_id  :: Maybe Text
+  { _log_type             :: Text
+  , _action               :: Text
+  , _operation            :: Operation
+  , _data                 :: a
+  , _latency              :: Int
+  , _model                :: Text
+  , _cpuLatency           :: Integer
+  , _source               :: Source
+  , _apiTag               :: Maybe Text
+  , _merchant_id          :: Maybe Text
+  , _whereDiffCheckRes :: Maybe [[Text]]
   }
   deriving stock (Generic)
   -- deriving anyclass (ToJSON)
 instance (ToJSON a) => ToJSON (DBLogEntry a) where
   toJSON val = A.object [ "log_type" .= _log_type val
                         , "action" .= _action val
+                        , "operation" .= _operation val
                         , "latency" .= _latency val
                         , "model" .= _model val
                         , "cpuLatency" .= _cpuLatency val
@@ -151,4 +166,5 @@ instance (ToJSON a) => ToJSON (DBLogEntry a) where
                         , "source" .= _source val
                         , "api_tag" .= _apiTag val
                         , "merchant_id" .= _merchant_id val
+                        , "whereDiffCheckRes" .= _whereDiffCheckRes val
                       ]

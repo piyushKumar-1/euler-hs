@@ -15,12 +15,16 @@ import qualified Data.ByteString.Lazy as BSL
 import           Text.Casing (quietSnake)
 import qualified Data.HashMap.Strict as HM
 import           Data.List (findIndices)
+import           Data.List (findIndices)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified EulerHS.KVConnector.Encoding as Encoding
-import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig,
-                  KVConnector(..), PrimaryKey(..), SecondaryKey(..))
+import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
+import           EulerHS.KVConnector.Metrics (incrementMetric, KVMetric(..))
+import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..),
+                    DBLogEntry(..), Operation(..), Source(..), MerchantID(..))
 import qualified EulerHS.Language as L
+import           EulerHS.Types (ApiTag(..))
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 -- import           Servant (err500)
@@ -34,6 +38,8 @@ import qualified Data.Fixed as Fixed
 import qualified Data.Serialize as Serialize
 import qualified Data.Serialize as Cereal
 import           Data.Either.Extra (mapRight, mapLeft)
+import  EulerHS.KVConnector.Encoding ()
+import           Safe (atMay)
 import           Safe (atMay)
 
 
@@ -401,7 +407,6 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
     _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
   where
     contructKey = modelName <> "_" <> k <> "_" <> v
-
 -- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
 -- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
 nonEmptySubsequences         :: [Text] -> [[Text]]
@@ -415,13 +420,17 @@ whereClauseDiffCheck :: forall be table m.
   , MeshMeta be table
   , KVConnector (table Identity)
   ) =>
-  Where be table -> m ()
+  Where be table -> m (Maybe [[Text]])
 whereClauseDiffCheck whereClause = do
   let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
       andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
       keyHashMap = keyMap @(table Identity)
       failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
-  when (not $ null failedKeys) $ L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show (map (map fst) failedKeys))
+  if (not $ null failedKeys)
+    then do
+      let diffRes = map (map fst) failedKeys
+      L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> (Just diffRes)
+    else pure Nothing
   where
     checkForPrimaryOrSecondary _ [] = True
     checkForPrimaryOrSecondary keyHashMap ((k, _) : xs) =
@@ -431,3 +440,28 @@ whereClauseDiffCheck whereClause = do
 
 isRecachingEnabled :: Bool
 isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"
+
+logAndIncrementKVMetric :: (L.MonadFlow m, ToJSON a) => Bool -> Text -> Operation -> MeshResult a -> Int -> Text -> Integer -> Source -> Maybe [[Text]] -> m ()
+logAndIncrementKVMetric shouldLogData action operation res latency model cpuLatency source mbDiffCheckRes = do
+  apiTag <- L.getOptionLocal ApiTag
+  mid    <- L.getOptionLocal MerchantID 
+  let dblog = DBLogEntry {
+      _log_type     = "DB"
+    , _action       = action -- For logprocessor
+    , _operation    = operation
+    , _data         = case res of
+                        Left err -> A.String (T.pack $ show err)
+                        Right m  -> if shouldLogData then A.toJSON m else A.Null
+    , _latency      = latency
+    , _model        = model
+    , _cpuLatency   = getLatencyInMicroSeconds cpuLatency
+    , _source       = source
+    , _apiTag       = apiTag
+    , _merchant_id  = mid
+    , _whereDiffCheckRes = mbDiffCheckRes
+    }
+  L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog
+  where
+    getLatencyInMicroSeconds :: Integer -> Integer
+    getLatencyInMicroSeconds execTime = execTime `div` 1000000

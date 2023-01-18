@@ -25,7 +25,7 @@ module EulerHS.KVConnector.Flow
 
 import           EulerHS.Extra.Time (getCurrentDateInMillis)
 import           EulerHS.Prelude hiding (maximum)
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..), Source(..))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, DBLogEntry(..), MerchantID(..), Source(..), Operation(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDeleteQuery, getDbDeleteCommandJson, getDbUpdateCommandJson, getDbUpdateCommandJsonWithPrimaryKey, getDbDeleteCommandJsonWithPrimaryKey, DBCommandVersion(..))
 import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache)
 import           EulerHS.KVConnector.Utils
@@ -38,7 +38,7 @@ import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 import qualified EulerHS.SqlDB.Language as DB
-import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, sqlDelete, Model, Where, Clause(..), Set(..), OrderBy(..))
+import           Sequelize (fromColumnar', columnize, sqlSelect, sqlSelect', sqlUpdate, sqlDelete, modelTableName, Model, Where, Clause(..), Set(..), OrderBy(..))
 import           EulerHS.CachedSqlDBQuery (findAllSql, createReturning, createSqlWoReturing, updateOneSqlWoReturning, SqlReturning(..))
 import qualified Database.Beam as B
 import qualified Database.Beam.Postgres as BP
@@ -83,23 +83,9 @@ createWoReturingKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOptionLocal ApiTag
-  mid <- L.getOptionLocal MerchantID 
-  let dblog =DBLogEntry {
-      _log_type     = "DB"
-    , _action       = "CREATE"
-    , _data        = case res of
-                        Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
-    , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
-    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isEnabled then KV else SQL
-    , _apiTag       = apiTag
-    , _merchant_id = mid
-    }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  let source = if isEnabled then KV else SQL
+      res' = mapRight (const value) res
+  logAndIncrementKVMetric True "CREATE" CREATE res' (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source Nothing
   pure res
 
 
@@ -137,23 +123,8 @@ createWithKVConnector dbConf meshCfg value = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOptionLocal ApiTag
-  mid <- L.getOptionLocal MerchantID 
-  let dblog =DBLogEntry {
-      _log_type     = "DB"
-    , _action       = "CREATE_RETURNING"
-    , _data        = case res of
-                        Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
-    , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
-    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isEnabled then KV else SQL
-    , _apiTag       = apiTag
-    , _merchant_id = mid
-    }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  let source = if isEnabled then KV else SQL
+  logAndIncrementKVMetric True "CREATE" CREATE_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source Nothing
   pure res
 
 createKV :: forall (table :: (Type -> Type) -> Type) m.
@@ -228,30 +199,14 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       (\updRes -> (fst updRes, mapRight (const ()) (snd updRes))) <$> modifyOneKV dbConf meshCfg whereClause (Just setClause) True True
     else do
       L.logDebugT "updateWoReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-      whereClauseDiffCheck whereClause
       res <- updateOneSqlWoReturning dbConf setClause whereClause
       (SQL,) <$> case res of
         Right val -> return $ Right val
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOptionLocal ApiTag
-  mid <- L.getOptionLocal MerchantID 
-  let dblog =DBLogEntry {
-      _log_type     = "DB"
-    , _action       = "UPDATE"
-    , _data        = case res of
-                        Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
-    , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
-    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = source
-    , _apiTag       = apiTag
-    , _merchant_id = mid
-    }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  diffRes   <- whereClauseDiffCheck whereClause
+  logAndIncrementKVMetric True "UPDATE" UPDATE res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 updateWithKVConnector :: forall table m.
@@ -281,7 +236,6 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
       modifyOneKV dbConf meshCfg whereClause (Just setClause) False True
     else do
       L.logDebugT "updateWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       (SQL, ) <$> case res of
@@ -294,24 +248,8 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOptionLocal ApiTag
-  mid <- L.getOptionLocal MerchantID 
-
-  let dblog =DBLogEntry {
-      _log_type     = "DB"
-    , _action       = "UPDATE_RETURNING"
-    , _data        = case res of
-                        Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
-    , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
-    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = source
-    , _apiTag       = apiTag
-    , _merchant_id = mid
-    }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  diffRes   <- whereClauseDiffCheck whereClause
+  logAndIncrementKVMetric True "UPDATE" UPDATE_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 modifyOneKV :: forall be table beM m.
@@ -574,7 +512,6 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       updateKVAndDBResults meshCfg whereClause dbRows kvRows (Just updVals) False dbConf (Just setClause) True
     else do
       L.logDebugT "updateAllReturningWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -582,23 +519,9 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOptionLocal ApiTag
-  mid <- L.getOptionLocal MerchantID 
-  let dblog =DBLogEntry {
-      _log_type     = "DB"
-    , _action       = "UPDATE_ALL_RETURNING"
-    , _data        = case res of
-                        Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
-    , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
-    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
-    , _apiTag       = apiTag
-    , _merchant_id = mid
-    }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  diffRes <- whereClauseDiffCheck whereClause
+  let source = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
+  logAndIncrementKVMetric True "UPDATE" UPDATE_ALL_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 updateAllWithKVConnector :: forall be table beM m.
@@ -633,7 +556,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
       dbRows <- findAllSql dbConf whereClause
       mapRight (const ()) <$> updateKVAndDBResults meshCfg whereClause dbRows kvRows (Just updVals) True dbConf (Just setClause) True
     else do
-      L.logDebug @Text "updateAllWithKVConnector" "Taking DB Path"
+      L.logDebugT "updateAllWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
       let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
@@ -641,23 +564,9 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
-  apiTag <- L.getOptionLocal ApiTag
-  mid <- L.getOptionLocal MerchantID 
-  let dblog = DBLogEntry {
-      _log_type     = "DB"
-    , _action       = "UPDATE_ALL"
-    , _data        = case res of
-                        Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
-    , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
-    , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
-    , _source       = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
-    , _apiTag       = apiTag
-    , _merchant_id = mid
-    }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  diffRes <- whereClauseDiffCheck whereClause
+  let source = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
+  logAndIncrementKVMetric True "UPDATE" UPDATE_ALL res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
 updateKVAndDBResults :: forall be table beM m.
@@ -791,24 +700,26 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
             Left err -> pure $ (KV, Left err)
         else do
           L.logDebugT "findWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-          whereClauseDiffCheck whereClause
           (SQL,) <$> findOneFromDB dbConf whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
       apiTag <- L.getOptionLocal ApiTag
       mid <- L.getOptionLocal MerchantID 
+      diffRes   <- whereClauseDiffCheck whereClause
       let dblog =  DBLogEntry {
           _log_type     = "DB"
         , _action       = "FIND"
-        , _data        = case res of
+        , _operation    = FIND
+        , _data         = case res of
                             Left err -> A.String (T.pack $ show err)
                             Right _  -> A.Null
         , _latency      = t2 - t1
-        , _model        = tableName @(table Identity)
+        , _model        = modelTableName @table
         , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
         , _source       = source
         , _apiTag       = apiTag
         , _merchant_id = mid
+        , _whereDiffCheckRes = diffRes
         }
       L.logInfoV ("DB" :: Text) dblog
       incrementMetric KVAction dblog
@@ -922,24 +833,26 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
             ! #offset mbOffset
             ! defaults)
       L.logDebugT "findAllWithOptionsKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-      whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
   mid <- L.getOptionLocal MerchantID 
+  diffRes   <- whereClauseDiffCheck whereClause
   let dblog = DBLogEntry {
       _log_type     = "DB"
-    , _action       = "FIND_ALL"
-    , _data        = case res of
+    , _action       = "FIND"
+    , _operation    = FIND_ALL_WITH_OPTIONS
+    , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right _ -> A.Null
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if not isDisabled then KV_AND_SQL else SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
+    , _whereDiffCheckRes = diffRes
    }
   L.logInfoV ("DB" :: Text) dblog
   incrementMetric KVAction dblog
@@ -998,24 +911,26 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
         Left err -> return $ Left err  
     else do
       L.logDebugT "findAllWithKVConnector" ("Taking SQLDB Path for " <> tableName @(table Identity))
-      whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
   mid <- L.getOptionLocal MerchantID 
+  diffRes <- whereClauseDiffCheck whereClause 
   let dblog =DBLogEntry {
       _log_type     = "DB"
-    , _action       = "FIND_ALL"
+    , _action       = "FIND"
+    , _operation    = FIND_ALL
     , _data        = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right _  -> A.Null
+                        Right _ -> A.Null
     , _latency      = t2 - t1
-    , _model        = tableName @(table Identity)
+    , _model        = modelTableName @table
     , _cpuLatency   = getLatencyInMicroSeconds (cpuT2 - cpuT1)
     , _source       = if not isDisabled then KV_AND_SQL else SQL
     , _apiTag       = apiTag
     , _merchant_id = mid
+    , _whereDiffCheckRes = diffRes
     }
   L.logInfoV ("DB" :: Text) dblog
   incrementMetric KVAction dblog

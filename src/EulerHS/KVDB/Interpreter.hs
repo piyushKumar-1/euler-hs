@@ -245,6 +245,12 @@ interpretKeyValueTxF (L.XReadGroup groupName consumerName streamsAndIds opt next
     parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
     parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
 
+interpretKeyValueTxF (L.XReadOpts strObjs readOpts next) =
+  fmap next $ R.xreadOpts ((\(a, b) -> (a, makeStreamEntryId b)) <$> strObjs) readOpts
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
+    makeStreamEntryId L.AutoID = "*"
+
 interpretKeyValueTxF (L.XRevRange stream send sstart count next) =
   next . fmap (fmap parseXReadResponseRecord) <$> R.xrevRange stream send sstart count
   where

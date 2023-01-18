@@ -18,7 +18,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..))
-import EulerHS.KVConnector.InMemConfig.Types  (IMCEnabledTables(..),IsIMCEnabled(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Extra.Language (getOrInitSqlConn)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
@@ -328,6 +327,7 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
       let sKey = contructKey
       res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack sKey)
       case res of
+        Right [] -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
         Right r -> pure $ Right r
         Left e -> return $ Left $ MRedisError e
     _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs

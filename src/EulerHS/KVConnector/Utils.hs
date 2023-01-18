@@ -15,11 +15,9 @@ import qualified Data.ByteString.Lazy as BSL
 import           Text.Casing (quietSnake)
 import qualified Data.HashMap.Strict as HM
 import           Data.List (findIndices)
-import           Data.List (findIndices)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified EulerHS.KVConnector.Encoding as Encoding
-import           EulerHS.KVConnector.DBSync (meshModelTableEntityDescriptor, toPSJSON)
 import           EulerHS.KVConnector.Metrics (incrementMetric, KVMetric(..))
 import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(..), MeshConfig, KVConnector(..), PrimaryKey(..), SecondaryKey(..),
                     DBLogEntry(..), Operation(..), Source(..), MerchantID(..))
@@ -39,7 +37,6 @@ import qualified Data.Serialize as Serialize
 import qualified Data.Serialize as Cereal
 import           Data.Either.Extra (mapRight, mapLeft)
 import  EulerHS.KVConnector.Encoding ()
-import           Safe (atMay)
 import           Safe (atMay)
 
 
@@ -462,6 +459,3 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
     }
   L.logInfoV ("DB" :: Text) dblog
   incrementMetric KVAction dblog
-  where
-    getLatencyInMicroSeconds :: Integer -> Integer
-    getLatencyInMicroSeconds execTime = execTime `div` 1000000

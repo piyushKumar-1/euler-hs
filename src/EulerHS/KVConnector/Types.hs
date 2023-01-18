@@ -135,6 +135,9 @@ data Operation
   | FIND
   | FIND_ALL
   | FIND_ALL_WITH_OPTIONS
+  | DELETE_ONE
+  | DELETE_ONE_RETURNING
+  | DELETE_ALL_RETURNING
   deriving (Generic, Show, ToJSON)
 
 data Source = KV | SQL | KV_AND_SQL
@@ -151,7 +154,7 @@ data DBLogEntry a = DBLogEntry
   , _source               :: Source
   , _apiTag               :: Maybe Text
   , _merchant_id          :: Maybe Text
-  , _whereDiffCheckRes :: Maybe [[Text]]
+  , _whereDiffCheckRes    :: Maybe [[Text]]
   }
   deriving stock (Generic)
   -- deriving anyclass (ToJSON)

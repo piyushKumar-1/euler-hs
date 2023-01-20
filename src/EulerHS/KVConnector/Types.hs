@@ -146,7 +146,7 @@ instance (ToJSON a) => ToJSON (DBLogEntry a) where
   toJSON val = A.object [ "log_type" .= _log_type val
                         , "action" .= _action val
                         , "operation" .= _operation val
-                        , "latency" .= _latency val
+                        , "latency" .= (show $ _latency val :: Text)
                         , "model" .= _model val
                         , "cpuLatency" .= _cpuLatency val
                         , "data" .= _data val

@@ -227,11 +227,11 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       -- Discarding object
       (\updRes -> (fst updRes, mapRight (const ()) (snd updRes))) <$> updateKV dbConf meshCfg setClause whereClause True
     else do
-      whereClauseDiffCheck whereClause
       res <- updateOneSqlWoReturning dbConf setClause whereClause
       (SQL,) <$> case res of
         Right val -> return $ Right val
         Left e -> return $ Left $ MDBError e
+  whereClauseDiffCheck whereClause
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
@@ -279,7 +279,6 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
     then do
       updateKV dbConf meshCfg setClause whereClause False
     else do
-      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       (SQL, ) <$> case res of
@@ -290,6 +289,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
           L.logError @Text "updateWithKVConnector" message
           return $ Left $ UnexpectedError message
         Left e -> return $ Left $ MDBError e
+  whereClauseDiffCheck whereClause
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
@@ -351,13 +351,11 @@ updateKV dbConf meshCfg setClause whereClause updateWoReturning = do
         else do
           (SQL,) <$> if updateWoReturning 
             then do
-              whereClauseDiffCheck whereClause
               res <- updateOneSqlWoReturning dbConf setClause whereClause
               case res of
                 Right _ -> pure $ Right Nothing
                 Left e -> return $ Left $ MDBError e
             else do
-              whereClauseDiffCheck whereClause
               let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
               res <- runQuery dbConf updateQuery
               case res of
@@ -594,12 +592,12 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       dbRows <- runQuery dbConf findAllQuery
       updateKVAndDBResults meshCfg whereClause dbRows kvRows updVals False dbConf setClause
     else do
-      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
         Right x -> return $ Right x
         Left e -> return $ Left $ MDBError e
+  whereClauseDiffCheck whereClause
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
@@ -653,12 +651,12 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
       dbRows <- runQuery dbConf findAllQuery
       mapRight (const ()) <$> updateKVAndDBResults meshCfg whereClause dbRows kvRows updVals True dbConf setClause
     else do
-      whereClauseDiffCheck whereClause
       let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
         Right x -> return $ Right x
         Left e -> return $ Left $ MDBError e
+  whereClauseDiffCheck whereClause
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
@@ -720,7 +718,6 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows updVals updat
                 (Left e , _           ) -> return $ Left $ MDBError e
                 (_      , Left e      ) -> return $ Left e
             else do
-              whereClauseDiffCheck whereClause
               let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
               res <- runQuery dbConf updateQuery
               case res of
@@ -843,8 +840,8 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
               pure $ (KV, Right $ findOneMatching whereClause rows)
             Left err -> pure $ (KV, Left err)
         else do
-          whereClauseDiffCheck whereClause
           (SQL,) <$> findOneFromDB dbConf whereClause
+      whereClauseDiffCheck whereClause
       t2        <- getCurrentDateInMillis
       cpuT2     <- L.runIO getCPUTime
       apiTag <- L.getOptionLocal ApiTag
@@ -973,8 +970,8 @@ findAllWithOptionsKVConnector dbConf meshCfg whereClause orderBy mbLimit mbOffse
             ! #limit mbLimit
             ! #offset mbOffset
             ! defaults)
-      whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
+  whereClauseDiffCheck whereClause
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag
@@ -1048,8 +1045,8 @@ findAllWithKVConnector dbConf meshCfg whereClause = do
             Right dbRows -> pure $ Right $ (mergeKVAndDBResults dbRows . findAllMatching whereClause) kvRows
         Left err -> pure $ Left err
     else do
-      whereClauseDiffCheck whereClause
       mapLeft MDBError <$> runQuery dbConf findAllQuery
+  whereClauseDiffCheck whereClause
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   apiTag <- L.getOptionLocal ApiTag

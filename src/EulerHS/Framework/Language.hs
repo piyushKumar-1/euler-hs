@@ -190,6 +190,13 @@ data FlowMethod (next :: Type) where
     => HashMap Text Text
     -> (() -> next)
     -> FlowMethod next
+  
+  ModifyOption
+    :: HasCallStack
+    => Text
+    -> ( a -> a )
+    -> ((Maybe a, Maybe a) -> next)
+    -> FlowMethod next
 
   DelOption
     :: HasCallStack
@@ -408,6 +415,7 @@ instance Functor FlowMethod where
     SetLoggerContext k v cont -> SetLoggerContext k v (f . cont)
     GetLoggerContext k cont -> GetLoggerContext k (f . cont)
     SetLoggerContextMap v cont -> SetLoggerContextMap v (f . cont)
+    ModifyOption k fn cont -> ModifyOption k fn (f . cont)
     DelOption k cont -> DelOption k (f . cont)
     GetOptionLocal k cont -> GetOptionLocal k (f . cont)
     SetOptionLocal k v cont -> SetOptionLocal k v (f . cont)
@@ -577,6 +585,25 @@ class (MonadMask m) => MonadFlow m where
   getLoggerContext :: (HasCallStack) => Text -> m (Maybe Text)
 
   setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> m ()
+
+  -- > Problem Statement :
+  -- > _ <- getOption k 
+  -- > ---- <some calculation> ------- 
+  -- > ----------------------------------------
+  -- > -----<This region is not thread safe>--------
+  -- > ----------------------------------------
+  -- > _ <- setOption k <result of calculations>
+  -- >  
+  -- > Since the above block is not thread safe to modify an option
+  -- > 
+  -- > USE MODIFYOPTION :-)
+  -- > It takes a key and function and applies the function if it finds a val with key
+  -- >
+  -- >
+  -- > Sample usage:
+  -- > (oldCount,modifiedCount) <- modifyOption MyCounter (\x -> x + 1)
+
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v,Maybe v)
 
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
@@ -873,6 +900,9 @@ instance MonadFlow Flow where
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> Flow ()
   setLoggerContextMap v = liftFC $ SetLoggerContextMap v id
+  {-# INLINEABLE modifyOption #-}
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v,Maybe v)
+  modifyOption k fn = liftFC $ ModifyOption  (mkOptionKey @k @v k) fn id
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
@@ -976,6 +1006,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption k = lift . modifyOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getOptionLocal #-}
@@ -1062,6 +1094,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getOptionLocal #-}
@@ -1148,6 +1182,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getOptionLocal #-}
@@ -1232,6 +1268,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getOptionLocal #-}
@@ -1316,6 +1354,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getLoggerContext = lift . getLoggerContext
   {-# INLINEABLE setLoggerContextMap #-}
   setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
   {-# INLINEABLE getOptionLocal #-}

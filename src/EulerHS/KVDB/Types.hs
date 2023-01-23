@@ -119,6 +119,7 @@ data RedisConfig = RedisConfig
     , connectPort           :: Word16
     , connectAuth           :: Maybe Text
     , connectDatabase       :: Integer
+    , connectReadOnly       :: Bool
     , connectMaxConnections :: Int
     , connectMaxIdleTime    :: NominalDiffTime
     , connectTimeout        :: Maybe NominalDiffTime
@@ -130,6 +131,7 @@ defaultKVDBConnConfig = RedisConfig
     , connectPort           = 6379
     , connectAuth           = Nothing
     , connectDatabase       = 0
+    , connectReadOnly       = False
     , connectMaxConnections = 50
     , connectMaxIdleTime    = 30
     , connectTimeout        = Nothing
@@ -141,7 +143,7 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
   { RD.connectHost           = connectHost
   , RD.connectPort           = RD.PortNumber $ toEnum $ fromEnum connectPort
   , RD.connectAuth           = encodeUtf8 <$> connectAuth
-  , RD.connectReadOnly       = False
+  , RD.connectReadOnly       = connectReadOnly
   , RD.connectDatabase       = connectDatabase
   , RD.connectMaxConnections = connectMaxConnections
   , RD.connectMaxIdleTime    = connectMaxIdleTime
@@ -165,7 +167,7 @@ mkRedisConn = \case
 
 -- | Connect with the given config to the database.
 createRedisConn :: RedisConfig -> IO RD.Connection
-createRedisConn = RD.connect . toRedisConnectInfo
+createRedisConn = RD.connect . toRedisConnectInfo 
 
 -- | Connect with the given cluster config to the database.
 createClusterRedisConn :: RedisConfig -> IO RD.Connection

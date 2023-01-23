@@ -90,7 +90,7 @@ whereClauseJsonWithPrimaryKey table whereClause =
 
   where
     modifyKeyValue :: (Text, A.Value) -> A.Value
-    modifyKeyValue (key, value) = A.toJSON $ HM.singleton key ((toPSJSON @be @table) (key, value))
+    modifyKeyValue (key, value) = A.toJSON $ HM.singleton key (snd $ (toPSJSON @be @table) (key, value))
 
 getDeleteQuery :: DBCommandVersion -> Tag -> Double -> DBName -> A.Value -> A.Value
 getDeleteQuery cmdVersion tag timestamp dbName deleteCommand = A.object

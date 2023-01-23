@@ -41,7 +41,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
                                       DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
 import           Sequelize (Model, Set, Where, mkExprWithDefault,  mkMultiExprWithDefault,
-                            modelTableEntity, sqlSelect, sqlUpdate)
+                            modelTableEntity, sqlSelect, sqlUpdate, sqlDelete)
 
 -- TODO: What KVDB should be used
 cacheName :: String
@@ -70,15 +70,36 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
     table Identity ->
     Maybe Text ->
     m (Either DBError (table Identity))
+    
+  deleteAllReturning ::
+    forall (table :: (Type -> Type) -> Type)
+          m.
+    ( HasCallStack,
+      BeamRuntime be beM,
+      BeamRunner beM,
+      B.HasQBuilder be, 
+      Model be table,
+      ToJSON (table Identity),
+      FromJSON (table Identity),
+      Show (table Identity),
+      L.MonadFlow m
+    ) =>
+    DBConfig beM -> 
+    Where be table ->
+    m (Either DBError [table Identity])
+
 
 instance SqlReturning BM.MySQLM BM.MySQL where
   createReturning = createMySQL
+  deleteAllReturning = deleteAllMySQL
 
 instance SqlReturning BP.Pg BP.Postgres where
   createReturning = create
+  deleteAllReturning = deleteAll
 
 instance SqlReturning BS.SqliteM BS.Sqlite where
   createReturning = create
+  deleteAllReturning = deleteAll
 
 
 create ::
@@ -520,10 +541,75 @@ createMultiSql ::
     L.MonadFlow m
   ) =>
   DBConfig beM ->
-  [table Identity] ->
+    [table Identity] ->
   m (Either DBError [table Identity])
 createMultiSql dbConf value = runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
 
+deleteAllSql :: 
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAllSql dbConf value = do
+  res <- runQuery dbConf $ DB.deleteRowsReturningList (sqlDelete ! #where_ value ! defaults)
+  return res
+
+deleteAllSqlMySQL ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAllSqlMySQL dbConf value = do
+  findRes <- findAllSql dbConf value
+  case findRes of
+    Left err  -> return $ Left err
+    Right res -> do
+      delRes  <- runQuery dbConf $ DB.deleteRows $ (sqlDelete ! #where_ value ! defaults)
+      case delRes of
+        Left err -> return $ Left err
+        Right _  -> return $ Right res
+
+deleteAllMySQL ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAllMySQL = deleteAllSqlMySQL
+
+deleteAll ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAll = deleteAllSql
 
 createMultiSqlWoReturning ::
   ( HasCallStack,

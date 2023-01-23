@@ -6,15 +6,15 @@
 module EulerHS.KVConnector.DBSync where
 
 import           EulerHS.Prelude
-import           EulerHS.KVConnector.Types (MeshMeta(..))
+import           EulerHS.KVConnector.Types (KVConnector, MeshMeta(..))
+import           EulerHS.KVConnector.Utils (getPKeyAndValueList, meshModelTableEntityDescriptor, toPSJSON)
 import qualified Data.Aeson as A
 import           Data.Aeson ((.=))
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified Database.Beam as B
 import qualified Database.Beam.Schema.Tables as B
-import           Sequelize (Model, Where, Clause(..), Term(..), Column, fromColumnar', columnize, modelTableName)
+import           Sequelize (Model, Where, Clause(..), Term(..), Column, fromColumnar', columnize)
 import           Text.Casing (pascal)
 
 
@@ -60,6 +60,59 @@ getDbUpdateCommandJson model upd whereClause = A.object
       [ updValToJSON . (toPSJSON @be @table) <$> upd
       , [whereClauseToJson whereClause]
       ]
+  , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
+  ]
+
+getDbUpdateCommandJsonWithPrimaryKey :: forall be table. (KVConnector (table Identity), Model be table, MeshMeta be table, A.ToJSON (table Identity)) => Text -> [(Text, A.Value)] -> table Identity -> Where be table -> A.Value
+getDbUpdateCommandJsonWithPrimaryKey model upd table whereClause = A.object
+  [ "contents" .= A.toJSON
+      [ updValToJSON . (toPSJSON @be @table) <$> upd
+      , [(whereClauseJsonWithPrimaryKey @be) table $ whereClauseToJson whereClause]
+      ]
+  , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
+  ]  
+
+whereClauseJsonWithPrimaryKey :: forall be table. (KVConnector (table Identity), A.ToJSON (table Identity), MeshMeta be table) => table Identity -> A.Value -> A.Value
+whereClauseJsonWithPrimaryKey table whereClause =
+  case whereClause of
+    A.Object o -> 
+      let mbClause = HM.lookup "value1" o
+      in case mbClause of
+          Just clause -> 
+            let pKeyValueList = getPKeyAndValueList table
+                modifiedKeyValueList = modifyKeyValue <$> pKeyValueList
+                andOfKeyValueList = A.toJSON $ HM.singleton ("$and" :: Text) $ A.toJSON modifiedKeyValueList
+                modifiedClause = A.toJSON $ HM.singleton ("$and" :: Text) $ A.toJSON [clause, andOfKeyValueList]
+                modifiedObject = HM.insert ("value1" :: Text) modifiedClause o
+            in A.toJSON modifiedObject
+          Nothing -> error "Invalid whereClause, contains no item value1"
+    _ -> error "Cannot modify whereClause that is not an Object"
+
+  where
+    modifyKeyValue :: (Text, A.Value) -> A.Value
+    modifyKeyValue (key, value) = A.toJSON $ HM.singleton key ((toPSJSON @be @table) (key, value))
+
+getDeleteQuery :: DBCommandVersion -> Tag -> Double -> DBName -> A.Value -> A.Value
+getDeleteQuery cmdVersion tag timestamp dbName deleteCommand = A.object
+  [ "contents" .= A.toJSON
+      [ A.toJSON cmdVersion
+      , A.toJSON tag
+      , A.toJSON timestamp
+      , A.toJSON dbName
+      , deleteCommand
+      ]
+  , "tag" .= ("Delete" :: Text)
+  ]
+
+getDbDeleteCommandJson :: forall be table. (Model be table, MeshMeta be table) => Text -> Where be table -> A.Value
+getDbDeleteCommandJson model whereClause = A.object
+  [ "contents" .= whereClauseToJson whereClause
+  , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
+  ]
+
+getDbDeleteCommandJsonWithPrimaryKey :: forall be table. (KVConnector (table Identity), Model be table, MeshMeta be table, A.ToJSON (table Identity)) => Text -> table Identity -> Where be table -> A.Value
+getDbDeleteCommandJsonWithPrimaryKey model table whereClause = A.object
+  [ "contents" .= ((whereClauseJsonWithPrimaryKey @be) table $ whereClauseToJson whereClause)
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
   ]
 
@@ -134,25 +187,9 @@ encodeTerm key = \case
   where
     modifyToPsFormat val = snd $ (toPSJSON @be @table) (key, A.toJSON val)
 
-toPSJSON :: forall be table. MeshMeta be table => (Text, A.Value) -> (Text, A.Value)
-toPSJSON (k, v) = (k, Map.findWithDefault id k (valueMapper @be @table) v)
-
 array :: Text -> [A.Value] -> A.Value
 array k vs = A.toJSON $ HM.singleton k vs
 
 single :: Text -> A.Value -> A.Value
 single k v = A.toJSON $ HM.singleton k v
 
-meshModelTableEntityDescriptor ::
-  forall table be.
-  (Model be table, MeshMeta be table) =>
-  B.DatabaseEntityDescriptor be (B.TableEntity table)
-meshModelTableEntityDescriptor = let B.DatabaseEntity x = (meshModelTableEntity @table) in x
-
-meshModelTableEntity ::
-  forall table be db.
-  (Model be table, MeshMeta be table) =>
-  B.DatabaseEntity be db (B.TableEntity table)
-meshModelTableEntity =
-  let B.EntityModification modification = B.modifyTableFields (meshModelFieldModification @be @table)
-  in appEndo modification $ B.DatabaseEntity $ B.dbEntityAuto (modelTableName @table)

@@ -3,7 +3,9 @@ module EulerHS.KVConnector.Encoding
   (
     encode,
     decode,
-    eitherDecode
+    eitherDecode,
+    encodeDead,
+    decodeLiveOrDead
   )
  where
 
@@ -32,3 +34,16 @@ decode = hush . eitherDecode
   where
     hush (Right a) = Just a
     hush _ = Nothing
+
+
+-- LIVE/DEAD marker for values
+
+encodeDead :: BSL.ByteString -> BSL.ByteString
+encodeDead val = "DEAD" <> val
+
+decodeLiveOrDead :: BSL.ByteString -> (Bool, BSL.ByteString)
+decodeLiveOrDead val =
+  let (h, v) = BSL.splitAt 4 val
+    in case h of
+      "DEAD" -> (False, v)
+      _      -> (True , val)

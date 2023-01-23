@@ -19,28 +19,6 @@
         "type": "indirect"
       }
     },
-    "beam-mysql": {
-      "inputs": {
-        "beam": [
-          "beam"
-        ],
-        "euler-build": [
-          "euler-build"
-        ]
-      },
-      "locked": {
-        "lastModified": 1661159164,
-        "narHash": "sha256-NpZP+H+Z6C2iJ7vNvIygg73j7A5NfAQVrATaCGndIRw=",
-        "owner": "juspay",
-        "repo": "beam-mysql",
-        "rev": "35bf370801ca931de0cb1e10273c57cf031c72fd",
-        "type": "github"
-      },
-      "original": {
-        "id": "beam-mysql",
-        "type": "indirect"
-      }
-    },
     "euler-build": {
       "inputs": {
         "flake-utils": "flake-utils",
@@ -121,19 +99,16 @@
         "beam": [
           "beam"
         ],
-        "beam-mysql": [
-          "beam-mysql"
-        ],
         "euler-build": [
           "euler-build"
         ]
       },
       "locked": {
-        "lastModified": 1670506545,
-        "narHash": "sha256-aFKMzHShDje3k6ttra71u2BelXinq1WG2yFEMzkXyAI=",
-        "ref": "master",
-        "rev": "654b99d7adb31e52c06cb862f97446b12b2160c2",
-        "revCount": 105,
+        "lastModified": 1674492058,
+        "narHash": "sha256-ZBrY/2hw118YDJPBpI6Umng2dJwfyawAN4SBzMoq4kk=",
+        "ref": "haskell-sequelize-drainer-support",
+        "rev": "cda92c12d0f37548df09db67fe0b19d9f58d0b0d",
+        "revCount": 106,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/haskell-sequelize"
       },
@@ -180,7 +155,6 @@
     "root": {
       "inputs": {
         "beam": "beam",
-        "beam-mysql": "beam-mysql",
         "euler-build": "euler-build",
         "euler-events-hs": "euler-events-hs",
         "euler-haskell-common": "euler-haskell-common",

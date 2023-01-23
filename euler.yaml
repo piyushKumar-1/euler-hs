@@ -12,12 +12,12 @@ dependencies:
   beam:
     branch: master
     revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
-  beam-mysql:
-    branch: master
-    revision: 35bf370801ca931de0cb1e10273c57cf031c72fd
+  # beam-mysql:
+  #   branch: master
+  #   revision: 35bf370801ca931de0cb1e10273c57cf031c72fd
   haskell-sequelize:
-    branch: master
-    revision: 654b99d7adb31e52c06cb862f97446b12b2160c2
+    branch: haskell-sequelize-drainer-support
+    revision: cda92c12d0f37548df09db67fe0b19d9f58d0b0d
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e
@@ -80,7 +80,13 @@ overrides:
     enable-profiling: true
 
   # disable tests
-  beam-mysql: { }
+  beam-mysql:
+    repo: beam-mysql
+    owner: rupakrajak
+    source: github
+    branch: feature/insert-on-conflict
+    commit: b797ebfda21b41091b1ba4cd988f1d49b3d4c7ad
+    sha256: 1vyr4r4cvdn50h0wyas16h3mnlxjg1jsiwk3ym7w78vvij988wz1
   beam: { }
   haskell-sequelize: { }
 

@@ -153,7 +153,7 @@ createKV meshCfg value = do
                   (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                   L.AutoID
                   [("command", BSL.toStrict $ A.encode qCmd)]
-            L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled val)
+            L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode_ meshCfg.cerealEnabled val)
           case kvRes of
             Right _ -> pure $ Right val
             Left err -> pure $ Left (MRedisError err)
@@ -409,7 +409,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                       L.AutoID
                       [("command", BSL.toStrict $ A.encode qCmd)]
-                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode meshCfg.cerealEnabled value)
+                L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encode_ meshCfg.cerealEnabled value)
               case kvdbRes of
                 Right _ -> pure $ Right value
                 Left err -> pure $ Left $ MRedisError err
@@ -911,7 +911,7 @@ deleteObjectRedis meshCfg addPrimaryKeyToWhereClause whereClause obj = do
           (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
           L.AutoID
           [("command", BSL.toStrict $ A.encode qCmd)]
-    L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeDead $ Encoding.encode meshCfg.cerealEnabled obj)
+    L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeDead $ Encoding.encode_ meshCfg.cerealEnabled obj)
   case kvDbRes of
     Left err -> return . Left $ MRedisError err
     Right _  -> return $ Right obj

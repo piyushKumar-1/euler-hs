@@ -41,13 +41,13 @@ import           Safe (atMay)
 
 
 jsonKeyValueUpdates ::
-  forall be table. (Model be table, MeshMeta be table)
+  forall be table. (HasCallStack, Model be table, MeshMeta be table)
   => [Set be table] -> [(Text, A.Value)]
 jsonKeyValueUpdates = fmap jsonSet
 
 jsonSet ::
   forall be table.
-  (Model be table, MeshMeta be table) =>
+  (HasCallStack, Model be table, MeshMeta be table) =>
   Set be table -> (Text, A.Value)
 jsonSet (Set column value) = (key, modifiedValue)
   where
@@ -128,8 +128,6 @@ getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
             Left err -> return $ Left err
         Left e -> return $ Left e
     Right Nothing -> do
-      let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
-      L.logWarningT "getCacheWithHash" traceMsg
       getDataFromPKeysRedis meshCfg pKeys
     Left e -> return $ Left $ MRedisError e
 
@@ -161,7 +159,7 @@ getSecondaryLookupKeys table = do
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
 applyFPair f (x, y) = (f x, f y)
 
-getPKeyAndValueList :: forall table. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
+getPKeyAndValueList :: forall table. (HasCallStack, KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
 getPKeyAndValueList table = do
   let (PKey k) = primaryKey table
       keyValueList = sortBy (compare `on` fst) k

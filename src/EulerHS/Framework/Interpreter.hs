@@ -153,7 +153,7 @@ getHttpLibRequest request = do
       & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
 
   let
-    setTimeout = case getRequestTimeout request of
+    setTimeout = case getRequestTimeout request <|> getFromCustomTimeoutHeader of
       Just x  -> setRequestTimeout x
       Nothing -> setRequestTimeout defaultTimeout
 
@@ -167,6 +167,9 @@ getHttpLibRequest request = do
         { HTTP.method         = requestMethod
         , HTTP.requestHeaders = headers
         }
+  where
+    getFromCustomTimeoutHeader = 
+      (A.decodeStrict' . Encoding.encodeUtf8) =<< (Map.lookup "x-custom-timeout" $ getRequestHeaders request)
 
 -- | Set timeout in microseconds
 setRequestTimeout :: Int -> HTTP.Request -> HTTP.Request

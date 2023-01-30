@@ -23,8 +23,6 @@ import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(
                     DBLogEntry(..), Operation(..), Source(..), MerchantID(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Types (ApiTag(..))
-import           EulerHS.Extra.Language (getOrInitSqlConn)
-import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 -- import           Servant (err500)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..), modelTableName)
 import           System.Random (randomRIO)
@@ -72,19 +70,6 @@ updateModel model updVals = do
       ("Failed to update a model. Expected a JSON object but got '" <>
         (decodeUtf8 . BSL.toStrict . encodePretty $ o) <>
         "'.")
-
-runQuery ::
-  ( HasCallStack,
-    BeamRuntime be beM, BeamRunner beM,
-    L.MonadFlow m
-  ) =>
-  DBConfig beM -> L.SqlDB beM a -> m (Either DBError a)
-runQuery dbConf query = do
-  conn <- getOrInitSqlConn dbConf
-  case conn of
-    Right c -> L.runDB c query
-    Left  e -> return $ Left e
-
 
 getDataFromRedisForPKey ::forall table m. (
     KVConnector (table Identity),

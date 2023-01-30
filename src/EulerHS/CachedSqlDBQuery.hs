@@ -21,6 +21,7 @@ module EulerHS.CachedSqlDBQuery
   , deleteWithReturningPG
   , createMultiSql
   , createMultiSqlWoReturning
+  , runQuery
   , SqlReturning(..)
   )
 where

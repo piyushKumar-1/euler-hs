@@ -238,7 +238,7 @@ withClientTls :: HTTPCert -> HTTPClientSettings
 withClientTls httpCert =
     mempty {httpClientSettingsClientCertificate = Last $ Just $ HTTPCertificate httpCert}
 
--- | Adds a client certificate to do client's TLS authentication
+-- | Adds a client p12 certificate to do client's TLS authentication
 withClientTlsP12 :: P12Cert -> HTTPClientSettings
 withClientTlsP12 p12Cert =
     mempty {httpClientSettingsClientCertificate = Last $ Just $ P12Certificate p12Cert}

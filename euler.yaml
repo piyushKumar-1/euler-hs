@@ -17,7 +17,7 @@ dependencies:
     revision: b4dbc91276f6a8b5356633492f89bdac34ccd9a1
   haskell-sequelize:
     branch: haskell-sequelize-drainer-support
-    revision: cda92c12d0f37548df09db67fe0b19d9f58d0b0d
+    revision: 0b37eba1fc1ce1dfde139e31a01137c06ec0fda2
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e

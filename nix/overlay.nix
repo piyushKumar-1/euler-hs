@@ -23,12 +23,6 @@ let
   };
   cereal-path = cereal-repo;
 
-  beam-mysql-repo = builtins.fetchTarball {
-    url = "https://github.com/rupakrajak/beam-mysql/archive/b797ebfda21b41091b1ba4cd988f1d49b3d4c7ad.tar.gz";
-    sha256 = "1vyr4r4cvdn50h0wyas16h3mnlxjg1jsiwk3ym7w78vvij988wz1";
-  };
-  beam-mysql-path = beam-mysql-repo;
-
 in
 super.eulerBuild.mkEulerHaskellOverlay self super
   (hself: hsuper: {
@@ -99,7 +93,7 @@ super.eulerBuild.mkEulerHaskellOverlay self super
       };
     };
     beam-mysql = self.eulerBuild.fastBuildExternal {
-      drv = super.haskell.lib.unmarkBroken (hself.callCabal2nix "beam-mysql" beam-mysql-path { });
+      drv = super.haskell.lib.unmarkBroken (hsuper.beam-mysql);
     };
     beam = self.eulerBuild.fastBuildExternal {
       drv = super.haskell.lib.unmarkBroken (hsuper.beam);

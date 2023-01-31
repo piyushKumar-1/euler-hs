@@ -6,23 +6,33 @@
     # Laziness of nix allows us to be lazy here and avoid resolving deps
     # The downside is that most of this .follows are redundant
     euler-build.inputs.beam.follows = "beam";
+    euler-build.inputs.beam-mysql.follows = "beam-mysql";
     euler-build.inputs.haskell-sequelize.follows = "haskell-sequelize";
     euler-build.inputs.euler-haskell-common.follows = "euler-haskell-common";
     euler-build.inputs.euler-events-hs.follows = "euler-events-hs";
     beam.inputs.euler-build.follows = "euler-build";
+    beam.inputs.beam-mysql.follows = "beam-mysql";
     beam.inputs.haskell-sequelize.follows = "haskell-sequelize";
     beam.inputs.euler-haskell-common.follows = "euler-haskell-common";
     beam.inputs.euler-events-hs.follows = "euler-events-hs";
+    beam-mysql.inputs.euler-build.follows = "euler-build";
+    beam-mysql.inputs.beam.follows = "beam";
+    beam-mysql.inputs.haskell-sequelize.follows = "haskell-sequelize";
+    beam-mysql.inputs.euler-haskell-common.follows = "euler-haskell-common";
+    beam-mysql.inputs.euler-events-hs.follows = "euler-events-hs";
     haskell-sequelize.inputs.euler-build.follows = "euler-build";
     haskell-sequelize.inputs.beam.follows = "beam";
+    haskell-sequelize.inputs.beam-mysql.follows = "beam-mysql";
     haskell-sequelize.inputs.euler-haskell-common.follows = "euler-haskell-common";
     haskell-sequelize.inputs.euler-events-hs.follows = "euler-events-hs";
     euler-haskell-common.inputs.euler-build.follows = "euler-build";
     euler-haskell-common.inputs.beam.follows = "beam";
+    euler-haskell-common.inputs.beam-mysql.follows = "beam-mysql";
     euler-haskell-common.inputs.haskell-sequelize.follows = "haskell-sequelize";
     euler-haskell-common.inputs.euler-events-hs.follows = "euler-events-hs";
     euler-events-hs.inputs.euler-build.follows = "euler-build";
     euler-events-hs.inputs.beam.follows = "beam";
+    euler-events-hs.inputs.beam-mysql.follows = "beam-mysql";
     euler-events-hs.inputs.haskell-sequelize.follows = "haskell-sequelize";
     euler-events-hs.inputs.euler-haskell-common.follows = "euler-haskell-common";
   };

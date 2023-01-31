@@ -7,15 +7,37 @@
         ]
       },
       "locked": {
-        "lastModified": 1618840279,
-        "narHash": "sha256-Pbn0ZwbZTj9TdjfyjDk5coC9tvV6DgQiN/XR9Jha4aM=",
+        "lastModified": 1627553297,
+        "narHash": "sha256-eBqX9iqHCtMXHsFyHTwTJF4dUbpChzA8WD4ZVxiUazk=",
         "owner": "juspay",
         "repo": "beam",
-        "rev": "372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8",
+        "rev": "25d42fbf398911e76052524442ad4596b92335e1",
         "type": "github"
       },
       "original": {
         "id": "beam",
+        "type": "indirect"
+      }
+    },
+    "beam-mysql": {
+      "inputs": {
+        "beam": [
+          "beam"
+        ],
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1675165348,
+        "narHash": "sha256-sFOtfvAeFwIaMpMK8vD5usE71/jTHwDCdbf++h4jOqQ=",
+        "owner": "juspay",
+        "repo": "beam-mysql",
+        "rev": "b4dbc91276f6a8b5356633492f89bdac34ccd9a1",
+        "type": "github"
+      },
+      "original": {
+        "id": "beam-mysql",
         "type": "indirect"
       }
     },
@@ -46,11 +68,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1650883593,
-        "narHash": "sha256-eZ79EYGtWwSolxTO5A9jzF0ze59db8mpSU8cF02ZqFs=",
+        "lastModified": 1672220383,
+        "narHash": "sha256-njBgJMOhxfoij/48kIFAX35yuTXM60EoDzoENZ7zAks=",
         "ref": "master",
-        "rev": "661920e09652ef1c27e8eb10d2f52c3dc82859c9",
-        "revCount": 174,
+        "rev": "f37fbc836531715a3ba0405d407c638ea8014b8d",
+        "revCount": 183,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/euler-events-hs"
       },
@@ -155,6 +177,7 @@
     "root": {
       "inputs": {
         "beam": "beam",
+        "beam-mysql": "beam-mysql",
         "euler-build": "euler-build",
         "euler-events-hs": "euler-events-hs",
         "euler-haskell-common": "euler-haskell-common",

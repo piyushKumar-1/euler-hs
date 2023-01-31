@@ -17,12 +17,14 @@ module EulerHS.HttpAPI
       -- * X509 utilities
     , makeCertificateStoreFromMemory
       -- * Common types and convenience methods
+    , ClientCert(..)
     , HTTPRequest(..)
     , HTTPRequestMasked
     , HTTPResponse(..)
     , HTTPMethod(..)
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)
+    , P12Cert (..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -44,6 +46,7 @@ module EulerHS.HttpAPI
     , mkHttpApiCallLogEntry
     ) where
 
+import qualified Crypto.Store.PKCS12 as PKCS12
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
@@ -55,7 +58,9 @@ import           Juspay.Extra.Text (formUrlEncode)
 import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.Base64 as B64
 import           Data.Default
+import qualified Data.Either.Extra as Extra
 import qualified Data.Map as Map
 import           Data.Monoid (All (..))
 import           Data.PEM (pemContent, pemParseBS)
@@ -105,7 +110,7 @@ instance Hashable CertificateStore' where
 -- |
 data HTTPClientSettings = HTTPClientSettings
   { httpClientSettingsProxy             :: Last ProxySettings
-  , httpClientSettingsClientCertificate :: Last HTTPCert
+  , httpClientSettingsClientCertificate :: Last ClientCert
   , httpClientSettingsCustomStore       :: CertificateStore'
   , httpClientSettingsCheckLeafV3       :: All
   }
@@ -152,16 +157,27 @@ buildSettings HTTPClientSettings{..} =
       Nothing -> HTTP.noProxy
 
     baseSettings = case getLast httpClientSettingsClientCertificate of
-      Just HTTPCert{..} ->
-        case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
-          Right creds ->
-            let hooks = def { TLS.onCertificateRequest =
-                                \_ -> return $ Just creds
-                            }
-                clientParams = mkClientParams hooks
-            in mkSettings clientParams
-          -- TODO?
-          Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+      Just cert ->
+        case cert of
+          HTTPCertificate HTTPCert{..} ->
+            case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+              Right creds ->
+                let hooks = def { TLS.onCertificateRequest =
+                                    \_ -> return $ Just creds
+                                }
+                    clientParams = mkClientParams hooks
+                in mkSettings clientParams
+              Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+          P12Certificate P12Cert{..} ->
+            case mkP12Cert getPfx getPassPhrase of
+              Right creds ->
+                let hooks = def { TLS.onCertificateRequest =
+                                    \_ -> return $ Just creds
+                             }
+                    clientParams = mkClientParams hooks
+                in mkSettings clientParams
+              Left err -> error $ "cannot load client certificate data: " <> err
+              -- TODO?
       Nothing ->
         let clientParams = mkClientParams def
         in mkSettings clientParams
@@ -187,6 +203,15 @@ buildSettings HTTPClientSettings{..} =
         TLS.mkManagerSettings tlsSettings Nothing
 
     sysStore = memorizedSysStore
+    
+    mkP12Cert pfx passPhrase = do
+      pkcs12Cert <- mapLeftShow $ PKCS12.readP12FileFromMemory $ B64.decodeLenient pfx
+      cert <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Cert
+      let pkcs12Creds = PKCS12.toCredential cert
+      maybeCreds <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Creds
+      maybe (Left "Invalid P12 certificate") (\creds -> Right creds) maybeCreds
+    
+    mapLeftShow = Extra.mapLeft show
 
 {-# NOINLINE memorizedSysStore #-}
 memorizedSysStore :: CertificateStore
@@ -210,7 +235,7 @@ withMbProxy Nothing  = mempty
 -- | Adds a client certificate to do client's TLS authentication
 withClientTls :: HTTPCert -> HTTPClientSettings
 withClientTls httpCert =
-    mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ HTTPCertificate httpCert}
 
 withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
 withMbClientTls (Just cert) = withClientTls cert
@@ -276,6 +301,13 @@ data HTTPResponseMasked
     deriving stock (Show, Eq, Generic)
     deriving anyclass (ToJSON)
 
+data ClientCert
+  = HTTPCertificate HTTPCert
+  | P12Certificate P12Cert
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable ClientCert
+
 data HTTPCert
   = HTTPCert
     { getCert      :: B.ByteString
@@ -291,6 +323,15 @@ data HTTPCert
     deriving stock (Eq, Ord, Generic)
 
 instance Hashable HTTPCert
+
+data P12Cert
+  = P12Cert
+    { getPfx        :: B.ByteString
+    , getPassPhrase :: B.ByteString
+    }
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable P12Cert
 
 data HTTPMethod
   = Get

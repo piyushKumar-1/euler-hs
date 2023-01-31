@@ -12,6 +12,7 @@ module EulerHS.HttpAPI
     , withProxy
     , withMbProxy
     , withClientTls
+    , withClientTlsP12
     , withMbClientTls
     , withCustomCA
       -- * X509 utilities
@@ -236,6 +237,11 @@ withMbProxy Nothing  = mempty
 withClientTls :: HTTPCert -> HTTPClientSettings
 withClientTls httpCert =
     mempty {httpClientSettingsClientCertificate = Last $ Just $ HTTPCertificate httpCert}
+
+-- | Adds a client certificate to do client's TLS authentication
+withClientTlsP12 :: P12Cert -> HTTPClientSettings
+withClientTlsP12 p12Cert =
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ P12Certificate p12Cert}
 
 withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
 withMbClientTls (Just cert) = withClientTls cert

@@ -13,7 +13,6 @@ module EulerHS.Extra.Aeson
   , untaggedOptions
   , aesonOptions
   , aesonOmitNothingOption
-  , aesonOrderCreateOptions
   ) where
 
 import           Data.Aeson (Options (..), SumEncoding (..), Value (..),
@@ -130,7 +129,3 @@ aesonOmitNothingOption = defaultOptions
   { omitNothingFields = True
   }
 
-aesonOrderCreateOptions :: Options
-aesonOrderCreateOptions = defaultOptions
-  { omitNothingFields = True
-  }

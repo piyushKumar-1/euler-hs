@@ -11,13 +11,13 @@ dependencies:
     revision: c6af205a7adb1b7abac18f06830f4ed196bfd6e4
   beam:
     branch: master
-    revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
+    revision: dcfc3d5c93672789a3c40d05c93da3ca1ee71da5
   beam-mysql:
     branch: master
     revision: b4dbc91276f6a8b5356633492f89bdac34ccd9a1
   haskell-sequelize:
-    branch: haskell-sequelize-drainer-support
-    revision: 0b37eba1fc1ce1dfde139e31a01137c06ec0fda2
+    branch: master
+    revision: 136262f6084b234eafc45232c85a6bd8544e15fb
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e

@@ -8,8 +8,7 @@ import qualified Data.Text as Text
 import           Text.Casing (quietSnake)
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.Types hiding(kvRedis)
-import           EulerHS.KVConnector.Encoding (eitherDecode)
-import           EulerHS.KVConnector.Utils (getPKeyWithShard, getSecondaryLookupKeys)
+import           EulerHS.KVConnector.Utils (getPKeyWithShard, getSecondaryLookupKeys, decodeToField)
 import qualified EulerHS.KVConnector.Flow as DB
 import           Database.Beam.MySQL (MySQLM)
 import qualified EulerHS.Types as T
@@ -22,7 +21,7 @@ getValueFromPrimaryKey :: (HasCallStack,FromJSON a, Serialize a) => Text -> L.Fl
 getValueFromPrimaryKey pKey = do
   res <- L.runKVDB kvRedis $ L.get $ encodeUtf8 pKey
   case res of
-    Right (Just val) -> either (error . show) (pure . Just) (eitherDecode $ BSL.fromChunks [val])
+    Right (Just val) -> either (error . show) (pure . listToMaybe) (fst $ decodeToField $ BSL.fromChunks [val])
     Right Nothing -> L.logInfoT "KEY_NOT_FOUND" pKey $> Nothing
     Left err -> error $ show err
 

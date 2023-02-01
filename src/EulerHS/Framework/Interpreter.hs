@@ -357,6 +357,21 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContextMap newMap next) =
     oldMap <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
     writeIORef (R._logContext . R._loggerRuntime $ _coreRuntime) (HM.union newMap oldMap)
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.ModifyOption k fn next) =
+  fmap next $ do 
+    modifyMVar _options modifyAndCallFn
+    where 
+      modifyAndCallFn curOptions = do 
+        let valAny = Map.lookup k curOptions
+        case valAny of
+          Nothing -> pure (curOptions,(Nothing,Nothing))
+          Just val -> do
+            let oldVal = unsafeCoerce val
+                modifiedVal = fn oldVal
+            pure (Map.insert k (unsafeCoerce @_ @Any modifiedVal) curOptions,
+                  (Just oldVal, Just modifiedVal)
+                )
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
   fmap next $ do
     m <- takeMVar _options

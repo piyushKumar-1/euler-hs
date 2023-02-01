@@ -23,8 +23,6 @@ import           EulerHS.KVConnector.Types (MeshMeta(..), MeshResult, MeshError(
                     DBLogEntry(..), Operation(..), Source(..), MerchantID(..))
 import qualified EulerHS.Language as L
 import           EulerHS.Types (ApiTag(..))
-import           EulerHS.Extra.Language (getOrInitSqlConn)
-import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig, DBError)
 -- import           Servant (err500)
 import           Sequelize (fromColumnar', columnize, Model, Where, Clause(..), Term(..), Set(..), modelTableName)
 import           System.Random (randomRIO)
@@ -41,13 +39,13 @@ import           Safe (atMay)
 
 
 jsonKeyValueUpdates ::
-  forall be table. (Model be table, MeshMeta be table)
+  forall be table. (HasCallStack, Model be table, MeshMeta be table)
   => [Set be table] -> [(Text, A.Value)]
 jsonKeyValueUpdates = fmap jsonSet
 
 jsonSet ::
   forall be table.
-  (Model be table, MeshMeta be table) =>
+  (HasCallStack, Model be table, MeshMeta be table) =>
   Set be table -> (Text, A.Value)
 jsonSet (Set column value) = (key, modifiedValue)
   where
@@ -72,19 +70,6 @@ updateModel model updVals = do
       ("Failed to update a model. Expected a JSON object but got '" <>
         (decodeUtf8 . BSL.toStrict . encodePretty $ o) <>
         "'.")
-
-runQuery ::
-  ( HasCallStack,
-    BeamRuntime be beM, BeamRunner beM,
-    L.MonadFlow m
-  ) =>
-  DBConfig beM -> L.SqlDB beM a -> m (Either DBError a)
-runQuery dbConf query = do
-  conn <- getOrInitSqlConn dbConf
-  case conn of
-    Right c -> L.runDB c query
-    Left  e -> return $ Left e
-
 
 getDataFromRedisForPKey ::forall table m. (
     KVConnector (table Identity),
@@ -128,8 +113,6 @@ getDataFromPKeysRedis meshCfg (pKey : pKeys) = do
             Left err -> return $ Left err
         Left e -> return $ Left e
     Right Nothing -> do
-      let traceMsg = "redis_fetch_noexist: Could not find key: " <> show pKey
-      L.logWarningT "getCacheWithHash" traceMsg
       getDataFromPKeysRedis meshCfg pKeys
     Left e -> return $ Left $ MRedisError e
 
@@ -161,7 +144,7 @@ getSecondaryLookupKeys table = do
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
 applyFPair f (x, y) = (f x, f y)
 
-getPKeyAndValueList :: forall table. (KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
+getPKeyAndValueList :: forall table. (HasCallStack, KVConnector (table Identity), A.ToJSON (table Identity)) => table Identity -> [(Text, A.Value)]
 getPKeyAndValueList table = do
   let (PKey k) = primaryKey table
       keyValueList = sortBy (compare `on` fst) k

@@ -130,6 +130,7 @@ redisClusterConfig =
     , connectPort           = devRedisClusterPort
     , connectAuth           = Nothing
     , connectDatabase       = devRedisClusterDatabase
+    , connectReadOnly       = False
     , connectMaxConnections = devRedisClusterMaxConnections
     , connectMaxIdleTime    = fromInteger devRedisClusterMaxIdleTime
     , connectTimeout        = Nothing

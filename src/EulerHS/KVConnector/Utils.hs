@@ -421,6 +421,9 @@ whereClauseDiffCheck whereClause = do
 isRecachingEnabled :: Bool
 isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"
 
+shouldLogFindDBCallLogs :: Bool
+shouldLogFindDBCallLogs = fromMaybe False $ readMaybe =<< lookupEnvT "IS_FIND_DB_LOGS_ENABLED"
+
 logAndIncrementKVMetric :: (L.MonadFlow m, ToJSON a) => Bool -> Text -> Operation -> MeshResult a -> Int -> Text -> Integer -> Source -> Maybe [[Text]] -> m ()
 logAndIncrementKVMetric shouldLogData action operation res latency model cpuLatency source mbDiffCheckRes = do
   apiTag <- L.getOptionLocal ApiTag
@@ -440,5 +443,7 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
     , _merchant_id  = mid
     , _whereDiffCheckRes = mbDiffCheckRes
     }
-  L.logInfoV ("DB" :: Text) dblog
-  incrementMetric KVAction dblog
+  if action == "FIND" then 
+    when shouldLogFindDBCallLogs $ L.logDebugV ("DB" :: Text) dblog 
+    else L.logInfoV ("DB" :: Text) dblog
+  incrementMetric KVAction dblog (isLeft res)

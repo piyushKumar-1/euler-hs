@@ -59,7 +59,6 @@ import           Juspay.Extra.Text (formUrlEncode)
 import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
-import qualified Data.ByteString.Base64 as B64
 import           Data.Default
 import qualified Data.Either.Extra as Extra
 import qualified Data.Map as Map
@@ -204,14 +203,14 @@ buildSettings HTTPClientSettings{..} =
         TLS.mkManagerSettings tlsSettings Nothing
 
     sysStore = memorizedSysStore
-    
+
     mkP12Cert pfx passPhrase = do
-      pkcs12Cert <- mapLeftShow $ PKCS12.readP12FileFromMemory $ B64.decodeLenient pfx
+      pkcs12Cert <- mapLeftShow $ PKCS12.readP12FileFromMemory pfx
       cert <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Cert
       let pkcs12Creds = PKCS12.toCredential cert
       maybeCreds <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Creds
-      maybe (Left "Invalid P12 certificate") (\creds -> Right creds) maybeCreds
-    
+      maybe (Left "Invalid P12 certificate") Right maybeCreds
+
     mapLeftShow = Extra.mapLeft show
 
 {-# NOINLINE memorizedSysStore #-}
@@ -495,7 +494,7 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
     requestBody = request.getRequestBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-    
+
     maskRequestURL = Text.takeWhile (== ('?')) request.getRequestURL
 
     maskedRequestBody =

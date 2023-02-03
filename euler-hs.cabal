@@ -120,6 +120,7 @@ library
     , cereal
     , connection
     , containers
+    , cryptostore
     , ctrie
     , data-default
     , dlist

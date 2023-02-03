@@ -292,7 +292,7 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
           then updateObjectRedis meshCfg updVals False whereClause obj
           else deleteObjectRedis meshCfg False whereClause obj
       _ -> do 
-        L.logDebugT "modifyOneKV" "Found more than one record in redis - Modification failed"
+        L.logErrorT "modifyOneKV" "Found more than one record in redis - Modification failed"
         pure $ Left $ MUpdateFailed "Found more than one record in redis"
     Left err -> pure $ (KV, Left err)
 
@@ -430,7 +430,6 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
           newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeys table)
       let unModifiedSkeys = map (\x -> tName <> "_" <> fst x <> "_" <> snd x) unModifiedSkeysValues
       let modifiedSkeysValuesMap = HM.fromList modifiedSkeysValues
-      L.logDebugT ("modifySKeysRedis " <> tName) (show (map fst modifiedSkeysValues))
       mapRight (const table) <$> runExceptT (do
                                     mapM_ ((ExceptT . resetTTL) . (fromString . T.unpack)) unModifiedSkeys
                                     mapM_ (ExceptT . addNewSkey pKey tName) (foldSkeysFunc modifiedSkeysValuesMap newSkeysValues))
@@ -641,7 +640,6 @@ findWithKVConnector :: forall be table beM m.
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
   let shouldSearchInMemoryCache = meshCfg.memcacheEnabled
-  L.logDebugT "findWithKVConnector: " $ "shouldSearchInMemoryCache: " <> (tname <> ":" <> show shouldSearchInMemoryCache)
   if shouldSearchInMemoryCache
     then do
       inMemResult <- searchInMemoryCache meshCfg dbConf whereClause
@@ -649,11 +647,9 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
     else
       kvFetch
   where
-    tname :: Text = (tableName @(table Identity))
 
     findOneMatchingFromIMC :: [table Identity] -> m (MeshResult (Maybe (table Identity)))
     findOneMatchingFromIMC result = do
-      L.logDebugT "findWithKVConnector" $ tname <> ":" <> "In Mem result : " <> (show result)
       return . Right $ findOneMatching whereClause result
 
     kvFetch :: m (MeshResult (Maybe (table Identity)))

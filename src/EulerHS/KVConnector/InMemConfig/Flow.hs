@@ -24,6 +24,7 @@ import           EulerHS.KVConnector.InMemConfig.Types
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..), MeshError(MDBError))
 import           Unsafe.Coerce (unsafeCoerce)
 import           Data.Either.Extra (mapLeft, mapRight)
+import           EulerHS.CachedSqlDBQuery (runQuery)
 import           EulerHS.Runtime (mkConfigEntry)
 import           EulerHS.KVConnector.Utils
 import           Sequelize (Model, Where, Clause(..), sqlSelect)

@@ -72,7 +72,7 @@ getDbUpdateCommandJsonWithPrimaryKey model upd table whereClause = A.object
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
   ]  
 
-whereClauseJsonWithPrimaryKey :: forall be table. (KVConnector (table Identity), A.ToJSON (table Identity), MeshMeta be table) => table Identity -> A.Value -> A.Value
+whereClauseJsonWithPrimaryKey :: forall be table. (HasCallStack, KVConnector (table Identity), A.ToJSON (table Identity), MeshMeta be table) => table Identity -> A.Value -> A.Value
 whereClauseJsonWithPrimaryKey table whereClause =
   case whereClause of
     A.Object o -> 
@@ -90,7 +90,7 @@ whereClauseJsonWithPrimaryKey table whereClause =
 
   where
     modifyKeyValue :: (Text, A.Value) -> A.Value
-    modifyKeyValue (key, value) = A.toJSON $ HM.singleton key ((toPSJSON @be @table) (key, value))
+    modifyKeyValue (key, value) = A.toJSON $ HM.singleton key (snd $ (toPSJSON @be @table) (key, value))
 
 getDeleteQuery :: DBCommandVersion -> Tag -> Double -> DBName -> A.Value -> A.Value
 getDeleteQuery cmdVersion tag timestamp dbName deleteCommand = A.object
@@ -110,7 +110,7 @@ getDbDeleteCommandJson model whereClause = A.object
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")
   ]
 
-getDbDeleteCommandJsonWithPrimaryKey :: forall be table. (KVConnector (table Identity), Model be table, MeshMeta be table, A.ToJSON (table Identity)) => Text -> table Identity -> Where be table -> A.Value
+getDbDeleteCommandJsonWithPrimaryKey :: forall be table. (HasCallStack, KVConnector (table Identity), Model be table, MeshMeta be table, A.ToJSON (table Identity)) => Text -> table Identity -> Where be table -> A.Value
 getDbDeleteCommandJsonWithPrimaryKey model table whereClause = A.object
   [ "contents" .= ((whereClauseJsonWithPrimaryKey @be) table $ whereClauseToJson whereClause)
   , "tag" .= ((T.pack . pascal . T.unpack) model <> "Options")

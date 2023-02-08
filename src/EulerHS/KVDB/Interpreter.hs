@@ -291,10 +291,9 @@ interpretTransactionF runRedis (L.MultiExec dsl next) =
   fmap next $
     runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
 
-interpretTransactionF runRedis (L.MultiExecWithHash h dsl next) =
+interpretTransactionF runRedis (L.MultiExecWithHash _ dsl next) =
   fmap next $
-    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExecWithHash h $ foldF interpretKeyValueTxF dsl
-
+    runRedis $ fmap (Right . fromRdTxResult) $ R.multiExec $ foldF interpretKeyValueTxF dsl
 
 interpretDbF
   :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))

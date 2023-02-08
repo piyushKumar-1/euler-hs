@@ -669,24 +669,29 @@ findWithKVConnector :: forall be table beM m.
   m (MeshResult (Maybe (table Identity)))
 findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all possible rows and apply where clause on it.
   let shouldSearchInMemoryCache = meshCfg.memcacheEnabled
-  if shouldSearchInMemoryCache
+  t1        <- getCurrentDateInMillis
+  cpuT1     <- L.runIO getCPUTime
+  (source, res) <- if shouldSearchInMemoryCache
     then do
       inMemResult <- searchInMemoryCache meshCfg dbConf whereClause
-      flip (either (return . Left) ) inMemResult findOneMatchingFromIMC
+      (IN_MEM, ) <$> flip (either (return . Left) ) inMemResult findOneMatchingFromIMC
     else
       kvFetch
+  t2        <- getCurrentDateInMillis
+  cpuT2     <- L.runIO getCPUTime
+  diffRes <- whereClauseDiffCheck whereClause
+  logAndIncrementKVMetric False "FIND" FIND res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
+  pure res
   where
 
     findOneMatchingFromIMC :: [table Identity] -> m (MeshResult (Maybe (table Identity)))
     findOneMatchingFromIMC result = do
       return . Right $ findOneMatching whereClause result
 
-    kvFetch :: m (MeshResult (Maybe (table Identity)))
+    kvFetch :: m (MeshResult ((Source, Maybe (table Identity))))
     kvFetch = do
       let isDisabled = meshCfg.kvHardKilled 
-      t1        <- getCurrentDateInMillis
-      cpuT1     <- L.runIO getCPUTime
-      (source, res) <- if not isDisabled
+      if not isDisabled
         then do
           eitherKvRows <- findOneFromRedis meshCfg whereClause
           case eitherKvRows of
@@ -701,11 +706,6 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
             Left err -> pure $ (KV, Left err)
         else do
           (SQL,) <$> findOneFromDB dbConf whereClause
-      t2        <- getCurrentDateInMillis
-      cpuT2     <- L.runIO getCPUTime
-      diffRes <- whereClauseDiffCheck whereClause
-      logAndIncrementKVMetric False "FIND" FIND res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
-      pure res
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.

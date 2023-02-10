@@ -903,7 +903,7 @@ deleteObjectRedis meshCfg addPrimaryKeyToWhereClause whereClause obj = do
                     then getDbDeleteCommandJsonWithPrimaryKey (tableName @(table Identity)) obj whereClause
                     else getDbDeleteCommandJson (tableName @(table Identity)) whereClause
       qCmd      = getDeleteQuery V1 (pKeyText <> shard) time meshCfg.meshDBName deleteCmd
-  kvDbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+  kvDbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
     _ <- L.xaddTx
           (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
           L.AutoID

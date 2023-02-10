@@ -149,7 +149,7 @@ createKV meshCfg value = do
       case foldEither revMappingRes of
         Left err -> pure $ Left $ MRedisError err
         Right _ -> do
-          kvRes <- L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+          kvRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
             _ <- L.xaddTx
                   (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                   L.AutoID
@@ -405,7 +405,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
           skeysUpdationRes <- modifySKeysRedis olderSkeys value
           case skeysUpdationRes of
             Right _ -> do
-              kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExec $ do
+              kvdbRes <- L.runKVDB meshCfg.kvRedis $ L.multiExecWithHash (encodeUtf8 shard) $ do
                 _ <- L.xaddTx
                       (encodeUtf8 (meshCfg.ecRedisDBStream <> shard))
                       L.AutoID

@@ -107,7 +107,7 @@ data KeyValueF f next where
   Del     :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
   Expire  :: KVDBKey -> KVDBDuration -> (f Bool -> next) -> KeyValueF f next
   Incr    :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
-  HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Integer -> next) -> KeyValueF f next
+  HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
@@ -194,7 +194,7 @@ setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued KVDBStatus)
 setexTx key ex value = liftFC $ SetEx key ex value id
 
 -- | Set the value of a hash field. Transaction version.
-hsetTx :: KVDBKey -> KVDBField -> KVDBValue -> KVDBTx (R.Queued Integer)
+hsetTx :: KVDBKey -> KVDBField -> KVDBValue -> KVDBTx (R.Queued Bool)
 hsetTx key field value = liftFC $ HSet key field value id
 
 -- | Get the value of a key. Transaction version.
@@ -264,7 +264,7 @@ incr :: KVDBKey -> KVDB Integer
 incr key = ExceptT $ liftFC $ KV $ Incr key id
 
 -- | Set the value of a hash field
-hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB Integer
+hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB Bool
 hset key field value = ExceptT $ liftFC $ KV $ HSet key field value id
 
 -- | Get the value of a hash field
@@ -321,8 +321,7 @@ sismember key member = ExceptT $ liftFC $ KV $ SMem key member id
 multiExec :: KVDBTx (R.Queued a) -> KVDB (TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
 
--- | Run commands inside a transaction(suited only for cluster redis setup). 
-{-# DEPRECATED multiExecWithHash "use multiExec instead" #-}
+-- | Run commands inside a transaction(suited only for cluster redis setup).
 multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (TxResult a)
 multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
 

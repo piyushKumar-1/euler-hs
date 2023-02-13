@@ -495,7 +495,7 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
-    maskRequestURL = Text.takeWhile (== ('?')) request.getRequestURL
+    maskRequestURL = Text.takeWhile (/= ('?')) request.getRequestURL
 
     maskedRequestBody =
           parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)

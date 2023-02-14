@@ -43,7 +43,7 @@ checkAndStartLooper meshCfg decodeTable = do
             | _hasLooperStarted == Just True ->  pure ()
             | otherwise ->  do
                 streamName <- getRandomStream 
-                L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> ">"
+                when shouldLogFindDBCallLogs $ L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> ">"
                 L.fork $ looperForRedisStream  decodeTable meshCfg.kvRedis streamName
                 L.setOption (LooperStarted (tableName @(table Identity))) True
 
@@ -122,7 +122,7 @@ getRecordsFromStream redisName streamName lastRecordId = do
                     case uncons . reverse . L.response $ rss of
                         Nothing -> return Nothing
                         Just (latestRecord, _) -> do
-                                L.logInfoT "getRecordsFromStream" $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
+                                when shouldLogFindDBCallLogs $ L.logInfoT "getRecordsFromStream" $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
                                 return . Just . bimap (decodeUtf8 . L.recordId) (extractRecordsFromStreamResponse . L.response ) $ (latestRecord, rss)
 
 getDataFromPKeysIMC :: forall table m. (
@@ -175,8 +175,9 @@ searchInMemoryCache meshCfg dbConf whereClause = do
               let
                 validResult = catMaybes $ results <&> getValidResult
                 keysRequiringRedisFetch = catMaybes $ results <&> getKeysRequiringRedisFetch
-              L.logDebugT "searchInMemoryCache: validResult : " $ (show validResult)
-              L.logDebugT "searchInMemoryCache: keysRequiringRedisFetch : " $ (show keysRequiringRedisFetch)
+              when shouldLogFindDBCallLogs $ 
+                (L.logDebugT ("searchInMemoryCache: <" <> tname <> "> validResult : ") $ show validResult)
+                >> (L.logDebugT ("searchInMemoryCache: <" <> tname <> "> keysRequiringRedisFetch : ") $ show keysRequiringRedisFetch)
               if length validResult == 0
                 then kvFetch keysRequiringRedisFetch
                 else if length keysRequiringRedisFetch == 0
@@ -207,12 +208,12 @@ searchInMemoryCache meshCfg dbConf whereClause = do
 
     forkKvFetchAndSave :: [Text] -> Text -> m ()
     forkKvFetchAndSave pKeys lockKey = do
-      L.logDebugT "forkKvFetchAndSave" $ "Starting Timeout for redis-fetch for in-mem-config"
+      when shouldLogFindDBCallLogs $ L.logDebugT "forkKvFetchAndSave" $ "Starting Timeout for redis-fetch for in-mem-config"
       L.fork $ 
         do
           void $ L.runIO $ threadDelayMilisec 5
           void $ L.releaseConfigLock lockKey      -- TODO  Check if release fails
-      L.logDebugT "forkKvFetchAndSave" $ "Initiating updation of key <" <> (show pKeys) <>"> in-mem-config"
+      when shouldLogFindDBCallLogs $ L.logDebugT "forkKvFetchAndSave" $ "Initiating updation of key <" <> (show pKeys) <>"> in-mem-config"
       L.fork $ void $ kvFetch pKeys
 
     kvFetch :: [Text] -> m (MeshResult [table Identity])
@@ -238,7 +239,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
 
     doDbFetchAndUpdateIMC :: m (MeshResult [(table Identity)])
     doDbFetchAndUpdateIMC = do
-      L.logDebugT "searchInMemoryCache" "Fetching from DB and updating IMC"
+      when shouldLogFindDBCallLogs $ L.logDebugT "searchInMemoryCache" "Fetching from DB and updating IMC"
       eDbTups <- dbFetch
       case eDbTups of
         (Left e) -> pure .Left $ e

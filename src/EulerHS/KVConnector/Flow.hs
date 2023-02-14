@@ -688,7 +688,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
     findOneMatchingFromIMC result = do
       return . Right $ findOneMatching whereClause result
 
-    kvFetch :: m (MeshResult ((Source, Maybe (table Identity))))
+    kvFetch :: m ((Source, MeshResult (Maybe (table Identity))))
     kvFetch = do
       let isDisabled = meshCfg.kvHardKilled 
       if not isDisabled

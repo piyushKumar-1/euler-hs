@@ -294,7 +294,7 @@ getConfigEntryNewTtl = do
       jitterInSec = getConfigEntryTtlJitterInSeconds
       baseTtl = getConfigEntryBaseTtlInMinutes
     noise <- L.runIO' "random seconds" $ randomRIO (1, jitterInSec)
-    return $ addLocalTime (secondsToNominalDiffTime $ toPico (getConfigEntryBaseTtlInMinutes * 60 + noise)) currentTime
+    return $ addLocalTime (secondsToNominalDiffTime $ toPico (baseTtl * 60 + noise)) currentTime
 
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000

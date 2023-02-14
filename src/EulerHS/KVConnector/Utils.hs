@@ -409,7 +409,7 @@ whereClauseDiffCheck whereClause = do
   if (not $ null failedKeys)
     then do
       let diffRes = map (map fst) failedKeys
-      L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> (Just diffRes)
+      L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> if null $ concat diffRes then Nothing else Just diffRes
     else pure Nothing
   where
     checkForPrimaryOrSecondary _ [] = True

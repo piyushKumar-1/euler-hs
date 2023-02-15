@@ -20,6 +20,7 @@ module EulerHS.Logger.Types
     , LogCounter
     , LogMaskingConfig (..)
     , MaskKeyType (..)
+    , ExceptionEntry (..)
     -- ** defaults
     , defaultLoggerConfig
     , defaultMessageFormatter
@@ -121,6 +122,12 @@ data PendingMsg = PendingMsg
 
 data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
+
+data ExceptionEntry = ExceptionEntry
+  { exception_type :: Text
+  , exception_sub_type :: Maybe Text
+  , exception_description :: String
+  } deriving (Generic, ToJSON)
 
 defaultMessageFormatter :: MessageFormatter
 defaultMessageFormatter (PendingMsg _ lvl tag msg _ _) =

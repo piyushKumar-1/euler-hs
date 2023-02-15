@@ -21,7 +21,6 @@ module EulerHS.Framework.Language
   , FlowMethod(..)
   , MonadFlow(..)
   , ReaderFlow
-  , AwaitingError(..)
   , HttpManagerNotFound(..)
   -- ** Extra methods
   -- *** Logging
@@ -91,7 +90,7 @@ import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  Microseconds, SafeFlowGUID)
 import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
-                                  HTTPResponse, withClientTls)
+                                  HTTPResponse, withClientTls, HttpManagerNotFound(..), AwaitingError)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
@@ -108,15 +107,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
 import qualified EulerHS.SqlDB.Types as T
 import           Euler.Events.MetricApi.MetricApi
 import qualified Juspay.Extra.Config as Conf
-
-data AwaitingError = AwaitingTimeout | ForkedFlowError Text
-  deriving stock (Show, Eq, Ord, Generic)
-
-newtype HttpManagerNotFound = HttpManagerNotFound Text
- deriving stock (Show)
- deriving (Eq) via Text
-
-instance Exception HttpManagerNotFound
+import EulerHS.KVConnector.Types
 
 -- | Flow language.
 data FlowMethod (next :: Type) where
@@ -1757,6 +1748,8 @@ logException exception =
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecSelError)
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecUpdError)
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
         exceptionLogWithConstructor ex = ExceptionEntry (show $ typeOf ex) (Just . show . toConstr $ ex) (displayException ex)
         exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) Nothing (displayException ex)
 

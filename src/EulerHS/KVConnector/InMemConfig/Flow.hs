@@ -21,7 +21,7 @@ import           Data.Time (LocalTime)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.InMemConfig.Types
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..), MeshError(MDBError))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..), MeshError(MDBError), Source(..))
 import           Unsafe.Coerce (unsafeCoerce)
 import           Data.Either.Extra (mapLeft, mapRight)
 import           EulerHS.CachedSqlDBQuery (runQuery)
@@ -159,7 +159,7 @@ searchInMemoryCache :: forall be beM table m.
   ) =>  MeshConfig -> 
         DBConfig beM ->
         Where be table ->
-        m (MeshResult [table Identity])
+        m (Source, MeshResult [table Identity])
 searchInMemoryCache meshCfg dbConf whereClause = do
   eitherPKeys <- getPrimaryKeys 
   let
@@ -170,7 +170,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
     Right pKeys -> do
         allRowsRes <- mapM (getDataFromPKeysIMC meshCfg) pKeys
         case mapRight concat (foldEither allRowsRes) of
-          (Left e) -> return . Left $ e
+          (Left e) -> return . (IN_MEM,) . Left $ e
           Right results -> do
               let
                 validResult = catMaybes $ results <&> getValidResult
@@ -181,15 +181,15 @@ searchInMemoryCache meshCfg dbConf whereClause = do
               if length validResult == 0
                 then kvFetch keysRequiringRedisFetch
                 else if length keysRequiringRedisFetch == 0
-                  then return . Right $ validResult
+                  then return . (IN_MEM,) . Right $ validResult
                   else do
                     let
                       lockKey :: Text
                       lockKey = T.pack . DL.intercalate "_" $ T.unpack <$> keysRequiringRedisFetch
                     whenM (L.acquireConfigLock lockKey) (forkKvFetchAndSave keysRequiringRedisFetch lockKey)
-                    return . Right $ validResult
+                    return . (IN_MEM,) . Right $ validResult
     
-    Left e -> return . Left $ e
+    Left e -> return . (IN_MEM,) . Left $ e
   where
 
     tname :: Text = (tableName @(table Identity))
@@ -216,26 +216,26 @@ searchInMemoryCache meshCfg dbConf whereClause = do
       when shouldLogFindDBCallLogs $ L.logDebugT "forkKvFetchAndSave" $ "Initiating updation of key <" <> (show pKeys) <>"> in-mem-config"
       L.fork $ void $ kvFetch pKeys
 
-    kvFetch :: [Text] -> m (MeshResult [table Identity])
+    kvFetch :: [Text] -> m (Source, MeshResult [table Identity])
     kvFetch pKeys = 
       if meshCfg.kvHardKilled       
-        then doDbFetchAndUpdateIMC
+        then (SQL,) <$> doDbFetchAndUpdateIMC
         else useKvcAndUpdateIMC pKeys
 
-    useKvcAndUpdateIMC :: [Text] -> m (MeshResult [table Identity])
+    useKvcAndUpdateIMC :: [Text] -> m (Source, MeshResult [table Identity])
     useKvcAndUpdateIMC pKeys = do
       (eTuples :: MeshResult [Maybe (Text, table Identity)]) <- foldEither <$> mapM (getDataFromRedisForPKey meshCfg)  pKeys
       case eTuples of
         Left err -> do
           L.logErrorT "kvFetch: " (show err)
-          return . Left $ err
+          return . (KV,) . Left $ err
         Right mtups -> do
           let tups = catMaybes mtups
           if length tups == 0
-            then doDbFetchAndUpdateIMC
+            then (SQL,) <$> doDbFetchAndUpdateIMC
             else do
               mapM_ (uncurry updateAllKeysInIMC) tups
-              return . Right $ snd <$> tups
+              return . (KV,) . Right $ snd <$> tups
 
     doDbFetchAndUpdateIMC :: m (MeshResult [(table Identity)])
     doDbFetchAndUpdateIMC = do

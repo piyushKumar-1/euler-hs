@@ -1748,8 +1748,8 @@ logException exception =
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecSelError)
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecUpdError)
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
-          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
         exceptionLogWithConstructor ex = ExceptionEntry (show $ typeOf ex) (Just . show . toConstr $ ex) (displayException ex)
         exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) Nothing (displayException ex)
 

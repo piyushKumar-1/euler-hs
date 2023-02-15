@@ -15,7 +15,7 @@ module EulerHS.KVConnector.Types where
 import EulerHS.Prelude
 import qualified Data.Aeson as A
 import           Data.Aeson.Types (Parser)
-import Data.Data (Data)
+import           Data.Data (Data)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import           Data.Time (UTCTime)

@@ -6,6 +6,7 @@ module EulerHS.Framework.Interpreter
   ( -- * Flow Interpreter
     runFlow
   , runFlow'
+  , modify302RedirectionResponse
   ) where
 
 import           Control.Concurrent.MVar (modifyMVar)
@@ -19,7 +20,9 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.DList as DL
 import           Data.Either.Extra (mapLeft)
 import qualified Data.HashMap.Strict as HM
+import           Data.IORef (readIORef, writeIORef)
 import qualified Data.LruCache as LRU
+import qualified Data.Cache.LRU as SimpleLRU
 import qualified Data.Map as Map
 import qualified Data.Pool as DP
 import           Data.Profunctor (dimap)
@@ -47,8 +50,8 @@ import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   getRequestRedirects, getRequestTimeout,
                                   getRequestURL, getResponseBody,
                                   getResponseCode, getResponseHeaders,
-                                  getResponseStatus, maskHTTPRequest,
-                                  maskHTTPResponse, mkHttpApiCallLogEntry)
+                                  getResponseStatus, maskHTTPRequest,maskHTTPResponse,
+                                  mkHttpApiCallLogEntry)
 import           EulerHS.KVDB.Interpreter (runKVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer,
                                      KVDBConfig (KVDBClusterConfig, KVDBConfig),
@@ -61,7 +64,7 @@ import qualified EulerHS.Logger.Language as L
 import qualified EulerHS.Logger.Runtime as R
 import           EulerHS.Logger.Types (LogLevel (Debug, Error),
                                        Message (Message))
-import           EulerHS.Prelude
+import           EulerHS.Prelude hiding (readIORef, writeIORef)
 import           EulerHS.PubSub.Interpreter (runPubSub)
 import           EulerHS.SqlDB.Interpreter (runSqlDB)
 import           EulerHS.SqlDB.Types (ConnTag,
@@ -187,6 +190,22 @@ translateHttpResponse response = do
     , getResponseStatus  = status
     }
 
+modify302RedirectionResponse :: HTTPResponse -> HTTPResponse 
+modify302RedirectionResponse resp = do
+  let contentType = Map.lookup "content-type" (getResponseHeaders resp)
+  case (getResponseCode resp, contentType) of 
+    (302 , Just "text/plain") -> do
+      let lbs = getLBinaryString $ getResponseBody resp
+      case A.decode lbs :: Maybe Text of 
+        Nothing -> resp
+        Just val -> maybe resp (\correctUrl -> resp { getResponseBody =  (LBinaryString . A.encode) correctUrl })  (modifyRedirectingUrl val)
+    (_  , _           )   -> resp
+  
+  where 
+    status = getResponseStatus resp
+    modifyRedirectingUrl = Text.stripPrefix (status <> ". Redirecting to ")
+
+
 translateResponseHeaders
   :: [(CI.CI Strict.ByteString, Strict.ByteString)]
   -> Either Text (Map.Map Text.Text Text.Text)
@@ -275,15 +294,13 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
           logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
-          case translateHttpResponse httpResponse of
+          case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
               logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do
-                let logEntry = mkHttpApiCallLogEntry lat
-                                (maskHTTPRequest getLoggerMaskConfig request)
-                                (maskHTTPResponse getLoggerMaskConfig response)
+                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request) (Just $ maskHTTPResponse getLoggerMaskConfig response)
                 logJson Debug logEntry
               pure $ Right response
   where
@@ -324,6 +341,22 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetOption k v next) =
     let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
     putMVar _options newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContext k v next) =
+  fmap next $ do
+    m <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
+    let newMap = HM.insert k v m
+    writeIORef (R._logContext . R._loggerRuntime $ _coreRuntime) newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetLoggerContext k next) =
+  fmap next $ do
+    m <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
+    pure $ HM.lookup k m
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetLoggerContextMap newMap next) =
+  fmap next $ do
+    oldMap <- readIORef $ R._logContext . R._loggerRuntime $ _coreRuntime
+    writeIORef (R._logContext . R._loggerRuntime $ _coreRuntime) (HM.union newMap oldMap)
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.ModifyOption k fn next) =
   fmap next $ do 
     modifyMVar _options modifyAndCallFn
@@ -345,32 +378,56 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.DelOption k next) =
     let newMap = Map.delete k m
     putMVar _options newMap
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.GetOptionLocal k next) =
+  fmap next $ do
+    m <- readMVar _optionsLocal
+    pure $ do
+      valAny <- Map.lookup k m
+      pure $ unsafeCoerce valAny
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.SetOptionLocal k v next) =
+  fmap next $ do
+    m <- takeMVar _optionsLocal
+    let newMap = Map.insert k (unsafeCoerce @_ @Any v) m
+    putMVar _optionsLocal newMap
+
+interpretFlowMethod _ R.FlowRuntime {..} (L.DelOptionLocal k next) =
+  fmap next $ do
+    m <- takeMVar _optionsLocal
+    let newMap = Map.delete k m
+    putMVar _optionsLocal newMap
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.GetConfig k next) =
   fmap next $ do
-    m <- readMVar _configCache
-    pure $ do
-      Map.lookup k m
+    m <- readIORef _configCache
+    return . snd $ SimpleLRU.lookup k m
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.SetConfig k v next) =
   fmap next $ do
-    m <- takeMVar _configCache
-    let newMap = Map.insert k v m
-    putMVar _configCache newMap
+    atomicModifyIORef' _configCache (modifyConfig k v)
+  where
+    modifyConfig :: Text -> R.ConfigEntry -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, ())
+    modifyConfig key val configLRU = 
+      let m' = SimpleLRU.insert key val configLRU
+      in (m', ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelConfig k next) =
   fmap next $ do
-    m <- takeMVar _configCache
-    let newMap = Map.delete k m
-    putMVar _configCache newMap
+    atomicModifyIORef' _configCache (deleteConfig k)
+  where
+    deleteConfig :: Text -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, ())
+    deleteConfig key configLRU = 
+      let m' = SimpleLRU.delete key configLRU
+      in (fst m', ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.TrySetConfig k v next) =
   fmap next $ do
-    mbM <- tryTakeMVar _configCache
-    case mbM of
-      Nothing -> pure Nothing
-      Just m -> do
-        let newMap = Map.insert k v m
-        Just <$> putMVar _configCache newMap
+    atomicModifyIORef' _configCache (modifyConfig k v)
+  where
+    modifyConfig :: Text -> R.ConfigEntry -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, Maybe ())
+    modifyConfig key val configLRU = 
+      let m' = SimpleLRU.insert key val configLRU
+      in (m', Just ())
 
 interpretFlowMethod _ R.FlowRuntime {..} (L.AcquireConfigLock k next) =
   fmap next $ do
@@ -538,9 +595,10 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
 
       wrapException :: HasCallStack => SomeException -> IO DBError
       wrapException exception = do
+        let exception' = (wrapException' exception)
         runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ Text.pack $ prettyCallStack callStack) Nothing
-        pure (wrapException' exception)
+               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception') <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
+        pure exception'
 
       wrapException' :: SomeException -> DBError
       wrapException' e = fromMaybe (DBError UnrecognizedError $ show e)

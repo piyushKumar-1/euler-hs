@@ -172,6 +172,25 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  SetLoggerContext
+    :: HasCallStack
+     => Text
+    -> Text
+    -> (() -> next)
+    -> FlowMethod next
+  
+  GetLoggerContext
+    :: HasCallStack
+     => Text
+    -> ((Maybe Text) -> next)
+    -> FlowMethod next
+
+  SetLoggerContextMap
+    :: HasCallStack
+    => HashMap Text Text
+    -> (() -> next)
+    -> FlowMethod next
+  
   ModifyOption
     :: HasCallStack
     => Text
@@ -180,6 +199,25 @@ data FlowMethod (next :: Type) where
     -> FlowMethod next
 
   DelOption
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  GetOptionLocal
+    :: HasCallStack
+    => Text
+    -> (Maybe a -> next)
+    -> FlowMethod next
+
+  SetOptionLocal
+    :: HasCallStack
+    => Text
+    -> a
+    -> (() -> next)
+    -> FlowMethod next
+
+  DelOptionLocal
     :: HasCallStack
     => Text
     -> (() -> next)
@@ -374,8 +412,14 @@ instance Functor FlowMethod where
     WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
+    SetLoggerContext k v cont -> SetLoggerContext k v (f . cont)
+    GetLoggerContext k cont -> GetLoggerContext k (f . cont)
+    SetLoggerContextMap v cont -> SetLoggerContextMap v (f . cont)
     ModifyOption k fn cont -> ModifyOption k fn (f . cont)
     DelOption k cont -> DelOption k (f . cont)
+    GetOptionLocal k cont -> GetOptionLocal k (f . cont)
+    SetOptionLocal k v cont -> SetOptionLocal k v (f . cont)
+    DelOptionLocal k cont -> DelOptionLocal k (f . cont)
     GetConfig k cont -> GetConfig k (f . cont)
     SetConfig k v cont -> SetConfig k v (f . cont)
     TrySetConfig k v cont -> TrySetConfig k v (f . cont)
@@ -536,6 +580,12 @@ class (MonadMask m) => MonadFlow m where
   -- >    delOption MerchantIdKey
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
 
+  setLoggerContext :: (HasCallStack) => Text -> Text -> m ()
+
+  getLoggerContext :: (HasCallStack) => Text -> m (Maybe Text)
+
+  setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> m ()
+
   -- > Problem Statement :
   -- > _ <- getOption k 
   -- > ---- <some calculation> ------- 
@@ -557,6 +607,12 @@ class (MonadMask m) => MonadFlow m where
 
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
+
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m (Maybe v)
+
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
+
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
   getConfig :: HasCallStack => Text -> m (Maybe ConfigEntry)
 
@@ -808,6 +864,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+  fork
+    :: HasCallStack
+    => m a -> m ()
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do
@@ -831,12 +891,30 @@ instance MonadFlow Flow where
   {-# INLINEABLE setOption #-}
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext :: (HasCallStack) => Text -> Text -> Flow ()
+  setLoggerContext k v = liftFC $ SetLoggerContext k v id
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext :: (HasCallStack) => Text -> Flow (Maybe Text)
+  getLoggerContext k = liftFC $ GetLoggerContext k id
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> Flow ()
+  setLoggerContextMap v = liftFC $ SetLoggerContextMap v id
   {-# INLINEABLE modifyOption #-}
   modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v,Maybe v)
   modifyOption k fn = liftFC $ ModifyOption  (mkOptionKey @k @v k) fn id
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
+  getOptionLocal k = liftFC $ GetOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
+  setOptionLocal k v = liftFC $ SetOptionLocal (mkOptionKey @k @v k) v id
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
+  delOptionLocal k = liftFC $ DelOptionLocal (mkOptionKey @k @v k) id
   {-# INLINEABLE getConfig #-}
   getConfig :: HasCallStack => Text -> Flow (Maybe ConfigEntry)
   getConfig k = liftFC $ GetConfig k id
@@ -899,6 +977,9 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    forkFlow "test" flow
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -919,10 +1000,22 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE modifyOption #-}
   modifyOption k = lift . modifyOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -971,6 +1064,10 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    env <- ask
+    lift . fork $ runReaderT flow env
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -991,10 +1088,22 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE modifyOption #-}
   modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1043,6 +1152,10 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    s <- get
+    lift . fork $ evalStateT flow s
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1063,10 +1176,22 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE modifyOption #-}
   modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1115,6 +1240,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1135,10 +1262,22 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE modifyOption #-}
   modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1187,6 +1326,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1207,10 +1348,22 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
   {-# INLINEABLE modifyOption #-}
   modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
   {-# INLINEABLE getConfig #-}
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
@@ -1259,6 +1412,9 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
+
 
 
 --
@@ -1456,12 +1612,15 @@ withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
-forkFlow description flow = void $ forkFlow' description $ do
-  eitherResult <- runSafeFlow flow
-  case eitherResult of
-    Left msg -> logError ("forkFlow" :: Text) msg
-    Right _  -> pure ()
+forkFlow :: HasCallStack => Description -> Flow a -> Flow ()
+forkFlow description flow = do
+  flowGUID <- generateGUID
+  void $ forkFlow'' description flowGUID $ do
+    void $ setLoggerContext "flow_guid" flowGUID
+    eitherResult <- runSafeFlow flow
+    case eitherResult of
+      Left msg -> logError ("forkFlow" :: Text) msg
+      Right _  -> pure ()
 
 -- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
 -- to reap results from the flow being forked.
@@ -1474,6 +1633,15 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
+forkFlow'' :: HasCallStack =>
+  Description -> ForkGUID -> Flow a -> Flow (Awaitable (Either Text a))
+forkFlow'' description flowGUID flow = do
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+    liftFC $ Fork description flowGUID flow id
+
 forkFlow' :: HasCallStack =>
   Description -> Flow a -> Flow (Awaitable (Either Text a))
 forkFlow' description flow = do

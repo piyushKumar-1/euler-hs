@@ -199,7 +199,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
               and then update the json so fetched and finally setting it in the imc.
             -}
             if meshCfg.memcacheEnabled
-              then fetchRowFromStorageAndUpdateImc 
+              then fetchRowFromDBAndUpdateImc 
               else return $ Right val
 
         Left e -> return $ Left $ MDBError e
@@ -210,18 +210,20 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   pure res
   
   where
-    fetchRowFromStorageAndUpdateImc :: m (MeshResult ())
-    fetchRowFromStorageAndUpdateImc = 
-      searchInMemoryCache meshCfg dbConf whereClause >>= \case
+    fetchRowFromDBAndUpdateImc :: m (MeshResult ())
+    fetchRowFromDBAndUpdateImc = do
+      let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+      dbRes <- runQuery dbConf findQuery
+      case dbRes of
         Right [x] -> do
-          when meshCfg.memcacheEnabled $ void $ updateObjectInMemConfig meshCfg whereClause (jsonKeyValueUpdates setClause) x
+          when meshCfg.memcacheEnabled $ updateObjectInImcAndPushToConfigStream meshCfg x
           return $ Right ()
         Right [] -> return $ Right ()
         Right xs -> do
           let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> show (tableName @(table Identity))
           L.logError @Text "updateWoReturningWithKVConnector" message
           return $ Left $ UnexpectedError message
-        Left e -> return $ Left e
+        Left e -> return $ Left (MDBError e)
 
 updateWithKVConnector :: forall table m.
   ( HasCallStack,
@@ -526,7 +528,10 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       let updateQuery = DB.updateRowsReturningList $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
-        Right x -> return $ Right x
+        Right x -> do
+          when meshCfg.memcacheEnabled $
+            mapM_ (updateObjectInImcAndPushToConfigStream meshCfg) x
+          return $ Right x
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
@@ -569,7 +574,15 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
       let updateQuery = DB.updateRows $ sqlUpdate ! #set setClause ! #where_ whereClause
       res <- runQuery dbConf updateQuery
       case res of
-        Right _ -> return $ Right ()
+        Right _ -> do
+          let findAllQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+          dbRes <- runQuery dbConf findAllQuery
+          case dbRes of
+            Right dbRows -> do
+              when meshCfg.memcacheEnabled $
+                mapM_ (updateObjectInImcAndPushToConfigStream meshCfg) dbRows
+              return . Right $ ()
+            Left e -> return . Left . MDBError $ e
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime

@@ -21,6 +21,7 @@ module EulerHS.Language
     Y.logErrorV,
     Y.logDebugV,
     Y.logWarningV,
+    Y.logException,
     -- * Calling external services
     Y.callAPI,
     Y.callAPI',

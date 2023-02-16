@@ -84,6 +84,7 @@ import           Network.HTTP.Client.Internal
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
+import           Servant.Client.Core.Request()
 import           Unsafe.Coerce (unsafeCoerce)
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
@@ -251,7 +252,14 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
-              dbgLogger Error $ show @Text err
+              when shouldLogAPI $
+              -- TODO: is Show only option ?
+                case err of
+                  S.FailureResponse _ resp -> dbgLogger Error $ show @Text resp
+                  S.DecodeFailure txt resp -> dbgLogger Error $ (txt <> (" : " :: Text.Text) <> show @Text resp)
+                  S.UnsupportedContentType mediaType resp -> dbgLogger Error $ ((show @Text mediaType) <> (" : " :: Text.Text) <> show @Text resp)
+                  S.InvalidContentTypeHeader resp -> dbgLogger Error $ show @Text resp
+                  S.ConnectionError exception -> dbgLogger Error $ displayException exception
               pure $ Left err
             Right response ->
               pure $ Right response
@@ -291,12 +299,12 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
-          logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+          when shouldLogAPI $ logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
           case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
-              logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+              when shouldLogAPI $ logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do

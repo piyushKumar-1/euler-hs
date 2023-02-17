@@ -98,12 +98,12 @@ instance OptionEntity KVMetricCfg KVMetricHandler
 ---------------------------------------------------------
 
 isKVMetricEnabled :: Bool
-isKVMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "KV_METRIC_ENABLED"
+isKVMetricEnabled = fromMaybe True $ readMaybe =<< Conf.lookupEnvT "KV_METRIC_ENABLED"
 
 ---------------------------------------------------------
 
 incrementMetric :: (HasCallStack, L.MonadFlow m) => KVMetric -> DBLogEntry a -> Bool ->  m ()
-incrementMetric metric dblog isLeftRes = do
+incrementMetric metric dblog isLeftRes = when isKVMetricEnabled $ do
   env <- L.getOption KVMetricCfg
   case env of
     Just val -> incrementKVMetric val metric dblog isLeftRes

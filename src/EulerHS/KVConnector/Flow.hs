@@ -401,7 +401,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
           qCmd      = getUpdateQuery V1 (pKeyText <> shard) time meshCfg.meshDBName updateCmd
       case resultToEither $ A.fromJSON updatedModel of
         Right value -> do
-          let olderSkeys = map (\(SKey s) -> s) (secondaryKeys obj)
+          let olderSkeys = map (\(SKey s) -> s) (secondaryKeysFiltered obj)
           skeysUpdationRes <- modifySKeysRedis olderSkeys value
           case skeysUpdationRes of
             Right _ -> do
@@ -427,7 +427,7 @@ updateObjectRedis meshCfg updVals addPrimaryKeyToWhereClause whereClause obj = d
           updValsMap = HM.fromList (map (\p -> (fst p, True)) updVals)
           (modifiedSkeysValues, unModifiedSkeysValues) = applyFPair (map getSortedKeyAndValue) $
                                                 span (`isKeyModified` updValsMap) olderSkeys
-          newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeys table)
+          newSkeysValues = map (\(SKey s) -> getSortedKeyAndValue s) (secondaryKeysFiltered table)
       let unModifiedSkeys = map (\x -> tName <> "_" <> fst x <> "_" <> snd x) unModifiedSkeysValues
       let modifiedSkeysValuesMap = HM.fromList modifiedSkeysValues
       mapRight (const table) <$> runExceptT (do

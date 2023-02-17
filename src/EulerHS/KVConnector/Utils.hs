@@ -136,10 +136,16 @@ getLookupKeyByPKey table = do
 getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table Identity -> [Text]
 getSecondaryLookupKeys table = do
   let tName = tableName @(table Identity)
-  let skeys = secondaryKeys table
+  let skeys = secondaryKeysFiltered table
   let tupList = map (\(SKey s) -> s) skeys
   let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
   list
+
+secondaryKeysFiltered :: forall table. (KVConnector (table Identity)) => table Identity -> [SecondaryKey]
+secondaryKeysFiltered table = filter filterEmptyValues (secondaryKeys table)
+  where
+    filterEmptyValues :: SecondaryKey -> Bool
+    filterEmptyValues (SKey sKeyPairs) = not $ any (\p -> snd p == "") sKeyPairs
 
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
 applyFPair f (x, y) = (f x, f y)

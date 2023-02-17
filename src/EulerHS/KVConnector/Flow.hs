@@ -268,7 +268,7 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
   kvResult <- findOneFromRedis meshCfg whereClause
   case kvResult of
     Right ([], []) -> do
-      if isRecachingEnabled
+      if isRecachingEnabled && meshCfg.meshEnabled
         then do
           let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
           dbRes <- runQuery dbConf findQuery
@@ -502,7 +502,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
-  let source = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
+  let source = if isDisabled then SQL else if (isRecachingEnabled && meshCfg.meshEnabled) then KV else KV_AND_SQL
   logAndIncrementKVMetric True "UPDATE" UPDATE_ALL_RETURNING res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
@@ -545,7 +545,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
-  let source = if isDisabled then SQL else if isRecachingEnabled then KV else KV_AND_SQL
+  let source = if isDisabled then SQL else if (isRecachingEnabled && meshCfg.meshEnabled) then KV else KV_AND_SQL
   logAndIncrementKVMetric True "UPDATE" UPDATE_ALL res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
 
@@ -572,7 +572,7 @@ updateKVAndDBResults meshCfg whereClause eitherDbRows eitherKvRows mbUpdateVals 
       let kvLiveRows = fst allKVRows
           kvDeadRows = snd allKVRows
           dbRows = removeDeleteResults kvDeadRows allDBRows
-      if isRecachingEnabled
+      if isRecachingEnabled && meshCfg.meshEnabled
         then do
           let kvPkeys = map getLookupKeyByPKey kvLiveRows
               uniqueDbRes = filter (\r -> getLookupKeyByPKey r `notElem` kvPkeys) dbRows

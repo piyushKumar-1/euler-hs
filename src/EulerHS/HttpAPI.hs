@@ -23,7 +23,7 @@ module EulerHS.HttpAPI
     , HTTPRequestMasked
     , HTTPResponse(..)
     , HTTPResponseException(..)
-    , HTTPResponseMasked(..)
+    , HTTPResponseMasked
     , HTTPMethod(..)
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)

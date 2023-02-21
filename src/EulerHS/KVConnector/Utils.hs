@@ -281,11 +281,20 @@ getConfigStreamMaxShards = fromMaybe 20 $ readMaybe =<< lookupEnvT "CONFIG_STREA
 getConfigStreamLooperDelayInSec :: Int
 getConfigStreamLooperDelayInSec = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_LOOPER_DELAY_IN_SEC"
 
+getConfigEntryTtlJitterInSeconds :: Int
+getConfigEntryTtlJitterInSeconds = fromMaybe 900 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_TTL_JITTER_IN_SEC"
+
+getConfigEntryBaseTtlInMinutes :: Int
+getConfigEntryBaseTtlInMinutes = fromMaybe 45 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_BASE_TTL_IN_MINUTES"
+
 getConfigEntryNewTtl :: (L.MonadFlow m) => m LocalTime
 getConfigEntryNewTtl = do
     currentTime <- L.getCurrentTimeUTC
-    noise <- L.runIO' "random seconds" $ randomRIO (1, 900)
-    return $ addLocalTime (secondsToNominalDiffTime $ toPico (45 * 60 + noise)) currentTime
+    let
+      jitterInSec = getConfigEntryTtlJitterInSeconds
+      baseTtl = getConfigEntryBaseTtlInMinutes
+    noise <- L.runIO' "random seconds" $ randomRIO (1, jitterInSec)
+    return $ addLocalTime (secondsToNominalDiffTime $ toPico (baseTtl * 60 + noise)) currentTime
 
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000

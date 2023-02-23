@@ -416,22 +416,27 @@ whereClauseDiffCheck :: forall be table m.
   , KVConnector (table Identity)
   ) =>
   Where be table -> m (Maybe [[Text]])
-whereClauseDiffCheck whereClause = do
-  let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
-      andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
-      keyHashMap = keyMap @(table Identity)
-      failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
-  if (not $ null failedKeys)
-    then do
-      let diffRes = map (map fst) failedKeys
-      L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> if null $ concat diffRes then Nothing else Just diffRes
-    else pure Nothing
+whereClauseDiffCheck whereClause = 
+  if isWhereClauseDiffCheckEnabled then do
+    let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
+        andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
+        keyHashMap = keyMap @(table Identity)
+        failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
+    if (not $ null failedKeys)
+      then do
+        let diffRes = map (map fst) failedKeys
+        L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> if null $ concat diffRes then Nothing else Just diffRes
+      else pure Nothing
+  else pure Nothing
   where
     checkForPrimaryOrSecondary _ [] = True
     checkForPrimaryOrSecondary keyHashMap ((k, _) : xs) =
       case HM.member k keyHashMap of
         True -> False
         _ -> checkForPrimaryOrSecondary keyHashMap xs
+
+isWhereClauseDiffCheckEnabled :: Bool
+isWhereClauseDiffCheckEnabled = fromMaybe True $ readMaybe =<< lookupEnvT "IS_WHERE_CLAUSE_DIFF_CHECK_ENABLED"
 
 isRecachingEnabled :: Bool
 isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"

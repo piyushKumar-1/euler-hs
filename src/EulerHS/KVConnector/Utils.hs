@@ -461,4 +461,5 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
   if action == "FIND" then 
     when shouldLogFindDBCallLogs $ L.logDebugV ("DB" :: Text) dblog 
     else L.logInfoV ("DB" :: Text) dblog
+  when (source == KV) $ L.setLoggerContext "PROCESSED_THROUGH_KV" "True"
   incrementMetric KVAction dblog (isLeft res)

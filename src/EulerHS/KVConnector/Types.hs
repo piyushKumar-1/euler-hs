@@ -141,7 +141,7 @@ data Operation
   deriving (Generic, Show, ToJSON)
 
 data Source = KV | SQL | KV_AND_SQL | IN_MEM
-    deriving (Generic, Show, ToJSON)
+    deriving (Generic, Show, Eq, ToJSON)
 
 data DBLogEntry a = DBLogEntry
   { _log_type             :: Text

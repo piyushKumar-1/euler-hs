@@ -1750,7 +1750,7 @@ logException exception =
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
-        exceptionLogWithConstructor ex = ExceptionEntry ((show $ typeOf ex) <> (show . toConstr $ ex)) (displayException ex)
+        exceptionLogWithConstructor ex = ExceptionEntry ((show $ typeOf ex) <> "_" <> (show . toConstr $ ex)) (displayException ex)
         exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) (displayException ex)
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),

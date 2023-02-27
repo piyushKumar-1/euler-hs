@@ -12,8 +12,8 @@ let
   };
 
   hedis-repo = builtins.fetchTarball {
-    url = "https://github.com/juspay/hedis/archive/f8b11e0512b864f165a4a086713b41a0e3d622ea.tar.gz";
-    sha256 = "0rgv5r22mwf1qpjlms2x9kbaqgmfsly8kp6v1i3m936c1ii39dr5";
+    url = "https://github.com/juspay/hedis/archive/fb7d7d06dc9d9651c5b7840da55e8fddc710876b.tar.gz";
+    sha256 = "1hjw73bq6ar6r0vs4zmjwda1rlidid1kjc5s2c03m617nlddw0pn";
   };
   hedis-path = hedis-repo;
 

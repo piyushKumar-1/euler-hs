@@ -193,11 +193,11 @@ translateHttpResponse response = do
 
 translateResponseFHttpResponse :: S.Response -> Either Text HTTPResponse
 translateResponseFHttpResponse S.Response{..} = do
-  headers <- translateResponseHeaders $ toList $ responseHeaders
-  status <-  translateResponseStatusMessage $ HTTP.statusMessage $ responseStatusCode
+  headers <- translateResponseHeaders $ toList responseHeaders
+  status <-  translateResponseStatusMessage $ HTTP.statusMessage responseStatusCode
   pure $ HTTPResponse
-    { getResponseBody    = LBinaryString $ responseBody
-    , getResponseCode    = HTTP.statusCode $ responseStatusCode 
+    { getResponseBody    = LBinaryString responseBody
+    , getResponseCode    = HTTP.statusCode responseStatusCode 
     , getResponseHeaders = headers
     , getResponseStatus  = status 
     }

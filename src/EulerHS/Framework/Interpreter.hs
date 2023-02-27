@@ -44,7 +44,7 @@ import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   HTTPMethod (Connect, Delete, Get, Head, Options, Patch, Post, Put, Trace),
                                   HTTPRequest(..), HTTPRequestMasked,
-                                  HTTPResponse (HTTPResponse), buildSettings,
+                                  HTTPResponse (HTTPResponse), AwaitingError(..), buildSettings,
                                   defaultTimeout, getRequestBody,
                                   getRequestHeaders, getRequestMethod,
                                   getRequestRedirects, getRequestTimeout,
@@ -108,7 +108,7 @@ disconnect (SQLitePool _ pool)   = DP.destroyAllResources pool
 suppressErrors :: IO a -> IO ()
 suppressErrors = void . try @_ @SomeException
 
-awaitMVarWithTimeout :: MVar (Either Text a) -> Int -> IO (Either L.AwaitingError a)
+awaitMVarWithTimeout :: MVar (Either Text a) -> Int -> IO (Either AwaitingError a)
 awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
                               | otherwise = go mcs
   where
@@ -117,13 +117,13 @@ awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
       | rest <= 0 = do
         mValue <- tryReadMVar mvar
         pure $ case mValue of
-          Nothing          -> Left L.AwaitingTimeout
+          Nothing          -> Left AwaitingTimeout
           Just (Right val) -> Right val
-          Just (Left err)  -> Left $ L.ForkedFlowError err
+          Just (Left err)  -> Left $ ForkedFlowError err
       | otherwise = do
           tryReadMVar mvar >>= \case
             Just (Right val) -> pure $ Right val
-            Just (Left err)  -> pure $ Left $ L.ForkedFlowError err
+            Just (Left err)  -> pure $ Left $ ForkedFlowError err
             Nothing          -> threadDelay portion >> go (rest - portion)
 
 -- | Utility function to convert HttpApi HTTPRequests to http-client HTTP
@@ -463,7 +463,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.Await mbMcs (Awaitable awaitableMVar
         Nothing -> do
           val <- readMVar awaitableMVar
           case val of
-            Left err  -> pure $ Left $ L.ForkedFlowError err
+            Left err  -> pure $ Left $ ForkedFlowError err
             Right res -> pure $ Right res
         Just (Microseconds mcs) -> awaitMVarWithTimeout awaitableMVar $ fromIntegral mcs
   next <$> act

@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE DerivingVia           #-}
 
 module EulerHS.HttpAPI
     (
@@ -26,6 +27,8 @@ module EulerHS.HttpAPI
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)
     , P12Cert (..)
+    , AwaitingError (..)
+    , HttpManagerNotFound(..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -365,6 +368,15 @@ data HttpApiCallLogEntry = HttpApiCallLogEntry
   }
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
+
+data AwaitingError = AwaitingTimeout | ForkedFlowError Text
+  deriving stock (Show, Eq, Ord, Generic)
+
+newtype HttpManagerNotFound = HttpManagerNotFound Text
+ deriving stock (Show)
+ deriving (Eq) via Text
+
+instance Exception HttpManagerNotFound
 
 mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> HttpApiCallLogEntry
 mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry

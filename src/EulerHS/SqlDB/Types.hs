@@ -3,6 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RecordWildCards        #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE DeriveDataTypeable     #-}
 
 module EulerHS.SqlDB.Types
   (
@@ -46,6 +47,7 @@ module EulerHS.SqlDB.Types
   , SQLError(..)
   ) where
 
+import           Data.Data (Data)
 import qualified Data.Pool as DP
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Database.Beam as B
@@ -285,7 +287,7 @@ data SqliteError
   | SqliteErrorWarning
   | SqliteErrorRow
   | SqliteErrorDone
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 toSqliteError :: SQLite.Error -> SqliteError
@@ -327,7 +329,7 @@ data SqliteSqlError
     , sqlErrorDetails :: Text
     , sqlErrorContext :: Text
     }
-    deriving stock (Show, Eq, Ord, Generic)
+    deriving stock (Show, Eq, Ord, Generic, Data)
     deriving anyclass (ToJSON, FromJSON)
 
 toSqliteSqlError :: SQLite.SQLError -> SqliteSqlError
@@ -344,7 +346,7 @@ data SQLError
   = PostgresError PostgresSqlError
   | MysqlError    MysqlSqlError
   | SqliteError   SqliteSqlError
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 data MysqlSqlError =
@@ -352,7 +354,7 @@ data MysqlSqlError =
   { errCode :: {-# UNPACK #-} !Word16,
     errMsg  :: {-# UNPACK #-} !Text
   }
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 toMysqlSqlError :: MySQL.ERR -> MysqlSqlError
@@ -374,7 +376,7 @@ data PostgresExecStatus
   | PostgresNonfatalError
   | PostgresFatalError
   | PostgresSingleTuple
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 toPostgresExecStatus :: PGS.ExecStatus -> PostgresExecStatus
@@ -397,7 +399,7 @@ data PostgresSqlError =
     , sqlErrorDetail :: Text
     , sqlErrorHint   :: Text
     }
-    deriving stock (Show, Eq, Ord, Generic)
+    deriving stock (Show, Eq, Ord, Generic, Data)
     deriving anyclass (ToJSON, FromJSON)
 
 toPostgresSqlError :: PGS.SqlError -> PostgresSqlError
@@ -422,14 +424,14 @@ data DBErrorType
   | SQLError SQLError
   | UnexpectedResult
   | UnrecognizedError
-  deriving stock (Show, Eq, Ord, Generic)
+  deriving stock (Show, Eq, Ord, Generic, Data)
   deriving anyclass (ToJSON, FromJSON)
 
 -- | Represents DB error
 data DBError
   = DBError DBErrorType Text
-  deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving stock (Show, Eq, Ord, Generic, Data)
+  deriving anyclass (ToJSON, FromJSON, Exception)
 
 -- | Represents resulting type for DB actions
 type DBResult a = Either DBError a

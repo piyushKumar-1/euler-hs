@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module EulerHS.KVDB.Types
   (
@@ -30,6 +31,7 @@ module EulerHS.KVDB.Types
   , kvdbToNative
   ) where
 
+import           Data.Data (Data)
 import           Data.Time (NominalDiffTime)
 import qualified Database.Redis as RD
 import           EulerHS.Prelude
@@ -46,7 +48,7 @@ data KVDBError
   = KVDBConnectionAlreadyExists
   | KVDBConnectionDoesNotExist
   | KVDBConnectionFailed
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Data)
 
 data KVDBReplyF bs
   = SingleLine bs
@@ -56,7 +58,7 @@ data KVDBReplyF bs
   | MultiBulk (Maybe [KVDBReplyF bs])
   | ExceptionMessage String
   | KVDBError KVDBError String
-  deriving stock (Eq, Show, Generic, Functor)
+  deriving stock (Eq, Show, Generic, Functor, Data)
 
 type KVDBReply = KVDBReplyF ByteString
 

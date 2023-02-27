@@ -1728,8 +1728,8 @@ deriving instance Data Exception.ArrayException
 deriving instance Data Exception.AsyncException
 
 logException :: (HasCallStack, MonadFlow m) => SomeException -> m ()
-logException exception = 
-  logErrorV ("EXCEPTION" :: Text) exceptionLogEntry
+logException exception =
+  logErrorV ("ERROR_TRACKING" :: Text) exceptionLogEntry
   where exceptionLogEntry = fromMaybe (exceptionLogDefault exception)
           $ exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArithException)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArrayException)

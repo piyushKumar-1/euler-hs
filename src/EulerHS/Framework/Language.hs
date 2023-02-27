@@ -7,10 +7,12 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-signatures -Wno-orphans #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
 
 module EulerHS.Framework.Language
   (
@@ -19,7 +21,6 @@ module EulerHS.Framework.Language
   , FlowMethod(..)
   , MonadFlow(..)
   , ReaderFlow
-  , AwaitingError(..)
   , HttpManagerNotFound(..)
   -- ** Extra methods
   -- *** Logging
@@ -40,6 +41,7 @@ module EulerHS.Framework.Language
   , logDebugV
   , logWarningM
   , logWarningV
+  , logException
   -- *** PublishSubscribe
   , unpackLanguagePubSub
   -- *** Working with external services
@@ -69,13 +71,16 @@ module EulerHS.Framework.Language
 
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
                                       MonadThrow (throwM))
+import qualified Control.Exception as Exception
 import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.Except (withExceptT)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
 import qualified Data.Aeson as A
+import           Data.Data (Data, toConstr)
 import           Data.Maybe (fromJust)
 import qualified Data.Text as Text
+import           Data.Typeable (typeOf)
 import           Network.HTTP.Client (Manager)
 import           Servant.Client (BaseUrl, ClientError (ConnectionError))
 
@@ -85,14 +90,14 @@ import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  Microseconds, SafeFlowGUID)
 import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
-                                  HTTPResponse, withClientTls)
+                                  HTTPResponse, withClientTls, HttpManagerNotFound(..), AwaitingError)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
 import qualified EulerHS.KVDB.Types as T
 import           EulerHS.Logger.Language (Logger, logMessage')
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
-                                       Message (Message))
+                                       Message (Message), ExceptionEntry(..))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import qualified EulerHS.PubSub.Language as PSL
@@ -102,15 +107,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
 import qualified EulerHS.SqlDB.Types as T
 import           Euler.Events.MetricApi.MetricApi
 import qualified Juspay.Extra.Config as Conf
-
-data AwaitingError = AwaitingTimeout | ForkedFlowError Text
-  deriving stock (Show, Eq, Ord, Generic)
-
-newtype HttpManagerNotFound = HttpManagerNotFound Text
- deriving stock (Show)
- deriving (Eq) via Text
-
-instance Exception HttpManagerNotFound
+import EulerHS.KVConnector.Types
 
 -- | Flow language.
 data FlowMethod (next :: Type) where
@@ -1719,6 +1716,36 @@ logWarning = log Warning
 logWarningV :: forall (tag :: Type) (m :: Type -> Type) val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logWarningV = logV Warning
+
+deriving instance Data Exception.ArithException
+deriving instance Data Exception.ArrayException
+deriving instance Data Exception.AsyncException
+
+logException :: (HasCallStack, MonadFlow m) => SomeException -> m ()
+logException exception = 
+  logErrorV ("EXCEPTION" :: Text) exceptionLogEntry
+  where exceptionLogEntry = fromMaybe (exceptionLogDefault exception)
+          $ exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArithException)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArrayException)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.AssertionFailed)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.AsyncException)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NonTermination)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NoMethodError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NestedAtomically)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.TypeError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.BlockedIndefinitelyOnMVar)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.BlockedIndefinitelyOnSTM)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.AllocationLimitExceeded)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.Deadlock)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.PatternMatchFail)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecConError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecSelError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecUpdError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
+        exceptionLogWithConstructor ex = ExceptionEntry (show $ typeOf ex) (Just . show . toConstr $ ex) (displayException ex)
+        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) Nothing (displayException ex)
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.

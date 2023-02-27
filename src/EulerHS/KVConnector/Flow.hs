@@ -317,6 +317,7 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
       [obj] -> mapRight Just <$> if isLive
           then updateObjectRedis meshCfg updVals False whereClause obj
           else deleteObjectRedis meshCfg False whereClause obj
+      [] -> pure $ Right Nothing
       _ -> do 
         L.logErrorT "modifyOneKV" "Found more than one record in redis - Modification failed"
         pure $ Left $ MUpdateFailed "Found more than one record in redis"

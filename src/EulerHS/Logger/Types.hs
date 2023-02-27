@@ -126,6 +126,7 @@ type Log = [LogEntry]
 data ExceptionEntry = ExceptionEntry
   { error_code :: Text
   , error_message :: String
+  , jp_error_code :: Text
   } deriving (Generic, ToJSON)
 
 defaultMessageFormatter :: MessageFormatter

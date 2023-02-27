@@ -1750,8 +1750,8 @@ logException exception =
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
-        exceptionLogWithConstructor ex = ExceptionEntry (show . toConstr $ ex) (displayException ex) (show $ typeOf ex)
-        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) (displayException ex) (show $ typeOf ex)
+        exceptionLogWithConstructor ex = ExceptionEntry (show . toConstr $ ex) (displayException ex) (show $ typeOf ex) "Exception"
+        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) (displayException ex) (show $ typeOf ex) "Exception"
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.

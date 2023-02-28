@@ -1,8 +1,8 @@
 name: euler-hs
 allowed-paths:
-  - src
-  - test
-  - euler-hs.cabal
+- src
+- test
+- euler-hs.cabal
 
 disable-tests: false
 dependencies:
@@ -14,7 +14,7 @@ dependencies:
     revision: dcfc3d5c93672789a3c40d05c93da3ca1ee71da5
   beam-mysql:
     branch: master
-    revision: 35bf370801ca931de0cb1e10273c57cf031c72fd
+    revision: b4dbc91276f6a8b5356633492f89bdac34ccd9a1
   haskell-sequelize:
     branch: master
     revision: 136262f6084b234eafc45232c85a6bd8544e15fb
@@ -29,9 +29,9 @@ overrides:
   hedis:
     owner: juspay
     repo: hedis
-    branch: cluster
-    commit: f8b11e0512b864f165a4a086713b41a0e3d622ea
-    sha256: 0rgv5r22mwf1qpjlms2x9kbaqgmfsly8kp6v1i3m936c1ii39dr5
+    branch: master
+    commit: fb7d7d06dc9d9651c5b7840da55e8fddc710876b
+    sha256: 1hjw73bq6ar6r0vs4zmjwda1rlidid1kjc5s2c03m617nlddw0pn
     source: github
 
   record-dot-preprocessor:
@@ -80,17 +80,15 @@ overrides:
     enable-profiling: true
 
   # disable tests
-  beam-mysql: { }
-  beam: { }
-  haskell-sequelize: { }
-
-
+  beam-mysql: {}
+  beam: {}
+  haskell-sequelize: {}
 build-tools:
-  - redis
+- redis
 
 nix-shell-tools:
-  - redis
-  - haskell-language-server
+- redis
+- haskell-language-server
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883

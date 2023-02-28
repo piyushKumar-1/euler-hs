@@ -17,6 +17,7 @@ module EulerHS.CachedSqlDBQuery
   , findAll
   , findAllSql
   , findAllExtended
+  , deleteSql
   , deleteExtended
   , deleteWithReturningPG
   , createMultiSql
@@ -33,6 +34,7 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
+import qualified Database.Beam.Backend.SQL.BeamExtensions as BExt
 import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
@@ -71,21 +73,21 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
     table Identity ->
     Maybe Text ->
     m (Either DBError (table Identity))
-    
+
   deleteAllReturning ::
     forall (table :: (Type -> Type) -> Type)
           m.
     ( HasCallStack,
       BeamRuntime be beM,
       BeamRunner beM,
-      B.HasQBuilder be, 
+      B.HasQBuilder be,
       Model be table,
       ToJSON (table Identity),
       FromJSON (table Identity),
       Show (table Identity),
       L.MonadFlow m
     ) =>
-    DBConfig beM -> 
+    DBConfig beM ->
     Where be table ->
     m (Either DBError [table Identity])
 
@@ -527,12 +529,48 @@ cacheWithKey key row = do
 
 sqlMultiCreate ::
   forall be table.
-  (B.HasQBuilder be, Model be table) =>
+  (BExt.BeamHasInsertOnConflict be, Model be table) =>
   [table Identity] ->
   B.SqlInsert be table
 sqlMultiCreate value = B.insert modelTableEntity (mkMultiExprWithDefault value)
 
+sqlMultiCreateIgnoringDuplicates ::
+  forall be table.
+  (BExt.BeamHasInsertOnConflict be, Model be table) =>
+  [table Identity] ->
+  B.SqlInsert be table
+sqlMultiCreateIgnoringDuplicates value = BExt.insertOnConflict modelTableEntity (mkMultiExprWithDefault value) BExt.anyConflict BExt.onConflictDoNothing
+
 createMultiSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BExt.BeamHasInsertOnConflict be,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  Bool ->
+  m (Either DBError [table Identity])
+createMultiSql dbConf value ignoreDuplicates = runQuery dbConf $ DB.insertRowsReturningList $ bool sqlMultiCreate sqlMultiCreateIgnoringDuplicates ignoreDuplicates value
+
+createMultiSqlWoReturning ::
+  ( HasCallStack,
+    BExt.BeamHasInsertOnConflict be,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  Bool ->
+  m (Either DBError ())
+createMultiSqlWoReturning dbConf value ignoreDuplicates = runQuery dbConf $ DB.insertRows $ bool sqlMultiCreate sqlMultiCreateIgnoringDuplicates ignoreDuplicates value
+
+deleteSql ::
   forall m be beM table.
   ( HasCallStack,
     BeamRuntime be beM,
@@ -542,11 +580,12 @@ createMultiSql ::
     L.MonadFlow m
   ) =>
   DBConfig beM ->
-    [table Identity] ->
-  m (Either DBError [table Identity])
-createMultiSql dbConf value = runQuery dbConf $ DB.insertRowsReturningList $ sqlMultiCreate value
+  Where be table ->
+  m (Either DBError ())
+deleteSql dbConf value = do
+  runQuery dbConf $ DB.deleteRows $ (sqlDelete ! #where_ value ! defaults)
 
-deleteAllSql :: 
+deleteAllSql ::
   forall m be beM table.
   ( HasCallStack,
     BeamRuntime be beM,
@@ -611,16 +650,3 @@ deleteAll ::
   Where be table ->
   m (Either DBError [table Identity])
 deleteAll = deleteAllSql
-
-createMultiSqlWoReturning ::
-  ( HasCallStack,
-    BeamRuntime be beM,
-    BeamRunner beM,
-    Model be table,
-    B.HasQBuilder be,
-    L.MonadFlow m
-  ) =>
-  DBConfig beM ->
-  [table Identity] ->
-  m (Either DBError ())
-createMultiSqlWoReturning dbConf value = runQuery dbConf $ DB.insertRows $ sqlMultiCreate value

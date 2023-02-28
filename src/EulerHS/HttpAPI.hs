@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE DerivingVia           #-}
 
 module EulerHS.HttpAPI
     (
@@ -22,10 +23,14 @@ module EulerHS.HttpAPI
     , HTTPRequest(..)
     , HTTPRequestMasked
     , HTTPResponse(..)
+    , HTTPResponseException(..)
+    , HTTPResponseMasked
     , HTTPMethod(..)
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)
     , P12Cert (..)
+    , AwaitingError (..)
+    , HttpManagerNotFound(..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -366,6 +371,15 @@ data HttpApiCallLogEntry = HttpApiCallLogEntry
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
 
+data AwaitingError = AwaitingTimeout | ForkedFlowError Text
+  deriving stock (Show, Eq, Ord, Generic)
+
+newtype HttpManagerNotFound = HttpManagerNotFound Text
+ deriving stock (Show)
+ deriving (Eq) via Text
+
+instance Exception HttpManagerNotFound
+
 mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> HttpApiCallLogEntry
 mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
   { url = (\x -> x.getRequestURL) <$> req
@@ -384,6 +398,13 @@ data HTTPIOException
   = HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequestMasked
+    }
+  deriving (Eq, Generic, ToJSON)
+
+data HTTPResponseException
+  = HTTPResponseException
+    { errorMessage :: Text
+    , response      :: HTTPResponseMasked
     }
   deriving (Eq, Generic, ToJSON)
 
@@ -484,7 +505,7 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     , getRequestMethod = request.getRequestMethod
-    , getRequestURL = maskRequestURL
+    , getRequestURL = request.getRequestURL
     , getRequestTimeout = request.getRequestTimeout
     , getRequestRedirects = request.getRequestRedirects
     }
@@ -495,7 +516,6 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
-    maskRequestURL = Text.takeWhile (== ('?')) request.getRequestURL
 
     maskedRequestBody =
           parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)

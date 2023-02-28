@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module EulerHS.KVDB.Types
   (
@@ -30,10 +31,12 @@ module EulerHS.KVDB.Types
   , kvdbToNative
   ) where
 
+import           Data.Data (Data)
 import           Data.Time (NominalDiffTime)
 import qualified Database.Redis as RD
 import           EulerHS.Prelude
 import qualified GHC.Generics as G
+import           Juspay.Extra.Config (lookupEnvT)
 
 type KVDBKey = Text
 
@@ -46,7 +49,7 @@ data KVDBError
   = KVDBConnectionAlreadyExists
   | KVDBConnectionDoesNotExist
   | KVDBConnectionFailed
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Data)
 
 data KVDBReplyF bs
   = SingleLine bs
@@ -56,7 +59,7 @@ data KVDBReplyF bs
   | MultiBulk (Maybe [KVDBReplyF bs])
   | ExceptionMessage String
   | KVDBError KVDBError String
-  deriving stock (Eq, Show, Generic, Functor)
+  deriving stock (Eq, Show, Generic, Functor, Data)
 
 type KVDBReply = KVDBReplyF ByteString
 
@@ -147,9 +150,12 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
   , RD.connectDatabase       = connectDatabase
   , RD.connectMaxConnections = connectMaxConnections
   , RD.connectMaxIdleTime    = connectMaxIdleTime
-  , RD.connectTimeout        = connectTimeout
+  , RD.connectTimeout        = redisConnectTimeout
   , RD.connectTLSParams      = Nothing
   }
+
+redisConnectTimeout :: Maybe NominalDiffTime
+redisConnectTimeout = Just $ realToFrac . fromMaybe (0.5 :: Double) $  readMaybe =<< lookupEnvT "REDIS_CONNECT_TIMEOUT"
 
 -- | Create configuration KVDBConfig for Redis
 mkKVDBConfig :: Text -> RedisConfig -> KVDBConfig

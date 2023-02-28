@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.13.0.1
+version:       2.13.0.2
 synopsis:      The Flow framework for Euler.
 description:
 homepage:      https://bitbucket.org/juspay/euler-hs
@@ -131,7 +131,7 @@ library
     , free
     , generic-deriving
     , generic-lens
-    , hedis                 ^>=0.12.8.1
+    , hedis                 
     , http-api-data
     , http-client
     , http-client-tls

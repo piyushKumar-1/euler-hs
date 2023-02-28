@@ -137,10 +137,16 @@ getLookupKeyByPKey table = do
 getSecondaryLookupKeys :: forall table. (KVConnector (table Identity)) => table Identity -> [Text]
 getSecondaryLookupKeys table = do
   let tName = tableName @(table Identity)
-  let skeys = secondaryKeys table
+  let skeys = secondaryKeysFiltered table
   let tupList = map (\(SKey s) -> s) skeys
   let list = map (\x -> tName <> keyDelim <> getSortedKey x ) tupList
   list
+
+secondaryKeysFiltered :: forall table. (KVConnector (table Identity)) => table Identity -> [SecondaryKey]
+secondaryKeysFiltered table = filter filterEmptyValues (secondaryKeys table)
+  where
+    filterEmptyValues :: SecondaryKey -> Bool
+    filterEmptyValues (SKey sKeyPairs) = not $ any (\p -> snd p == "") sKeyPairs
 
 applyFPair :: (t -> b) -> (t, t) -> (b, b)
 applyFPair f (x, y) = (f x, f y)
@@ -411,22 +417,27 @@ whereClauseDiffCheck :: forall be table m.
   , KVConnector (table Identity)
   ) =>
   Where be table -> m (Maybe [[Text]])
-whereClauseDiffCheck whereClause = do
-  let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
-      andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
-      keyHashMap = keyMap @(table Identity)
-      failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
-  if (not $ null failedKeys)
-    then do
-      let diffRes = map (map fst) failedKeys
-      L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> (Just diffRes)
-    else pure Nothing
+whereClauseDiffCheck whereClause = 
+  if isWhereClauseDiffCheckEnabled then do
+    let keyAndValueCombinations = getFieldsAndValuesFromClause meshModelTableEntityDescriptor (And whereClause)
+        andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
+        keyHashMap = keyMap @(table Identity)
+        failedKeys = catMaybes $ map (atMay keyAndValueCombinations) $ findIndices (checkForPrimaryOrSecondary keyHashMap) andCombinations
+    if (not $ null failedKeys)
+      then do
+        let diffRes = map (map fst) failedKeys
+        L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> if null $ concat diffRes then Nothing else Just diffRes
+      else pure Nothing
+  else pure Nothing
   where
     checkForPrimaryOrSecondary _ [] = True
     checkForPrimaryOrSecondary keyHashMap ((k, _) : xs) =
       case HM.member k keyHashMap of
         True -> False
         _ -> checkForPrimaryOrSecondary keyHashMap xs
+
+isWhereClauseDiffCheckEnabled :: Bool
+isWhereClauseDiffCheckEnabled = fromMaybe True $ readMaybe =<< lookupEnvT "IS_WHERE_CLAUSE_DIFF_CHECK_ENABLED"
 
 isRecachingEnabled :: Bool
 isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_ENABLED"
@@ -456,4 +467,5 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
   if action == "FIND" then 
     when shouldLogFindDBCallLogs $ L.logDebugV ("DB" :: Text) dblog 
     else L.logInfoV ("DB" :: Text) dblog
+  when (source == KV) $ L.setLoggerContext "PROCESSED_THROUGH_KV" "True"
   incrementMetric KVAction dblog (isLeft res)

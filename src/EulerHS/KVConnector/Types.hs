@@ -8,16 +8,18 @@
 {-# OPTIONS_GHC -Wno-star-is-type #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module EulerHS.KVConnector.Types where
 
 import EulerHS.Prelude
 import qualified Data.Aeson as A
 import           Data.Aeson.Types (Parser)
+import           Data.Data (Data)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import           Data.Time (UTCTime)
-import qualified EulerHS.Language as L
+import qualified EulerHS.KVDB.Language as L
 import qualified Database.Beam as B
 import           Database.Beam.MySQL (MySQL)
 import           Database.Beam.Backend (BeamSqlBackend, HasSqlValueSyntax (sqlValueSyntax), autoSqlValueSyntax)
@@ -65,7 +67,7 @@ data MeshError
   | MUpdateFailed Text
   | MMultipleKeysFound Text
   | UnexpectedError Text
-  deriving (Show, Generic)
+  deriving (Show, Generic, Exception, Data)
 
 instance ToJSON MeshError where
   toJSON (MRedisError r) = A.object
@@ -141,7 +143,7 @@ data Operation
   deriving (Generic, Show, ToJSON)
 
 data Source = KV | SQL | KV_AND_SQL | IN_MEM
-    deriving (Generic, Show, ToJSON)
+    deriving (Generic, Show, Eq, ToJSON)
 
 data DBLogEntry a = DBLogEntry
   { _log_type             :: Text

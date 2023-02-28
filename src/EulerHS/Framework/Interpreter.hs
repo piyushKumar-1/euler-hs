@@ -41,10 +41,10 @@ import           EulerHS.Common (Awaitable (Awaitable), FlowGUID,
                                  Microseconds (Microseconds))
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
-import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
+import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),HTTPResponseException(HTTPResponseException),HTTPResponseMasked,
                                   HTTPMethod (Connect, Delete, Get, Head, Options, Patch, Post, Put, Trace),
                                   HTTPRequest(..), HTTPRequestMasked,
-                                  HTTPResponse (HTTPResponse), AwaitingError(..), buildSettings,
+                                  HTTPResponse (..), buildSettings, AwaitingError(..),
                                   defaultTimeout, getRequestBody,
                                   getRequestHeaders, getRequestMethod,
                                   getRequestRedirects, getRequestTimeout,
@@ -84,6 +84,7 @@ import           Network.HTTP.Client.Internal
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
+import           Servant.Client.Core.Request()
 import           Unsafe.Coerce (unsafeCoerce)
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
@@ -190,6 +191,17 @@ translateHttpResponse response = do
     , getResponseStatus  = status
     }
 
+translateResponseFHttpResponse :: S.Response -> Either Text HTTPResponse
+translateResponseFHttpResponse S.Response{..} = do
+  headers <- translateResponseHeaders $ toList responseHeaders
+  status <-  translateResponseStatusMessage $ HTTP.statusMessage responseStatusCode
+  pure $ HTTPResponse
+    { getResponseBody    = LBinaryString responseBody
+    , getResponseCode    = HTTP.statusCode responseStatusCode 
+    , getResponseHeaders = headers
+    , getResponseStatus  = status 
+    }
+
 modify302RedirectionResponse :: HTTPResponse -> HTTPResponse 
 modify302RedirectionResponse resp = do
   let contentType = Map.lookup "content-type" (getResponseHeaders resp)
@@ -251,16 +263,28 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
           case eitherResult of
             Left err -> do
-              dbgLogger Error $ show @Text err
+              when shouldLogAPI $
+                case err of
+                  S.FailureResponse _ resp ->
+                      either (dbgLogger Error) (\x -> logJsonError ("FailureResponse" :: Text) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
+                  S.DecodeFailure txt resp -> 
+                      either (dbgLogger Error) (\x -> logJsonError (("DecodeFailure: " :: Text) <> txt) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
+                  S.UnsupportedContentType mediaType resp -> 
+                      either (dbgLogger Error $) (\x -> logJsonError (("UnsupportedContentType: " :: Text) <> (show @Text mediaType)) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
+                  S.InvalidContentTypeHeader resp -> 
+                      either (dbgLogger Error) (\x -> logJsonError ("InvalidContentTypeHeader" :: Text) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
+                  S.ConnectionError exception -> dbgLogger Error $ displayException exception
               pure $ Left err
             Right response ->
               pure $ Right response
-  where
+  where    
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger debugLevel msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
         . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
         $ Message Nothing (Just $ A.toJSON msg)
+    logJsonError :: Text -> HTTPResponseMasked -> IO ()
+    logJsonError err = dbgLogger Error . HTTPResponseException err
     shouldLogAPI =
       R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
     getLoggerMaskConfig =
@@ -291,12 +315,12 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
-          logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+          when shouldLogAPI $ logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
           case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
-              logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+              when shouldLogAPI $ logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do

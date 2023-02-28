@@ -775,13 +775,7 @@ class (MonadMask m) => MonadFlow m where
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
   throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
-  throwException ex = do
-    -- Doubt: Should we just print the exception details without the
-    -- contextual details that logError prints. As finding the message inside logError is a bit
-    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
-    -- contextual details.
-    logExceptionCallStack ex
-    throwExceptionWithoutCallStack ex
+  throwException = throwM
 
   throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
   throwExceptionWithoutCallStack = throwM

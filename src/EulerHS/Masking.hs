@@ -66,7 +66,11 @@ maskJSON shouldMask maskText mbContentType (Aeson.String r) =
   where
     decodeToObject =
       case Aeson.eitherDecodeStrict $ encodeUtf8 $ r of
-        Right val -> Aeson.Object $ handleObject shouldMask maskText Nothing val
+        Right val ->
+          case val of
+            (Aeson.Object v) -> Aeson.Object $ handleObject shouldMask maskText Nothing v
+            (Aeson.Array _) -> maskJSON shouldMask maskText Nothing val
+            _ -> val
         Left _ -> Aeson.String r
 maskJSON _ _ _ value = value
 

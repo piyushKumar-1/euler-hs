@@ -1728,8 +1728,8 @@ deriving instance Data Exception.ArrayException
 deriving instance Data Exception.AsyncException
 
 logException :: (HasCallStack, MonadFlow m) => SomeException -> m ()
-logException exception = 
-  logErrorV ("EXCEPTION" :: Text) exceptionLogEntry
+logException exception =
+  logErrorV ("ERROR_TRACKING" :: Text) exceptionLogEntry
   where exceptionLogEntry = fromMaybe (exceptionLogDefault exception)
           $ exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArithException)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArrayException)
@@ -1750,8 +1750,8 @@ logException exception =
           <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
           <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
-        exceptionLogWithConstructor ex = ExceptionEntry (show $ typeOf ex) (Just . show . toConstr $ ex) (displayException ex)
-        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) Nothing (displayException ex)
+        exceptionLogWithConstructor ex = ExceptionEntry (show . toConstr $ ex) (displayException ex) (show $ typeOf ex) "Exception"
+        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) (displayException ex) (show $ typeOf ex) "Exception"
 
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.

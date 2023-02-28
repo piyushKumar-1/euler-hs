@@ -124,9 +124,10 @@ data LogEntry = LogEntry !LogLevel !Message
 type Log = [LogEntry]
 
 data ExceptionEntry = ExceptionEntry
-  { exception_type :: Text
-  , exception_sub_type :: Maybe Text
-  , exception_description :: String
+  { error_code    :: Text
+  , error_message :: String
+  , jp_error_code :: Text
+  , source        :: Text
   } deriving (Generic, ToJSON)
 
 defaultMessageFormatter :: MessageFormatter

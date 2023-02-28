@@ -1,12 +1,14 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE  ScopedTypeVariables #-}
 module EulerHS.KVConnector.InMemConfig.Types 
 
     where
 
 import           EulerHS.Prelude hiding (maximum)
-import qualified Data.Aeson as A
+import  Data.Aeson as A
 import           EulerHS.Options (OptionEntity)
 import           EulerHS.KVConnector.Types (MeshError)
 import qualified EulerHS.Types as T
@@ -54,3 +56,14 @@ instance OptionEntity RecordId Text
 
 type LatestRecordId = Text
 type RecordKeyValues = (Text, ByteString)
+
+data ImcStreamCommand = ImcInsert | ImcDelete
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
+
+
+data ImcStreamValue table = 
+  ImcStreamValue {
+    command :: ImcStreamCommand,
+    tableRow :: table 
+}
+  deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)

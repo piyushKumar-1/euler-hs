@@ -75,14 +75,15 @@ getDataFromRedisForPKey ::forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, table Identity))) 
+    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, Bool, table Identity))) 
 getDataFromRedisForPKey meshCfg pKey = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ pKey)
   case res of
     Right (Just r) ->
-      case fst $ decodeToField $ BSL.fromChunks [r] of
-        Right [decodeRes] -> do
-            return . Right . Just $ (pKey, decodeRes)
+      let
+        (decodeResult, isLive) = decodeToField $ BSL.fromChunks [r]
+      in case decodeResult  of
+        Right [decodeRes] -> return . Right . Just $ (pKey, isLive, decodeRes)
         Right _ -> return . Right $ Nothing   -- Something went wrong
         Left e -> return $ Left e
     Right Nothing -> do

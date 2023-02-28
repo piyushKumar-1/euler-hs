@@ -28,9 +28,11 @@ import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.CachedSqlDBQuery (runQuery)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, Source(..), Operation(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDeleteQuery, getDbDeleteCommandJson, getDbUpdateCommandJson, getDbUpdateCommandJsonWithPrimaryKey, getDbDeleteCommandJsonWithPrimaryKey, DBCommandVersion(..))
-import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache)
+import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache, alterObjectInImcAndPushToConfigStream)
+import           EulerHS.KVConnector.InMemConfig.Types (ImcStreamCommand(..))
 import           EulerHS.KVConnector.Utils
 import           EulerHS.KVDB.Types (KVDBReply)
+import           Control.Arrow ((>>>))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
 import           Data.List (span, maximum)
@@ -216,7 +218,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       dbRes <- runQuery dbConf findQuery
       case dbRes of
         Right [x] -> do
-          when meshCfg.memcacheEnabled $ updateObjectInImcAndPushToConfigStream meshCfg x
+          when meshCfg.memcacheEnabled $ alterObjectInImcAndPushToConfigStream meshCfg ImcInsert x
           return $ Right ()
         Right [] -> return $ Right ()
         Right xs -> do
@@ -254,7 +256,7 @@ updateWithKVConnector dbConf meshCfg setClause whereClause = do
       res <- runQuery dbConf updateQuery
       (SQL, ) <$> case res of
         Right [x] -> do
-          when meshCfg.memcacheEnabled $ updateObjectInImcAndPushToConfigStream meshCfg x
+          when meshCfg.memcacheEnabled $ alterObjectInImcAndPushToConfigStream meshCfg ImcInsert x
           return $ Right (Just x)
         Right [] -> return $ Right Nothing
         Right xs -> do
@@ -377,28 +379,9 @@ updateObjectInMemConfig meshCfg _ updVals obj = do
           case A.fromJSON updatedModelJson of
             A.Error decodeErr -> return . Left . MDecodingError . T.pack $ decodeErr
             A.Success (updatedModel' :: table Identity)  -> do
-              updateObjectInImcAndPushToConfigStream meshCfg updatedModel'
+              alterObjectInImcAndPushToConfigStream meshCfg ImcInsert updatedModel'
               pure . Right $ ()
 
-updateObjectInImcAndPushToConfigStream :: forall table m.
-  ( HasCallStack,
-    KVConnector (table Identity),
-    ToJSON (table Identity),
-    L.MonadFlow m
-  ) => MeshConfig -> table Identity -> m ()
-updateObjectInImcAndPushToConfigStream meshCfg updatedModel = do
-  let 
-    pKeyText = getLookupKeyByPKey updatedModel
-    shard = getShardedHashTag pKeyText
-    pKey =  pKeyText <> shard
-    updatedModelT :: Text = decodeUtf8 . A.encode $ updatedModel
-  L.logInfoT "updateObjectInImcAndPushToConfigStream" $ "Found key <" <> pKey <> "> in redis. Now pushing to in-mem-config stream"
-  mapM_ (pushToConfigStream (tableName @(table Identity)) updatedModelT) getConfigStreamNames
-  pure ()
-  where
-    pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> m ()
-    pushToConfigStream k v streamName = 
-      void $ L.runKVDB meshCfg.kvRedis $ L.xadd (encodeUtf8 streamName) L.AutoID [applyFPair encodeUtf8 (k,v)]
 
 
 updateObjectRedis :: forall beM be table m.
@@ -530,7 +513,7 @@ updateAllReturningWithKVConnector dbConf meshCfg setClause whereClause = do
       case res of
         Right x -> do
           when meshCfg.memcacheEnabled $
-            mapM_ (updateObjectInImcAndPushToConfigStream meshCfg) x
+            mapM_ (alterObjectInImcAndPushToConfigStream meshCfg ImcInsert ) x
           return $ Right x
         Left e -> return $ Left $ MDBError e
   t2        <- getCurrentDateInMillis
@@ -580,7 +563,7 @@ updateAllWithKVConnector dbConf meshCfg setClause whereClause = do
           case dbRes of
             Right dbRows -> do
               when meshCfg.memcacheEnabled $
-                mapM_ (updateObjectInImcAndPushToConfigStream meshCfg) dbRows
+                mapM_ (alterObjectInImcAndPushToConfigStream meshCfg ImcInsert) dbRows
               return . Right $ ()
             Left e -> return . Left . MDBError $ e
         Left e -> return $ Left $ MDBError e
@@ -953,7 +936,9 @@ deleteObjectRedis meshCfg addPrimaryKeyToWhereClause whereClause obj = do
     L.setexTx pKey meshCfg.redisTtl (BSL.toStrict $ Encoding.encodeDead $ Encoding.encode_ meshCfg.cerealEnabled obj)
   case kvDbRes of
     Left err -> return . Left $ MRedisError err
-    Right _  -> return $ Right obj
+    Right _  -> do
+      alterObjectInImcAndPushToConfigStream meshCfg ImcDelete obj 
+      return $ Right obj
 
 reCacheDBRows :: forall table m.
   ( HasCallStack,
@@ -1013,7 +998,17 @@ deleteWithKVConnector dbConf meshCfg whereClause = do
       res <- runQuery dbConf deleteQuery
       (SQL,) <$> case res of
         Left err -> return $ Left $ MDBError err
-        Right re -> return $ Right re
+        Right re -> do
+          if meshCfg.memcacheEnabled 
+            then 
+              searchInMemoryCache meshCfg dbConf whereClause >>= (snd >>> \case
+                Left e -> return $ Left e
+                Right rs -> do
+                  mapM_ (alterObjectInImcAndPushToConfigStream meshCfg ImcDelete) rs
+                  return $ Right re)
+            else do
+                return $ Right re
+
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
@@ -1049,8 +1044,12 @@ deleteReturningWithKVConnector dbConf meshCfg whereClause = do
       (SQL,) <$> case res of
         Left err  -> return $ Left $ MDBError err
         Right []  -> return $ Right Nothing
-        Right [r] -> return $ Right (Just r)
-        Right _   -> return $ Left $ MUpdateFailed "SQL delete returned more than one record"
+        Right [r] -> do
+          when meshCfg.memcacheEnabled $ alterObjectInImcAndPushToConfigStream meshCfg ImcDelete r
+          return $ Right (Just r)
+        Right rs   -> do
+          when meshCfg.memcacheEnabled $ mapM_ (alterObjectInImcAndPushToConfigStream meshCfg ImcDelete) rs
+          return $ Left $ MUpdateFailed "SQL delete returned more than one record"
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause
@@ -1087,7 +1086,9 @@ deleteAllReturningWithKVConnector dbConf meshCfg whereClause = do
       res <- deleteAllReturning dbConf whereClause
       case res of
         Left err -> return $ Left $ MDBError err
-        Right re -> return $ Right re
+        Right re -> do
+          when meshCfg.memcacheEnabled $ mapM_ (alterObjectInImcAndPushToConfigStream meshCfg ImcDelete) re
+          return $ Right re
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   diffRes <- whereClauseDiffCheck whereClause

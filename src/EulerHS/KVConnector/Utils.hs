@@ -425,7 +425,9 @@ whereClauseDiffCheck whereClause =
     if (not $ null failedKeys)
       then do
         let diffRes = map (map fst) failedKeys
-        L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> if null $ concat diffRes then Nothing else Just diffRes
+        if null $ concat diffRes
+          then pure Nothing
+          else L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> Just diffRes
       else pure Nothing
   else pure Nothing
   where

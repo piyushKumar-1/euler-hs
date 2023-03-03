@@ -62,7 +62,7 @@ import           EulerHS.KVDB.Types (KVDBAnswer,
 import           EulerHS.Logger.Interpreter (runLogger)
 import qualified EulerHS.Logger.Language as L
 import qualified EulerHS.Logger.Runtime as R
-import           EulerHS.Logger.Types (LogLevel (Debug, Error),
+import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info),
                                        Message (Message))
 import           EulerHS.Prelude hiding (readIORef, writeIORef)
 import           EulerHS.PubSub.Interpreter (runPubSub)

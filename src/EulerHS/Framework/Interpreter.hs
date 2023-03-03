@@ -257,7 +257,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
                             then setRequestTimeout defaultTimeout req
                             else req {HTTP.responseTimeout = mResponseTimeout mngr}
           eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
-                                                                          then dbgLogger Debug
+                                                                          then dbgLogger Info
                                                                           else const $ return ()
                                                                       ) getLoggerMaskConfig bUrl clientAct) $
             S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
@@ -279,9 +279,9 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
               pure $ Right response
   where    
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
-    dbgLogger debugLevel msg =
+    dbgLogger logLevel msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-        . L.logMessage' debugLevel ("CallServantAPI impl" :: String)
+        . L.logMessage' logLevel ("CallServantAPI impl" :: String)
         $ Message Nothing (Just $ A.toJSON msg)
     logJsonError :: Text -> HTTPResponseMasked -> IO ()
     logJsonError err = dbgLogger Error . HTTPResponseException err
@@ -325,7 +325,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
             Right response -> do
               when shouldLogAPI $ do
                 let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request) (Just $ maskHTTPResponse getLoggerMaskConfig response)
-                logJson Debug logEntry
+                logJson Info logEntry
               pure $ Right response
   where
     picoMilliDiff :: Integer
@@ -333,9 +333,9 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
     logJsonError :: Text -> HTTPRequestMasked -> IO ()
     logJsonError err = logJson Error . HTTPIOException err
     logJson :: ToJSON a => LogLevel -> a -> IO ()
-    logJson debugLevel msg =
+    logJson infoLevel msg =
       runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
-        . L.logMessage' debugLevel ("callHTTP" :: String)
+        . L.logMessage' infoLevel ("callHTTP" :: String)
         $ Message Nothing (Just $ A.toJSON msg)
 
     shouldLogAPI =
@@ -621,7 +621,7 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
       wrapException exception = do
         let exception' = (wrapException' exception)
         runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' Debug ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception') <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
+               . L.logMessage' Error ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception') <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
         pure exception'
 
       wrapException' :: SomeException -> DBError

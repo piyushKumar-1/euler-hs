@@ -169,7 +169,7 @@ getHttpLibRequest request = do
         }
   where
     getFromCustomTimeoutHeader = 
-      (A.decodeStrict' . Encoding.encodeUtf8) =<< (Map.lookup "x-custom-timeout" $ getRequestHeaders request)
+      (A.decodeStrict' . Encoding.encodeUtf8) =<< (Map.lookup "x-custom-timeout-millis" $ getRequestHeaders request)
 
 -- | Set timeout in microseconds
 setRequestTimeout :: Int -> HTTP.Request -> HTTP.Request
@@ -237,7 +237,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
               pure $ Right response
   where
     customHeader :: CI.CI ByteString
-    customHeader = CI.mk $ encodeUtf8 @Text "x-custom-timeout"
+    customHeader = CI.mk $ encodeUtf8 @Text "x-custom-timeout-millis"
 
     getResponseTimeout req = do
       let (modHeaders, maybeCustomTimeOut) = foldl (\(arr, m) (headerName, v) -> if customHeader == headerName then (arr, Just (headerName, v)) else ([(headerName, v)] <> arr, m)) ([], Nothing) $ requestHeaders req

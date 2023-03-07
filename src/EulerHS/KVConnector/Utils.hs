@@ -250,19 +250,28 @@ matchWhereClause row = all matchClauseQuery
       let column = fromColumnar' . column' . columnize
         in termQueryMatch (column row) term
 
-termQueryMatch :: (Ord value) => value -> Term be value -> Bool
+termQueryMatch :: (Ord value, ToJSON value) => value -> Term be value -> Bool
 termQueryMatch columnVal = \case
-  In literals             -> elem columnVal literals
+  In literals             -> any (matchWithCaseInsensitive columnVal) literals
   Null                    -> isNothing columnVal
-  Eq literal              -> columnVal == literal
+  Eq literal              -> matchWithCaseInsensitive columnVal literal
   GreaterThan literal     -> columnVal > literal
   GreaterThanOrEq literal -> columnVal >= literal
   LessThan literal        -> columnVal < literal
   LessThanOrEq literal    -> columnVal <= literal
   Not Null                -> isJust Nothing
-  Not (Eq literal)        -> columnVal /= literal
+  Not (Eq literal)        -> not $ matchWithCaseInsensitive columnVal literal
   Not term                -> not (termQueryMatch columnVal term)
   _                       -> error "Term query not supported"
+
+  where
+    matchWithCaseInsensitive c1 c2 =
+      if c1 == c2
+        then True
+        else -- Fallback to case insensitive check (DB supports this)
+          case (toJSON c1, toJSON c2) of
+            (A.String s1, A.String s2) -> T.toLower s1 == T.toLower s2
+            _ -> c1 == c2
 
 toPico :: Int -> Fixed.Pico
 toPico value = Fixed.MkFixed $ ((toInteger value) * 1000000000000)

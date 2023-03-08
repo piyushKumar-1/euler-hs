@@ -28,7 +28,7 @@ import           EulerHS.Prelude hiding (maximum)
 import           EulerHS.CachedSqlDBQuery (runQuery)
 import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, MeshResult, MeshError(..), MeshMeta(..), SecondaryKey(..), tableName, keyMap, Source(..), Operation(..))
 import           EulerHS.KVConnector.DBSync (getCreateQuery, getUpdateQuery, getDeleteQuery, getDbDeleteCommandJson, getDbUpdateCommandJson, getDbUpdateCommandJsonWithPrimaryKey, getDbDeleteCommandJsonWithPrimaryKey, DBCommandVersion(..))
-import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache, alterObjectInImcAndPushToConfigStream)
+import           EulerHS.KVConnector.InMemConfig.Flow (searchInMemoryCache, alterObjectInImcAndPushToConfigStream, fetchRowFromDBAndAlterImc)
 import           EulerHS.KVConnector.InMemConfig.Types (ImcStreamCommand(..))
 import           EulerHS.KVConnector.Utils
 import           EulerHS.KVDB.Types (KVDBReply)
@@ -201,7 +201,7 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
               and then update the json so fetched and finally setting it in the imc.
             -}
             if meshCfg.memcacheEnabled
-              then fetchRowFromDBAndUpdateImc 
+              then fetchRowFromDBAndAlterImc dbConf meshCfg whereClause ImcInsert
               else return $ Right val
 
         Left e -> return $ Left $ MDBError e
@@ -211,21 +211,6 @@ updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
   logAndIncrementKVMetric True "UPDATE" UPDATE res (t2 - t1) (modelTableName @table) (cpuT2 - cpuT1) source diffRes
   pure res
   
-  where
-    fetchRowFromDBAndUpdateImc :: m (MeshResult ())
-    fetchRowFromDBAndUpdateImc = do
-      let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
-      dbRes <- runQuery dbConf findQuery
-      case dbRes of
-        Right [x] -> do
-          when meshCfg.memcacheEnabled $ alterObjectInImcAndPushToConfigStream meshCfg ImcInsert x
-          return $ Right ()
-        Right [] -> return $ Right ()
-        Right xs -> do
-          let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> show (tableName @(table Identity))
-          L.logError @Text "updateWoReturningWithKVConnector" message
-          return $ Left $ UnexpectedError message
-        Left e -> return $ Left (MDBError e)
 
 updateWithKVConnector :: forall table m.
   ( HasCallStack,
@@ -311,7 +296,15 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
             Right [] -> pure $ Right Nothing
             Right _  -> pure $ Left $ MUpdateFailed "Found more than one record in DB"
             Left err -> pure $ Left (MDBError err)
-        else (SQL,) <$> runUpdateOrDelete setClause
+        else (SQL,) <$> (do
+          runUpdateOrDelete setClause >>= \case
+            Left e -> return $ Left e
+            Right mbRow -> if meshCfg.memcacheEnabled
+                then
+                  alterImc mbRow <&> ($> mbRow)
+                else
+                  return . Right $ mbRow
+          )
     Right ([], _) -> do
       L.logDebugT "modifyOneKV" ("Modifying nothing - Row is deleted already for " <> tableName @(table Identity))
       pure $ (KV, Right Nothing)
@@ -326,6 +319,17 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
     Left err -> pure $ (KV, Left err)
 
     where
+      alterImc :: Maybe (table Identity) -> m (MeshResult ())
+      alterImc mbRow = do
+        case (isLive, mbRow) of
+          (True, Nothing) -> fetchRowFromDBAndAlterImc dbConf meshCfg whereClause ImcInsert
+          (True, Just x) -> Right <$> alterObjectInImcAndPushToConfigStream meshCfg ImcInsert x
+          (False, Nothing) -> 
+              searchInMemoryCache meshCfg dbConf whereClause >>= (snd >>> \case
+                Left e -> return $ Left e
+                Right rs -> Right <$> mapM_ (alterObjectInImcAndPushToConfigStream meshCfg ImcDelete) rs)
+          (False, Just x) -> Right <$> alterObjectInImcAndPushToConfigStream meshCfg ImcDelete x
+
       runUpdateOrDelete setClause = do
         case (isLive, updateWoReturning) of
           (True, True) -> do

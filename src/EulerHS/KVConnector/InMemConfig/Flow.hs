@@ -21,7 +21,7 @@ import           Data.Time (LocalTime)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import           EulerHS.KVConnector.InMemConfig.Types
-import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..), MeshError(MDBError), Source(..))
+import           EulerHS.KVConnector.Types (KVConnector(..), MeshConfig, tableName, MeshResult, MeshMeta(..), MeshError(MDBError, UnexpectedError), Source(..))
 import           Unsafe.Coerce (unsafeCoerce)
 import           Data.Either.Extra (mapLeft, mapRight)
 import           EulerHS.CachedSqlDBQuery (runQuery)
@@ -363,3 +363,32 @@ alterObjectInImcAndPushToConfigStream meshCfg imcCommand alteredModel = do
     strmValueT = decodeUtf8 . A.encode $ strmValue
   mapM_ (pushToConfigStream meshCfg.kvRedis (tableName @(table Identity)) strmValueT) getConfigStreamNames
   pure ()
+
+fetchRowFromDBAndAlterImc :: forall be table beM m.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    KVConnector (table Identity),
+    ToJSON (table Identity),
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  MeshConfig ->
+  Where be table ->
+  ImcStreamCommand ->
+  m (MeshResult ())
+fetchRowFromDBAndAlterImc dbConf meshCfg whereClause imcCommand = do
+  let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
+  dbRes <- runQuery dbConf findQuery
+  case dbRes of
+    Right [x] -> do
+      when meshCfg.memcacheEnabled $ alterObjectInImcAndPushToConfigStream meshCfg imcCommand x
+      return $ Right ()
+    Right [] -> return $ Right ()
+    Right xs -> do
+      let message = "DB returned \"" <> show (length xs) <> "\" rows after update for table: " <> show (tableName @(table Identity))
+      L.logError @Text "updateWoReturningWithKVConnector" message
+      return $ Left $ UnexpectedError message
+    Left e -> return $ Left (MDBError e)

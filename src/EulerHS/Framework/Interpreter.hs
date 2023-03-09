@@ -435,6 +435,18 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.SetConfig k v next) =
       let m' = SimpleLRU.insert key val configLRU
       in (m', ())
 
+interpretFlowMethod _ R.FlowRuntime {..} (L.ModifyConfig k entryMod next) =
+  fmap next $ do
+    atomicModifyIORef' _configCache (modifyConfig k entryMod)
+  where
+    modifyConfig :: Text -> (R.ConfigEntry -> R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry) -> (SimpleLRU.LRU Text R.ConfigEntry, ())
+    modifyConfig key modification configLRU = 
+      let 
+        (lru', val) = SimpleLRU.lookup k configLRU
+        lru'' = flip (SimpleLRU.insert key) lru' <$> modification <$> val
+      in (, ()) $ maybe configLRU id lru''
+      -- in (lru'', ())
+
 interpretFlowMethod _ R.FlowRuntime {..} (L.DelConfig k next) =
   fmap next $ do
     atomicModifyIORef' _configCache (deleteConfig k)

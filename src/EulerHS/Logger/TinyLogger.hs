@@ -63,9 +63,7 @@ loggerWorker flowFormatter outChan loggers = do
   pendingMsg@(PendingMsg mbFlowGuid _ _ _ msgNum lContext) <- Chan.readChan outChan
   res <- try $ logPendingMsg flowFormatter loggers pendingMsg
   case res of
-    Left (err :: SomeException) -> do
-      let pendingMsg' = PendingMsg mbFlowGuid Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show err) :: Text) ) Nothing) msgNum lContext
-      logPendingMsg flowFormatter loggers pendingMsg'
+    Left (err :: SomeException) -> logPendingMsg flowFormatter loggers $ PendingMsg mbFlowGuid Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show err) :: Text) ) Nothing) msgNum lContext
     Right _ -> pure ()
 
 sendPendingMsg :: FlowFormatter -> LoggerHandle -> PendingMsg -> IO ()

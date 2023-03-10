@@ -233,6 +233,13 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  ModifyConfig
+    :: HasCallStack
+    => Text
+    -> (ConfigEntry -> ConfigEntry)
+    -> (() -> next)
+    -> FlowMethod next
+
   TrySetConfig
     :: HasCallStack
     => Text
@@ -419,6 +426,7 @@ instance Functor FlowMethod where
     DelOptionLocal k cont -> DelOptionLocal k (f . cont)
     GetConfig k cont -> GetConfig k (f . cont)
     SetConfig k v cont -> SetConfig k v (f . cont)
+    ModifyConfig k modification cont -> ModifyConfig k modification (f . cont)
     TrySetConfig k v cont -> TrySetConfig k v (f . cont)
     DelConfig k cont -> DelConfig k (f . cont)
     AcquireConfigLock k cont -> AcquireConfigLock k (f . cont)
@@ -615,6 +623,8 @@ class (MonadMask m) => MonadFlow m where
 
   setConfig :: HasCallStack => Text -> ConfigEntry -> m ()
 
+  modifyConfig :: HasCallStack => Text -> (ConfigEntry -> ConfigEntry) -> m ()
+
   trySetConfig :: HasCallStack => Text -> ConfigEntry -> m (Maybe ())
 
   delConfig :: HasCallStack => Text -> m ()
@@ -775,13 +785,7 @@ class (MonadMask m) => MonadFlow m where
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
   throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
-  throwException ex = do
-    -- Doubt: Should we just print the exception details without the
-    -- contextual details that logError prints. As finding the message inside logError is a bit
-    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
-    -- contextual details.
-    logExceptionCallStack ex
-    throwExceptionWithoutCallStack ex
+  throwException = throwM
 
   throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
   throwExceptionWithoutCallStack = throwM
@@ -918,6 +922,9 @@ instance MonadFlow Flow where
   {-# INLINEABLE setConfig #-}
   setConfig :: HasCallStack => Text -> ConfigEntry -> Flow ()
   setConfig k v = liftFC $ SetConfig k v id
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig :: HasCallStack => Text -> (ConfigEntry -> ConfigEntry) -> Flow ()
+  modifyConfig k modification = liftFC $ ModifyConfig k modification id
   {-# INLINEABLE trySetConfig #-}
   trySetConfig :: HasCallStack => Text -> ConfigEntry -> Flow (Maybe ())
   trySetConfig k v = liftFC $ TrySetConfig k v id
@@ -1017,6 +1024,8 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1105,6 +1114,8 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1193,6 +1204,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1279,6 +1292,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}
@@ -1365,6 +1380,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getConfig = lift . getConfig
   {-# INLINEABLE setConfig #-}
   setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
   {-# INLINEABLE trySetConfig #-}
   trySetConfig k = lift . trySetConfig k
   {-# INLINEABLE delConfig #-}

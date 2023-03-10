@@ -23,6 +23,8 @@ module EulerHS.HttpAPI
     , HTTPRequest(..)
     , HTTPRequestMasked
     , HTTPResponse(..)
+    , HTTPResponseException(..)
+    , HTTPResponseMasked
     , HTTPMethod(..)
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)
@@ -396,6 +398,13 @@ data HTTPIOException
   = HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequestMasked
+    }
+  deriving (Eq, Generic, ToJSON)
+
+data HTTPResponseException
+  = HTTPResponseException
+    { errorMessage :: Text
+    , response      :: HTTPResponseMasked
     }
   deriving (Eq, Generic, ToJSON)
 

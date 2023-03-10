@@ -75,14 +75,15 @@ getDataFromRedisForPKey ::forall table m. (
     KVConnector (table Identity),
     FromJSON (table Identity),
     Serialize.Serialize (table Identity),
-    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, table Identity))) 
+    L.MonadFlow m) => MeshConfig -> Text -> m (MeshResult (Maybe (Text, Bool, table Identity))) 
 getDataFromRedisForPKey meshCfg pKey = do
   res <- L.runKVDB meshCfg.kvRedis $ L.get (fromString $ T.unpack $ pKey)
   case res of
     Right (Just r) ->
-      case fst $ decodeToField $ BSL.fromChunks [r] of
-        Right [decodeRes] -> do
-            return . Right . Just $ (pKey, decodeRes)
+      let
+        (decodeResult, isLive) = decodeToField $ BSL.fromChunks [r]
+      in case decodeResult  of
+        Right [decodeRes] -> return . Right . Just $ (pKey, isLive, decodeRes)
         Right _ -> return . Right $ Nothing   -- Something went wrong
         Left e -> return $ Left e
     Right Nothing -> do
@@ -288,19 +289,19 @@ getConfigStreamLooperDelayInSec :: Int
 getConfigStreamLooperDelayInSec = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_LOOPER_DELAY_IN_SEC"
 
 getConfigEntryTtlJitterInSeconds :: Int
-getConfigEntryTtlJitterInSeconds = fromMaybe 900 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_TTL_JITTER_IN_SEC"
+getConfigEntryTtlJitterInSeconds = fromMaybe 5 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_TTL_JITTER_IN_SEC"
 
-getConfigEntryBaseTtlInMinutes :: Int
-getConfigEntryBaseTtlInMinutes = fromMaybe 45 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_BASE_TTL_IN_MINUTES"
+getConfigEntryBaseTtlInSeconds :: Int
+getConfigEntryBaseTtlInSeconds = fromMaybe 10 $ readMaybe =<< lookupEnvT "CONFIG_STREAM_BASE_TTL_IN_SEC"
 
 getConfigEntryNewTtl :: (L.MonadFlow m) => m LocalTime
 getConfigEntryNewTtl = do
     currentTime <- L.getCurrentTimeUTC
     let
       jitterInSec = getConfigEntryTtlJitterInSeconds
-      baseTtl = getConfigEntryBaseTtlInMinutes
+      baseTtlInSec = getConfigEntryBaseTtlInSeconds
     noise <- L.runIO' "random seconds" $ randomRIO (1, jitterInSec)
-    return $ addLocalTime (secondsToNominalDiffTime $ toPico (baseTtl * 60 + noise)) currentTime
+    return $ addLocalTime (secondsToNominalDiffTime $ toPico (baseTtlInSec + noise)) currentTime
 
 threadDelayMilisec :: Integer -> IO ()
 threadDelayMilisec ms = threadDelay $ fromIntegral ms * 1000
@@ -425,7 +426,9 @@ whereClauseDiffCheck whereClause =
     if (not $ null failedKeys)
       then do
         let diffRes = map (map fst) failedKeys
-        L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> if null $ concat diffRes then Nothing else Just diffRes
+        if null $ concat diffRes
+          then pure Nothing
+          else L.logInfoT "WHERE_DIFF_CHECK" (tableName @(table Identity) <> ": " <> show diffRes) $> Just diffRes
       else pure Nothing
   else pure Nothing
   where

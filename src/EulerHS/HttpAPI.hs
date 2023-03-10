@@ -3,6 +3,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE DerivingVia           #-}
 
 module EulerHS.HttpAPI
     (
@@ -12,17 +13,24 @@ module EulerHS.HttpAPI
     , withProxy
     , withMbProxy
     , withClientTls
+    , withClientTlsP12
     , withMbClientTls
     , withCustomCA
       -- * X509 utilities
     , makeCertificateStoreFromMemory
       -- * Common types and convenience methods
+    , ClientCert(..)
     , HTTPRequest(..)
     , HTTPRequestMasked
     , HTTPResponse(..)
+    , HTTPResponseException(..)
+    , HTTPResponseMasked
     , HTTPMethod(..)
     , HTTPCert(..)
     , HTTPIOException(HTTPIOException)
+    , P12Cert (..)
+    , AwaitingError (..)
+    , HttpManagerNotFound(..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -44,6 +52,7 @@ module EulerHS.HttpAPI
     , mkHttpApiCallLogEntry
     ) where
 
+import qualified Crypto.Store.PKCS12 as PKCS12
 import qualified EulerHS.BinaryString as T
 import qualified EulerHS.Logger.Types as Log
 import           EulerHS.Masking (defaultMaskText, getContentTypeForHTTP,
@@ -56,6 +65,7 @@ import qualified Data.Aeson as A
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
 import           Data.Default
+import qualified Data.Either.Extra as Extra
 import qualified Data.Map as Map
 import           Data.Monoid (All (..))
 import           Data.PEM (pemContent, pemParseBS)
@@ -105,7 +115,7 @@ instance Hashable CertificateStore' where
 -- |
 data HTTPClientSettings = HTTPClientSettings
   { httpClientSettingsProxy             :: Last ProxySettings
-  , httpClientSettingsClientCertificate :: Last HTTPCert
+  , httpClientSettingsClientCertificate :: Last ClientCert
   , httpClientSettingsCustomStore       :: CertificateStore'
   , httpClientSettingsCheckLeafV3       :: All
   }
@@ -152,16 +162,27 @@ buildSettings HTTPClientSettings{..} =
       Nothing -> HTTP.noProxy
 
     baseSettings = case getLast httpClientSettingsClientCertificate of
-      Just HTTPCert{..} ->
-        case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
-          Right creds ->
-            let hooks = def { TLS.onCertificateRequest =
-                                \_ -> return $ Just creds
-                            }
-                clientParams = mkClientParams hooks
-            in mkSettings clientParams
-          -- TODO?
-          Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+      Just cert ->
+        case cert of
+          HTTPCertificate HTTPCert{..} ->
+            case TLS.credentialLoadX509ChainFromMemory getCert getCertChain getCertKey of
+              Right creds ->
+                let hooks = def { TLS.onCertificateRequest =
+                                    \_ -> return $ Just creds
+                                }
+                    clientParams = mkClientParams hooks
+                in mkSettings clientParams
+              Left err -> error $ "cannot load client certificate data: " <> Text.pack err
+          P12Certificate P12Cert{..} ->
+            case mkP12Cert getPfx getPassPhrase of
+              Right creds ->
+                let hooks = def { TLS.onCertificateRequest =
+                                    \_ -> return $ Just creds
+                             }
+                    clientParams = mkClientParams hooks
+                in mkSettings clientParams
+              Left err -> error $ "cannot load client certificate data: " <> err
+              -- TODO?
       Nothing ->
         let clientParams = mkClientParams def
         in mkSettings clientParams
@@ -188,6 +209,15 @@ buildSettings HTTPClientSettings{..} =
 
     sysStore = memorizedSysStore
 
+    mkP12Cert pfx passPhrase = do
+      pkcs12Cert <- mapLeftShow $ PKCS12.readP12FileFromMemory pfx
+      cert <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Cert
+      let pkcs12Creds = PKCS12.toCredential cert
+      maybeCreds <- mapLeftShow $ PKCS12.recover passPhrase pkcs12Creds
+      maybe (Left "Invalid P12 certificate") Right maybeCreds
+
+    mapLeftShow = Extra.mapLeft show
+
 {-# NOINLINE memorizedSysStore #-}
 memorizedSysStore :: CertificateStore
 memorizedSysStore = unsafePerformIO getSystemCertificateStore
@@ -210,7 +240,12 @@ withMbProxy Nothing  = mempty
 -- | Adds a client certificate to do client's TLS authentication
 withClientTls :: HTTPCert -> HTTPClientSettings
 withClientTls httpCert =
-    mempty {httpClientSettingsClientCertificate = Last $ Just $ httpCert}
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ HTTPCertificate httpCert}
+
+-- | Adds a client p12 certificate to do client's TLS authentication
+withClientTlsP12 :: P12Cert -> HTTPClientSettings
+withClientTlsP12 p12Cert =
+    mempty {httpClientSettingsClientCertificate = Last $ Just $ P12Certificate p12Cert}
 
 withMbClientTls :: Maybe HTTPCert -> HTTPClientSettings
 withMbClientTls (Just cert) = withClientTls cert
@@ -276,6 +311,13 @@ data HTTPResponseMasked
     deriving stock (Show, Eq, Generic)
     deriving anyclass (ToJSON)
 
+data ClientCert
+  = HTTPCertificate HTTPCert
+  | P12Certificate P12Cert
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable ClientCert
+
 data HTTPCert
   = HTTPCert
     { getCert      :: B.ByteString
@@ -291,6 +333,15 @@ data HTTPCert
     deriving stock (Eq, Ord, Generic)
 
 instance Hashable HTTPCert
+
+data P12Cert
+  = P12Cert
+    { getPfx        :: B.ByteString
+    , getPassPhrase :: B.ByteString
+    }
+    deriving stock (Eq, Ord, Generic)
+
+instance Hashable P12Cert
 
 data HTTPMethod
   = Get
@@ -308,27 +359,36 @@ type HeaderName = Text
 type HeaderValue = Text
 
 data HttpApiCallLogEntry = HttpApiCallLogEntry
-  { url         :: Text
-  , method      :: Text
-  , req_headers :: A.Value
+  { url         :: Maybe Text
+  , method      :: Maybe Text
+  , req_headers :: Maybe A.Value
   , req_body    :: Maybe A.Value
-  , res_code    :: Int
-  , res_body    :: A.Value
-  , res_headers :: A.Value
+  , res_code    :: Maybe Int
+  , res_body    :: Maybe A.Value
+  , res_headers :: Maybe A.Value
   , latency     :: Integer
   }
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
 
-mkHttpApiCallLogEntry :: Integer -> HTTPRequestMasked -> HTTPResponseMasked -> HttpApiCallLogEntry
+data AwaitingError = AwaitingTimeout | ForkedFlowError Text
+  deriving stock (Show, Eq, Ord, Generic)
+
+newtype HttpManagerNotFound = HttpManagerNotFound Text
+ deriving stock (Show)
+ deriving (Eq) via Text
+
+instance Exception HttpManagerNotFound
+
+mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> HttpApiCallLogEntry
 mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
-  { url = req.getRequestURL
-  , method = show $ req.getRequestMethod
-  , req_headers = A.toJSON $ req.getRequestHeaders
-  , req_body = req.getRequestBody
-  , res_code = res.getResponseCode
-  , res_body = res.getResponseBody
-  , res_headers = A.toJSON $ res.getResponseHeaders
+  { url = (\x -> x.getRequestURL) <$> req
+  , method = (\x -> show $ x.getRequestMethod) <$> req
+  , req_headers = (\x -> A.toJSON $ x.getRequestHeaders) <$> req
+  , req_body = join $ (\x -> x.getRequestBody) <$> req
+  , res_code = (\x -> x.getResponseCode) <$> res
+  , res_body = (\x -> x.getResponseBody) <$> res
+  , res_headers = (\x -> A.toJSON $ x.getResponseHeaders) <$> res
   , latency = lat
   }
 
@@ -338,6 +398,13 @@ data HTTPIOException
   = HTTPIOException
     { errorMessage :: Text
     , request      :: HTTPRequestMasked
+    }
+  deriving (Eq, Generic, ToJSON)
+
+data HTTPResponseException
+  = HTTPResponseException
+    { errorMessage :: Text
+    , response      :: HTTPResponseMasked
     }
   deriving (Eq, Generic, ToJSON)
 
@@ -448,6 +515,7 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
     requestBody = request.getRequestBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+
 
     maskedRequestBody =
           parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)

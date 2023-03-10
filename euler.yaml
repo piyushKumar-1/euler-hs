@@ -1,8 +1,8 @@
 name: euler-hs
 allowed-paths:
-  - src
-  - test
-  - euler-hs.cabal
+- src
+- test
+- euler-hs.cabal
 
 disable-tests: false
 dependencies:
@@ -11,23 +11,27 @@ dependencies:
     revision: c6af205a7adb1b7abac18f06830f4ed196bfd6e4
   beam:
     branch: master
-    revision: 372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8
+    revision: dcfc3d5c93672789a3c40d05c93da3ca1ee71da5
   beam-mysql:
     branch: master
-    revision: 1371202ebc3ec7e9ef3e16d1e99f805596022217
+    revision: b4dbc91276f6a8b5356633492f89bdac34ccd9a1
   haskell-sequelize:
     branch: master
-    revision: 1bbd42155ecd587eb96a515b350c48b35cabc41e
+    revision: 136262f6084b234eafc45232c85a6bd8544e15fb
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e
+  euler-events-hs:
+    branch: master
+    revision: 661920e09652ef1c27e8eb10d2f52c3dc82859c9
 
 overrides:
   hedis:
     owner: juspay
     repo: hedis
-    commit: 46ea0ea78e6d8d1a2b1a66e6f08078a37864ad80
-    sha256: 1xql164afmjc44s5p8ngws8y6jmb071nqdyrh0v5kz0jbb315595
+    branch: cluster
+    commit: f8b11e0512b864f165a4a086713b41a0e3d622ea
+    sha256: 0rgv5r22mwf1qpjlms2x9kbaqgmfsly8kp6v1i3m936c1ii39dr5
     source: github
 
   record-dot-preprocessor:
@@ -66,18 +70,29 @@ overrides:
     sha256: 1x0f3kalzrwj2blgsmk269m37bb7sygw6lr7dbp0rk6jbrfrkjm1
     enable-profiling: true
 
+  cereal:
+    # version: 0.5.8.4
+    owner: juspay
+    repo: cereal
+    commit: 213f145ccbd99e630ee832d2f5b22894c810d3cc
+    sha256: 1w925sg7wsycq40ay124mbwnp9hhbn0gkl39d210vq6qki632k0n
+    source: github
+    enable-profiling: true
+
   # disable tests
-  beam-mysql: { }
-  beam: { }
-  haskell-sequelize: { }
-
-
+  beam-mysql: {}
+  beam: {}
+  haskell-sequelize: {}
 build-tools:
-  - redis
+- redis
 
 nix-shell-tools:
-  - redis
-  - haskell-language-server
+- redis
+- haskell-language-server
 # - haskellPackages.cabal-fmt
 # - ghcide
 # - ghcide-ghc883
+
+# development:
+#   cabal-project:
+#     beam-mysql: ../beam-mysql

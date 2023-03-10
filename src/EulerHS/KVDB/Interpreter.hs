@@ -87,6 +87,60 @@ interpretKeyValueF runRedis (L.XAdd stream entryId items next) =
                       T.breakOn "-" . TE.decodeUtf8With TE.lenientDecode $ bs
       in L.KVDBStreamEntryID ms sq
 
+interpretKeyValueF runRedis (L.XRead stream entryId next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xread [(stream, entryId)]
+      pure $ (fmap . fmap $ parseXReadResponse) <$> result
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+
+    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueF runRedis (L.XReadGroup groupName consumerName streamsAndIds opt next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xreadGroupOpts groupName consumerName streamsAndIds opt
+      pure $ (fmap . fmap $ parseXReadResponse) <$> result
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+
+    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueF runRedis (L.XReadOpts strObjs readOpts next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xreadOpts ((\(a, b) -> (a, makeStreamEntryId b)) <$> strObjs) readOpts
+      pure result
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
+    makeStreamEntryId L.AutoID = "*" 
+
+
+interpretKeyValueF runRedis (L.XGroupCreate stream groupName startId next) =
+  fmap next $ runRedis $ R.xgroupCreate stream groupName startId
+
+interpretKeyValueF runRedis (L.XDel stream entryIds next) =
+  fmap next $
+    runRedis $ R.xdel stream ((\(L.KVDBStreamEntryID ms sq) -> show ms <> "-" <> show sq)  <$> entryIds)
+
+interpretKeyValueF runRedis (L.XRevRange stream send sstart count next) =
+  fmap next $
+    runRedis $ do
+      result <- R.xrevRange stream send sstart count
+      pure $ (fmap parseXReadResponseRecord) <$> result
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+      
+
 interpretKeyValueF runRedis (L.XLen stream next) =
   fmap next $
     runRedis $ R.xlen stream
@@ -94,10 +148,27 @@ interpretKeyValueF runRedis (L.XLen stream next) =
 interpretKeyValueF runRedis (L.SAdd k v next) =
   fmap next $ runRedis $ R.sadd k v
 
+interpretKeyValueF runRedis (L.SRem k v next) =
+  fmap next $ runRedis $ R.srem k v
+
+interpretKeyValueF runRedis (L.LPush k v next) =
+  fmap next $ runRedis $ R.lpush k v
+
+interpretKeyValueF runRedis (L.LRange k start stop next) =
+  fmap next $ runRedis $ R.lrange k start stop
+
+interpretKeyValueF runRedis (L.SMembers k next) =
+  fmap next $ runRedis $ R.smembers k
+
+interpretKeyValueF runRedis (L.SMove k1 k2 v next) =
+  fmap next $ runRedis $ R.smove k1 k2 v
+
 interpretKeyValueF runRedis (L.SMem k v next) =
   fmap next $ runRedis $ R.sismember k v
 
 interpretKeyValueF runRedis (L.Raw args next) = next <$> runRedis (R.sendRequest args)
+
+interpretKeyValueF runRedis (L.Ping next) = fmap next $ runRedis $ R.ping
 
 interpretKeyValueTxF :: L.KeyValueF R.Queued a -> R.RedisTx a
 interpretKeyValueTxF (L.Set k v next) =
@@ -136,6 +207,12 @@ interpretKeyValueTxF (L.HGet k field next) =
 interpretKeyValueTxF (L.XLen stream next) =
   next <$> R.xlen stream
 
+interpretKeyValueTxF (L.XGroupCreate stream groupName startId next) =
+  next <$> R.xgroupCreate stream groupName startId
+
+interpretKeyValueTxF (L.XDel stream entryIds next) =
+  next <$> R.xdel stream ((\(L.KVDBStreamEntryID ms sq) -> show ms <> "-" <> show sq)  <$> entryIds)
+
 interpretKeyValueTxF (L.XAdd stream entryId items next) =
   next . fmap parseStreamEntryId <$> R.xadd stream (makeStreamEntryId entryId) items
   where
@@ -148,14 +225,63 @@ interpretKeyValueTxF (L.XAdd stream entryId items next) =
                       T.breakOn "-" . TE.decodeUtf8With TE.lenientDecode $ bs
       in L.KVDBStreamEntryID ms sq
 
+interpretKeyValueTxF (L.XRead stream entryId next) =
+  next . fmap (fmap . fmap $ parseXReadResponse) <$> R.xread [(stream, entryId)]
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+               
+    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueTxF (L.XReadGroup groupName consumerName streamsAndIds opt next) =
+  next . fmap (fmap . fmap $ parseXReadResponse) <$> R.xreadGroupOpts groupName consumerName streamsAndIds opt
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+               
+    parseXReadResponse :: R.XReadResponse -> L.KVDBStreamReadResponse
+    parseXReadResponse (R.XReadResponse strm records) = L.KVDBStreamReadResponse strm (parseXReadResponseRecord <$> records)
+
+interpretKeyValueTxF (L.XReadOpts strObjs readOpts next) =
+  fmap next $ R.xreadOpts ((\(a, b) -> (a, makeStreamEntryId b)) <$> strObjs) readOpts
+  where
+    makeStreamEntryId (L.EntryID (L.KVDBStreamEntryID ms sq)) = show ms <> "-" <> show sq
+    makeStreamEntryId L.AutoID = "*"
+
+interpretKeyValueTxF (L.XRevRange stream send sstart count next) =
+  next . fmap (fmap parseXReadResponseRecord) <$> R.xrevRange stream send sstart count
+  where
+    parseXReadResponseRecord :: R.StreamsRecord -> L.KVDBStreamReadResponseRecord
+    parseXReadResponseRecord record =
+      L.KVDBStreamReadResponseRecord (R.recordId record) (R.keyValues record)
+
 interpretKeyValueTxF (L.SAdd k v next) =
   next <$> R.sadd k v
+
+interpretKeyValueTxF (L.SRem k v next) =
+  next <$> R.srem k v
+
+interpretKeyValueTxF (L.LRange k start stop next) =
+  next <$> R.lrange k start stop
+
+interpretKeyValueTxF (L.LPush k v next) =
+  next <$> R.lpush k v
+
+interpretKeyValueTxF (L.SMembers k next) =
+  next <$> R.smembers k
+
+interpretKeyValueTxF (L.SMove k1 k2 v next) =
+  next <$> R.smove k1 k2 v
 
 interpretKeyValueTxF (L.SMem k v next) =
   next <$> R.sismember k v
 
 interpretKeyValueTxF (L.Raw args next) = next <$> R.sendRequest args
 
+interpretKeyValueTxF (L.Ping next) = next <$> R.ping
 
 interpretTransactionF
   :: (forall b. R.Redis (Either R.Reply b) -> IO (Either KVDBReply b))

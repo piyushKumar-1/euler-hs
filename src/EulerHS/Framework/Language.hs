@@ -7,6 +7,13 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 
+{-# OPTIONS_GHC -Wno-missing-signatures -Wno-orphans #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+
 module EulerHS.Framework.Language
   (
   -- * Flow language
@@ -14,7 +21,6 @@ module EulerHS.Framework.Language
   , FlowMethod(..)
   , MonadFlow(..)
   , ReaderFlow
-  , AwaitingError(..)
   , HttpManagerNotFound(..)
   -- ** Extra methods
   -- *** Logging
@@ -35,6 +41,7 @@ module EulerHS.Framework.Language
   , logDebugV
   , logWarningM
   , logWarningV
+  , logException
   -- *** PublishSubscribe
   , unpackLanguagePubSub
   -- *** Working with external services
@@ -52,17 +59,28 @@ module EulerHS.Framework.Language
   , forkFlow'
   -- ** Interpretation
   , foldFlow
+  -- ** DBAndRedisMetric
+  , incrementDbAndRedisMetric
+  , DBAndRedisMetricHandler
+  , DBAndRedisMetric (..)
+  , mkDBAndRedisMetricHandler
+  , isDBMetricEnabled
+  , DBMetricCfg (..)
+  , incrementDbMetric
   ) where
 
 import           Control.Monad.Catch (ExitCase, MonadCatch (catch),
                                       MonadThrow (throwM))
+import qualified Control.Exception as Exception
 import           Control.Monad.Free.Church (MonadFree)
 import           Control.Monad.Trans.Except (withExceptT)
 import           Control.Monad.Trans.RWS.Strict (RWST)
 import           Control.Monad.Trans.Writer (WriterT)
 import qualified Data.Aeson as A
+import           Data.Data (Data, toConstr)
 import           Data.Maybe (fromJust)
 import qualified Data.Text as Text
+import           Data.Typeable (typeOf)
 import           Network.HTTP.Client (Manager)
 import           Servant.Client (BaseUrl, ClientError (ConnectionError))
 
@@ -70,30 +88,26 @@ import           EulerHS.Api (EulerClient)
 import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  ManagerSelector (ManagerSelector),
                                  Microseconds, SafeFlowGUID)
-import           EulerHS.Framework.Runtime (FlowRuntime)
+import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
-                                  HTTPResponse, withClientTls)
+                                  HTTPResponse, withClientTls, HttpManagerNotFound(..), AwaitingError)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
+import qualified EulerHS.KVDB.Types as T
 import           EulerHS.Logger.Language (Logger, logMessage')
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
-                                       Message (Message))
+                                       Message (Message), ExceptionEntry(..))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
 import           EulerHS.Prelude hiding (getOption, throwM)
 import qualified EulerHS.PubSub.Language as PSL
 import           EulerHS.SqlDB.Language (SqlDB)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
                                       DBResult, SqlConn)
-
-data AwaitingError = AwaitingTimeout | ForkedFlowError Text
-  deriving stock (Show, Eq, Ord, Generic)
-
-newtype HttpManagerNotFound = HttpManagerNotFound Text
- deriving stock (Show)
- deriving (Eq) via Text
-
-instance Exception HttpManagerNotFound
+import qualified EulerHS.SqlDB.Types as T
+import           Euler.Events.MetricApi.MetricApi
+import qualified Juspay.Extra.Config as Conf
+import EulerHS.KVConnector.Types
 
 -- | Flow language.
 data FlowMethod (next :: Type) where
@@ -155,10 +169,100 @@ data FlowMethod (next :: Type) where
     -> (() -> next)
     -> FlowMethod next
 
+  SetLoggerContext
+    :: HasCallStack
+     => Text
+    -> Text
+    -> (() -> next)
+    -> FlowMethod next
+  
+  GetLoggerContext
+    :: HasCallStack
+     => Text
+    -> ((Maybe Text) -> next)
+    -> FlowMethod next
+
+  SetLoggerContextMap
+    :: HasCallStack
+    => HashMap Text Text
+    -> (() -> next)
+    -> FlowMethod next
+  
+  ModifyOption
+    :: HasCallStack
+    => Text
+    -> ( a -> a )
+    -> ((Maybe a, Maybe a) -> next)
+    -> FlowMethod next
+
   DelOption
     :: HasCallStack
     => Text
     -> (() -> next)
+    -> FlowMethod next
+
+  GetOptionLocal
+    :: HasCallStack
+    => Text
+    -> (Maybe a -> next)
+    -> FlowMethod next
+
+  SetOptionLocal
+    :: HasCallStack
+    => Text
+    -> a
+    -> (() -> next)
+    -> FlowMethod next
+
+  DelOptionLocal
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  GetConfig
+    :: HasCallStack
+    => Text
+    -> (Maybe ConfigEntry -> next)
+    -> FlowMethod next
+
+  SetConfig
+    :: HasCallStack
+    => Text
+    -> ConfigEntry
+    -> (() -> next)
+    -> FlowMethod next
+
+  ModifyConfig
+    :: HasCallStack
+    => Text
+    -> (ConfigEntry -> ConfigEntry)
+    -> (() -> next)
+    -> FlowMethod next
+
+  TrySetConfig
+    :: HasCallStack
+    => Text
+    -> ConfigEntry
+    -> (Maybe () -> next)
+    -> FlowMethod next
+
+  DelConfig
+    :: HasCallStack
+    => Text
+    -> (() -> next)
+    -> FlowMethod next
+
+  AcquireConfigLock
+    :: HasCallStack
+    => Text
+    -> (Bool -> next)
+    -> FlowMethod next
+  
+  ReleaseConfigLock
+    :: HasCallStack
+    => Text
+    -> (Bool -> next)
     -> FlowMethod next
 
   GenerateGUID
@@ -312,7 +416,21 @@ instance Functor FlowMethod where
     WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
     GetOption k cont -> GetOption k (f . cont)
     SetOption k v cont -> SetOption k v (f . cont)
+    SetLoggerContext k v cont -> SetLoggerContext k v (f . cont)
+    GetLoggerContext k cont -> GetLoggerContext k (f . cont)
+    SetLoggerContextMap v cont -> SetLoggerContextMap v (f . cont)
+    ModifyOption k fn cont -> ModifyOption k fn (f . cont)
     DelOption k cont -> DelOption k (f . cont)
+    GetOptionLocal k cont -> GetOptionLocal k (f . cont)
+    SetOptionLocal k v cont -> SetOptionLocal k v (f . cont)
+    DelOptionLocal k cont -> DelOptionLocal k (f . cont)
+    GetConfig k cont -> GetConfig k (f . cont)
+    SetConfig k v cont -> SetConfig k v (f . cont)
+    ModifyConfig k modification cont -> ModifyConfig k modification (f . cont)
+    TrySetConfig k v cont -> TrySetConfig k v (f . cont)
+    DelConfig k cont -> DelConfig k (f . cont)
+    AcquireConfigLock k cont -> AcquireConfigLock k (f . cont)
+    ReleaseConfigLock k cont -> ReleaseConfigLock k (f . cont)
     GenerateGUID cont -> GenerateGUID (f . cont)
     RunSysCmd cmd cont -> RunSysCmd cmd (f . cont)
     Fork desc guid flow cont -> Fork desc guid flow (f . cont)
@@ -467,9 +585,53 @@ class (MonadMask m) => MonadFlow m where
   -- >    delOption MerchantIdKey
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
 
+  setLoggerContext :: (HasCallStack) => Text -> Text -> m ()
+
+  getLoggerContext :: (HasCallStack) => Text -> m (Maybe Text)
+
+  setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> m ()
+
+  -- > Problem Statement :
+  -- > _ <- getOption k 
+  -- > ---- <some calculation> ------- 
+  -- > ----------------------------------------
+  -- > -----<This region is not thread safe>--------
+  -- > ----------------------------------------
+  -- > _ <- setOption k <result of calculations>
+  -- >  
+  -- > Since the above block is not thread safe to modify an option
+  -- > 
+  -- > USE MODIFYOPTION :-)
+  -- > It takes a key and function and applies the function if it finds a val with key
+  -- >
+  -- >
+  -- > Sample usage:
+  -- > (oldCount,modifiedCount) <- modifyOption MyCounter (\x -> x + 1)
+
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> m (Maybe v,Maybe v)
+
   -- | Deletes a typed option using a typed key.
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
 
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m (Maybe v)
+
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> m ()
+
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> m ()
+
+  getConfig :: HasCallStack => Text -> m (Maybe ConfigEntry)
+
+  setConfig :: HasCallStack => Text -> ConfigEntry -> m ()
+
+  modifyConfig :: HasCallStack => Text -> (ConfigEntry -> ConfigEntry) -> m ()
+
+  trySetConfig :: HasCallStack => Text -> ConfigEntry -> m (Maybe ())
+
+  delConfig :: HasCallStack => Text -> m ()
+
+  acquireConfigLock :: HasCallStack => Text -> m Bool
+
+  releaseConfigLock :: HasCallStack => Text -> m Bool
   -- | Generate a version 4 UUIDs as specified in RFC 4122
   -- e.g. 25A8FC2A-98F2-4B86-98F6-84324AF28611.
   --
@@ -623,13 +785,7 @@ class (MonadMask m) => MonadFlow m where
   -- >     Failure reason -> throwException err403 {errBody = reason}
   -- >     Success -> ...
   throwException :: forall a e. (HasCallStack, Exception e) => e -> m a
-  throwException ex = do
-    -- Doubt: Should we just print the exception details without the
-    -- contextual details that logError prints. As finding the message inside logError is a bit
-    -- cumbersome. Just printing the exception details will be much cleaner if we don't need the
-    -- contextual details.
-    logExceptionCallStack ex
-    throwExceptionWithoutCallStack ex
+  throwException = throwM
 
   throwExceptionWithoutCallStack :: forall a e. (HasCallStack, Exception e) => e -> m a
   throwExceptionWithoutCallStack = throwM
@@ -709,6 +865,10 @@ class (MonadMask m) => MonadFlow m where
     -> Flow a -- ^ Computation to run with modified runtime
     -> m a
 
+  fork
+    :: HasCallStack
+    => m a -> m ()
+
 instance MonadFlow Flow where
   {-# INLINEABLE callServantAPI #-}
   callServantAPI mgrSel url cl = do
@@ -732,9 +892,51 @@ instance MonadFlow Flow where
   {-# INLINEABLE setOption #-}
   setOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
   setOption k v = liftFC $ SetOption (mkOptionKey @k @v k) v id
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext :: (HasCallStack) => Text -> Text -> Flow ()
+  setLoggerContext k v = liftFC $ SetLoggerContext k v id
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext :: (HasCallStack) => Text -> Flow (Maybe Text)
+  getLoggerContext k = liftFC $ GetLoggerContext k id
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap :: (HasCallStack) => HashMap Text Text -> Flow ()
+  setLoggerContextMap v = liftFC $ SetLoggerContextMap v id
+  {-# INLINEABLE modifyOption #-}
+  modifyOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> (v -> v) -> Flow (Maybe v,Maybe v)
+  modifyOption k fn = liftFC $ ModifyOption  (mkOptionKey @k @v k) fn id
   {-# INLINEABLE delOption #-}
   delOption :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
   delOption k = liftFC $ DelOption (mkOptionKey @k @v k) id
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow (Maybe v)
+  getOptionLocal k = liftFC $ GetOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> v -> Flow ()
+  setOptionLocal k v = liftFC $ SetOptionLocal (mkOptionKey @k @v k) v id
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal :: forall k v. (HasCallStack, OptionEntity k v) => k -> Flow ()
+  delOptionLocal k = liftFC $ DelOptionLocal (mkOptionKey @k @v k) id
+  {-# INLINEABLE getConfig #-}
+  getConfig :: HasCallStack => Text -> Flow (Maybe ConfigEntry)
+  getConfig k = liftFC $ GetConfig k id
+  {-# INLINEABLE setConfig #-}
+  setConfig :: HasCallStack => Text -> ConfigEntry -> Flow ()
+  setConfig k v = liftFC $ SetConfig k v id
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig :: HasCallStack => Text -> (ConfigEntry -> ConfigEntry) -> Flow ()
+  modifyConfig k modification = liftFC $ ModifyConfig k modification id
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig :: HasCallStack => Text -> ConfigEntry -> Flow (Maybe ())
+  trySetConfig k v = liftFC $ TrySetConfig k v id
+  {-# INLINEABLE delConfig #-}
+  delConfig :: HasCallStack => Text -> Flow ()
+  delConfig k = liftFC $ DelConfig k id
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock :: HasCallStack => Text -> Flow Bool
+  acquireConfigLock k = liftFC $ AcquireConfigLock k id
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock :: HasCallStack => Text -> Flow Bool
+  releaseConfigLock k = liftFC $ ReleaseConfigLock k id
   {-# INLINEABLE generateGUID #-}
   generateGUID = liftFC $ GenerateGUID id
   {-# INLINEABLE runSysCmd #-}
@@ -762,7 +964,11 @@ instance MonadFlow Flow where
     safeFlowGUID <- generateGUID
     liftFC $ RunSafeFlow safeFlowGUID flow id
   {-# INLINEABLE runKVDB #-}
-  runKVDB cName act = liftFC $ RunKVDB cName act id
+  runKVDB cName act = do
+    res <- liftFC $ RunKVDB cName act id
+    case res of
+      Left err -> incrementRedisMetric err cName *> pure res
+      Right _ -> pure res
   {-# INLINEABLE runPubSub #-}
   runPubSub act = liftFC $ RunPubSub act id
   {-# INLINEABLE publish #-}
@@ -775,6 +981,9 @@ instance MonadFlow Flow where
     runPubSub $ PubSub $ \runFlow -> PSL.psubscribe channels (\ch -> runFlow . cb ch)
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f flow = liftFC $ WithModifiedRuntime f flow id
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    forkFlow "test" flow
 
 instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE callServantAPI #-}
@@ -795,8 +1004,36 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption k = lift . modifyOption k
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -833,6 +1070,10 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    env <- ask
+    lift . fork $ runReaderT flow env
 
 instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -853,8 +1094,36 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -891,6 +1160,10 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork flow = do
+    s <- get
+    lift . fork $ evalStateT flow s
 
 instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE callServantAPI #-}
@@ -911,8 +1184,36 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -949,6 +1250,8 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE callServantAPI #-}
@@ -969,8 +1272,36 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1007,6 +1338,8 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
 
 instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE callServantAPI #-}
@@ -1027,8 +1360,36 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   getOption = lift . getOption
   {-# INLINEABLE setOption #-}
   setOption k = lift . setOption k
+  {-# INLINEABLE setLoggerContext #-}
+  setLoggerContext k = lift . setLoggerContext k
+  {-# INLINEABLE getLoggerContext #-}
+  getLoggerContext = lift . getLoggerContext
+  {-# INLINEABLE setLoggerContextMap #-}
+  setLoggerContextMap = lift . setLoggerContextMap
+  {-# INLINEABLE modifyOption #-}
+  modifyOption fn = lift . modifyOption fn
   {-# INLINEABLE delOption #-}
   delOption = lift . delOption
+  {-# INLINEABLE getOptionLocal #-}
+  getOptionLocal = lift . getOptionLocal
+  {-# INLINEABLE setOptionLocal #-}
+  setOptionLocal k = lift . setOptionLocal k
+  {-# INLINEABLE delOptionLocal #-}
+  delOptionLocal = lift . delOptionLocal
+  {-# INLINEABLE getConfig #-}
+  getConfig = lift . getConfig
+  {-# INLINEABLE setConfig #-}
+  setConfig k = lift . setConfig k
+  {-# INLINEABLE modifyConfig #-}
+  modifyConfig k = lift . modifyConfig k
+  {-# INLINEABLE trySetConfig #-}
+  trySetConfig k = lift . trySetConfig k
+  {-# INLINEABLE delConfig #-}
+  delConfig = lift . delConfig
+  {-# INLINEABLE acquireConfigLock #-}
+  acquireConfigLock = lift . acquireConfigLock
+  {-# INLINEABLE releaseConfigLock #-}
+  releaseConfigLock = lift . releaseConfigLock
   {-# INLINEABLE generateGUID #-}
   generateGUID = lift generateGUID
   {-# INLINEABLE runSysCmd #-}
@@ -1065,6 +1426,9 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   psubscribe channels = lift . psubscribe channels
   {-# INLINEABLE withModifiedRuntime #-}
   withModifiedRuntime f = lift . withModifiedRuntime f
+  {-# INLINEABLE fork #-}
+  fork = error "Not implemented"
+
 
 
 --
@@ -1262,12 +1626,15 @@ withRunFlow ioAct = liftFC $ WithRunFlow ioAct
 -- >   forkFlow "myFlow1 fork" myFlow1
 -- >   pure ()
 --
-forkFlow :: HasCallStack => Description -> Flow () -> Flow ()
-forkFlow description flow = void $ forkFlow' description $ do
-  eitherResult <- runSafeFlow flow
-  case eitherResult of
-    Left msg -> logError ("forkFlow" :: Text) msg
-    Right _  -> pure ()
+forkFlow :: HasCallStack => Description -> Flow a -> Flow ()
+forkFlow description flow = do
+  flowGUID <- generateGUID
+  void $ forkFlow'' description flowGUID $ do
+    void $ setLoggerContext "flow_guid" flowGUID
+    eitherResult <- runSafeFlow flow
+    case eitherResult of
+      Left msg -> logError ("forkFlow" :: Text) msg
+      Right _  -> pure ()
 
 -- | Same as 'forkFlow', but takes @Flow a@ and returns an 'T.Awaitable' which can be used
 -- to reap results from the flow being forked.
@@ -1280,14 +1647,23 @@ forkFlow description flow = void $ forkFlow' description $ do
 -- >   awaitable <- forkFlow' "myFlow1 fork" myFlow1
 -- >   await Nothing awaitable
 --
+forkFlow'' :: HasCallStack =>
+  Description -> ForkGUID -> Flow a -> Flow (Awaitable (Either Text a))
+forkFlow'' description flowGUID flow = do
+    logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
+      Nothing ->
+        "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
+      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+    liftFC $ Fork description flowGUID flow id
+
 forkFlow' :: HasCallStack =>
   Description -> Flow a -> Flow (Awaitable (Either Text a))
 forkFlow' description flow = do
     flowGUID <- generateGUID
     logInfo ("ForkFlow" :: Text) $ case Text.uncons description of
-      Nothing ->
+      Just _ ->
         "Flow forked. Description: " +| description |+ " GUID: " +| flowGUID |+ ""
-      Just _  -> "Flow forked. GUID: " +| flowGUID |+ ""
+      Nothing  -> "Flow forked. GUID: " +| flowGUID |+ ""
     liftFC $ Fork description flowGUID flow id
 
 
@@ -1364,6 +1740,36 @@ logWarningV :: forall (tag :: Type) (m :: Type -> Type) val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => tag -> val -> m ()
 logWarningV = logV Warning
 
+deriving instance Data Exception.ArithException
+deriving instance Data Exception.ArrayException
+deriving instance Data Exception.AsyncException
+
+logException :: (HasCallStack, MonadFlow m) => SomeException -> m ()
+logException exception =
+  logErrorV ("ERROR_TRACKING" :: Text) exceptionLogEntry
+  where exceptionLogEntry = fromMaybe (exceptionLogDefault exception)
+          $ exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArithException)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.ArrayException)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.AssertionFailed)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe Exception.AsyncException)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NonTermination)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NoMethodError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.NestedAtomically)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.TypeError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.BlockedIndefinitelyOnMVar)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.BlockedIndefinitelyOnSTM)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.AllocationLimitExceeded)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.Deadlock)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.PatternMatchFail)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecConError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecSelError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.RecUpdError)
+          <|> exceptionLogDefault <$> (fromException exception :: Maybe Exception.ErrorCall)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe T.DBError)
+          <|> exceptionLogWithConstructor <$> (fromException exception :: Maybe MeshError)
+        exceptionLogWithConstructor ex = ExceptionEntry (show . toConstr $ ex) (displayException ex) (show $ typeOf ex) "Exception"
+        exceptionLogDefault ex = ExceptionEntry (show $ typeOf ex) (displayException ex) (show $ typeOf ex) "Exception"
+
 -- | Run some IO operation, result should have 'ToJSONEx' instance (extended 'ToJSON'),
 -- because we have to collect it in recordings for ART system.
 --
@@ -1375,3 +1781,159 @@ logWarningV = logV Warning
 -- >   pure content
 runIO :: (HasCallStack, MonadFlow m) => IO a -> m a
 runIO = runIO' ""
+
+
+-------------------------------------------------------
+incrementDbAndRedisMetric :: MonadFlow m => DBAndRedisMetricHandler -> DBAndRedisMetric -> Text -> Text -> m ()
+incrementDbAndRedisMetric handle metric dbName hostName = do
+  runIO $ ((dBAndRedisCounter handle) (metric, dbName, hostName))
+
+data DBAndRedisMetricHandler = DBAndRedisMetricHandler
+  { dBAndRedisCounter :: (DBAndRedisMetric, Text, Text) -> IO ()
+  }
+
+data DBAndRedisMetric
+  = ConnectionLost
+  | ConnectionFailed
+  | ConnectionDoesNotExist
+  | ConnectionAlreadyExists
+  | TransactionRollbacked
+--   | SQLQueryError
+  | UnrecognizedDBError
+  | UnexpectedDBResult
+  | RedisExceptionMessage
+
+mkDBAndRedisMetricHandler :: IO DBAndRedisMetricHandler
+mkDBAndRedisMetricHandler = do
+  metrics <- register collectionLock
+  pure $ DBAndRedisMetricHandler $ \case
+    (ConnectionLost, dbName, hostName)   ->
+      inc (metrics </> #connection_lost) dbName hostName
+    (ConnectionFailed, dbName, hostName)    ->
+      inc (metrics </> #connection_failed) dbName hostName
+    (ConnectionDoesNotExist, dbName, hostName)    ->
+      inc (metrics </> #connection_doesnot_exist) dbName hostName
+    (ConnectionAlreadyExists, dbName, hostName)    ->
+      inc (metrics </> #connection_already_exists) dbName hostName
+    (TransactionRollbacked, dbName, hostName)    ->
+      inc (metrics </> #transaction_rollbacked) dbName hostName
+    -- (SQLQueryError,dbName, hostName)    ->
+    --   inc (metrics </> #sql_query_error) dbName hostName
+    (UnrecognizedDBError, dbName, hostName)    ->
+      inc (metrics </> #unrecognized_db_error) dbName hostName
+    (UnexpectedDBResult, dbName, hostName)    ->
+      inc (metrics </> #unexpected_db_result) dbName hostName
+    (RedisExceptionMessage, dbName, hostName)    ->
+      inc (metrics </> #redis_exception_msg) dbName hostName
+
+connection_lost = counter #connection_lost
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+connection_failed = counter #connection_failed
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+connection_doesnot_exist = counter #connection_doesnot_exist
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+connection_already_exists = counter #connection_already_exists
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+-- sql_query_error = counter #sql_query_error
+--       .& lbl @"db_name" @Text
+--       .& lbl @"host_name" @Text
+--       .& build
+
+transaction_rollbacked = counter #transaction_rollbacked
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+unrecognized_db_error = counter #unrecognized_db_error
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+
+unexpected_db_result = counter #unexpected_db_result
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+redis_exception_msg = counter #redis_exception_msg
+      .& lbl @"db_name" @Text
+      .& lbl @"host_name" @Text
+      .& build
+
+collectionLock =
+     connection_lost
+  .> connection_failed
+  .> connection_doesnot_exist
+  .> connection_already_exists
+--   .> sql_query_error
+  .> transaction_rollbacked
+  .> unrecognized_db_error
+  .> unexpected_db_result
+  .> redis_exception_msg
+  .> MNil
+
+
+---------------------------------------------------------
+
+data DBMetricCfg = DBMetricCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity DBMetricCfg DBAndRedisMetricHandler
+
+---------------------------------------------------------
+
+isDBMetricEnabled :: Bool
+isDBMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "DB_METRIC_ENABLED"
+
+---------------------------------------------------------
+
+incrementRedisMetric :: (HasCallStack, MonadFlow m) => T.KVDBReply -> Text -> m ()
+incrementRedisMetric err cName = when (isDBMetricEnabled) $
+  case err of
+    T.KVDBError T.KVDBConnectionFailed _ -> incrementMetric ConnectionFailed cName
+    T.KVDBError T.KVDBConnectionAlreadyExists _ -> incrementMetric ConnectionAlreadyExists cName
+    T.KVDBError T.KVDBConnectionDoesNotExist _ -> incrementMetric ConnectionDoesNotExist cName
+    T.ExceptionMessage _ ->
+      if Text.isInfixOf "Network.Socket.connect" $ show err
+        then incrementMetric ConnectionLost cName
+        else incrementMetric RedisExceptionMessage cName
+    _ -> pure ()
+
+incrementDbMetric :: (HasCallStack, MonadFlow m) => T.DBError -> T.DBConfig beM -> m ()
+incrementDbMetric (T.DBError err msg) dbConf = when isDBMetricEnabled $
+  case err of
+    T.ConnectionFailed -> incrementMetric ConnectionFailed (dbConfigToTag dbConf)
+    T.ConnectionAlreadyExists -> incrementMetric ConnectionAlreadyExists (dbConfigToTag dbConf)
+    T.ConnectionDoesNotExist -> incrementMetric ConnectionDoesNotExist (dbConfigToTag dbConf)
+    T.TransactionRollbacked -> incrementMetric TransactionRollbacked (dbConfigToTag dbConf)
+    T.UnexpectedResult -> incrementMetric UnexpectedDBResult (dbConfigToTag dbConf)
+    T.UnrecognizedError -> if Text.isInfixOf "Network.Socket.connect" $ show msg
+      then incrementMetric ConnectionLost (dbConfigToTag dbConf)
+      else incrementMetric UnrecognizedDBError (dbConfigToTag dbConf)
+    _ -> pure ()
+
+incrementMetric :: (HasCallStack, MonadFlow m) => DBAndRedisMetric -> Text -> m ()
+incrementMetric metric dbName = do
+  env <- getOption DBMetricCfg
+  case env of
+    Just val -> incrementDbAndRedisMetric val metric dbName (fromMaybe "" $ Conf.lookupEnvT "HOSTNAME")
+    Nothing -> pure ()
+
+dbConfigToTag :: T.DBConfig beM -> Text
+dbConfigToTag = \case
+  T.PostgresPoolConf t _ _ -> t
+  T.MySQLPoolConf t _ _    -> t
+  T.SQLitePoolConf t _ _   -> t

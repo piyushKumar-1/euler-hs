@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1618840279,
-        "narHash": "sha256-Pbn0ZwbZTj9TdjfyjDk5coC9tvV6DgQiN/XR9Jha4aM=",
+        "lastModified": 1675241901,
+        "narHash": "sha256-Av6xWgZvISZWgSZzt6zbf6tZ0HqlTeNCo3rMkfabz/M=",
         "owner": "juspay",
         "repo": "beam",
-        "rev": "372542ec6c49d18e8c1c4ef9da15ff0b97c07ed8",
+        "rev": "dcfc3d5c93672789a3c40d05c93da3ca1ee71da5",
         "type": "github"
       },
       "original": {
@@ -29,11 +29,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1638188779,
-        "narHash": "sha256-hSv5Hg40NZFNDnFJ7sKndZq5xiDzeUB2CZOxN4umTwk=",
+        "lastModified": 1675165348,
+        "narHash": "sha256-sFOtfvAeFwIaMpMK8vD5usE71/jTHwDCdbf++h4jOqQ=",
         "owner": "juspay",
         "repo": "beam-mysql",
-        "rev": "1371202ebc3ec7e9ef3e16d1e99f805596022217",
+        "rev": "b4dbc91276f6a8b5356633492f89bdac34ccd9a1",
         "type": "github"
       },
       "original": {
@@ -58,6 +58,26 @@
       },
       "original": {
         "id": "euler-build",
+        "type": "indirect"
+      }
+    },
+    "euler-events-hs": {
+      "inputs": {
+        "euler-build": [
+          "euler-build"
+        ]
+      },
+      "locked": {
+        "lastModified": 1650883593,
+        "narHash": "sha256-eZ79EYGtWwSolxTO5A9jzF0ze59db8mpSU8cF02ZqFs=",
+        "ref": "master",
+        "rev": "661920e09652ef1c27e8eb10d2f52c3dc82859c9",
+        "revCount": 174,
+        "type": "git",
+        "url": "ssh://git@bitbucket.org/juspay/euler-events-hs"
+      },
+      "original": {
+        "id": "euler-events-hs",
         "type": "indirect"
       }
     },
@@ -109,11 +129,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1638449782,
-        "narHash": "sha256-4B3nEiR0CqV1yaOy9GLoCgHEWBltLGiKrN8ugQsfu88=",
+        "lastModified": 1675245243,
+        "narHash": "sha256-9dv825ULNf57D3D38z/82bAX48W4sfjTlMmV2GzucDI=",
         "ref": "master",
-        "rev": "1bbd42155ecd587eb96a515b350c48b35cabc41e",
-        "revCount": 92,
+        "rev": "136262f6084b234eafc45232c85a6bd8544e15fb",
+        "revCount": 107,
         "type": "git",
         "url": "ssh://git@bitbucket.org/juspay/haskell-sequelize"
       },
@@ -162,6 +182,7 @@
         "beam": "beam",
         "beam-mysql": "beam-mysql",
         "euler-build": "euler-build",
+        "euler-events-hs": "euler-events-hs",
         "euler-haskell-common": "euler-haskell-common",
         "haskell-sequelize": "haskell-sequelize"
       }

@@ -1,18 +1,28 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# OPTIONS_GHC -Wno-error=unused-top-binds #-}
 
 module EulerHS.CachedSqlDBQuery
   ( create
   , createSql
+  , createSqlWoReturing
   , updateOne
   , updateOneWoReturning
   , updateOneSql
   , updateOneSqlWoReturning
+  , updateAllSql
   , updateExtended
   , findOne
   , findOneSql
   , findAll
   , findAllSql
   , findAllExtended
+  , deleteSql
+  , deleteExtended
+  , deleteWithReturningPG
+  , createMultiSql
+  , createMultiSqlWoReturning
+  , runQuery
   , SqlReturning(..)
   )
 where
@@ -24,16 +34,17 @@ import qualified Database.Beam as B
 import qualified Database.Beam.MySQL as BM
 import qualified Database.Beam.Postgres as BP
 import qualified Database.Beam.Sqlite as BS
-import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB)
+import qualified Database.Beam.Backend.SQL.BeamExtensions as BExt
+import           EulerHS.Extra.Language (getOrInitSqlConn, rGet, rSetB, rDel)
 import qualified EulerHS.Framework.Language as L
 import           EulerHS.Prelude
 import qualified EulerHS.SqlDB.Language as DB
-import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig,
+import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
                                       DBError (DBError),
                                       DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
-import           Sequelize (Model, Set, Where, mkExprWithDefault,
-                            modelTableEntity, sqlSelect, sqlUpdate)
+import           Sequelize (Model, Set, Where, mkExprWithDefault,  mkMultiExprWithDefault,
+                            modelTableEntity, sqlSelect, sqlUpdate, sqlDelete)
 
 -- TODO: What KVDB should be used
 cacheName :: String
@@ -47,7 +58,7 @@ cacheName = "eulerKVDB"
 class SqlReturning (beM :: Type -> Type) (be :: Type) where
   createReturning ::
     forall (table :: (Type -> Type) -> Type)
-           (m :: Type -> Type) .
+           m.
     ( HasCallStack,
       BeamRuntime be beM,
       BeamRunner beM,
@@ -63,21 +74,42 @@ class SqlReturning (beM :: Type -> Type) (be :: Type) where
     Maybe Text ->
     m (Either DBError (table Identity))
 
+  deleteAllReturning ::
+    forall (table :: (Type -> Type) -> Type)
+          m.
+    ( HasCallStack,
+      BeamRuntime be beM,
+      BeamRunner beM,
+      B.HasQBuilder be,
+      Model be table,
+      ToJSON (table Identity),
+      FromJSON (table Identity),
+      Show (table Identity),
+      L.MonadFlow m
+    ) =>
+    DBConfig beM ->
+    Where be table ->
+    m (Either DBError [table Identity])
+
+
 instance SqlReturning BM.MySQLM BM.MySQL where
   createReturning = createMySQL
+  deleteAllReturning = deleteAllMySQL
 
 instance SqlReturning BP.Pg BP.Postgres where
   createReturning = create
+  deleteAllReturning = deleteAll
 
 instance SqlReturning BS.SqliteM BS.Sqlite where
   createReturning = create
+  deleteAllReturning = deleteAll
 
 
 create ::
   forall (be :: Type)
          (beM :: Type -> Type)
          (table :: (Type -> Type) -> Type)
-         (m :: Type -> Type) .
+         m.
   ( HasCallStack,
     BeamRuntime be beM,
     BeamRunner beM,
@@ -101,24 +133,24 @@ create dbConf value mCacheKey = do
 
 createMySQL ::
   forall (table :: (Type -> Type) -> Type)
-         (m :: Type -> Type) .
+         m.
   ( HasCallStack,
     Model BM.MySQL table,
     ToJSON (table Identity),
-    Show (table Identity),
-    L.MonadFlow m
+    L.MonadFlow m,
+    Show (table Identity)
   ) =>
   DBConfig BM.MySQLM ->
   table Identity ->
   Maybe Text ->
   m (Either DBError (table Identity))
-createMySQL dbConf value mCacheKey = do
+createMySQL dbConf value groupingKey = do
   res <- createSqlMySQL dbConf value
   case res of
     Right val -> do
-      whenJust mCacheKey (`cacheWithKey` val)
+      whenJust groupingKey (`cacheWithKey` val)
       return $ Right val
-    Left e -> return $ Left e
+    Left err -> return $ Left err
 
 -- | Update an element matching the query to the new value.
 --   Cache the value at the given key if the DB update succeeds.
@@ -215,6 +247,25 @@ updateOneSql dbConf newVals whereClause = do
       return $ Left $ DBError UnexpectedResult message
     Left e -> return $ Left e
 
+updateAllSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [Set be table] ->
+  Where be table ->
+  m (DBResult ())
+updateAllSql dbConf newVals whereClause = do
+  let updateQuery = DB.updateRows $ sqlUpdate
+        ! #set newVals
+        ! #where_ whereClause
+  runQuery dbConf updateQuery
+
 -- | Perform an arbitrary 'SqlUpdate'. This will cache if successful.
 updateExtended :: (HasCallStack, L.MonadFlow m, BeamRunner beM, BeamRuntime be beM) =>
   DBConfig beM -> Maybe Text -> B.SqlUpdate be table -> m (Either DBError ())
@@ -303,7 +354,42 @@ findAllExtended dbConf mKey sel = case mKey of
     go :: m (Either DBError [table Identity])
     go = do
       eConn <- getOrInitSqlConn dbConf
-      join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
+      rows <- join <$> traverse (\conn -> L.runDB conn . DB.findRows $ sel) eConn
+      case rows of
+        Left err -> L.incrementDbMetric err dbConf *> pure rows
+        Right _ -> pure rows
+
+deleteExtended :: forall beM be table m .
+  (HasCallStack,
+   L.MonadFlow m,
+   BeamRunner beM,
+   BeamRuntime be beM) =>
+  DBConfig beM ->
+  Maybe Text ->
+  B.SqlDelete be table ->
+  m (Either DBError ())
+deleteExtended dbConf mKey delQuery = case mKey of
+  Nothing -> go
+  Just k -> do
+    rDel (T.pack cacheName) [k] *> go
+  where
+    go = runQuery dbConf (DB.deleteRows delQuery)
+
+deleteWithReturningPG :: forall table m .
+  (HasCallStack,
+   B.Beamable table,
+   B.FromBackendRow BP.Postgres (table Identity),
+   L.MonadFlow m) =>
+  DBConfig BP.Pg ->
+  Maybe Text ->
+  B.SqlDelete BP.Postgres table ->
+  m (Either DBError [table Identity])
+deleteWithReturningPG dbConf mKey delQuery = case mKey of
+  Nothing -> go
+  Just k -> do
+    rDel (T.pack cacheName) [k] *> go
+  where
+    go = runQuery dbConf (DB.deleteRowsReturningListPG delQuery)
 
 ------------ Helper functions ------------
 runQuery ::
@@ -315,7 +401,13 @@ runQuery ::
 runQuery dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
-    Right c -> L.runDB c query
+    Right c -> do
+      result <- L.runDB c query
+      case result of
+        Right _ -> pure result
+        Left err -> do
+          L.incrementDbMetric err dbConf
+          pure result
     Left  e -> return $ Left e
 
 runQueryMySQL ::
@@ -326,7 +418,11 @@ runQueryMySQL ::
 runQueryMySQL dbConf query = do
   conn <- getOrInitSqlConn dbConf
   case conn of
-    Right c -> L.runTransaction c query
+    Right c -> do
+      rows <- L.runTransaction c query
+      case rows of
+        Left err -> L.incrementDbMetric err dbConf *> pure rows
+        Right _ -> pure rows
     Left  e -> return $ Left e
 
 sqlCreate ::
@@ -376,8 +472,21 @@ createSqlMySQL dbConf value = do
     Right Nothing -> do
       let message = "DB returned \"" <> "Nothing" <> "\" after inserting \"" <> show value <> "\""
       L.logError @Text "createSqlMySQL" message
-      return $ Left $ DBError UnexpectedResult message
+      return $ Left $ DBError UnexpectedResult message -- do we add metric here ?
     Left e -> return $ Left e
+
+createSqlWoReturing ::
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  table Identity ->
+  m (Either DBError ())
+createSqlWoReturing dbConf value = runQuery dbConf $ DB.insertRows $ sqlCreate value
 
 findOneSql ::
   ( HasCallStack,
@@ -407,9 +516,137 @@ findAllSql ::
 findAllSql dbConf whereClause = do
   let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
   sqlConn <- getOrInitSqlConn dbConf
-  join <$> mapM (`L.runDB` findQuery) sqlConn
+  rows <- join <$> mapM (`L.runDB` findQuery) sqlConn
+  case rows of
+    Right _ -> pure rows
+    Left err -> L.incrementDbMetric err dbConf *> pure rows
 
 cacheWithKey :: (HasCallStack, ToJSON table, L.MonadFlow m) => Text -> table -> m ()
 cacheWithKey key row = do
   -- TODO: Should we log errors here?
   void $ rSetB (T.pack cacheName) (encodeUtf8 key) (BSL.toStrict $ encode row)
+
+
+sqlMultiCreate ::
+  forall be table.
+  (BExt.BeamHasInsertOnConflict be, Model be table) =>
+  [table Identity] ->
+  B.SqlInsert be table
+sqlMultiCreate value = B.insert modelTableEntity (mkMultiExprWithDefault value)
+
+sqlMultiCreateIgnoringDuplicates ::
+  forall be table.
+  (BExt.BeamHasInsertOnConflict be, Model be table) =>
+  [table Identity] ->
+  B.SqlInsert be table
+sqlMultiCreateIgnoringDuplicates value = BExt.insertOnConflict modelTableEntity (mkMultiExprWithDefault value) BExt.anyConflict BExt.onConflictDoNothing
+
+createMultiSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BExt.BeamHasInsertOnConflict be,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  Bool ->
+  m (Either DBError [table Identity])
+createMultiSql dbConf value ignoreDuplicates = runQuery dbConf $ DB.insertRowsReturningList $ bool sqlMultiCreate sqlMultiCreateIgnoringDuplicates ignoreDuplicates value
+
+createMultiSqlWoReturning ::
+  ( HasCallStack,
+    BExt.BeamHasInsertOnConflict be,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  [table Identity] ->
+  Bool ->
+  m (Either DBError ())
+createMultiSqlWoReturning dbConf value ignoreDuplicates = runQuery dbConf $ DB.insertRows $ bool sqlMultiCreate sqlMultiCreateIgnoringDuplicates ignoreDuplicates value
+
+deleteSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError ())
+deleteSql dbConf value = do
+  runQuery dbConf $ DB.deleteRows $ (sqlDelete ! #where_ value ! defaults)
+
+deleteAllSql ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAllSql dbConf value = do
+  res <- runQuery dbConf $ DB.deleteRowsReturningList (sqlDelete ! #where_ value ! defaults)
+  return res
+
+deleteAllSqlMySQL ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAllSqlMySQL dbConf value = do
+  findRes <- findAllSql dbConf value
+  case findRes of
+    Left err  -> return $ Left err
+    Right res -> do
+      delRes  <- runQuery dbConf $ DB.deleteRows $ (sqlDelete ! #where_ value ! defaults)
+      case delRes of
+        Left err -> return $ Left err
+        Right _  -> return $ Right res
+
+deleteAllMySQL ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAllMySQL = deleteAllSqlMySQL
+
+deleteAll ::
+  forall m be beM table.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    L.MonadFlow m
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError [table Identity])
+deleteAll = deleteAllSql

@@ -1,5 +1,8 @@
 # Changelog for euler-hs
 
+## [2.13.0.2] - 2023-02-15
+
+* Add logging for Exceptions - `logException`
 
 ## [2.13.0.1] - 2022-08-03
 

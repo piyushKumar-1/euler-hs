@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          euler-hs
-version:       2.13.0.1
+version:       2.13.0.2
 synopsis:      The Flow framework for Euler.
 description:
 homepage:      https://bitbucket.org/juspay/euler-hs
@@ -26,6 +26,7 @@ common common-lang
     , base                     >=4.13   && <5
     , record-dot-preprocessor  ^>=0.2.14
     , record-hasfield
+    , euler-events-hs          ^>=2.0.0
 
   default-extensions:
     NoImplicitPrelude
@@ -66,6 +67,18 @@ library
     EulerHS.Prelude
     EulerHS.Runtime
     EulerHS.Types
+    EulerHS.SqlDB.Language
+    EulerHS.KVConnector.DBSync 
+    EulerHS.KVConnector.Encoding
+    EulerHS.KVConnector.Flow
+    EulerHS.KVConnector.Metrics
+    EulerHS.KVConnector.Types
+    EulerHS.Logger.Types
+    EulerHS.KVConnector.InMemConfig.Types
+    EulerHS.KVConnector.Utils
+    EulerHS.Extra.Regex
+    EulerHS.Masking
+    EulerHS.Extra.URLSanitization
 
   other-modules:
     EulerHS.Api
@@ -83,20 +96,19 @@ library
     EulerHS.Logger.Language
     EulerHS.Logger.Runtime
     EulerHS.Logger.TinyLogger
-    EulerHS.Logger.Types
-    EulerHS.Masking
     EulerHS.Options
     EulerHS.PubSub.Interpreter
     EulerHS.PubSub.Language
     EulerHS.SqlDB.Interpreter
-    EulerHS.SqlDB.Language
     EulerHS.SqlDB.MySQL
     EulerHS.SqlDB.Postgres
-    EulerHS.SqlDB.Types
+    EulerHS.SqlDB.Types 
+    EulerHS.KVConnector.InMemConfig.Flow
 
   build-depends:
     , QuickCheck
     , aeson
+    , aeson-pretty
     , base64-bytestring
     , beam-core             ^>=0.9.0.0
     , beam-mysql            ^>=1.3.0.4
@@ -104,9 +116,12 @@ library
     , beam-sqlite           ^>=0.5.0.0
     , bytestring
     , case-insensitive
+    , casing
     , cereal
     , connection
     , containers
+    , cryptostore
+    , ctrie
     , data-default
     , dlist
     , exceptions
@@ -123,6 +138,7 @@ library
     , http-media
     , http-types
     , juspay-extra          ^>=1.0.1.5
+    , lrucache
     , lrucaching
     , mysql-haskell         ^>=0.8.4.2
     , named
@@ -137,8 +153,9 @@ library
     , random
     , reflection
     , resource-pool
+    , safe
     , scientific
-    , sequelize             ^>=1.1.1.0
+    , sequelize             
     , servant
     , servant-client        ^>=0.18.3
     , servant-client-core   ^>=0.18.3
@@ -164,6 +181,11 @@ library
     , x509-store
     , x509-system
     , x509-validation
+    , safe-exceptions
+    , pcre-heavy
+    , pcre-light
+    , attoparsec
+    , tasty-hunit
 
   hs-source-dirs:  src
 
@@ -173,7 +195,7 @@ test-suite language
   main-is:        Main.hs
   other-modules:
     ArtSpec
-    CachedDBSpec
+    -- CachedDBSpec
     Client
     Common
     DBSetup
@@ -187,6 +209,13 @@ test-suite language
     PubSubSpec
     Scenario1
     SQLArtSpec
+    KV.FlowHelper
+    KV.TestSchema.ServiceConfiguration
+    KV.InsertSpec
+    KV.TestSchema.ThUtils
+    KV.TestSchema.Mesh
+    KV.TestHelper
+    KV.FindOneSpec
 
   build-depends:
     , aeson
@@ -194,6 +223,7 @@ test-suite language
     , async
     , beam-core
     , beam-sqlite
+    , beam-mysql
     , bytestring
     , containers
     , data-default
@@ -230,6 +260,13 @@ test-suite language
     , x509-store
     , tls
     , connection
+    , time
+    , tinylog
+    , template-haskell
+    , casing
+    , scientific
+    , hspec-core
+    , cereal
 
   ghc-options:    -threaded -O2
   hs-source-dirs: test/language

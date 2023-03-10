@@ -21,6 +21,7 @@ module EulerHS.Language
     Y.logErrorV,
     Y.logDebugV,
     Y.logWarningV,
+    Y.logException,
     -- * Calling external services
     Y.callAPI,
     Y.callAPI',
@@ -33,7 +34,12 @@ module EulerHS.Language
     Y.withRunFlow,
     Y.forkFlow,
     Y.forkFlow',
-    Y.foldFlow
+    Y.foldFlow,
+    -- * dbAndRedisMetric
+    Y.DBAndRedisMetricHandler,
+    Y.DBAndRedisMetric (..),
+    Y.mkDBAndRedisMetricHandler,
+    Y.DBMetricCfg (..)
   ) where
 
 import           EulerHS.Extra.Language as X

@@ -14,7 +14,7 @@ import qualified Database.Beam.Schema.Tables as B
 import qualified Data.ByteString.Lazy as BSL
 import           Text.Casing (quietSnake)
 import qualified Data.HashMap.Strict as HM
-import           Data.List (findIndices)
+import           Data.List (findIndices, intersect)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 import qualified EulerHS.KVConnector.Encoding as Encoding
@@ -390,19 +390,26 @@ getFieldsAndValuesFromClause dt = \case
 
 getPrimaryKeyFromFieldsAndValues :: (L.MonadFlow m) => Text -> MeshConfig -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
 getPrimaryKeyFromFieldsAndValues _ _ _ [] = pure $ Right []
-getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap ((k, v) : xs) =
-  case HM.lookup k keyHashMap of
-    Just True -> pure $ Right [fromString $ T.unpack (contructKey <> getShardedHashTag contructKey)]
-    Just False -> do
-      let sKey = contructKey
-      res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack sKey)
-      case res of
-        Right [] -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
-        Right r -> pure $ Right r
-        Left e -> return $ Left $ MRedisError e
-    _ -> getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap xs
+getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap fieldsAndValues = do
+  res <- foldEither <$> mapM getPrimaryKeyFromFieldAndValueHelper fieldsAndValues
+  pure $ mapRight (intersectList . catMaybes) res
   where
-    contructKey = modelName <> "_" <> k <> "_" <> v
+
+    getPrimaryKeyFromFieldAndValueHelper (k, v) = do
+      let constructedKey = modelName <> "_" <> k <> "_" <> v
+      case HM.lookup k keyHashMap of
+        Just True -> pure $ Right $ Just [fromString $ T.unpack (constructedKey <> getShardedHashTag constructedKey)]
+        Just False -> do
+          res <- L.runKVDB meshCfg.kvRedis $ L.smembers (fromString $ T.unpack constructedKey)
+          case res of
+            Right r -> pure $ Right $ Just r
+            Left e -> pure $ Left $ MRedisError e
+        _ -> pure $ Right Nothing
+      
+    intersectList (x : y : xs) = intersectList (intersect x y : xs)
+    intersectList (x : [])     = x
+    intersectList []           = []
+
 -- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
 -- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
 nonEmptySubsequences         :: [Text] -> [[Text]]

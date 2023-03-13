@@ -158,7 +158,7 @@ getHttpLibRequest request = do
       & map (\(x, y) -> (CI.mk (Encoding.encodeUtf8 x), Encoding.encodeUtf8 y))
 
   let
-    setTimeout = case getRequestTimeout request of
+    setTimeout = case getRequestTimeout request <|> getFromCustomTimeoutHeader of
       Just x  -> setRequestTimeout x
       Nothing -> setRequestTimeout defaultTimeout
 
@@ -172,6 +172,9 @@ getHttpLibRequest request = do
         { HTTP.method         = requestMethod
         , HTTP.requestHeaders = headers
         }
+  where
+    getFromCustomTimeoutHeader = 
+      (A.decodeStrict' . Encoding.encodeUtf8) =<< (Map.lookup "x-custom-timeout-millis" $ getRequestHeaders request)
 
 -- | Set timeout in microseconds
 setRequestTimeout :: Int -> HTTP.Request -> HTTP.Request
@@ -253,14 +256,11 @@ interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientMana
 interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
     fmap next $ do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
-          let setR req = if HTTP.responseTimeout req == HTTP.responseTimeoutNone
-                            then setRequestTimeout defaultTimeout req
-                            else req {HTTP.responseTimeout = mResponseTimeout mngr}
           eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
                                                                           then dbgLogger Info
                                                                           else const $ return ()
                                                                       ) getLoggerMaskConfig bUrl clientAct) $
-            S.ClientEnv manager baseUrl cookieJar (\url -> setR . makeClientRequest url)
+            S.ClientEnv manager baseUrl cookieJar (\url -> getResponseTimeout . makeClientRequest url)
           case eitherResult of
             Left err -> do
               when shouldLogAPI $
@@ -277,7 +277,21 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
               pure $ Left err
             Right response ->
               pure $ Right response
-  where    
+  where
+    customHeader :: CI.CI ByteString
+    customHeader = CI.mk $ encodeUtf8 @Text "x-custom-timeout-millis"
+
+    getResponseTimeout req = do
+      let (modHeaders, maybeCustomTimeOut) = foldl (\(arr, m) (headerName, v) -> if customHeader == headerName then (arr, Just (headerName, v)) else ([(headerName, v)] <> arr, m)) ([], Nothing) $ requestHeaders req
+      case maybeCustomTimeOut >>= convertMilliSecondToMicro of
+        Just value -> req {HTTP.responseTimeout = HTTP.responseTimeoutMicro value, HTTP.requestHeaders = modHeaders}
+        Nothing -> if HTTP.responseTimeout req == HTTP.responseTimeoutNone
+                    then setRequestTimeout defaultTimeout req
+                    else req {HTTP.responseTimeout = mResponseTimeout mngr}
+    
+    convertMilliSecondToMicro :: (a, ByteString) -> Maybe Int
+    convertMilliSecondToMicro (_, value) = (*) 1000  <$> A.decodeStrict value
+
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
     dbgLogger logLevel msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)

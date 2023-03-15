@@ -465,9 +465,9 @@ shouldLogFindDBCallLogs = fromMaybe False $ readMaybe =<< lookupEnvT "IS_FIND_DB
 
 isLogsEnabledForModel :: Text -> Bool
 isLogsEnabledForModel modelName = do
-  let env = fromMaybe "development" $ lookupEnvT "NODE_ENV"
+  let env :: Text = fromMaybe "development" $ lookupEnvT "NODE_ENV"
   if env == "production" then do
-    let enableModelList =  fromMaybe "" $ readMaybe =<< lookupEnvT "IS_LOGS_ENABLED_FOR_MODEL"
+    let enableModelList = fromMaybe [] $ readMaybe =<< lookupEnvT "IS_LOGS_ENABLED_FOR_MODEL"
     if modelName `elem` enableModelList then True else False
     else False
 

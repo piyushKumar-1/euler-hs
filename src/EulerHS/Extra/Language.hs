@@ -41,14 +41,9 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
-  , rZAdd
   , rZAddB
-  , rZAddT
-  , rZRangeByScore
   , rZRangeByScoreB
-  , rZRemRangeByScore
   , rZRemRangeByScoreB
-  , rZRangeByScoreT
   -- * Logging
   , AppException(..)
   , throwOnFailedWithLog
@@ -710,19 +705,9 @@ updateLoggerContext updateLCtx rt@FlowRuntime{..} = do
                 newCtx <- updateLCtx _logContext
                 pure $ LoggerRuntime {_logContext = newCtx, ..}
 
-rZAdd :: (HasCallStack, ToJSON v, L.MonadFlow m) =>
-  RedisName
-  -> TextKey
-  -> [(Double, v)]
-  -> m (Either KVDBReply Integer)
-rZAdd cName k v = rZAddB cName k' v'
-  where
-    k' = TE.encodeUtf8 k
-    v' = map (\(score,value) -> (score, (BSL.toStrict $ A.encode value))) v
-
 rZAddB :: (HasCallStack, L.MonadFlow m) =>
   RedisName
-  -> ByteKey
+  -> L.KVDBKey
   -> [(Double,ByteValue)]
   -> m (Either KVDBReply Integer)
 rZAddB cName k v = do
@@ -733,91 +718,24 @@ rZAddB cName k v = do
       L.logError @Text "Redis setOpts" $ show err
       pure res
 
-rZAddT :: (HasCallStack, L.MonadFlow m) =>
-  RedisName
-  -> TextKey
-  -> [(Double,Text)]
-  -> m (Either KVDBReply Integer)
-rZAddT cName k v = rZAddB cName k' v'
-  where
-    k' = TE.encodeUtf8 k
-    v' = map (\(score,val) -> (score, (TE.encodeUtf8 val))) v
-
-rZRangeByScore :: (HasCallStack, FromJSON v, L.MonadFlow m) =>
-  RedisName
-  -> TextKey
-  -> Double
-  -> Double
-  -> m ([Maybe v])
-rZRangeByScore cName k minScore maxScore = do 
-  mv <- rZRangeByScoreB cName k' minScore maxScore
-  mapM parseZrangeOutput mv
-  where
-    k' = TE.encodeUtf8 k
-    parseZrangeOutput :: (FromJSON v, L.MonadFlow m) => ByteValue -> m (Maybe v)
-    parseZrangeOutput val = 
-      case A.eitherDecode' @A.Value $ BSL.fromStrict val of
-        Left err -> do
-          L.logError @Text "rZRangeByScore value is not a valid JSON" $ "error: '" <> toText err
-                                    <> "' while decoding value: "
-                                    <> (fromEither $ mapLeft (toText . displayException) $ TE.decodeUtf8' val)
-          pure Nothing
-        Right value -> do
-          case (A.parseEither A.parseJSON value) of
-            Left err -> do
-              L.logError @Text "rZRangeByScore value cannot be decoded to target type" $ "error: '" <> toText err
-                                        <> "' while decoding value: "
-                                        <> (TE.decodeUtf8 . BSL.toStrict . A.encode . obfuscate) value
-              pure Nothing
-            Right v -> pure $ Just v
-
-rZRangeByScoreT :: (HasCallStack, L.MonadFlow m) =>
-  RedisName
-  -> TextKey
-  -> Double
-  -> Double
-  -> m ([Maybe Text])
-rZRangeByScoreT cName k minScore maxScore = do
-  mv <- rZRangeByScoreB cName (TE.encodeUtf8 k) minScore maxScore
-  mapM parseZrangeOutput mv
-  where
-    parseZrangeOutput :: (L.MonadFlow m) => ByteValue -> m (Maybe Text)
-    parseZrangeOutput val = do
-      case (TE.decodeUtf8' val) of
-        Left err -> do
-          L.logError @Text "Redis rGetT unicode decode error" (show err)
-          pure Nothing
-        Right x ->
-          pure $ Just x
-
-
 rZRangeByScoreB :: (HasCallStack, L.MonadFlow m) =>
   RedisName
-  -> ByteKey
+  -> L.KVDBKey
   -> Double
   -> Double
-  -> m ([ByteValue])
+  -> m (Either KVDBReply [L.KVDBValue])
 rZRangeByScoreB cName k minScore maxScore = do
   res <- L.runKVDB cName $ L.zrangebyscore k minScore maxScore
   case res of
-    Right val -> pure val
+    Right _ -> pure res
     Left err -> do
-      L.logError @Text "Redis rangeByScore" $ show err
-      pure []
+      L.logError @Text "Redis rZRangeByScore" $ show err
+      pure res
 
-rZRemRangeByScore :: (HasCallStack, L.MonadFlow m) =>
-  RedisName
-  -> TextKey
-  -> Double
-  -> Double
-  -> m (Either KVDBReply Integer)
-rZRemRangeByScore cName k minScore maxScore = rZRemRangeByScoreB cName k' minScore maxScore
-  where
-    k' = TE.encodeUtf8 k
 
 rZRemRangeByScoreB :: (HasCallStack, L.MonadFlow m) =>
   RedisName
-  -> ByteKey
+  -> L.KVDBKey
   -> Double
   -> Double
   -> m (Either KVDBReply Integer)

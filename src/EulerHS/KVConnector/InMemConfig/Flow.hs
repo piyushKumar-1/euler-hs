@@ -94,7 +94,7 @@ setInMemCache tName decodeTable (key,value) = do
   when (tName == key) $                             -- decode only when entry is for the looper's table
     case decodeTable value of
         Nothing -> do
-          L.logErrorT "setInMemCache" $ "Unable to decode ImcStreamValue for the table <" <> key <> "> and ImcStreamValue: " <> (show value)
+          L.logErrorT "setInMemCache" $ "Unable to decode ImcStreamValue for the table <" <> key
           return ()
         Just strmVal -> 
           case strmVal.command of

@@ -106,9 +106,6 @@ disconnect (PostgresPool _ pool) = DP.destroyAllResources pool
 disconnect (MySQLPool _ pool)    = DP.destroyAllResources pool
 disconnect (SQLitePool _ pool)   = DP.destroyAllResources pool
 
-suppressErrors :: IO a -> IO ()
-suppressErrors = void . try @_ @SomeException
-
 awaitMVarWithTimeout :: MVar (Either Text a) -> Int -> IO (Either AwaitingError a)
 awaitMVarWithTimeout mvar mcs | mcs <= 0  = go 0
                               | otherwise = go mcs
@@ -502,7 +499,12 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.RunSysCmd cmd next) =
 ----------------------------------------------------------------------
 interpretFlowMethod mbFlowGuid rt (L.Fork desc _newFlowGUID flow next) = do
   awaitableMVar <- newEmptyMVar
-  tid <- forkIO (suppressErrors (runFlow' mbFlowGuid rt (L.runSafeFlow flow) >>= putMVar awaitableMVar))
+  tid <- forkIO $ do
+    res <- (runFlow' mbFlowGuid rt (L.runSafeFlow flow))
+    case res of
+      Left (err :: Text) -> runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ rt) $ L.logMessage' Error ("Exception while executing Fork function" :: Text) $ Message (Just $ A.toJSON ("Exception : " <> err <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
+      Right _ -> pure ()
+    putMVar awaitableMVar res
   labelThread tid $ "euler-Fork:" ++ Text.unpack desc
   pure $ next $ Awaitable awaitableMVar
 

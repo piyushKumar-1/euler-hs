@@ -502,7 +502,7 @@ interpretFlowMethod mbFlowGuid rt (L.Fork desc _newFlowGUID flow next) = do
   tid <- forkIO $ do
     res <- (runFlow' mbFlowGuid rt (L.runSafeFlow flow))
     case res of
-      Left (err :: Text) -> runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ rt) $ L.logMessage' Error ("Exception while executing Fork function" :: Text) $ Message (Just $ A.toJSON ("Exception : " <> err <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
+      Left (err :: Text) -> runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ rt) $ L.logMessage' Error ("Exception while executing Fork function" :: Text) $ Message (Just $ A.toJSON ("Exception : " <> err <> (" , Stack Trace ") <> (Text.pack $ prettyCallStack callStack))) Nothing
       Right _ -> pure ()
     putMVar awaitableMVar res
   labelThread tid $ "euler-Fork:" ++ Text.unpack desc

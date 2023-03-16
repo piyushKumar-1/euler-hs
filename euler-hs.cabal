@@ -79,6 +79,8 @@ library
     EulerHS.Extra.Regex
     EulerHS.Masking
     EulerHS.Extra.URLSanitization
+    EulerHS.Extra.Monitoring.Types
+    EulerHS.Extra.Monitoring.Flow
 
   other-modules:
     EulerHS.Api

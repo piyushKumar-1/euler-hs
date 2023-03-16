@@ -6,6 +6,15 @@ module EulerHS.Extra.Monitoring.Types where
 import           EulerHS.Prelude
 import           EulerHS.Types (OptionEntity)
 
+
+data LatencyLogInfo = LatencyLogInfo {
+  _requests :: Int
+, _latency  :: Int
+, _avg_latency :: Int
+}
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
+
 data DBMetricInfo = DBMetricInfo {
     _latencyInfo :: LatencyInfo 
 }

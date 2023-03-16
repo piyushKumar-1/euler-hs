@@ -8,9 +8,9 @@ import           EulerHS.Types (OptionEntity)
 
 
 data LatencyLogInfo = LatencyLogInfo {
-  _requests :: Int
-, _latency  :: Int
-, _avg_latency :: Int
+  _requests :: Double
+, _latency  :: Double
+, _avg_latency :: Double
 }
   deriving stock (Show, Generic)
   deriving anyclass (FromJSON, ToJSON)
@@ -31,8 +31,8 @@ data APIMetricInfo = APIMetricInfo {
   deriving stock (Show, Generic)
 
 data LatencyInfo = LatencyInfo {
-    _latency :: Int
-,   _count   :: Int
+    _latency :: Double
+,   _count   :: Double
 }
   deriving stock (Show, Generic)
 

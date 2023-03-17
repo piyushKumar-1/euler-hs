@@ -705,12 +705,12 @@ updateLoggerContext updateLCtx rt@FlowRuntime{..} = do
                 newCtx <- updateLCtx _logContext
                 pure $ LoggerRuntime {_logContext = newCtx, ..}
 
-rZAddB :: (HasCallStack, L.MonadFlow m) =>
+rZAdd :: (HasCallStack, L.MonadFlow m) =>
   RedisName
   -> L.KVDBKey
   -> [(Double,ByteValue)]
   -> m (Either KVDBReply Integer)
-rZAddB cName k v = do
+rZAdd cName k v = do
   res <- L.runKVDB cName $ L.zadd k v
   case res of
     Right _ -> pure res
@@ -718,13 +718,13 @@ rZAddB cName k v = do
       L.logError @Text "Redis setOpts" $ show err
       pure res
 
-rZRangeByScoreB :: (HasCallStack, L.MonadFlow m) =>
+rZRangeByScore :: (HasCallStack, L.MonadFlow m) =>
   RedisName
   -> L.KVDBKey
   -> Double
   -> Double
   -> m (Either KVDBReply [L.KVDBValue])
-rZRangeByScoreB cName k minScore maxScore = do
+rZRangeByScore cName k minScore maxScore = do
   res <- L.runKVDB cName $ L.zrangebyscore k minScore maxScore
   case res of
     Right _ -> pure res
@@ -733,13 +733,13 @@ rZRangeByScoreB cName k minScore maxScore = do
       pure res
 
 
-rZRemRangeByScoreB :: (HasCallStack, L.MonadFlow m) =>
+rZRemRangeByScore :: (HasCallStack, L.MonadFlow m) =>
   RedisName
   -> L.KVDBKey
   -> Double
   -> Double
   -> m (Either KVDBReply Integer)
-rZRemRangeByScoreB cName k minScore maxScore = do
+rZRemRangeByScore cName k minScore maxScore = do
   res <- L.runKVDB cName $ L.zremrangebyscore k minScore maxScore
   case res of
     Right _ -> pure res

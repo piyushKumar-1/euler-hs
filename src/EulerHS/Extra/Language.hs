@@ -41,9 +41,9 @@ module EulerHS.Extra.Language
   , keyToSlot
   , rSadd
   , rSismember
-  , rZAddB
-  , rZRangeByScoreB
-  , rZRemRangeByScoreB
+  , rZAdd
+  , rZRangeByScore
+  , rZRemRangeByScore
   -- * Logging
   , AppException(..)
   , throwOnFailedWithLog

@@ -155,7 +155,8 @@ interpretKeyValueF runRedis (L.ZRange k start stop next) =
   fmap next $ runRedis $ R.zrange k start stop
 
 interpretKeyValueF runRedis (L.ZRangeByScore k minScore maxScore next) =
-  fmap next $ runRedis $ R.zrangebyscore k minScore maxScore
+  fmap next $ runRedis $  R.sendRequest [TE.encodeUtf8 $ T.pack "ZRANGE", k, minScore, maxScore
+                , TE.encodeUtf8 $ T.pack "BYSCORE"]
 
 interpretKeyValueF runRedis (L.ZRemRangeByScore k minScore maxScore next) =
   fmap next $ runRedis $ R.zremrangebyscore k minScore maxScore
@@ -280,7 +281,8 @@ interpretKeyValueTxF (L.ZRange k startRank stopRank next) =
   next <$> R.zrange k startRank stopRank
 
 interpretKeyValueTxF (L.ZRangeByScore k minScore maxScore next) =
-  next <$> R.zrangebyscore k minScore maxScore
+  next <$> R.sendRequest [TE.encodeUtf8 $ T.pack "ZRANGE", k, minScore, maxScore
+                , TE.encodeUtf8 $ T.pack "BYSCORE"]
 
 interpretKeyValueTxF (L.ZRemRangeByScore k minScore maxScore next) =
   next <$> R.zremrangebyscore k minScore maxScore

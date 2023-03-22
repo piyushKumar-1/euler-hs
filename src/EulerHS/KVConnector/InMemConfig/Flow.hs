@@ -162,6 +162,7 @@ searchInMemoryCache :: forall be beM table m.
     B.HasQBuilder be,
     HasCallStack,
     KVConnector (table Identity),
+    ToJSON (table Identity),
     Show (table Identity),
     Serialize.Serialize (table Identity),
     FromJSON (table Identity),
@@ -187,9 +188,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
               let
                 validResult = catMaybes $ results <&> getValidResult
                 keysRequiringRedisFetch = catMaybes $ results <&> getKeysRequiringRedisFetch
-              when shouldLogFindDBCallLogs $ 
-                (L.logDebugT ("searchInMemoryCache: <" <> tname <> "> validResult : ") $ show validResult)
-                >> (L.logDebugT ("searchInMemoryCache: <" <> tname <> "> keysRequiringRedisFetch : ") $ show keysRequiringRedisFetch)
+              when shouldLogFindDBCallLogs $ L.logDebugV ("searchInMemoryCache: <" <> tname <> "> got validResult") validResult
               if length validResult == 0
                 then if (length keysRequiringRedisFetch) /= 0 
                   then do 
@@ -232,7 +231,7 @@ searchInMemoryCache meshCfg dbConf whereClause = do
         do
           void $ L.runIO $ threadDelayMilisec 5
           void $ L.releaseConfigLock lockKey      -- TODO  Check if release fails
-      when shouldLogFindDBCallLogs $ L.logDebugT "forkKvFetchAndSave" $ "Initiating updation of key <" <> (show pKeys) <>"> in-mem-config"
+      when shouldLogFindDBCallLogs $ L.logDebugT "forkKvFetchAndSave" $ "Initiating updation for " <> (show $ length pKeys) <> " pKeys in-mem-config"
       L.fork $ void $ kvFetch pKeys
 
     kvFetch :: [Text] -> m (Source, MeshResult [table Identity])

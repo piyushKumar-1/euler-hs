@@ -44,6 +44,7 @@ module EulerHS.Extra.Language
   , rZAdd
   , rZRangeByScore
   , rZRemRangeByScore
+  , rZCard
   -- * Logging
   , AppException(..)
   , throwOnFailedWithLog
@@ -744,5 +745,17 @@ rZRemRangeByScore cName k minScore maxScore = do
   case res of
     Right _ -> pure res
     Left err -> do
-      L.logError @Text "Redis setOpts" $ show err
+      L.logError @Text "Redis rZRemRangeByScore" $ show err
+      pure res
+
+rZCard :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> m (Either KVDBReply Integer)
+rZCard cName k = do
+  res <- L.runKVDB cName $ L.zcard k
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZCard" $ show err
       pure res

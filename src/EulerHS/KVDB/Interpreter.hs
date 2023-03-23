@@ -160,6 +160,9 @@ interpretKeyValueF runRedis (L.ZRangeByScore k minScore maxScore next) =
 interpretKeyValueF runRedis (L.ZRemRangeByScore k minScore maxScore next) =
   fmap next $ runRedis $ R.zremrangebyscore k minScore maxScore
 
+interpretKeyValueF runRedis (L.ZCard k next) =
+  fmap next $ runRedis $ R.zcard k
+
 interpretKeyValueF runRedis (L.SRem k v next) =
   fmap next $ runRedis $ R.srem k v
 
@@ -284,6 +287,9 @@ interpretKeyValueTxF (L.ZRangeByScore k minScore maxScore next) =
 
 interpretKeyValueTxF (L.ZRemRangeByScore k minScore maxScore next) =
   next <$> R.zremrangebyscore k minScore maxScore
+
+interpretKeyValueTxF (L.ZCard k next) =
+  next <$> R.zcard k
 
 interpretKeyValueTxF (L.SRem k v next) =
   next <$> R.srem k v

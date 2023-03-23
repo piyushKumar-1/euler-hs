@@ -469,7 +469,7 @@ isLogsEnabledForModel modelName = do
   if env == "production" then do
     let enableModelList = fromMaybe [] $ readMaybe =<< lookupEnvT "IS_LOGS_ENABLED_FOR_MODEL"
     modelName `elem` enableModelList
-    else False
+    else True
 
 logAndIncrementKVMetric :: (L.MonadFlow m, ToJSON a) => Bool -> Text -> Operation -> MeshResult a -> Int -> Text -> Integer -> Source -> Maybe [[Text]] -> m ()
 logAndIncrementKVMetric shouldLogData action operation res latency model cpuLatency source mbDiffCheckRes = do

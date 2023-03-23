@@ -124,7 +124,7 @@ data KeyValueF f next where
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   ZAdd  :: KVDBKey -> [(Double, KVDBValue)] -> (f Integer -> next) -> KeyValueF f next
   ZRange :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
-  ZRangeByScore :: KVDBKey -> KVDBValue -> KVDBValue -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRangeByScore :: KVDBKey -> Double -> Double -> (f [ByteString] -> next) -> KeyValueF f next
   ZRemRangeByScore :: KVDBKey -> Double -> Double -> (f Integer -> next) -> KeyValueF f next
   SRem    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   LPush   :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
@@ -320,7 +320,7 @@ zadd key values = ExceptT $ liftFC $ KV $ ZAdd key values id
 zrange :: KVDBKey -> Integer -> Integer -> KVDB [ByteString]
 zrange key startRank stopRank = ExceptT $ liftFC $ KV $ ZRange key startRank stopRank id
 
-zrangebyscore :: KVDBKey -> KVDBValue -> KVDBValue -> KVDB [ByteString]
+zrangebyscore :: KVDBKey -> Double -> Double -> KVDB [ByteString]
 zrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRangeByScore key minScore maxScore id
 
 zremrangebyscore :: KVDBKey -> Double -> Double -> KVDB Integer

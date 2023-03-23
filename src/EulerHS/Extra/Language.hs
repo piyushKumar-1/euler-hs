@@ -725,7 +725,7 @@ rZRangeByScore :: (HasCallStack, L.MonadFlow m) =>
   -> Double
   -> m (Either KVDBReply [L.KVDBValue])
 rZRangeByScore cName k minScore maxScore = do
-  res <- L.runKVDB cName $ L.zrangebyscore k (TE.encodeUtf8 $ Text.pack $ show minScore) (TE.encodeUtf8 $ Text.pack $ show maxScore)
+  res <- L.runKVDB cName $ L.zrangebyscore k minScore maxScore
   case res of
     Right _ -> pure res
     Left err -> do

@@ -280,7 +280,7 @@ interpretKeyValueTxF (L.ZRange k startRank stopRank next) =
   next <$> R.zrange k startRank stopRank
 
 interpretKeyValueTxF (L.ZRangeByScore k minScore maxScore next) =
-  next <$> R.sendRequest R.zrangebyscore k minScore maxScore
+  next <$> R.zrangebyscore k minScore maxScore
 
 interpretKeyValueTxF (L.ZRemRangeByScore k minScore maxScore next) =
   next <$> R.zremrangebyscore k minScore maxScore

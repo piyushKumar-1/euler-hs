@@ -36,6 +36,10 @@ module EulerHS.KVDB.Language
   , sadd, srem
   , smembers, smove
   , sismember
+
+  --- *** Ordered Set
+  , zadd
+  , zrange, zrangebyscore, zremrangebyscore, zcard
   -- *** Raw
   , rawRequest
   , pingRequest
@@ -118,6 +122,11 @@ data KeyValueF f next where
   XRevRange :: KVDBStream -> KVDBStreamEnd -> KVDBStreamStart -> Maybe Integer -> (f [KVDBStreamReadResponseRecord] -> next) -> KeyValueF f next
   XLen    :: KVDBStream -> (f Integer -> next) -> KeyValueF f next
   SAdd    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
+  ZAdd  :: KVDBKey -> [(Double, KVDBValue)] -> (f Integer -> next) -> KeyValueF f next
+  ZRange :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRangeByScore :: KVDBKey -> Double -> Double -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRemRangeByScore :: KVDBKey -> Double -> Double -> (f Integer -> next) -> KeyValueF f next
+  ZCard :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
   SRem    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   LPush   :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   LRange   :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
@@ -146,6 +155,11 @@ instance Functor (KeyValueF f) where
   fmap f (XRevRange strm send sstart count next) = XRevRange strm send sstart count (f . next)
   fmap f (XLen s next)                   = XLen s (f . next)
   fmap f (SAdd k v next)                 = SAdd k v (f . next)
+  fmap f (ZAdd k v next)                 = ZAdd k v (f . next)
+  fmap f (ZRange k s1 s2 next)           = ZRange k s1 s2 (f . next)
+  fmap f (ZRangeByScore k s1 s2 next)    = ZRangeByScore k s1 s2 (f . next)
+  fmap f (ZRemRangeByScore k s1 s2 next) = ZRemRangeByScore k s1 s2 (f . next)
+  fmap f (ZCard k next)                  = ZCard k (f . next)
   fmap f (SRem k v next)                 = SRem k v (f . next)
   fmap f (LPush k v next)                = LPush k v (f . next)
   fmap f (LRange k start stop next)      = LRange k start stop (f . next)
@@ -301,6 +315,21 @@ sadd setKey setmem = ExceptT $ liftFC $ KV $ SAdd setKey setmem id
 
 srem :: KVDBKey -> [KVDBValue] -> KVDB Integer
 srem setKey setmem = ExceptT $ liftFC $ KV $ SRem setKey setmem id
+
+zadd :: KVDBKey -> [(Double, KVDBValue)] -> KVDB Integer
+zadd key values = ExceptT $ liftFC $ KV $ ZAdd key values id
+
+zrange :: KVDBKey -> Integer -> Integer -> KVDB [ByteString]
+zrange key startRank stopRank = ExceptT $ liftFC $ KV $ ZRange key startRank stopRank id
+
+zrangebyscore :: KVDBKey -> Double -> Double -> KVDB [ByteString]
+zrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRangeByScore key minScore maxScore id
+
+zremrangebyscore :: KVDBKey -> Double -> Double -> KVDB Integer
+zremrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRemRangeByScore key minScore maxScore id
+
+zcard :: KVDBKey -> KVDB Integer
+zcard key = ExceptT $ liftFC $ KV $ ZCard key id
 
 lpush :: KVDBKey -> [KVDBValue] -> KVDB Integer
 lpush key value = ExceptT $ liftFC $ KV $ LPush key value id

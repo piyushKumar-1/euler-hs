@@ -1,40 +1,40 @@
 {-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DerivingStrategies  #-}
+{-# LANGUAGE RecordWildCards  #-}
 
 module EulerHS.Extra.Monitoring.Types where
 
 import           EulerHS.Prelude
+import qualified Data.Aeson as A
 import           EulerHS.Types (OptionEntity)
 
-
-data LatencyLogInfo = LatencyLogInfo {
-  _requests :: Double
-, _latency  :: Double
-, _avg_latency :: Double
-}
-  deriving stock (Show, Generic)
-  deriving anyclass (FromJSON, ToJSON)
 
 data DBMetricInfo = DBMetricInfo {
     _latencyInfo :: LatencyInfo 
 }
-  deriving stock (Show, Generic)
+  deriving stock (Show)
 
 data RedisMetricInfo = RedisMetricInfo {
     _latencyInfo :: LatencyInfo 
 }
-  deriving stock (Show, Generic)
+  deriving stock (Show)
 
 data APIMetricInfo = APIMetricInfo {
     _latencyInfo :: LatencyInfo 
 }
-  deriving stock (Show, Generic)
+  deriving stock (Show)
 
 data LatencyInfo = LatencyInfo {
-    _latency :: Double
-,   _count   :: Double
+    _latency    :: Double
+,   _requests   :: Int
 }
-  deriving stock (Show, Generic)
+  deriving stock (Show)
+
+instance ToJSON LatencyInfo where
+  toJSON (LatencyInfo {..}) = A.object [
+      ("latency", A.toJSON _latency)
+    , ("requests", A.toJSON _requests)
+    ]
 
 data DBMetricInfoKey = DBMetricInfoKey
   deriving stock (Eq, Show, Generic, Ord)

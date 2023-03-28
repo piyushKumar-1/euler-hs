@@ -344,7 +344,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
                 logJson Info logEntry
               pure $ Right response
     tock <- EEMF.getCurrentDateInMillisIO
-    runFlow flowRt $ EEMF.incrementAPILatencyMetric (tock-tick)
+    void $ EEMF.incrementAPILatencyMetric flowRt (tock-tick)
     pure val
   where
     picoMilliDiff :: Integer
@@ -642,7 +642,7 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
                 runSqlDB (NativeSQLiteConn conn') dbgLogAction $ sqlDbMethod
         wrapAndSend rawSqlTVar eRes
     tock <- EEMF.getCurrentDateInMillisIO
-    runFlow flowRt $ EEMF.incrementDBLatencyMetric (tock-tick)
+    void $ EEMF.incrementDBLatencyMetric flowRt (tock-tick)
     pure val
   where
       wrapAndSend rawSqlLoc eResult = do
@@ -673,7 +673,7 @@ interpretFlowMethod _ flowRt@(R.FlowRuntime {..}) (L.RunKVDB cName act next) = d
     tick <- EEMF.getCurrentDateInMillisIO
     val <- next <$> runKVDB cName _kvdbConnections act
     tock <- EEMF.getCurrentDateInMillisIO
-    runFlow flowRt $ EEMF.incrementRedisLatencyMetric (tock-tick)
+    void $ EEMF.incrementRedisLatencyMetric flowRt (tock-tick)
     pure val
 
 interpretFlowMethod mbFlowGuid rt@R.FlowRuntime {_pubSubController, _pubSubConnection} (L.RunPubSub act next) =

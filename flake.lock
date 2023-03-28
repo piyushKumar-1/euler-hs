@@ -54,7 +54,7 @@
         "rev": "c6af205a7adb1b7abac18f06830f4ed196bfd6e4",
         "revCount": 41,
         "type": "git",
-        "url": "ssh://git@bitbucket.org/juspay/euler-build"
+        "url": "ssh://git@ssh.bitbucket.juspay.net/jbiz/euler-build"
       },
       "original": {
         "id": "euler-build",
@@ -74,7 +74,7 @@
         "rev": "661920e09652ef1c27e8eb10d2f52c3dc82859c9",
         "revCount": 174,
         "type": "git",
-        "url": "ssh://git@bitbucket.org/juspay/euler-events-hs"
+        "url": "ssh://git@ssh.bitbucket.juspay.net/fram/euler-events-hs"
       },
       "original": {
         "id": "euler-events-hs",
@@ -94,7 +94,7 @@
         "rev": "b673307a0362690fceddc3a585c0a97f0794f16e",
         "revCount": 52,
         "type": "git",
-        "url": "ssh://git@bitbucket.org/juspay/euler-haskell-common"
+        "url": "ssh://git@ssh.bitbucket.juspay.net/jbiz/euler-haskell-common"
       },
       "original": {
         "id": "euler-haskell-common",
@@ -129,13 +129,13 @@
         ]
       },
       "locked": {
-        "lastModified": 1675245243,
-        "narHash": "sha256-9dv825ULNf57D3D38z/82bAX48W4sfjTlMmV2GzucDI=",
-        "ref": "master",
-        "rev": "136262f6084b234eafc45232c85a6bd8544e15fb",
-        "revCount": 107,
+        "lastModified": 1679996062,
+        "narHash": "sha256-h+i1ypI50Pso54bId8neg8zId9vW7RqUE5SZFVRR2MM=",
+        "ref": "feature/count-support",
+        "rev": "d5568393474eda1a331af2323457efcde6eca05b",
+        "revCount": 108,
         "type": "git",
-        "url": "ssh://git@bitbucket.org/juspay/haskell-sequelize"
+        "url": "ssh://git@ssh.bitbucket.juspay.net/exc/haskell-sequelize"
       },
       "original": {
         "id": "haskell-sequelize",

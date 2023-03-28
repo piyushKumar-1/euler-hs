@@ -10,6 +10,7 @@ module EulerHS.SqlDB.Language
   -- ** Methods
   , findRow
   , findRows
+  , countRows
   , insertRows
   , insertRowsReturningList
   , updateRows
@@ -63,6 +64,12 @@ findRow
   => B.SqlSelect be a
   -> SqlDB beM (Maybe a)
 findRow = sqlDBMethod . T.rtSelectReturningOne
+
+countRows
+  :: (HasCallStack, T.BeamRunner beM, T.BeamRuntime be beM, B.FromBackendRow be Int)
+  => B.SqlSelect be Int
+  -> SqlDB beM Int
+countRows = (fromMaybe 0 <$>) . sqlDBMethod . T.rtSelectReturningOne
 
 -- | Insert
 insertRows

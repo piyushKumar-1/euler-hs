@@ -16,8 +16,8 @@ dependencies:
     branch: master
     revision: b4dbc91276f6a8b5356633492f89bdac34ccd9a1
   haskell-sequelize:
-    branch: master
-    revision: 136262f6084b234eafc45232c85a6bd8544e15fb
+    branch: feature/count-support
+    revision: d5568393474eda1a331af2323457efcde6eca05b
   euler-haskell-common:
     branch: master
     revision: b673307a0362690fceddc3a585c0a97f0794f16e

@@ -23,6 +23,7 @@ module EulerHS.CachedSqlDBQuery
   , createMultiSql
   , createMultiSqlWoReturning
   , runQuery
+  , countRows
   , SqlReturning(..)
   )
 where
@@ -44,7 +45,7 @@ import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig(..),
                                       DBErrorType (UnexpectedResult), DBResult)
 import           Named (defaults, (!))
 import           Sequelize (Model, Set, Where, mkExprWithDefault,  mkMultiExprWithDefault,
-                            modelTableEntity, sqlSelect, sqlUpdate, sqlDelete)
+                            modelTableEntity, sqlSelect, sqlUpdate, sqlDelete, sqlCount)
 
 -- TODO: What KVDB should be used
 cacheName :: String
@@ -276,6 +277,22 @@ updateExtended dbConf mKey upd = do
 
 -- | Find an element matching the query. Only uses the DB if the cache is empty.
 --   Caches the result using the given key.
+countRows ::
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m,
+    B.FromBackendRow be Int
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError Int)
+countRows = countSql
+
+-- | Find an element matching the query. Only uses the DB if the cache is empty.
+--   Caches the result using the given key.
 findOne ::
   ( HasCallStack,
     BeamRuntime be beM,
@@ -487,6 +504,21 @@ createSqlWoReturing ::
   table Identity ->
   m (Either DBError ())
 createSqlWoReturing dbConf value = runQuery dbConf $ DB.insertRows $ sqlCreate value
+
+countSql ::
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    Model be table,
+    B.HasQBuilder be,
+    L.MonadFlow m,
+    B.FromBackendRow be Int
+  ) =>
+  DBConfig beM ->
+  Where be table ->
+  m (Either DBError Int)
+countSql dbConf whereClause = runQuery dbConf findQuery
+  where findQuery = DB.countRows (sqlCount ! #where_ whereClause ! defaults)
 
 findOneSql ::
   ( HasCallStack,

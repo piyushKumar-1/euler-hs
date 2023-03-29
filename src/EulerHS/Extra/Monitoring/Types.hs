@@ -54,3 +54,16 @@ instance OptionEntity DBMetricInfoKey DBMetricInfo
 instance OptionEntity RedisMetricInfoKey RedisMetricInfo
 
 instance OptionEntity APIMetricInfoKey APIMetricInfo
+
+data LatencyHandle = DB | REDIS | API
+  deriving stock (Show)
+
+data LatencyMetricHandler = LatencyMetricHandler
+  { latencyCounter :: (LatencyHandle, Text, Text, LatencyInfo) -> IO ()
+  }
+
+data LatencyMetricCfg = LatencyMetricCfg
+  deriving stock (Generic, Typeable, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance OptionEntity LatencyMetricCfg LatencyMetricHandler

@@ -1,9 +1,11 @@
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 
 module EulerHS.Extra.Monitoring.Flow where
 
+import           GHC.Float (int2Double)
 import           EulerHS.Prelude
 import qualified Data.Aeson as A
 import qualified EulerHS.Framework.Language as L
@@ -14,11 +16,17 @@ import           Data.Time.Clock (nominalDiffTimeToSeconds)
 import           Data.Fixed (Fixed (MkFixed))
 import qualified Juspay.Extra.Config as Conf
 import qualified Data.Map as Map
+import           EulerHS.Api (ApiTag(..))
+import           EulerHS.KVConnector.Types (MerchantID(..))
 import           Unsafe.Coerce (unsafeCoerce)
 import           EulerHS.Options (OptionEntity, mkOptionKey)
+import           Euler.Events.MetricApi.MetricApi
 
-isLatecyMetricEnabled :: Bool
-isLatecyMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "LATENCY_METRIC_ENABLED"
+isLatencyMetricEnabled :: Bool
+isLatencyMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "LATENCY_METRIC_ENABLED"
+
+isLatencyPromMetricEnabled :: Bool
+isLatencyPromMetricEnabled = fromMaybe False $ readMaybe =<< Conf.lookupEnvT "LATENCY_PROM_METRIC_ENABLED"
 
 getCurrentDateInMillisIO :: IO Double
 getCurrentDateInMillisIO = do
@@ -42,23 +50,61 @@ setOptionLocalIO R.FlowRuntime{..} k v = do
     putMVar _optionsLocal newMap
 
 incrementDBLatencyMetric :: R.FlowRuntime -> Double -> IO ()
-incrementDBLatencyMetric flowRt latency = when isLatecyMetricEnabled $ do
+incrementDBLatencyMetric flowRt latency = when isLatencyMetricEnabled $ do
     (EEMT.LatencyInfo oldLatency count) <- maybe defaultLatencyMetric (\(EEMT.DBMetricInfo x) -> x) <$> getOptionLocalIO flowRt EEMT.DBMetricInfoKey
     setOptionLocalIO flowRt EEMT.DBMetricInfoKey $ EEMT.DBMetricInfo (EEMT.LatencyInfo (oldLatency + latency) (count + 1))
 
 incrementRedisLatencyMetric :: R.FlowRuntime -> Double -> IO ()
-incrementRedisLatencyMetric flowRt latency = when isLatecyMetricEnabled $  do
+incrementRedisLatencyMetric flowRt latency = when isLatencyMetricEnabled $  do
     (EEMT.LatencyInfo oldLatency count) <- maybe defaultLatencyMetric (\(EEMT.RedisMetricInfo x) -> x) <$> getOptionLocalIO flowRt EEMT.RedisMetricInfoKey
     setOptionLocalIO flowRt EEMT.RedisMetricInfoKey $ EEMT.RedisMetricInfo (EEMT.LatencyInfo (oldLatency + latency) (count + 1))
 
 incrementAPILatencyMetric :: R.FlowRuntime -> Double -> IO ()
-incrementAPILatencyMetric flowRt latency = when isLatecyMetricEnabled $ do
+incrementAPILatencyMetric flowRt latency = when isLatencyMetricEnabled $ do
     (EEMT.LatencyInfo oldLatency count) <- maybe defaultLatencyMetric (\(EEMT.APIMetricInfo x) -> x) <$> getOptionLocalIO flowRt EEMT.APIMetricInfoKey
     setOptionLocalIO flowRt EEMT.APIMetricInfoKey $ EEMT.APIMetricInfo (EEMT.LatencyInfo (oldLatency + latency) (count + 1))
 
 logLatencyMetricLog :: (HasCallStack, L.MonadFlow m) => m ()
 logLatencyMetricLog = do
-    dbMetric    <- ((fromMaybe A.Null) . ((A.toJSON . (\(EEMT.DBMetricInfo x) -> x)) <$>)) <$> L.getOptionLocal EEMT.DBMetricInfoKey
-    redisMetric <- ((fromMaybe A.Null) . ((A.toJSON . (\(EEMT.RedisMetricInfo x) -> x)) <$>)) <$> L.getOptionLocal EEMT.RedisMetricInfoKey
-    apiMetric    <- ((fromMaybe A.Null) . ((A.toJSON . (\(EEMT.APIMetricInfo x) -> x)) <$>)) <$> L.getOptionLocal EEMT.APIMetricInfoKey
+    dbMetric    <- L.getOptionLocal EEMT.DBMetricInfoKey <&> ((\(EEMT.DBMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.DB <&> fromMaybe A.Null 
+    redisMetric <- L.getOptionLocal EEMT.RedisMetricInfoKey <&> ((\(EEMT.RedisMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.REDIS <&> fromMaybe A.Null
+    apiMetric    <- L.getOptionLocal EEMT.APIMetricInfoKey <&> ((\(EEMT.APIMetricInfo x) -> x) <$>) >>= extractAndIncrementLatencyMetric EEMT.API <&> fromMaybe A.Null
     L.logInfoV ("LATENCY_METRIC" :: Text) (A.object $ [("dbMetric",dbMetric),("redisMetric",redisMetric),("apiMetric",apiMetric)])
+    where
+        extractAndIncrementLatencyMetric latencyHandle = \case 
+            (Just (latencyInfo)) -> incrementKVMetric latencyHandle latencyInfo *> pure (Just $ A.toJSON latencyInfo)
+            Nothing              -> pure Nothing
+
+
+incrementKVMetric :: (HasCallStack, L.MonadFlow m) => EEMT.LatencyHandle -> EEMT.LatencyInfo -> m ()
+incrementKVMetric latencyHandle latencyInfo  = do
+  mHandle <- L.getOptionLocal EEMT.LatencyMetricCfg
+  maybe (pure ()) (\handle -> do
+      mid    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal MerchantID 
+      tag    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal ApiTag
+      L.runIO $ ((EEMT.latencyCounter handle) (latencyHandle, mid, tag, latencyInfo))) mHandle
+
+mkIOLatencyMetricHandler :: IO EEMT.LatencyMetricHandler
+mkIOLatencyMetricHandler = do
+  metrics <- register collectionLock
+  pure $ EEMT.LatencyMetricHandler $ \case
+    (latencyHandle, tag, mid, EEMT.LatencyInfo{..}) -> do
+      observe (metrics </> #io_count_observe) (int2Double _requests) latencyHandle tag mid
+      observe (metrics </> #io_latency_observe) _latency latencyHandle tag mid
+
+io_count_observe = histogram #io_count_observe
+      .& lbl @"io_handle" @EEMT.LatencyHandle
+      .& lbl @"tag" @Text
+      .& lbl @"mid" @Text
+      .& build
+
+io_latency_observe = histogram #io_latency_observe
+      .& lbl @"io_handle" @EEMT.LatencyHandle
+      .& lbl @"tag" @Text
+      .& lbl @"mid" @Text
+      .& build
+
+collectionLock =
+     io_count_observe
+  .> io_latency_observe
+  .> MNil

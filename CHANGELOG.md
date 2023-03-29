@@ -1,5 +1,9 @@
 # Changelog for euler-hs
 
+## [2.13.0.3] - 2023-03-10
+
+* Add exception handling in async logging in `loggerWorker`
+
 ## [2.13.0.2] - 2023-02-15
 
 * Add logging for Exceptions - `logException`

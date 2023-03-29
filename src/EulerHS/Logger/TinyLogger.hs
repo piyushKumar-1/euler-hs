@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module EulerHS.Logger.TinyLogger
   (
     -- * TinyLogger Implementation
@@ -17,11 +19,12 @@ module EulerHS.Logger.TinyLogger
 
 import           Control.Concurrent (forkOn, getNumCapabilities)
 import qualified Control.Concurrent.Chan.Unagi.Bounded as Chan
+import qualified Data.Aeson as A
 import           EulerHS.Logger.Types (BufferSize, FlowFormatter,
                                        LogLevel (Debug, Error, Info, Warning),
                                        LoggerConfig (LoggerConfig),
                                        MessageBuilder (MsgBuilder, MsgTransformer, SimpleBS, SimpleLBS, SimpleString, SimpleText),
-                                       PendingMsg (PendingMsg))
+                                       PendingMsg (PendingMsg), Message(..))
 import           GHC.Conc (labelThread)
 import           EulerHS.Prelude
 import qualified System.Logger as Log
@@ -57,8 +60,11 @@ logPendingMsg flowFormatter loggers pendingMsg@(PendingMsg mbFlowGuid lvl _ _ _ 
 
 loggerWorker :: FlowFormatter -> Chan.OutChan PendingMsg -> Loggers -> IO ()
 loggerWorker flowFormatter outChan loggers = do
-  pendingMsg <- Chan.readChan outChan
-  logPendingMsg flowFormatter loggers pendingMsg
+  pendingMsg@(PendingMsg mbFlowGuid _ _ _ msgNum lContext) <- Chan.readChan outChan
+  res <- try $ logPendingMsg flowFormatter loggers pendingMsg
+  case res of
+    Left (err :: SomeException) -> logPendingMsg flowFormatter loggers $ PendingMsg mbFlowGuid Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show err) :: Text) ) Nothing) msgNum lContext
+    Right _ -> pure ()
 
 sendPendingMsg :: FlowFormatter -> LoggerHandle -> PendingMsg -> IO ()
 sendPendingMsg _ VoidLoggerHandle = const (pure ())

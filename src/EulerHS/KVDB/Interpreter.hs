@@ -148,6 +148,21 @@ interpretKeyValueF runRedis (L.XLen stream next) =
 interpretKeyValueF runRedis (L.SAdd k v next) =
   fmap next $ runRedis $ R.sadd k v
 
+interpretKeyValueF runRedis (L.ZAdd k v next) = 
+  fmap next $ runRedis $ R.zadd k v
+
+interpretKeyValueF runRedis (L.ZRange k start stop next) =
+  fmap next $ runRedis $ R.zrange k start stop
+
+interpretKeyValueF runRedis (L.ZRangeByScore k minScore maxScore next) =
+  fmap next $ runRedis $  R.zrangebyscore k minScore maxScore
+
+interpretKeyValueF runRedis (L.ZRemRangeByScore k minScore maxScore next) =
+  fmap next $ runRedis $ R.zremrangebyscore k minScore maxScore
+
+interpretKeyValueF runRedis (L.ZCard k next) =
+  fmap next $ runRedis $ R.zcard k
+
 interpretKeyValueF runRedis (L.SRem k v next) =
   fmap next $ runRedis $ R.srem k v
 
@@ -260,6 +275,21 @@ interpretKeyValueTxF (L.XRevRange stream send sstart count next) =
 
 interpretKeyValueTxF (L.SAdd k v next) =
   next <$> R.sadd k v
+
+interpretKeyValueTxF (L.ZAdd k v next) =
+  next <$> R.zadd k v
+
+interpretKeyValueTxF (L.ZRange k startRank stopRank next) =
+  next <$> R.zrange k startRank stopRank
+
+interpretKeyValueTxF (L.ZRangeByScore k minScore maxScore next) =
+  next <$> R.zrangebyscore k minScore maxScore
+
+interpretKeyValueTxF (L.ZRemRangeByScore k minScore maxScore next) =
+  next <$> R.zremrangebyscore k minScore maxScore
+
+interpretKeyValueTxF (L.ZCard k next) =
+  next <$> R.zcard k
 
 interpretKeyValueTxF (L.SRem k v next) =
   next <$> R.srem k v

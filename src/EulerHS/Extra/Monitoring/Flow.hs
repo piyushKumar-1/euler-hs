@@ -78,7 +78,7 @@ logLatencyMetricLog = do
 
 incrementKVMetric :: (HasCallStack, L.MonadFlow m) => EEMT.LatencyHandle -> EEMT.LatencyInfo -> m ()
 incrementKVMetric latencyHandle latencyInfo  = do
-  mHandle <- L.getOptionLocal EEMT.LatencyMetricCfg
+  mHandle <- L.getOption EEMT.LatencyMetricCfg
   maybe (pure ()) (\handle -> do
       mid    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal MerchantID 
       tag    <- fromMaybe "UNKNOWN" <$> L.getOptionLocal ApiTag

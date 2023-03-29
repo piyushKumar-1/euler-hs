@@ -260,7 +260,7 @@ termQueryMatch columnVal = \case
   GreaterThanOrEq literal -> columnVal >= literal
   LessThan literal        -> columnVal < literal
   LessThanOrEq literal    -> columnVal <= literal
-  Not Null                -> isJust Nothing
+  Not Null                -> isJust columnVal
   Not (Eq literal)        -> not $ matchWithCaseInsensitive columnVal literal
   Not term                -> not (termQueryMatch columnVal term)
   _                       -> error "Term query not supported"

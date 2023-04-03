@@ -134,7 +134,7 @@ getRecordsFromStream redisName streamName lastRecordId = do
                     case uncons . reverse . L.response $ rss of
                         Nothing -> return Nothing
                         Just (latestRecord, _) -> do
-                                when shouldLogFindDBCallLogs $ L.logInfoT "getRecordsFromStream" $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
+                                L.logInfoT "getRecordsFromStream" $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
                                 return . Just . bimap (decodeUtf8 . L.recordId) (extractRecordsFromStreamResponse . L.response ) $ (latestRecord, rss)
 
 getDataFromPKeysIMC :: forall table m. (
@@ -293,18 +293,24 @@ searchInMemoryCache meshCfg dbConf whereClause = do
       pure $ foldEither eitherKeyRes
 
     getPrimaryKeyInIMCFromFieldsAndValues :: (L.MonadFlow m) => Text -> HM.HashMap Text Bool -> [(Text, Text)] -> m (MeshResult [ByteString])
-    getPrimaryKeyInIMCFromFieldsAndValues _ _ [] = pure $ Right []
-    getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap ((k, v) : xs) =
-      case HM.lookup k keyHashMap of
-        Just True -> pure $ Right [fromString $ T.unpack (contructKey <> getShardedHashTag contructKey)]
-        Just False -> do
-          let sKey = contructKey
-          L.getConfig sKey >>= \case
-            Nothing -> getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap xs
-            Just pKeyEntries -> pure . Right $ encodeUtf8 <$> unsafeCoerce @_ @[Text] pKeyEntries.entry
-        _ -> getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap xs
+    getPrimaryKeyInIMCFromFieldsAndValues modelName keyHashMap fieldsAndValues = do
+      res <- foldEither <$> mapM getPrimaryKeyFromFieldAndValueHelper fieldsAndValues
+      pure $ mapRight (intersectList . catMaybes) res
       where
-        contructKey = modelName <> "_" <> k <> "_" <> v
+
+        getPrimaryKeyFromFieldAndValueHelper (k, v) = do
+          let constructedKey = modelName <> "_" <> k <> "_" <> v
+          case HM.lookup k keyHashMap of
+            Just True -> pure $ Right $ Just [fromString $ T.unpack (constructedKey <> getShardedHashTag constructedKey)]
+            Just False -> do
+              L.getConfig constructedKey >>= \case
+                Nothing -> pure $ Right Nothing
+                Just pKeyEntries -> pure . Right . Just $ encodeUtf8 <$> unsafeCoerce @_ @[Text] pKeyEntries.entry
+            _ -> pure $ Right Nothing
+          
+        intersectList (x : y : xs) = intersectList (DL.intersect x y : xs)
+        intersectList (x : [])     = x
+        intersectList []           = []
 
 updateAllKeysInIMC :: forall table m. (KVConnector (table Identity), L.MonadFlow m) => Text -> table Identity -> m ()
 updateAllKeysInIMC pKey val = do

@@ -687,6 +687,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
 
     findOneFromDBIfNotFound :: (Source, MeshResult [table Identity]) -> m (Source, MeshResult (Maybe (table Identity)))
     findOneFromDBIfNotFound res = case res of
+      (source, Right []) -> pure (source, Right Nothing)
       (source, Right rows) -> do
         let matchingRes = findOneMatching whereClause rows
         if isJust matchingRes

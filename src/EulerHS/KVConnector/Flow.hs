@@ -675,7 +675,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
   (source, res) <- if shouldSearchInMemoryCache
     then do
       inMemResult <- searchInMemoryCache meshCfg dbConf whereClause
-      return $ second (either Left findOneMatchingFromIMC ) inMemResult
+      findOneFromDBIfNotFound inMemResult
     else
       kvFetch
   t2        <- getCurrentDateInMillis
@@ -685,9 +685,14 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
   pure res
   where
 
-    findOneMatchingFromIMC :: [table Identity] -> (MeshResult (Maybe (table Identity)))
-    findOneMatchingFromIMC result = do
-      Right $ findOneMatching whereClause result
+    findOneFromDBIfNotFound :: (Source, MeshResult [table Identity]) -> m (Source, MeshResult (Maybe (table Identity)))
+    findOneFromDBIfNotFound res = case res of
+      (source, Right rows) -> do
+        let matchingRes = findOneMatching whereClause rows
+        if isJust matchingRes
+          then pure (source, Right matchingRes)
+          else (SQL,) <$> findOneFromDB dbConf whereClause
+      (source, Left err) -> pure (source, Left err)
 
     kvFetch :: m ((Source, MeshResult (Maybe (table Identity))))
     kvFetch = do

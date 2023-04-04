@@ -185,7 +185,7 @@ updateWoReturningWithKVConnector :: forall be table beM m.
   Where be table ->
   m (MeshResult ())
 updateWoReturningWithKVConnector dbConf meshCfg setClause whereClause = do
-  let isDisabled = meshCfg.kvHardKilled  --isKVEnabled (tableName @(table Identity))
+  let isDisabled = meshCfg.kvHardKilled
   t1        <- getCurrentDateInMillis
   cpuT1     <- L.runIO getCPUTime
   (source, res) <- if not isDisabled
@@ -280,43 +280,23 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
       updVals = jsonKeyValueUpdates setClause
   kvResult <- findOneFromRedis meshCfg whereClause
   case kvResult of
-    Right ([], []) -> do
-      if isRecachingEnabled && meshCfg.meshEnabled
-        then do
-          let findQuery = DB.findRows (sqlSelect ! #where_ whereClause ! defaults)
-          dbRes <- runQuery dbConf findQuery
-          (KV,) <$> case dbRes of
-            Right [obj] -> do
-              reCacheDBRowsRes <- reCacheDBRows meshCfg [obj]
-              case reCacheDBRowsRes of
-                Left err -> return $ Left $ MRedisError err
-                Right _  -> mapRight Just <$> if isLive
-                  then updateObjectRedis meshCfg updVals False whereClause obj
-                  else deleteObjectRedis meshCfg False whereClause obj
-            Right [] -> pure $ Right Nothing
-            Right _  -> pure $ Left $ MUpdateFailed "Found more than one record in DB"
-            Left err -> pure $ Left (MDBError err)
-        else (SQL,) <$> (do
-          runUpdateOrDelete setClause >>= \case
-            Left e -> return $ Left e
-            Right mbRow -> if meshCfg.memcacheEnabled
-                then
-                  alterImc mbRow <&> ($> mbRow)
-                else
-                  return . Right $ mbRow
-          )
+    Right ([], []) -> recachingLogic Nothing updVals setClause
     Right ([], _) -> do
       L.logDebugT "modifyOneKV" ("Modifying nothing - Row is deleted already for " <> tableName @(table Identity))
-      pure $ (KV, Right Nothing)
-    Right (kvLiveRows, _) -> (KV,) <$> case findAllMatching whereClause kvLiveRows of
-      [obj] -> mapRight Just <$> if isLive
-          then updateObjectRedis meshCfg updVals False whereClause obj
-          else deleteObjectRedis meshCfg False whereClause obj
-      [] -> pure $ Right Nothing
-      _ -> do 
-        L.logErrorT "modifyOneKV" "Found more than one record in redis - Modification failed"
-        pure $ Left $ MUpdateFailed "Found more than one record in redis"
-    Left err -> pure $ (KV, Left err)
+      pure (KV, Right Nothing)
+    Right (kvLiveRows, _) -> do
+      findFromDBIfMatchingFailsRes <- findFromDBIfMatchingFails dbConf whereClause kvLiveRows
+      case findFromDBIfMatchingFailsRes of
+        (_, Right [])        -> pure (KV, Right Nothing)
+        (SQL, Right [dbRow]) -> recachingLogic (Just dbRow) updVals setClause
+        (KV, Right [obj])   -> (KV,) . mapRight Just <$> (if isLive
+           then updateObjectRedis meshCfg updVals False whereClause obj
+           else deleteObjectRedis meshCfg False whereClause obj)
+        (source, Right (_ : _))   -> do
+          L.logErrorT "modifyOneKV" "Found more than one record in redis - Modification failed"
+          pure (source, Left $ MUpdateFailed "Found more than one record in redis")
+        (source, Left err) -> pure (source, Left err)
+    Left err -> pure (KV, Left err)
 
     where
       alterImc :: Maybe (table Identity) -> m (MeshResult ())
@@ -364,6 +344,32 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
                   L.logErrorT "deleteReturningWithKVConnector" message
                   return $ Left $ UnexpectedError message
                 Left e -> return $ Left $ MDBError e
+
+      recachingLogic maybeRow updVals setClause = do
+        if isRecachingEnabled && meshCfg.meshEnabled
+          then do
+            dbRes <- case maybeRow of
+              Nothing -> findOneFromDB dbConf whereClause
+              Just dbrow -> pure $ Right $ Just dbrow
+            (KV,) <$> case dbRes of
+              Right (Just obj) -> do
+                reCacheDBRowsRes <- reCacheDBRows meshCfg [obj]
+                case reCacheDBRowsRes of
+                  Left err -> return $ Left $ MRedisError err
+                  Right _  -> mapRight Just <$> if isLive
+                    then updateObjectRedis meshCfg updVals False whereClause obj
+                    else deleteObjectRedis meshCfg False whereClause obj
+              Right Nothing -> pure $ Right Nothing
+              Left err -> pure $ Left err
+          else (SQL,) <$> (do
+            runUpdateOrDelete setClause >>= \case
+              Left e -> return $ Left e
+              Right mbRow -> if meshCfg.memcacheEnabled
+                  then
+                    alterImc mbRow <&> ($> mbRow)
+                  else
+                    return . Right $ mbRow
+            )
 
 updateObjectInMemConfig :: forall be table m.
   ( HasCallStack,
@@ -697,7 +703,7 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
 
     kvFetch :: m ((Source, MeshResult (Maybe (table Identity))))
     kvFetch = do
-      let isDisabled = meshCfg.kvHardKilled 
+      let isDisabled = meshCfg.kvHardKilled
       if not isDisabled
         then do
           eitherKvRows <- findOneFromRedis meshCfg whereClause
@@ -708,11 +714,38 @@ findWithKVConnector dbConf meshCfg whereClause = do --This function fetches all 
               L.logInfoT "findWithKVConnector" ("Returning nothing - Row is deleted already for " <> tableName @(table Identity))
               pure $ (KV, Right Nothing)
             Right (kvLiveRows, _) -> do
-              let filteredKVLiveRows = findAllMatching whereClause kvLiveRows
-              pure $ (KV, Right $ listToMaybe filteredKVLiveRows)
+              second (mapRight listToMaybe) <$> findFromDBIfMatchingFails dbConf whereClause kvLiveRows
             Left err -> pure $ (KV, Left err)
         else do
           (SQL,) <$> findOneFromDB dbConf whereClause
+
+findFromDBIfMatchingFails :: forall be table beM m.
+  ( HasCallStack,
+    BeamRuntime be beM,
+    BeamRunner beM,
+    B.HasQBuilder be,
+    Model be table,
+    MeshMeta be table,
+    KVConnector (table Identity),
+    FromJSON (table Identity),
+    L.MonadFlow m) =>
+  DBConfig beM ->
+  Where be table ->
+  [table Identity] ->
+  m (Source, MeshResult [table Identity])
+findFromDBIfMatchingFails dbConf whereClause kvRows = do
+  case findAllMatching whereClause kvRows of -- For solving partial data case - One row in SQL and one in DB
+    [] -> do
+      dbRes <- findOneFromDB dbConf whereClause
+      case dbRes of
+        Right (Just dbRow) -> do
+          let kvPkeys = map getLookupKeyByPKey kvRows
+          if getLookupKeyByPKey dbRow `notElem` kvPkeys
+            then pure (SQL, Right [dbRow])
+            else pure (KV, Right [])
+        Left err           -> pure (SQL, Left err)
+        _                  -> pure (KV, Right [])
+    xs -> pure (KV, Right xs)
 
 -- TODO: Once record matched in redis stop and return it
 findOneFromRedis :: forall be table beM m.

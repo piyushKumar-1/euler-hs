@@ -463,17 +463,26 @@ isRecachingEnabled = fromMaybe False $ readMaybe =<< lookupEnvT "IS_RECACHING_EN
 shouldLogFindDBCallLogs :: Bool
 shouldLogFindDBCallLogs = fromMaybe False $ readMaybe =<< lookupEnvT "IS_FIND_DB_LOGS_ENABLED"
 
+isLogsEnabledForModel :: Text -> Bool
+isLogsEnabledForModel modelName = do
+  let env :: Text = fromMaybe "development" $ lookupEnvT "NODE_ENV"
+  if env == "production" then do
+    let enableModelList = fromMaybe [] $ readMaybe =<< lookupEnvT "IS_LOGS_ENABLED_FOR_MODEL"
+    modelName `elem` enableModelList
+    else True
+
 logAndIncrementKVMetric :: (L.MonadFlow m, ToJSON a) => Bool -> Text -> Operation -> MeshResult a -> Int -> Text -> Integer -> Source -> Maybe [[Text]] -> m ()
 logAndIncrementKVMetric shouldLogData action operation res latency model cpuLatency source mbDiffCheckRes = do
   apiTag <- L.getOptionLocal ApiTag
   mid    <- L.getOptionLocal MerchantID 
+  let shouldLogData_  = isLogsEnabledForModel model && shouldLogData
   let dblog = DBLogEntry {
       _log_type     = "DB"
     , _action       = action -- For logprocessor
     , _operation    = operation
     , _data         = case res of
                         Left err -> A.String (T.pack $ show err)
-                        Right m  -> if shouldLogData then A.toJSON m else A.Null
+                        Right m  -> if shouldLogData_ then A.toJSON m else A.Null
     , _latency      = latency
     , _model        = model
     , _cpuLatency   = getLatencyInMicroSeconds cpuLatency

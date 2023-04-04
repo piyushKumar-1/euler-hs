@@ -275,8 +275,7 @@ updateExtended dbConf mKey upd = do
   maybe (pure ()) (`cacheWithKey` res) mKey
   pure res
 
--- | Find an element matching the query. Only uses the DB if the cache is empty.
---   Caches the result using the given key.
+-- | Find No of Rows
 countRows ::
   ( HasCallStack,
     BeamRuntime be beM,

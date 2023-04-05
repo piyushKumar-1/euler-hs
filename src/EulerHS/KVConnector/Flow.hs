@@ -744,7 +744,11 @@ findFromDBIfMatchingFails dbConf whereClause kvRows = do
             then pure (SQL, Right [dbRow])
             else pure (KV, Right [])
         Left err           -> pure (SQL, Left err)
-        _                  -> pure (KV, Right [])
+        {- Below source cannot be determined as there can be 2 possiblities
+           1. Row is in KV but matching failed because of some column like status
+           2. Row is in KV for other clause (Eg. merchantId) but not for required clause and also not in SQL
+           Source as KV can be more misleading, therefore returning source as SQL -}
+        _                  -> pure (SQL, Right [])
     xs -> pure (KV, Right xs)
 
 -- TODO: Once record matched in redis stop and return it

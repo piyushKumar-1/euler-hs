@@ -280,7 +280,7 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
       updVals = jsonKeyValueUpdates setClause
   kvResult <- findOneFromRedis meshCfg whereClause
   case kvResult of
-    Right ([], []) -> recachingLogic Nothing updVals setClause
+    Right ([], []) -> updateInKVOrSQL Nothing updVals setClause
     Right ([], _) -> do
       L.logDebugT "modifyOneKV" ("Modifying nothing - Row is deleted already for " <> tableName @(table Identity))
       pure (KV, Right Nothing)
@@ -288,11 +288,11 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
       findFromDBIfMatchingFailsRes <- findFromDBIfMatchingFails dbConf whereClause kvLiveRows
       case findFromDBIfMatchingFailsRes of
         (_, Right [])        -> pure (KV, Right Nothing)
-        (SQL, Right [dbRow]) -> recachingLogic (Just dbRow) updVals setClause
+        (SQL, Right [dbRow]) -> updateInKVOrSQL (Just dbRow) updVals setClause
         (KV, Right [obj])   -> (KV,) . mapRight Just <$> (if isLive
            then updateObjectRedis meshCfg updVals False whereClause obj
            else deleteObjectRedis meshCfg False whereClause obj)
-        (source, Right (_ : _))   -> do
+        (source, Right _)   -> do
           L.logErrorT "modifyOneKV" "Found more than one record in redis - Modification failed"
           pure (source, Left $ MUpdateFailed "Found more than one record in redis")
         (source, Left err) -> pure (source, Left err)
@@ -345,7 +345,7 @@ modifyOneKV dbConf meshCfg whereClause mbSetClause updateWoReturning isLive = do
                   return $ Left $ UnexpectedError message
                 Left e -> return $ Left $ MDBError e
 
-      recachingLogic maybeRow updVals setClause = do
+      updateInKVOrSQL maybeRow updVals setClause = do
         if isRecachingEnabled && meshCfg.meshEnabled
           then do
             dbRes <- case maybeRow of

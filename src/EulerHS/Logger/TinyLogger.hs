@@ -24,7 +24,7 @@ import           EulerHS.Logger.Types (BufferSize, FlowFormatter,
                                        LogLevel (Debug, Error, Info, Warning),
                                        LoggerConfig (LoggerConfig),
                                        MessageBuilder (MsgBuilder, MsgTransformer, SimpleBS, SimpleLBS, SimpleString, SimpleText),
-                                       PendingMsg (PendingMsg), Message(..))
+                                       PendingMsg (..), Message(..), getFlowGuuid, getLogLevel, getLogContext, getMessageNumber)
 import           GHC.Conc (labelThread)
 import           EulerHS.Prelude
 import qualified System.Logger as Log
@@ -45,10 +45,10 @@ dispatchLogLevel Warning = Log.Warn
 dispatchLogLevel Error   = Log.Error
 
 logPendingMsg :: FlowFormatter -> Loggers -> PendingMsg -> IO ()
-logPendingMsg flowFormatter loggers pendingMsg@(PendingMsg mbFlowGuid lvl _ _ _ _) = do
-  formatter <- flowFormatter mbFlowGuid
+logPendingMsg flowFormatter loggers pendingMsg = do
+  formatter <- flowFormatter $ getFlowGuuid pendingMsg
   let msgBuilder = formatter pendingMsg
-  let lvl' = dispatchLogLevel lvl
+  let lvl' = dispatchLogLevel $ getLogLevel pendingMsg
   let msg' = case msgBuilder of
         SimpleString str -> Log.msg str
         SimpleText txt   -> Log.msg txt
@@ -57,14 +57,18 @@ logPendingMsg flowFormatter loggers pendingMsg@(PendingMsg mbFlowGuid lvl _ _ _ 
         MsgBuilder bld   -> Log.msg bld
         MsgTransformer f -> f
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
-
+-- (PendingMsg mbFlowGuid _ _ _ msgNum lContext)
 loggerWorker :: FlowFormatter -> Chan.OutChan PendingMsg -> Loggers -> IO ()
 loggerWorker flowFormatter outChan loggers = do
-  pendingMsg@(PendingMsg mbFlowGuid _ _ _ msgNum lContext) <- Chan.readChan outChan
+  pendingMsg <- Chan.readChan outChan
   res <- try $ logPendingMsg flowFormatter loggers pendingMsg
   case res of
-    Left (err :: SomeException) -> logPendingMsg flowFormatter loggers $ PendingMsg mbFlowGuid Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show err) :: Text) ) Nothing) msgNum lContext
+    Left (err :: SomeException) -> logPendingMsg flowFormatter loggers $ makeErrorLog err pendingMsg
+    --PendingMsg (getFlowGuuid pendingMsg) Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show err) :: Text) ) Nothing) msgNum lContext
     Right _ -> pure ()
+  where
+    makeErrorLog e pMsg = -- l_todo : versionize
+      V1 (getFlowGuuid pMsg) Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show e) :: Text) ) Nothing) (getMessageNumber pMsg) (getLogContext pMsg)
 
 sendPendingMsg :: FlowFormatter -> LoggerHandle -> PendingMsg -> IO ()
 sendPendingMsg _ VoidLoggerHandle = const (pure ())

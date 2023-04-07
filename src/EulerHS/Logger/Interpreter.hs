@@ -25,7 +25,7 @@ interpretLogger :: Maybe FlowGUID -> R.LoggerRuntime -> LoggerMethod a -> IO a
 interpretLogger
   mbFlowGuid
   (R.MemoryLoggerRuntime flowFormatter logContext logLevel logsVar cntVar)
-  (LogMessage msgLogLvl tag msg next) =
+  (LogMessage msgLogLvl versionMessage next) =
 
   fmap next $
     case logLevel <= msgLogLvl of
@@ -34,7 +34,7 @@ interpretLogger
         formatter <- flowFormatter mbFlowGuid
         !msgNum   <- R.incLogCounter cntVar
         x <- readIORef logContext
-        let msgBuilder = formatter $ T.PendingMsg mbFlowGuid msgLogLvl tag msg msgNum x
+        let msgBuilder = formatter $ T.convertToPendingMsg mbFlowGuid msgLogLvl msgNum x versionMessage
         let !m = case msgBuilder of
               T.SimpleString str -> T.pack str
               T.SimpleText txt -> txt
@@ -48,7 +48,7 @@ interpretLogger
 interpretLogger
   mbFlowGuid
   (R.LoggerRuntime flowFormatter logContext logLevel _ _ cntVar _ handle severityCounterHandle)
-  (LogMessage msgLogLevel tag msg next) =
+  (LogMessage msgLogLevel versionMessage next) =
 
   fmap next $
     case logLevel <= msgLogLevel of
@@ -56,7 +56,7 @@ interpretLogger
       _  -> do
         msgNum    <- R.incLogCounter cntVar
         x <- readIORef logContext
-        Impl.sendPendingMsg flowFormatter handle $ T.PendingMsg mbFlowGuid msgLogLevel tag msg msgNum x
+        Impl.sendPendingMsg flowFormatter handle $ T.convertToPendingMsg mbFlowGuid msgLogLevel msgNum x versionMessage
         case severityCounterHandle of
           Nothing -> pure ()
           Just scHandle -> scHandle.incCounter msgLogLevel

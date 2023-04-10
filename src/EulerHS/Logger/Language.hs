@@ -8,6 +8,7 @@ module EulerHS.Logger.Language
   , LoggerMethod(..)
   , logMessage'
   , logMessageFormatted
+  , masterLogger
   ) where
 
 import qualified EulerHS.Logger.Types as T
@@ -39,3 +40,24 @@ logMessage' lvl tag msg = liftFC $ LogMessage lvl (T.Ver1 textTag msg) id
 logMessageFormatted :: T.LogLevel -> T.Category -> T.Action -> T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
 logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message =
   liftFC $ LogMessage logLevel (T.Ver2 category action entity maybeError maybeLatency maybeRespCode message) id
+
+
+{-
+based on log config:
+V1 - older version of logging
+V2 - newer version of logging
+V1_V2 - both version of logging
+-}
+
+masterLogger :: forall tag. (Typeable tag, Show tag) => T.LogLevel -> tag -> T.Category -> T.Action -> T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
+masterLogger logLevel tag category action entity maybeError maybeLatency maybeRespCode message
+  | version1 = logMessage' logLevel tag message
+  | version2 = logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
+  | version1AndVersion2 = 
+    logMessage' logLevel tag message >> 
+      logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
+  | otherwise = logMessage' logLevel tag message
+  where
+    version1 = False
+    version2 = False
+    version1AndVersion2 = True

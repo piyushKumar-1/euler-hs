@@ -132,13 +132,13 @@ type Category = Text
 type Action = Text
 type Entity = Text
 
-data ErrorL  = ErrorL !(Maybe ErrCode) ErrCategory ErrReason
+data ErrorL  = ErrorL !(Maybe ErrCode) ErrCategory ErrReason -- kept as maybe till unifiction is done
     deriving Show
 
 type ErrCode = Text
 type ErrCategory = Text
 type ErrReason = Text
-type Latency = Int
+type Latency = Integer
 type RespCode = Int
 
 data LogEntry = LogEntry !LogLevel !Message

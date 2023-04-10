@@ -118,6 +118,10 @@ createWithKVConnector dbConf meshCfg value = do
       case res of
         Right val -> return $ Right val
         Left e -> return $ Left $ MDBError e
+  when meshCfg.memcacheEnabled $ do
+    case res of
+      Right obj -> alterObjectInImcAndPushToConfigStream meshCfg ImcInsert obj
+      Left _    -> pure ()
   t2        <- getCurrentDateInMillis
   cpuT2     <- L.runIO getCPUTime
   let source = if isEnabled then KV else SQL

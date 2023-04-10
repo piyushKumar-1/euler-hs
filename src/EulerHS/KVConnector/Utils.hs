@@ -36,6 +36,7 @@ import qualified Data.Serialize as Cereal
 import           Data.Either.Extra (mapRight, mapLeft)
 import  EulerHS.KVConnector.Encoding ()
 import           Safe (atMay)
+import qualified EulerHS.Logger.Types as Log
 
 
 jsonKeyValueUpdates ::
@@ -483,7 +484,18 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
     , _whereDiffCheckRes = mbDiffCheckRes
     }
   if action == "FIND" then 
-    when shouldLogFindDBCallLogs $ L.logDebugV ("DB" :: Text) dblog 
-    else L.logInfoV ("DB" :: Text) dblog
+    when shouldLogFindDBCallLogs $ logDb Log.Debug ("DB" :: Text) source action model latency dblog--L.logDebugV ("DB" :: Text) dblog 
+    else logDb Log.Info ("DB" :: Text) source action model latency dblog--L.logInfoV ("DB" :: Text) dblog
   when (source == KV) $ L.setLoggerContext "PROCESSED_THROUGH_KV" "True"
   incrementMetric KVAction dblog (isLeft res)
+
+logDb :: (L.MonadFlow m, ToJSON val) => Log.LogLevel -> Text -> Source -> Log.Action -> Log.Entity -> Int -> val -> m ()
+logDb logLevel tag source action entity latency message =
+  L.evalLogger' $ L.masterLogger logLevel tag category action entity Nothing (Just $ toInteger latency) Nothing $ Log.Message Nothing (Just $ A.toJSON message)
+  where
+    category
+      | source == KV = "REDIS"
+      | source == SQL = "DB"
+      | source == KV_AND_SQL = "REDIS_AND_DB"
+      | source == IN_MEM = "INMEM"
+      | otherwise = ""

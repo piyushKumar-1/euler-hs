@@ -7,8 +7,9 @@ module EulerHS.KVConnector.InMemConfig.Flow
 
     where
 
+import           Control.Monad.Catch (bracket)
 import qualified Data.HashMap.Strict as HM
-import           EulerHS.Prelude 
+import           EulerHS.Prelude hiding (bracket)
 import           EulerHS.SqlDB.Types (BeamRunner, BeamRuntime, DBConfig)
 import qualified EulerHS.SqlDB.Language as DB
 import qualified Data.Aeson as A
@@ -45,9 +46,9 @@ checkAndStartLooper meshCfg decodeTable = do
             | _hasLooperStarted == Just True ->  pure ()
             | otherwise ->  do
                 streamName <- getRandomStream 
-                when shouldLogFindDBCallLogs $ L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> ">"
-                L.fork $ looperForRedisStream  decodeTable meshCfg.kvRedis streamName
+                when shouldLogFindDBCallLogs $ L.logDebug @Text "checkAndStartLooper" $ "Connecting with Stream <" <> streamName <> "> for table " <> tableName @(table Identity)
                 L.setOption (LooperStarted (tableName @(table Identity))) True
+                L.fork $ looperForRedisStream  decodeTable meshCfg.kvRedis streamName
 
 looperForRedisStream :: forall table m.(
     HasCallStack,
@@ -55,28 +56,33 @@ looperForRedisStream :: forall table m.(
     L.MonadFlow m
     ) => 
     (ByteString -> Maybe (ImcStreamValue (table Identity))) -> Text -> Text -> m ()
-looperForRedisStream decodeTable redisName streamName = forever $ do
-    maybeRId <- L.getOption RecordId
-    let tName = tableName @(table Identity)
-    case maybeRId of
-        Nothing -> do
-            rId <- T.pack . show <$> L.getCurrentDateInMillis
-            initRecords <- getRecordsFromStream redisName streamName rId
-            case initRecords of 
-                Nothing -> do
-                    L.setOption RecordId rId
-                    return ()
-                Just (latestId, rs) -> do
-                    L.setOption RecordId latestId
-                    mapM_ (setInMemCache tName decodeTable) rs
-        Just rId -> do
-            newRecords <- getRecordsFromStream redisName streamName rId
-            case newRecords of
-                Nothing -> return ()
-                Just (latestId, rs) -> do
-                    L.setOption RecordId latestId
-                    mapM_ (setInMemCache tName decodeTable) rs
-    void $ looperDelayInSec
+looperForRedisStream decodeTable redisName streamName = bracket 
+    (pure ())
+    (\ _ -> do
+      L.logInfoT "looperForRedisStream failed" ("Setting LooperStarted option as False for table " <> tableName @(table Identity))
+      L.setOption (LooperStarted (tableName @(table Identity))) False) 
+    (\ _ -> forever $ do
+      maybeRId <- L.getOption RecordId
+      let tName = tableName @(table Identity)
+      case maybeRId of
+          Nothing -> do
+              rId <- T.pack . show <$> L.getCurrentDateInMillis
+              initRecords <- getRecordsFromStream redisName streamName rId
+              case initRecords of 
+                  Nothing -> do
+                      L.setOption RecordId rId
+                      return ()
+                  Just (latestId, rs) -> do
+                      L.setOption RecordId latestId
+                      mapM_ (setInMemCache tName decodeTable) rs
+          Just rId -> do
+              newRecords <- getRecordsFromStream redisName streamName rId
+              case newRecords of
+                  Nothing -> return ()
+                  Just (latestId, rs) -> do
+                      L.setOption RecordId latestId
+                      mapM_ (setInMemCache tName decodeTable) rs
+      void $ looperDelayInSec)
 
 
 looperDelayInSec :: (L.MonadFlow m) => m ()

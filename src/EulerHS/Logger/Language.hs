@@ -14,6 +14,7 @@ module EulerHS.Logger.Language
 import qualified EulerHS.Logger.Types as T
 import           EulerHS.Prelude
 import           Type.Reflection
+import           Juspay.Extra.Config (lookupEnvT)
 
 -- | Language for logging.
 data LoggerMethod next where
@@ -51,13 +52,14 @@ V1_V2 - both version of logging
 
 masterLogger :: forall tag. (Typeable tag, Show tag) => T.LogLevel -> tag -> T.Category -> T.Action -> T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
 masterLogger logLevel tag category action entity maybeError maybeLatency maybeRespCode message
-  | version1 = logMessage' logLevel tag message
-  | version2 = logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
-  | version1AndVersion2 = 
-    logMessage' logLevel tag message >> 
-      logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
+  | version == "V1" = logMessage' logLevel tag message
+  | version == "V2"= logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
+  | version == "V1_V2" = do
+    logMessage' logLevel tag message
+    logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
   | otherwise = logMessage' logLevel tag message
   where
-    version1 = False
-    version2 = False
-    version1AndVersion2 = True
+    version = getLoggerFormatVersion
+
+getLoggerFormatVersion :: Text
+getLoggerFormatVersion = fromMaybe "V1" $ lookupEnvT "LOGGING_VERSION"

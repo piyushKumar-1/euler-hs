@@ -95,7 +95,7 @@ import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
 import qualified EulerHS.KVDB.Types as T
-import           EulerHS.Logger.Language (Logger, logMessage')
+import           EulerHS.Logger.Language (Logger, logMessage', masterLogger)
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
                                        Message (Message), ExceptionEntry(..))
 import           EulerHS.Options (OptionEntity, mkOptionKey)
@@ -1669,15 +1669,15 @@ forkFlow' description flow = do
 
 logM :: forall (tag :: Type) (m :: Type -> Type) msg val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON msg, ToJSON val) => LogLevel -> tag -> msg -> val -> m ()
-logM logLvl tag m v = evalLogger' $ logMessage' logLvl tag $ Message (Just $ toJSON m) (Just $ toJSON v)
+logM logLvl tag m v = evalLogger' $ masterLogger logLvl tag "DOMAIN" Nothing Nothing Nothing Nothing Nothing  $ Message (Just $ toJSON m) (Just $ toJSON v)
 
 log :: forall (tag :: Type) (m :: Type -> Type) .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag) => LogLevel -> tag -> Text -> m ()
-log logLvl tag msg = evalLogger' $ logMessage' logLvl tag $ Message (Just $ A.toJSON msg) Nothing
+log logLvl tag msg = evalLogger' $ masterLogger logLvl tag "DOMAIN" Nothing Nothing Nothing Nothing Nothing $ Message (Just $ A.toJSON msg) Nothing
 
 logV :: forall (tag :: Type) (m :: Type -> Type) val .
   (HasCallStack, MonadFlow m, Show tag, Typeable tag, ToJSON val) => LogLevel -> tag -> val -> m ()
-logV logLvl tag v = evalLogger' $ logMessage' logLvl tag $ Message Nothing (Just $ toJSON v)
+logV logLvl tag v = evalLogger' $ masterLogger logLvl tag "DOMAIN" Nothing Nothing Nothing Nothing Nothing $ Message Nothing (Just $ toJSON v)
 
 -- | Log message with Info level.
 --

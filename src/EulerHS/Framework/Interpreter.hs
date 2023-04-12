@@ -289,7 +289,7 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
         -- . L.logMessage' logLevel ("CallServantAPI impl" :: String)
         -- $ Message Nothing (Just $ A.toJSON msg)
-        . L.masterLogger logLevel ("CallServantAPI impl" :: String) "EXTERNAL_API" action entity maybeError maybeLatency maybeRespCode $ Message Nothing (Just $ A.toJSON msg)
+        . L.masterLogger logLevel ("CallServantAPI impl" :: String) "EXTERNAL_API" (Just action) (Just entity) maybeError maybeLatency maybeRespCode $ Message Nothing (Just $ A.toJSON msg)
        -- logMessageFormatted logLevel "EXTERNAL_API" <HTTP_METHOD> <EXT_API_TAG> Nothing (Just latency) (Just respcode) msg
     
     -- logJsonError :: Text -> Text -> HTTPResponseMasked -> IO ()
@@ -356,7 +356,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
         -- . L.logMessage' infoLevel ("callHTTP" :: String)
         -- $ Message Nothing (Just $ A.toJSON msg)
-        . L.masterLogger level ("callHTTP" :: String) "EXTERNAL_API" action entity maybeError (Just lat) (Just respCode) $ Message Nothing (Just $ A.toJSON msg)
+        . L.masterLogger level ("callHTTP" :: String) "EXTERNAL_API" (Just action) (Just entity) maybeError (Just lat) (Just respCode) $ Message Nothing (Just $ A.toJSON msg)
 
     shouldLogAPI =
       R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt

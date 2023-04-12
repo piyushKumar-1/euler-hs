@@ -38,7 +38,7 @@ logMessage' lvl tag msg = liftFC $ LogMessage lvl (T.Ver1 textTag msg) id
       | Just HRefl <- eqTypeRep (typeRep @tag) (typeRep @String) = toText tag
       | otherwise = show tag
 
-logMessageFormatted :: T.LogLevel -> T.Category -> T.Action -> T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
+logMessageFormatted :: T.LogLevel -> T.Category -> Maybe T.Action -> Maybe T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
 logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message =
   liftFC $ LogMessage logLevel (T.Ver2 category action entity maybeError maybeLatency maybeRespCode message) id
 
@@ -50,7 +50,7 @@ V2 - newer version of logging
 V1_V2 - both version of logging
 -}
 
-masterLogger :: forall tag. (Typeable tag, Show tag) => T.LogLevel -> tag -> T.Category -> T.Action -> T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
+masterLogger :: forall tag. (Typeable tag, Show tag) => T.LogLevel -> tag -> T.Category -> Maybe T.Action -> Maybe T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
 masterLogger logLevel tag category action entity maybeError maybeLatency maybeRespCode message
   | version == "V1" = logMessage' logLevel tag message
   | version == "V2"= logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message

@@ -491,7 +491,7 @@ logAndIncrementKVMetric shouldLogData action operation res latency model cpuLate
 
 logDb :: (L.MonadFlow m, ToJSON val) => Log.LogLevel -> Text -> Source -> Log.Action -> Log.Entity -> Int -> val -> m ()
 logDb logLevel tag source action entity latency message =
-  L.evalLogger' $ L.masterLogger logLevel tag category action entity Nothing (Just $ toInteger latency) Nothing $ Log.Message Nothing (Just $ A.toJSON message)
+  L.evalLogger' $ L.masterLogger logLevel tag category (Just action) (Just entity) Nothing (Just $ toInteger latency) Nothing $ Log.Message Nothing (Just $ A.toJSON message)
   where
     category
       | source == KV = "REDIS"

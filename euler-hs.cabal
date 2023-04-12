@@ -79,6 +79,8 @@ library
     EulerHS.Extra.Regex
     EulerHS.Masking
     EulerHS.Extra.URLSanitization
+    EulerHS.Extra.Monitoring.Types
+    EulerHS.Extra.Monitoring.Flow
 
   other-modules:
     EulerHS.Api
@@ -131,7 +133,7 @@ library
     , free
     , generic-deriving
     , generic-lens
-    , hedis                 ^>=0.12.8.1
+    , hedis
     , http-api-data
     , http-client
     , http-client-tls

@@ -36,6 +36,7 @@ import           Data.Time (NominalDiffTime)
 import qualified Database.Redis as RD
 import           EulerHS.Prelude
 import qualified GHC.Generics as G
+import           Juspay.Extra.Config (lookupEnvT)
 
 type KVDBKey = Text
 
@@ -149,9 +150,12 @@ toRedisConnectInfo RedisConfig {..} = RD.ConnInfo
   , RD.connectDatabase       = connectDatabase
   , RD.connectMaxConnections = connectMaxConnections
   , RD.connectMaxIdleTime    = connectMaxIdleTime
-  , RD.connectTimeout        = connectTimeout
+  , RD.connectTimeout        = redisConnectTimeout
   , RD.connectTLSParams      = Nothing
   }
+
+redisConnectTimeout :: Maybe NominalDiffTime
+redisConnectTimeout = Just $ realToFrac . fromMaybe (0.5 :: Double) $  readMaybe =<< lookupEnvT "REDIS_CONNECT_TIMEOUT"
 
 -- | Create configuration KVDBConfig for Redis
 mkKVDBConfig :: Text -> RedisConfig -> KVDBConfig

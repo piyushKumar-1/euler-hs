@@ -95,7 +95,7 @@ import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
 import qualified EulerHS.KVDB.Types as T
-import           EulerHS.Logger.Language (Logger, logMessage', masterLogger)
+import           EulerHS.Logger.Language (Logger, masterLogger)
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info, Warning),
                                        Message (Message), ExceptionEntry(..))
 import           EulerHS.Options (OptionEntity, mkOptionKey)

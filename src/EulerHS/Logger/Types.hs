@@ -125,7 +125,7 @@ data LoggerConfig
 
 data PendingMsg =
   V1 !(Maybe T.FlowGUID) !LogLevel !Tag !Message !MessageNumber !LogContext
-  | V2 !(Maybe T.FlowGUID) !LogLevel !Category !Action !Entity !(Maybe ErrorL) !(Maybe Latency) !(Maybe RespCode) !Message !MessageNumber !LogContext
+  | V2 !(Maybe T.FlowGUID) !LogLevel !Category !(Maybe Action) !(Maybe Entity) !(Maybe ErrorL) !(Maybe Latency) !(Maybe RespCode) !Message !MessageNumber !LogContext
   deriving (Show)
 
 type Category = Text
@@ -182,7 +182,7 @@ builderToByteString = LogMsg.eval
 
 data VersionLoggerMessage = 
     Ver1 !Tag !Message
-  | Ver2 !Category !Action !Entity !(Maybe ErrorL) !(Maybe Latency) !(Maybe RespCode) !Message
+  | Ver2 !Category !(Maybe Action) !(Maybe Entity) !(Maybe ErrorL) !(Maybe Latency) !(Maybe RespCode) !Message
 
 getFlowGuuid :: PendingMsg -> Maybe T.FlowGUID
 getFlowGuuid (V1 mbFlowGuid _ _ _ _ _)           = mbFlowGuid

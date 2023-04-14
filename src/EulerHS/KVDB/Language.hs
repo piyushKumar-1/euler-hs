@@ -39,7 +39,7 @@ module EulerHS.KVDB.Language
 
   --- *** Ordered Set
   , zadd
-  , zrange, zrangebyscore, zremrangebyscore, zcard
+  , zrange, zrangebyscore, zrem, zremrangebyscore, zcard
   -- *** Raw
   , rawRequest
   , pingRequest
@@ -125,6 +125,7 @@ data KeyValueF f next where
   ZAdd  :: KVDBKey -> [(Double, KVDBValue)] -> (f Integer -> next) -> KeyValueF f next
   ZRange :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
   ZRangeByScore :: KVDBKey -> Double -> Double -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRem :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   ZRemRangeByScore :: KVDBKey -> Double -> Double -> (f Integer -> next) -> KeyValueF f next
   ZCard :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
   SRem    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
@@ -158,6 +159,7 @@ instance Functor (KeyValueF f) where
   fmap f (ZAdd k v next)                 = ZAdd k v (f . next)
   fmap f (ZRange k s1 s2 next)           = ZRange k s1 s2 (f . next)
   fmap f (ZRangeByScore k s1 s2 next)    = ZRangeByScore k s1 s2 (f . next)
+  fmap f (ZRem k v next)                 = ZRem k v (f . next)
   fmap f (ZRemRangeByScore k s1 s2 next) = ZRemRangeByScore k s1 s2 (f . next)
   fmap f (ZCard k next)                  = ZCard k (f . next)
   fmap f (SRem k v next)                 = SRem k v (f . next)
@@ -324,6 +326,9 @@ zrange key startRank stopRank = ExceptT $ liftFC $ KV $ ZRange key startRank sto
 
 zrangebyscore :: KVDBKey -> Double -> Double -> KVDB [ByteString]
 zrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRangeByScore key minScore maxScore id
+
+zrem :: KVDBKey -> [KVDBValue] -> KVDB Integer
+zrem key values = ExceptT $ liftFC $ KV $ ZRem key values id
 
 zremrangebyscore :: KVDBKey -> Double -> Double -> KVDB Integer
 zremrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRemRangeByScore key minScore maxScore id

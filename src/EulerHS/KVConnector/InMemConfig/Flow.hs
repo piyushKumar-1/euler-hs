@@ -358,13 +358,13 @@ pushToConfigStream :: (L.MonadFlow m ) => Text -> Text -> Text -> Text -> m ()
 pushToConfigStream redisName k v streamName = 
   void $ L.runKVDB redisName $ L.xadd (encodeUtf8 streamName) L.AutoID [applyFPair encodeUtf8 (k,v)]
 
-alterObjectInImcAndPushToConfigStream :: forall table m.
+pushToInMemConfigStream :: forall table m.
   ( HasCallStack,
     KVConnector (table Identity),
     ToJSON (table Identity),
     L.MonadFlow m
   ) => MeshConfig -> ImcStreamCommand -> table Identity -> m ()
-alterObjectInImcAndPushToConfigStream meshCfg imcCommand alteredModel = do
+pushToInMemConfigStream meshCfg imcCommand alteredModel = do
   let 
     -- pKeyText = getLookupKeyByPKey alteredModel
     -- shard = getShardedHashTag pKeyText
@@ -397,7 +397,7 @@ fetchRowFromDBAndAlterImc dbConf meshCfg whereClause imcCommand = do
   dbRes <- runQuery dbConf findQuery
   case dbRes of
     Right [x] -> do
-      when meshCfg.memcacheEnabled $ alterObjectInImcAndPushToConfigStream meshCfg imcCommand x
+      when meshCfg.memcacheEnabled $ pushToInMemConfigStream meshCfg imcCommand x
       return $ Right ()
     Right [] -> return $ Right ()
     Right xs -> do

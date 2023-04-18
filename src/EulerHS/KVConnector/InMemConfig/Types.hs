@@ -49,7 +49,7 @@ data LooperStarted  = LooperStarted Text
 
 instance OptionEntity LooperStarted Bool
 
-data RecordId = RecordId
+data RecordId = RecordId Text
   deriving (Generic, Typeable, Show, Eq, ToJSON, FromJSON)
 
 instance OptionEntity RecordId Text

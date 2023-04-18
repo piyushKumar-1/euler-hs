@@ -124,7 +124,7 @@ getRecordsFromStream redisName streamName lastRecordId tName = do
     eitherReadResponse <- L.rXreadT redisName streamName lastRecordId
     case eitherReadResponse of
         Left err -> do
-            -- L.delOption (RecordId tName)    -- TODO Necessary?
+            L.delOption (RecordId tName)    -- TODO Necessary?
             L.logErrorT "getRecordsFromStream" $ "Error getting initial records from stream <" <> streamName <> ">" <> show err
             return Nothing
         Right maybeRs -> case maybeRs of

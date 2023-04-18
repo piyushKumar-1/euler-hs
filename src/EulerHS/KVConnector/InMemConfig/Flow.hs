@@ -62,25 +62,25 @@ looperForRedisStream decodeTable redisName streamName = bracket
       L.logInfoT "looperForRedisStream failed" ("Setting LooperStarted option as False for table " <> tableName @(table Identity))
       L.setOption (LooperStarted (tableName @(table Identity))) False) 
     (\ _ -> forever $ do
-      maybeRId <- L.getOption RecordId
       let tName = tableName @(table Identity)
+      maybeRId <- L.getOption (RecordId tName)
       case maybeRId of
           Nothing -> do
               rId <- T.pack . show <$> L.getCurrentDateInMillis
-              initRecords <- getRecordsFromStream redisName streamName rId
+              initRecords <- getRecordsFromStream redisName streamName rId tName
               case initRecords of 
                   Nothing -> do
-                      L.setOption RecordId rId
+                      L.setOption (RecordId tName) rId
                       return ()
                   Just (latestId, rs) -> do
-                      L.setOption RecordId latestId
+                      L.setOption (RecordId tName) latestId
                       mapM_ (setInMemCache tName decodeTable) rs
           Just rId -> do
-              newRecords <- getRecordsFromStream redisName streamName rId
+              newRecords <- getRecordsFromStream redisName streamName rId tName
               case newRecords of
                   Nothing -> return ()
                   Just (latestId, rs) -> do
-                      L.setOption RecordId latestId
+                      L.setOption (RecordId tName) latestId
                       mapM_ (setInMemCache tName decodeTable) rs
       void $ looperDelayInSec)
 
@@ -119,17 +119,17 @@ setInMemCache tName decodeTable (key,value) = do
 extractRecordsFromStreamResponse :: [L.KVDBStreamReadResponseRecord] -> [RecordKeyValues]
 extractRecordsFromStreamResponse  = foldMap (fmap (bimap decodeUtf8 id) . L.records) 
 
-getRecordsFromStream :: Text -> Text -> LatestRecordId -> (L.MonadFlow m) => m (Maybe (LatestRecordId, [RecordKeyValues]))
-getRecordsFromStream redisName streamName lastRecordId = do
+getRecordsFromStream :: Text -> Text -> LatestRecordId -> Text -> (L.MonadFlow m) => m (Maybe (LatestRecordId, [RecordKeyValues]))
+getRecordsFromStream redisName streamName lastRecordId tName = do
     eitherReadResponse <- L.rXreadT redisName streamName lastRecordId
     case eitherReadResponse of
         Left err -> do
-            L.delOption RecordId    -- TODO Necessary?
+            -- L.delOption (RecordId tName)    -- TODO Necessary?
             L.logErrorT "getRecordsFromStream" $ "Error getting initial records from stream <" <> streamName <> ">" <> show err
             return Nothing
         Right maybeRs -> case maybeRs of
             Nothing -> do
-            -- L.delOption RecordId    -- Maybe stream doesn't exist or Maybe no new records
+            -- L.delOption (RecordId tName)    -- Maybe stream doesn't exist or Maybe no new records
                 return Nothing
             Just [] -> do             -- Never seems to occur
                 return Nothing
@@ -140,7 +140,7 @@ getRecordsFromStream redisName streamName lastRecordId = do
                     case uncons . reverse . L.response $ rss of
                         Nothing -> return Nothing
                         Just (latestRecord, _) -> do
-                                L.logInfoT "getRecordsFromStream" $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
+                                L.logInfoT ("getRecordsFromStream - " <> tName) $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
                                 return . Just . bimap (decodeUtf8 . L.recordId) (extractRecordsFromStreamResponse . L.response ) $ (latestRecord, rss)
 
 getDataFromPKeysIMC :: forall table m. (

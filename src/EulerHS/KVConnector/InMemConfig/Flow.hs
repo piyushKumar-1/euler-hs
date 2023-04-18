@@ -140,7 +140,7 @@ getRecordsFromStream redisName streamName lastRecordId tName = do
                     case uncons . reverse . L.response $ rss of
                         Nothing -> return Nothing
                         Just (latestRecord, _) -> do
-                                L.logInfoT ("getRecordsFromStream - " <> tName) $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
+                                L.logInfoT ("getRecordsFromStream for " <> tName) $ (show . length . L.response $ rss) <> " new records in stream <" <> streamName <> ">"
                                 return . Just . bimap (decodeUtf8 . L.recordId) (extractRecordsFromStreamResponse . L.response ) $ (latestRecord, rss)
 
 getDataFromPKeysIMC :: forall table m. (

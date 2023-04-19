@@ -38,9 +38,17 @@ logMessage' lvl tag msg = liftFC $ LogMessage lvl (T.Ver1 textTag msg) id
       | Just HRefl <- eqTypeRep (typeRep @tag) (typeRep @String) = toText tag
       | otherwise = show tag
 
-logMessageFormatted :: T.LogLevel -> T.Category -> Maybe T.Action -> Maybe T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
-logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message =
-  liftFC $ LogMessage logLevel (T.Ver2 category action entity maybeError maybeLatency maybeRespCode message) id
+logMessageFormatted :: forall tag. (Typeable tag, Show tag) => T.LogLevel -> T.Category -> Maybe T.Action -> Maybe T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> tag -> Logger ()
+logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message tag =
+  liftFC $ LogMessage logLevel (T.Ver2 category action' entity maybeError maybeLatency maybeRespCode message) id
+    where
+    action' = action <|> (Just textTag) -- keeping tag as action now, if action not found, going ahead we will remove this by verifying all domain action logs
+
+    textTag :: Text
+    textTag
+      | Just HRefl <- eqTypeRep (typeRep @tag) (typeRep @Text  ) = tag
+      | Just HRefl <- eqTypeRep (typeRep @tag) (typeRep @String) = toText tag
+      | otherwise = show tag
 
 
 {-
@@ -53,10 +61,10 @@ V1_V2 - both version of logging
 masterLogger :: forall tag. (Typeable tag, Show tag) => T.LogLevel -> tag -> T.Category -> Maybe T.Action -> Maybe T.Entity -> Maybe T.ErrorL -> Maybe T.Latency -> Maybe T.RespCode -> T.Message -> Logger ()
 masterLogger logLevel tag category action entity maybeError maybeLatency maybeRespCode message
   | version == "V1" = logMessage' logLevel tag message
-  | version == "V2"= logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
+  | version == "V2"= logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message tag
   | version == "V1_V2" = do
     logMessage' logLevel tag message
-    logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message
+    logMessageFormatted logLevel category action entity maybeError maybeLatency maybeRespCode message tag
   | otherwise = logMessage' logLevel tag message
   where
     version = getLoggerFormatVersion

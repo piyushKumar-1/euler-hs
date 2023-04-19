@@ -188,6 +188,7 @@ library
     , pcre-light
     , attoparsec
     , tasty-hunit
+    , mtl
 
   hs-source-dirs:  src
 

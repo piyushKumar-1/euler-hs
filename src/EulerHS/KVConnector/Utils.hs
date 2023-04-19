@@ -419,6 +419,9 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap fieldsAndValues = 
     intersectList (x : [])     = x
     intersectList []           = []
 
+filterPrimaryAndSecondaryKeys :: HM.HashMap Text Bool -> [(Text, Text)] -> [(Text, Text)]
+filterPrimaryAndSecondaryKeys keyHashMap fieldsAndValues = filter (\(k, _) -> HM.member k keyHashMap) fieldsAndValues
+
 -- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
 -- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]
 nonEmptySubsequences         :: [Text] -> [[Text]]

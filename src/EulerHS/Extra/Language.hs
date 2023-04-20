@@ -43,6 +43,7 @@ module EulerHS.Extra.Language
   , rSismember
   , rZAdd
   , rZRangeByScore
+  , rZRangeByScoreWithLimit
   , rZRem
   , rZRemRangeByScore
   , rZCard
@@ -732,6 +733,22 @@ rZRangeByScore cName k minScore maxScore = do
     Right _ -> pure res
     Left err -> do
       L.logError @Text "Redis rZRangeByScore" $ show err
+      pure res
+
+rZRangeByScoreWithLimit :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> Double
+  -> Double
+  -> Integer
+  -> Integer
+  -> m (Either KVDBReply [L.KVDBValue])
+rZRangeByScoreWithLimit cName k minScore maxScore offset count = do
+  res <- L.runKVDB cName $ L.zrangebyscorewithlimit k minScore maxScore offset count
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRangeByScoreWithLimit" $ show err
       pure res
 
 rZRem :: (HasCallStack, L.MonadFlow m) =>

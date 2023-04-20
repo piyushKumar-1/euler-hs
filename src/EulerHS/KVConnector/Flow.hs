@@ -35,7 +35,7 @@ import           EulerHS.KVDB.Types (KVDBReply)
 import           Control.Arrow ((>>>))
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as BSL
-import           Data.List (span, maximum, nub)
+import           Data.List (span, maximum)
 import qualified Data.Text as T
 import qualified EulerHS.Language as L
 import qualified Data.HashMap.Strict as HM
@@ -774,11 +774,11 @@ findOneFromRedis meshCfg whereClause = do
       andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
       modelName = tableName @(table Identity)
       keyHashMap = keyMap @(table Identity)
-      andCombinationsFiltered = nub $ filterPrimaryAndSecondaryKeys keyHashMap <$> andCombinations
+      andCombinationsFiltered = mkUniq $ filterPrimaryAndSecondaryKeys keyHashMap <$> andCombinations
   eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinationsFiltered
   case foldEither eitherKeyRes of
     Right keyRes -> do
-      allRowsRes <- foldEither <$> mapM (getDataFromPKeysRedis meshCfg) (nub keyRes)
+      allRowsRes <- foldEither <$> mapM (getDataFromPKeysRedis meshCfg) (mkUniq keyRes)
       case allRowsRes of
         Right allRowsResPairList -> do
           let (allRowsResLiveListOfList, allRowsResDeadListOfList) = unzip allRowsResPairList
@@ -946,11 +946,11 @@ redisFindAll meshCfg whereClause = do
       andCombinations = map (uncurry zip . applyFPair (map (T.intercalate "_") . sortOn (Down . length) . nonEmptySubsequences) . unzip . sort) keyAndValueCombinations
       modelName = tableName @(table Identity)
       keyHashMap = keyMap @(table Identity)
-      andCombinationsFiltered = nub $ filterPrimaryAndSecondaryKeys keyHashMap <$> andCombinations
+      andCombinationsFiltered = mkUniq $ filterPrimaryAndSecondaryKeys keyHashMap <$> andCombinations
   eitherKeyRes <- mapM (getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap) andCombinationsFiltered
   case foldEither eitherKeyRes of
     Right keyRes -> do
-      allRowsRes <- foldEither <$> mapM (getDataFromPKeysRedis meshCfg) (nub keyRes)
+      allRowsRes <- foldEither <$> mapM (getDataFromPKeysRedis meshCfg) (mkUniq keyRes)
       case allRowsRes of
         Right allRowsResPairList -> do
           let (allRowsResLiveListOfList, allRowsResDeadListOfList) = unzip allRowsResPairList

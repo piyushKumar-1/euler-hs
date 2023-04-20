@@ -16,6 +16,7 @@ import           Text.Casing (quietSnake)
 import qualified Data.HashMap.Strict as HM
 import           Data.List (findIndices, intersect)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified EulerHS.KVConnector.Encoding as Encoding
 import           EulerHS.KVConnector.Metrics (incrementMetric, KVMetric(..))
@@ -421,6 +422,9 @@ getPrimaryKeyFromFieldsAndValues modelName meshCfg keyHashMap fieldsAndValues = 
 
 filterPrimaryAndSecondaryKeys :: HM.HashMap Text Bool -> [(Text, Text)] -> [(Text, Text)]
 filterPrimaryAndSecondaryKeys keyHashMap fieldsAndValues = filter (\(k, _) -> HM.member k keyHashMap) fieldsAndValues
+
+mkUniq :: Ord a => [a] -> [a] -- O(n log n)
+mkUniq = Set.toList . Set.fromList
 
 -- >>> map (T.intercalate "_") (nonEmptySubsequences ["id", "id2", "id3"])
 -- ["id","id2","id_id2","id3","id_id3","id2_id3","id_id2_id3"]

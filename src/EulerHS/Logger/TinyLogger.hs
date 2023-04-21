@@ -57,14 +57,13 @@ logPendingMsg flowFormatter loggers pendingMsg = do
         MsgBuilder bld   -> Log.msg bld
         MsgTransformer f -> f
   mapM_ (\logger -> Log.log logger lvl' msg') loggers
--- (PendingMsg mbFlowGuid _ _ _ msgNum lContext)
+
 loggerWorker :: FlowFormatter -> Chan.OutChan PendingMsg -> Loggers -> IO ()
 loggerWorker flowFormatter outChan loggers = do
   pendingMsg <- Chan.readChan outChan
   res <- try $ logPendingMsg flowFormatter loggers pendingMsg
   case res of
     Left (err :: SomeException) -> logPendingMsg flowFormatter loggers $ makeErrorLog err pendingMsg
-    --PendingMsg (getFlowGuuid pendingMsg) Error ("Error while logging" :: Text) (Message (Just $ A.toJSON $ ((show err) :: Text) ) Nothing) msgNum lContext
     Right _ -> pure ()
   where
     makeErrorLog e pMsg = -- l_todo : versionize

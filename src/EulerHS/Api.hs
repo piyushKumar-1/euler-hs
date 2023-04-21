@@ -146,9 +146,6 @@ interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
   validRes <- catchError (SCC.runRequestAcceptStatus Nothing req) (errorHandler start)
   end <- liftIO $ systemToTAITime <$> getSystemTime
   let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
-  -- case res of
-  --   Left err -> logFailure err lat  >> throwM err
-  --   Right validRes -> do
   let logEntry = mkServantApiCallLogEntry mbMaskConfig bUrl req validRes lat
   liftIO $ log Log.Info (show $ SCC.requestMethod req) "EXT_TAG" Nothing (Just lat) (Just $ HttpStatus.statusCode $ SCC.responseStatusCode validRes) logEntry -- log_todo : extract external tag
   pure $ next validRes
@@ -172,18 +169,6 @@ interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
     picoMilliDiff = 1000000000
 
     reqMethod = decodeUtf8 $ SCC.requestMethod req
-
-    -- logFailure err lat =
-    --   case err of
-    --     SC.FailureResponse _ resp ->
-    --         either (defaultErrorLogger reqMethod lat) (\x -> logJsonError ("FailureResponse" :: Text) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
-    --     SC.DecodeFailure txt resp -> 
-    --         either (defaultErrorLogger reqMethod lat) (\x -> logJsonError (("DecodeFailure: " :: Text) <> txt) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
-    --     SC.UnsupportedContentType mediaType resp -> 
-    --         either (defaultErrorLogger reqMethod lat) (\x -> logJsonError (("UnsupportedContentType: " :: Text) <> (show @Text mediaType)) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
-    --     SC.InvalidContentTypeHeader resp -> 
-    --         either (defaultErrorLogger reqMethod lat) (\x -> logJsonError ("InvalidContentTypeHeader" :: Text) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
-    --     SC.ConnectionError exception -> defaultErrorLogger reqMethod lat $ displayException exception
     
     logJsonError :: Text -> Text -> Integer -> Int -> InternalHttp.HTTPResponseMasked -> SC.ClientM ()
     logJsonError err method latency responseCode res = 

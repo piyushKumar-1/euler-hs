@@ -250,24 +250,10 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
             
           case eitherResult of
             Left err -> do
-              -- when shouldLogAPI $ do
-              --   reqMethod <- either (const "UNKNOWN") (fromMaybe "UNKNWON") <$> (S.runClientM (foldFree getRequestApiMethod f) apiRequest)
-              --   case err of
-              --     S.FailureResponse _ resp ->
-              --         either (defaultErrorLogger reqMethod) (\x -> logJsonError ("FailureResponse" :: Text) reqMethod $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-              --     S.DecodeFailure txt resp -> 
-              --         either (defaultErrorLogger reqMethod) (\x -> logJsonError (("DecodeFailure: " :: Text) <> txt) reqMethod $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-              --     S.UnsupportedContentType mediaType resp -> 
-              --         either (defaultErrorLogger reqMethod) (\x -> logJsonError (("UnsupportedContentType: " :: Text) <> (show @Text mediaType)) reqMethod $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-              --     S.InvalidContentTypeHeader resp -> 
-              --         either (defaultErrorLogger reqMethod) (\x -> logJsonError ("InvalidContentTypeHeader" :: Text) reqMethod $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-              --     S.ConnectionError exception -> defaultErrorLogger reqMethod $ displayException exception
               pure $ Left err
             Right response ->
               pure $ Right response
   where
-    -- getRequestApiMethod (SCF.RunRequest req next) = pure . next. Just . show . requestMethod $ req 
-    -- getRequestApiMethod _ = pure .next $ Nothing
     emtpyLogger _ _ _ _ _ _ _ = return ()
 
     customHeader :: CI.CI ByteString
@@ -287,16 +273,8 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
     dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> Action -> Entity -> Maybe (ErrorL) -> Maybe Latency -> Maybe RespCode -> msg -> IO()
     dbgLogger logLevel action entity maybeError maybeLatency maybeRespCode msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-        -- . L.logMessage' logLevel ("CallServantAPI impl" :: String)
-        -- $ Message Nothing (Just $ A.toJSON msg)
         . L.masterLogger logLevel ("CallServantAPI impl" :: String) "EXTERNAL_API" (Just action) (Just entity) maybeError maybeLatency maybeRespCode $ Message Nothing (Just $ A.toJSON msg)
-       -- logMessageFormatted logLevel "EXTERNAL_API" <HTTP_METHOD> <EXT_API_TAG> Nothing (Just latency) (Just respcode) msg
-    
-    -- logJsonError :: Text -> Text -> HTTPResponseMasked -> IO ()
-    -- logJsonError err method res = 
-    --   let responseCode = getResponseCode res
-    --       errorBody = ErrorL Nothing err err
-    --     in dbgLogger Error method "EXT_TAG" (Just errorBody) Nothing (Just responseCode) $  HTTPResponseException err
+
     shouldLogAPI =
       R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
     getLoggerMaskConfig =

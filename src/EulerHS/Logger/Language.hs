@@ -20,9 +20,6 @@ import           Juspay.Extra.Config (lookupEnvT)
 data LoggerMethod next where
   -- | Log message with a predefined level.
   LogMessage :: T.LogLevel -> !T.VersionLoggerMessage -> (() -> next) -> LoggerMethod next 
---  LogMessage :: T.LogLevel -> !T.Tag -> !T.Message -> (() -> next) -> LoggerMethod next
-
-  --T.LogLevel !Category !Action !Entity !(Maybe Error) !(Maybe Latency) !(Maybe RespCode) !Message
 
 instance Functor LoggerMethod where
   fmap f (LogMessage lvl vMsg next) = LogMessage lvl vMsg $ f . next

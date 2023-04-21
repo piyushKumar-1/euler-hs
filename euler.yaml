@@ -29,9 +29,9 @@ overrides:
   hedis:
     owner: juspay
     repo: hedis
-    branch: master
-    commit: a21fa1baf587a8909135455a85e140de747253e8
-    sha256: 1pwivsz6rdb874p0i6p2l05sh84afbdkha7qvc00b1y6vanrm2i1
+    branch: cluster
+    commit: f8b11e0512b864f165a4a086713b41a0e3d622ea
+    sha256: 0rgv5r22mwf1qpjlms2x9kbaqgmfsly8kp6v1i3m936c1ii39dr5
     source: github
 
   record-dot-preprocessor:

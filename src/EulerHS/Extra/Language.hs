@@ -425,7 +425,7 @@ rHgetB cName k f = do
 -- ----------------------------------------------------------------------------
 
 rHset :: (HasCallStack, ToJSON v, L.MonadFlow m)
-  => RedisName -> TextKey -> TextField -> v -> m (Either KVDBReply Integer)
+  => RedisName -> TextKey -> TextField -> v -> m (Either KVDBReply Bool)
 rHset cName k f v = rHsetB cName k' f' v'
   where
     k' = TE.encodeUtf8 k
@@ -433,7 +433,7 @@ rHset cName k f v = rHsetB cName k' f' v'
     v' = BSL.toStrict $ A.encode v
 
 rHsetB :: (HasCallStack, L.MonadFlow m)
-  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either KVDBReply Integer)
+  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either KVDBReply Bool)
 rHsetB cName k f v = do
   res <- L.runKVDB cName $
     L.hset k f v

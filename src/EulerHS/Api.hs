@@ -155,13 +155,13 @@ interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
       let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime endTime startTime) picoMilliDiff
       case err of
         SC.FailureResponse _ resp ->
-            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError ("FailureResponse" :: Text) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
+            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError ("FailureResponse" :: Text) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x Nothing)) (translateResponseFHttpResponse resp)
         SC.DecodeFailure txt resp -> 
-            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError (("DecodeFailure: " :: Text) <> txt) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
+            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError (("DecodeFailure: " :: Text) <> txt) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x Nothing)) (translateResponseFHttpResponse resp)
         SC.UnsupportedContentType mediaType resp -> 
-            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError (("UnsupportedContentType: " :: Text) <> (show @Text mediaType)) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
+            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError (("UnsupportedContentType: " :: Text) <> (show @Text mediaType)) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x Nothing)) (translateResponseFHttpResponse resp)
         SC.InvalidContentTypeHeader resp -> 
-            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError ("InvalidContentTypeHeader" :: Text) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x)) (translateResponseFHttpResponse resp)
+            either (defaultErrorLogger reqMethod lat) (\x -> logJsonError ("InvalidContentTypeHeader" :: Text) reqMethod lat (InternalHttp.getResponseCode x) (InternalHttp.maskHTTPResponse mbMaskConfig x Nothing)) (translateResponseFHttpResponse resp)
         SC.ConnectionError exception -> defaultErrorLogger reqMethod lat $ displayException exception
       throwM err
         

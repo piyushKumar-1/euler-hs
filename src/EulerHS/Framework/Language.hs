@@ -90,7 +90,7 @@ import           EulerHS.Common (Awaitable, Description, ForkGUID,
                                  Microseconds, SafeFlowGUID)
 import           EulerHS.Framework.Runtime (FlowRuntime, ConfigEntry)
 import           EulerHS.HttpAPI (HTTPCert, HTTPClientSettings, HTTPRequest,
-                                  HTTPResponse, withClientTls, HttpManagerNotFound(..), AwaitingError)
+                                  HTTPResponse, withClientTls, HttpManagerNotFound(..), AwaitingError, MaskReqRespBody)
 import           EulerHS.KVDB.Language (KVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer, KVDBConfig, KVDBConn,
                                      KVDBReply)
@@ -135,6 +135,7 @@ data FlowMethod (next :: Type) where
     :: HasCallStack
     => HTTPRequest
     -> Manager
+    -> Maybe MaskReqRespBody
     -> (Either Text HTTPResponse -> next)
     -> FlowMethod next
 
@@ -410,7 +411,7 @@ instance Functor FlowMethod where
     LookupHTTPManager mSel cont -> LookupHTTPManager mSel (f . cont)
     CallServantAPI mgr url client cont -> CallServantAPI mgr url client (f . cont)
     GetHTTPManager settings cont -> GetHTTPManager settings (f . cont)
-    CallHTTP req mgr cont -> CallHTTP req mgr (f . cont)
+    CallHTTP req mgr mskReqRespBody cont -> CallHTTP req mgr mskReqRespBody (f . cont)
     EvalLogger logger cont -> EvalLogger logger (f . cont)
     RunIO t act cont -> RunIO t act (f . cont)
     WithRunFlow ioAct -> WithRunFlow (\runFlow -> f <$> ioAct runFlow)
@@ -453,6 +454,7 @@ instance Functor FlowMethod where
     RunPubSub pubSub cont -> RunPubSub pubSub (f . cont)
     WithModifiedRuntime g innerFlow cont ->
       WithModifiedRuntime g innerFlow (f . cont)
+
 
 newtype Flow (a :: Type) = Flow (F FlowMethod a)
   deriving newtype (Functor, Applicative, Monad, MonadFree FlowMethod)
@@ -543,6 +545,7 @@ class (MonadMask m) => MonadFlow m where
     :: HasCallStack
     => Manager
     -> HTTPRequest
+    -> Maybe MaskReqRespBody
     -> m (Either Text.Text HTTPResponse)
 
   -- | Evaluates a logging action.
@@ -881,7 +884,7 @@ instance MonadFlow Flow where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager settings = liftFC $ GetHTTPManager settings id
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = liftFC $ CallHTTP url mgr id
+  callHTTPUsingManager mgr url mskReqRespBody = liftFC $ CallHTTP url mgr mskReqRespBody id
   {-# INLINEABLE evalLogger' #-}
   evalLogger' logAct = liftFC $ EvalLogger logAct id
   {-# INLINEABLE runIO' #-}
@@ -995,7 +998,7 @@ instance MonadFlow m => MonadFlow (ReaderT r m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1085,7 +1088,7 @@ instance MonadFlow m => MonadFlow (StateT s m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1175,7 +1178,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (WriterT w m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1263,7 +1266,7 @@ instance MonadFlow m => MonadFlow (ExceptT e m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1351,7 +1354,7 @@ instance (MonadFlow m, Monoid w) => MonadFlow (RWST r w s m) where
   {-# INLINEABLE getHTTPManager #-}
   getHTTPManager = lift . getHTTPManager
   {-# INLINEABLE callHTTPUsingManager #-}
-  callHTTPUsingManager mgr url = lift $ callHTTPUsingManager mgr url
+  callHTTPUsingManager mgr url mskReqRespBody = lift $ callHTTPUsingManager mgr url mskReqRespBody
   {-# INLINEABLE evalLogger' #-}
   evalLogger' = lift . evalLogger'
   {-# INLINEABLE runIO' #-}
@@ -1477,16 +1480,17 @@ callHTTP'
   :: (HasCallStack, MonadFlow m)
   => Maybe ManagerSelector              -- ^ Selector
   -> HTTPRequest                        -- ^ remote url 'Text'
+  -> Maybe MaskReqRespBody
   -> m (Either Text.Text HTTPResponse)  -- ^ result
-callHTTP' mSel req=
-    runExceptT $ withExceptT show (getMgr mSel) >>=
-    ExceptT . flip callHTTPUsingManager req
-
+callHTTP' mSel req mbMskReqRespBody = do
+    runExceptT $ withExceptT show (getMgr mSel) >>= (\mngr -> ExceptT $ callHTTPUsingManager mngr req mbMskReqRespBody)
+    
 {-# DEPRECATED callHTTPWithManager "Use callHTTP' instead. This method has a confusing name, as it accepts a selector not a manager." #-}
 callHTTPWithManager
   :: (HasCallStack, MonadFlow m)
   => Maybe ManagerSelector              -- ^ Selector
   -> HTTPRequest                        -- ^ remote url 'Text'
+  -> Maybe MaskReqRespBody
   -> m (Either Text.Text HTTPResponse)  -- ^ result
 callHTTPWithManager = callHTTP'
 
@@ -1499,14 +1503,14 @@ callHTTPWithManager = callHTTP'
 -- > myFlow = do
 -- >   book <- callHTTP url
 callHTTP :: (HasCallStack, MonadFlow m) =>
-  HTTPRequest -> m (Either Text.Text HTTPResponse)
-callHTTP url = callHTTPWithManager Nothing url
+  HTTPRequest -> Maybe MaskReqRespBody-> m (Either Text.Text HTTPResponse)
+callHTTP url mskReqRespBody = callHTTPWithManager Nothing url mskReqRespBody
 
 {-# DEPRECATED callHTTPWithCert    "Use getHTTPManager/callHTTPUsingManager instead. This method does not allow custom CA store." #-}
-callHTTPWithCert :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> m (Either Text HTTPResponse)
-callHTTPWithCert req cert = do
+callHTTPWithCert :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> Maybe MaskReqRespBody-> m (Either Text HTTPResponse)
+callHTTPWithCert req cert mskReqRespBody = do
   mgr <- maybe getDefaultManager (getHTTPManager . withClientTls) cert
-  callHTTPUsingManager mgr req
+  callHTTPUsingManager mgr req mskReqRespBody
 
 
 --

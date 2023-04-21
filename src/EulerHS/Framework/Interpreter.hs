@@ -295,7 +295,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
           pure (LRU.insert settings mgr _cache, mgr)
 
 
-interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) = do
+interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager mbMaskReqResBody next) = do
     tick <- EEMF.getCurrentDateInMillisIO
     val <- fmap next $ do
       httpLibRequest <- getHttpLibRequest request
@@ -307,16 +307,16 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
-          when shouldLogAPI $ logJsonError errMsg httpRequestMethod 0 lat (maskHTTPRequest getLoggerMaskConfig request)
+          when shouldLogAPI $ logJsonError errMsg httpRequestMethod 0 lat (maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody)
           pure $ Left errMsg
         Right httpResponse -> do
           case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
-              when shouldLogAPI $ logJsonError errMsg httpRequestMethod (HTTP.statusCode . HTTP.responseStatus $ httpResponse) lat (maskHTTPRequest getLoggerMaskConfig request)
+              when shouldLogAPI $ logJsonError errMsg httpRequestMethod (HTTP.statusCode . HTTP.responseStatus $ httpResponse) lat (maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody)
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do
-                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request) (Just $ maskHTTPResponse getLoggerMaskConfig response)
+                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody) (Just $ maskHTTPResponse getLoggerMaskConfig response mbMaskReqResBody)
                 logJson Info httpRequestMethod "EXT_TAG" Nothing lat (getResponseCode response) logEntry
               pure $ Right response
     tock <- EEMF.getCurrentDateInMillisIO

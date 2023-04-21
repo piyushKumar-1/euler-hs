@@ -31,6 +31,7 @@ module EulerHS.HttpAPI
     , P12Cert (..)
     , AwaitingError (..)
     , HttpManagerNotFound(..)
+    , MaskReqRespBody
     , defaultTimeout
     , extractBody
     , httpGet
@@ -500,8 +501,10 @@ withJSONBody body req@HTTPRequest{getRequestHeaders} =
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
 
-maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequestMasked
-maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
+type MaskReqRespBody = Maybe Int -> Map.Map HeaderName HeaderValue -> Maybe LB.ByteString -> A.Value
+
+maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> Maybe MaskReqRespBody-> HTTPRequestMasked
+maskHTTPRequest mbMaskConfig request mbMaskReqBody = HTTPRequestMasked
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     , getRequestMethod = request.getRequestMethod
@@ -516,14 +519,19 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
+    -- maskedRequestBody =
+    --     (mbMaskReqBody (Just 200) requestHeaders <|>
+    --     parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders) )
+    --     . LB.toStrict
+    --     . T.getLBinaryString <$> requestBody
 
-    maskedRequestBody =
-          parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
-        . LB.toStrict
-        . T.getLBinaryString <$> requestBody
+    maskedRequestBody = case mbMaskReqBody of
+                          Just mskReqBody -> mskReqBody (Just 200) requestHeaders . Just . T.getLBinaryString <$> requestBody
+                          Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders) . LB.toStrict . T.getLBinaryString <$> requestBody
 
-maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponseMasked
-maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
+
+maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> Maybe MaskReqRespBody-> HTTPResponseMasked
+maskHTTPResponse mbMaskConfig response mbMaskResBody = HTTPResponseMasked
   { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
   , getResponseBody = maskedResponseBody
   , getResponseCode = response.getResponseCode
@@ -536,7 +544,13 @@ maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
-    maskedResponseBody =
-      parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
-        . LB.toStrict
-        $ T.getLBinaryString responseBody
+    -- maskedResponseBody =
+    --   (mbMaskResBody (Just response.getResponseCode) responseHeaders <|>
+    --   parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders) )
+    --     . LB.toStrict
+    --     $ T.getLBinaryString responseBody
+    
+    maskedResponseBody = case mbMaskResBody of
+                          Just mskResBody -> mskResBody (Just response.getResponseCode) responseHeaders . Just . T.getLBinaryString $ responseBody
+                          Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders) . LB.toStrict . T.getLBinaryString $ responseBody
+

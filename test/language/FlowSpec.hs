@@ -93,7 +93,7 @@ spec loggerCfg = do
             code `shouldBe` 404
           it "by default there is no support for V1 certificates" $ \ rt -> do
             let req = T.httpGet $ "https://localhost:" <> show port
-            resEither <- runFlow rt $ callHTTP req
+            resEither <- runFlow rt $ callHTTP req Nothing
             resEither `shouldSatisfy` isLeft
 
       around_ withServer $ do
@@ -139,13 +139,13 @@ spec loggerCfg = do
         around_ withSecureServer $ do
           it "calling secure service using unsecured protocol fails" $ \ rt -> do
             let req = T.httpGet $ "http://localhost:" <> show port
-            resEither <- runFlow rt $ callHTTP req
+            resEither <- runFlow rt $ callHTTP req Nothing
             resEither `shouldSatisfy` isRight
             let code = getResponseCode $ fromRight (error "res is left") resEither
             code `shouldBe` 426
           it "server certificates with unknown CA gets rejected" $ \ rt -> do
             let req = T.httpGet $ "https://localhost:" <> show port
-            resEither <- runFlow rt $ callHTTP req
+            resEither <- runFlow rt $ callHTTP req Nothing
             resEither `shouldSatisfy` isLeft
             (fromLeft' resEither) `shouldSatisfy` (\m -> Text.count "certificate has unknown CA" m == 1)
           it "validate server certificate with custom CA" $ \ _ -> do

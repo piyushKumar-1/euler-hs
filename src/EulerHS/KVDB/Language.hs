@@ -39,7 +39,7 @@ module EulerHS.KVDB.Language
 
   --- *** Ordered Set
   , zadd
-  , zrange, zrangebyscore, zremrangebyscore, zcard
+  , zrange, zrangebyscore, zrangebyscorewithlimit, zrem, zremrangebyscore, zcard
   -- *** Raw
   , rawRequest
   , pingRequest
@@ -111,7 +111,7 @@ data KeyValueF f next where
   Del     :: [KVDBKey] -> (f Integer -> next) -> KeyValueF f next
   Expire  :: KVDBKey -> KVDBDuration -> (f Bool -> next) -> KeyValueF f next
   Incr    :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
-  HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Integer -> next) -> KeyValueF f next
+  HSet    :: KVDBKey -> KVDBField -> KVDBValue -> (f Bool -> next) -> KeyValueF f next
   HGet    :: KVDBKey -> KVDBField -> (f (Maybe ByteString) -> next) -> KeyValueF f next
   XAdd    :: KVDBStream -> KVDBStreamEntryIDInput -> [KVDBStreamItem] -> (f KVDBStreamEntryID -> next) -> KeyValueF f next
   XRead   :: KVDBStream -> RecordID -> (f (Maybe [KVDBStreamReadResponse]) -> next) -> KeyValueF f next
@@ -125,6 +125,8 @@ data KeyValueF f next where
   ZAdd  :: KVDBKey -> [(Double, KVDBValue)] -> (f Integer -> next) -> KeyValueF f next
   ZRange :: KVDBKey -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
   ZRangeByScore :: KVDBKey -> Double -> Double -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRangeByScoreWithLimit :: KVDBKey -> Double -> Double -> Integer -> Integer -> (f [ByteString] -> next) -> KeyValueF f next
+  ZRem :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
   ZRemRangeByScore :: KVDBKey -> Double -> Double -> (f Integer -> next) -> KeyValueF f next
   ZCard :: KVDBKey -> (f Integer -> next) -> KeyValueF f next
   SRem    :: KVDBKey -> [KVDBValue] -> (f Integer -> next) -> KeyValueF f next
@@ -158,6 +160,8 @@ instance Functor (KeyValueF f) where
   fmap f (ZAdd k v next)                 = ZAdd k v (f . next)
   fmap f (ZRange k s1 s2 next)           = ZRange k s1 s2 (f . next)
   fmap f (ZRangeByScore k s1 s2 next)    = ZRangeByScore k s1 s2 (f . next)
+  fmap f (ZRangeByScoreWithLimit k s1 s2 offset count next) = ZRangeByScoreWithLimit k s1 s2 offset count (f . next)
+  fmap f (ZRem k v next)                 = ZRem k v (f . next)
   fmap f (ZRemRangeByScore k s1 s2 next) = ZRemRangeByScore k s1 s2 (f . next)
   fmap f (ZCard k next)                  = ZCard k (f . next)
   fmap f (SRem k v next)                 = SRem k v (f . next)
@@ -208,7 +212,7 @@ setexTx :: KVDBKey -> KVDBDuration -> KVDBValue -> KVDBTx (R.Queued KVDBStatus)
 setexTx key ex value = liftFC $ SetEx key ex value id
 
 -- | Set the value of a hash field. Transaction version.
-hsetTx :: KVDBKey -> KVDBField -> KVDBValue -> KVDBTx (R.Queued Integer)
+hsetTx :: KVDBKey -> KVDBField -> KVDBValue -> KVDBTx (R.Queued Bool)
 hsetTx key field value = liftFC $ HSet key field value id
 
 -- | Get the value of a key. Transaction version.
@@ -278,7 +282,7 @@ incr :: KVDBKey -> KVDB Integer
 incr key = ExceptT $ liftFC $ KV $ Incr key id
 
 -- | Set the value of a hash field
-hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB Integer
+hset :: KVDBKey -> KVDBField -> KVDBValue -> KVDB Bool
 hset key field value = ExceptT $ liftFC $ KV $ HSet key field value id
 
 -- | Get the value of a hash field
@@ -325,8 +329,14 @@ zrange key startRank stopRank = ExceptT $ liftFC $ KV $ ZRange key startRank sto
 zrangebyscore :: KVDBKey -> Double -> Double -> KVDB [ByteString]
 zrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRangeByScore key minScore maxScore id
 
+zrem :: KVDBKey -> [KVDBValue] -> KVDB Integer
+zrem key values = ExceptT $ liftFC $ KV $ ZRem key values id
+
 zremrangebyscore :: KVDBKey -> Double -> Double -> KVDB Integer
 zremrangebyscore key minScore maxScore = ExceptT $ liftFC $ KV $ ZRemRangeByScore key minScore maxScore id
+
+zrangebyscorewithlimit :: KVDBKey -> Double -> Double -> Integer -> Integer -> KVDB [ByteString]
+zrangebyscorewithlimit key minScore maxScore offset count = ExceptT $ liftFC $ KV $ ZRangeByScoreWithLimit key minScore maxScore offset count id
 
 zcard :: KVDBKey -> KVDB Integer
 zcard key = ExceptT $ liftFC $ KV $ ZCard key id
@@ -350,7 +360,7 @@ sismember key member = ExceptT $ liftFC $ KV $ SMem key member id
 multiExec :: KVDBTx (R.Queued a) -> KVDB (TxResult a)
 multiExec kvtx = ExceptT $ liftFC $ TX $ MultiExec kvtx id
 
-{-# DEPRECATED multiExecWithHash "use multiExec instead" #-}
+-- | Run commands inside a transaction(suited only for cluster redis setup).
 multiExecWithHash :: ByteString -> KVDBTx (R.Queued a) -> KVDB (TxResult a)
 multiExecWithHash h kvtx = ExceptT $ liftFC $ TX $ MultiExecWithHash h kvtx id
 

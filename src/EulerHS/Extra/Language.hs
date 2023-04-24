@@ -43,6 +43,8 @@ module EulerHS.Extra.Language
   , rSismember
   , rZAdd
   , rZRangeByScore
+  , rZRangeByScoreWithLimit
+  , rZRem
   , rZRemRangeByScore
   , rZCard
   -- * Logging
@@ -423,7 +425,7 @@ rHgetB cName k f = do
 -- ----------------------------------------------------------------------------
 
 rHset :: (HasCallStack, ToJSON v, L.MonadFlow m)
-  => RedisName -> TextKey -> TextField -> v -> m (Either KVDBReply Integer)
+  => RedisName -> TextKey -> TextField -> v -> m (Either KVDBReply Bool)
 rHset cName k f v = rHsetB cName k' f' v'
   where
     k' = TE.encodeUtf8 k
@@ -431,7 +433,7 @@ rHset cName k f v = rHsetB cName k' f' v'
     v' = BSL.toStrict $ A.encode v
 
 rHsetB :: (HasCallStack, L.MonadFlow m)
-  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either KVDBReply Integer)
+  => RedisName -> ByteKey -> ByteField -> ByteValue -> m (Either KVDBReply Bool)
 rHsetB cName k f v = do
   res <- L.runKVDB cName $
     L.hset k f v
@@ -733,6 +735,34 @@ rZRangeByScore cName k minScore maxScore = do
       L.logError @Text "Redis rZRangeByScore" $ show err
       pure res
 
+rZRangeByScoreWithLimit :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> Double
+  -> Double
+  -> Integer
+  -> Integer
+  -> m (Either KVDBReply [L.KVDBValue])
+rZRangeByScoreWithLimit cName k minScore maxScore offset count = do
+  res <- L.runKVDB cName $ L.zrangebyscorewithlimit k minScore maxScore offset count
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRangeByScoreWithLimit" $ show err
+      pure res
+
+rZRem :: (HasCallStack, L.MonadFlow m) =>
+  RedisName
+  -> L.KVDBKey
+  -> [L.KVDBValue]
+  -> m (Either KVDBReply Integer)
+rZRem cName k v = do
+  res <- L.runKVDB cName $ L.zrem k v
+  case res of
+    Right _ -> pure res
+    Left err -> do
+      L.logError @Text "Redis rZRem" $ show err
+      pure res
 
 rZRemRangeByScore :: (HasCallStack, L.MonadFlow m) =>
   RedisName

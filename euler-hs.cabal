@@ -133,7 +133,7 @@ library
     , free
     , generic-deriving
     , generic-lens
-    , hedis
+    , hedis                 ^>=0.12.8.1
     , http-api-data
     , http-client
     , http-client-tls

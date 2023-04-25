@@ -176,7 +176,7 @@ interpretClientF log mbMaskConfig bUrl (SCF.RunRequest req next) = do
         in liftIO $ log Log.Error method "EXT_TAG" (Just errorBody) (Just latency) (Just responseCode) (InternalHttp.HTTPResponseException err res)
     
     defaultErrorLogger :: forall msg. A.ToJSON msg => Text -> Integer ->  msg -> SC.ClientM ()
-    defaultErrorLogger method latency msg = liftIO $ log Log.Error method "EXT_TAG" Nothing (Just latency) (Just 0) msg
+    defaultErrorLogger method latency msg = liftIO $ log Log.Error method "EXT_TAG" Nothing (Just latency) (Just (-1)) msg
 
 runEulerClient :: (forall msg. A.ToJSON msg => Log.LogLevel -> Log.Action -> Log.Entity -> Maybe (Log.ErrorL) -> Maybe Log.Latency -> Maybe Log.RespCode -> msg -> IO()) 
               -> Maybe Log.LogMaskingConfig -> SCC.BaseUrl -> EulerClient a -> SCIHC.ClientM a

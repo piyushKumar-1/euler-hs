@@ -33,7 +33,7 @@ import           Data.Time.Clock.System (getSystemTime, systemToTAITime)
 import           Data.Time.Clock.TAI (diffAbsoluteTime)
 import qualified Data.UUID as UUID (toText)
 import qualified Data.UUID.V4 as UUID (nextRandom)
-import           EulerHS.Api (runEulerClient)
+import           EulerHS.Api (runEulerClient, EulerClient(..))
 import           EulerHS.BinaryString (LBinaryString (LBinaryString),
                                        getLBinaryString)
 import           EulerHS.Common (Awaitable (Awaitable), FlowGUID,
@@ -41,7 +41,7 @@ import           EulerHS.Common (Awaitable (Awaitable), FlowGUID,
                                  Microseconds (Microseconds))
 import qualified EulerHS.Framework.Language as L
 import qualified EulerHS.Framework.Runtime as R
-import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),HTTPResponseException(HTTPResponseException),HTTPResponseMasked,
+import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   HTTPMethod (Connect, Delete, Get, Head, Options, Patch, Post, Put, Trace),
                                   HTTPRequest(..), HTTPRequestMasked,
                                   HTTPResponse (..), buildSettings, AwaitingError(..),
@@ -63,7 +63,7 @@ import           EulerHS.Logger.Interpreter (runLogger)
 import qualified EulerHS.Logger.Language as L
 import qualified EulerHS.Logger.Runtime as R
 import           EulerHS.Logger.Types (LogLevel (Debug, Error, Info),
-                                       Message (Message))
+                                       Message (Message), Action , Entity, ErrorL(..), Latency, RespCode)
 import           EulerHS.Prelude hiding (readIORef, writeIORef)
 import           EulerHS.PubSub.Interpreter (runPubSub)
 import           EulerHS.SqlDB.Interpreter (runSqlDB)
@@ -84,7 +84,6 @@ import           Network.HTTP.Client.Internal
 import qualified Network.HTTP.Types as HTTP
 import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
-import           Servant.Client.Core.Request()
 import           Unsafe.Coerce (unsafeCoerce)
 import qualified EulerHS.Extra.Monitoring.Flow as EEMF
 
@@ -192,17 +191,6 @@ translateHttpResponse response = do
     , getResponseStatus  = status
     }
 
-translateResponseFHttpResponse :: S.Response -> Either Text HTTPResponse
-translateResponseFHttpResponse S.Response{..} = do
-  headers <- translateResponseHeaders $ toList responseHeaders
-  status <-  translateResponseStatusMessage $ HTTP.statusMessage responseStatusCode
-  pure $ HTTPResponse
-    { getResponseBody    = LBinaryString responseBody
-    , getResponseCode    = HTTP.statusCode responseStatusCode 
-    , getResponseHeaders = headers
-    , getResponseStatus  = status 
-    }
-
 modify302RedirectionResponse :: HTTPResponse -> HTTPResponse 
 modify302RedirectionResponse resp = do
   let contentType = Map.lookup "content-type" (getResponseHeaders resp)
@@ -251,31 +239,23 @@ interpretFlowMethod _ R.FlowRuntime {_httpClientManagers, _defaultHttpClientMana
       Just (ManagerSelector mngrName) -> HM.lookup mngrName _httpClientManagers
       Nothing                         -> Just _defaultHttpClientManager
 
-interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl clientAct next) =
+interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr bUrl (EulerClient f) next) =
     fmap next $ do
           let S.ClientEnv manager baseUrl cookieJar makeClientRequest = S.mkClientEnv mngr bUrl
+              clientE = S.ClientEnv manager baseUrl cookieJar (\url -> getResponseTimeout . makeClientRequest url)
           eitherResult <- tryRunClient $! S.runClientM (runEulerClient (if shouldLogAPI
-                                                                          then dbgLogger Info
-                                                                          else const $ return ()
-                                                                      ) getLoggerMaskConfig bUrl clientAct) $
-            S.ClientEnv manager baseUrl cookieJar (\url -> getResponseTimeout . makeClientRequest url)
+                                                                          then dbgLogger
+                                                                          else emtpyLogger
+                                                                      ) getLoggerMaskConfig bUrl (EulerClient f)) clientE
+            
           case eitherResult of
             Left err -> do
-              when shouldLogAPI $
-                case err of
-                  S.FailureResponse _ resp ->
-                      either (dbgLogger Error) (\x -> logJsonError ("FailureResponse" :: Text) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-                  S.DecodeFailure txt resp -> 
-                      either (dbgLogger Error) (\x -> logJsonError (("DecodeFailure: " :: Text) <> txt) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-                  S.UnsupportedContentType mediaType resp -> 
-                      either (dbgLogger Error $) (\x -> logJsonError (("UnsupportedContentType: " :: Text) <> (show @Text mediaType)) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-                  S.InvalidContentTypeHeader resp -> 
-                      either (dbgLogger Error) (\x -> logJsonError ("InvalidContentTypeHeader" :: Text) $ maskHTTPResponse getLoggerMaskConfig $ x) (translateResponseFHttpResponse resp)
-                  S.ConnectionError exception -> dbgLogger Error $ displayException exception
               pure $ Left err
             Right response ->
               pure $ Right response
   where
+    emtpyLogger _ _ _ _ _ _ _ = return ()
+
     customHeader :: CI.CI ByteString
     customHeader = CI.mk $ encodeUtf8 @Text "x-custom-timeout-millis"
 
@@ -290,13 +270,11 @@ interpretFlowMethod mbFlowGuid flowRt@R.FlowRuntime {..} (L.CallServantAPI mngr 
     convertMilliSecondToMicro :: (a, ByteString) -> Maybe Int
     convertMilliSecondToMicro (_, value) = (*) 1000  <$> A.decodeStrict value
 
-    dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> msg -> IO ()
-    dbgLogger logLevel msg =
+    dbgLogger :: forall msg . A.ToJSON msg => LogLevel -> Action -> Entity -> Maybe (ErrorL) -> Maybe Latency -> Maybe RespCode -> msg -> IO()
+    dbgLogger logLevel action entity maybeError maybeLatency maybeRespCode msg =
       runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-        . L.logMessage' logLevel ("CallServantAPI impl" :: String)
-        $ Message Nothing (Just $ A.toJSON msg)
-    logJsonError :: Text -> HTTPResponseMasked -> IO ()
-    logJsonError err = dbgLogger Error . HTTPResponseException err
+        . L.masterLogger logLevel ("CallServantAPI impl" :: String) "EXTERNAL_API" (Just action) (Just entity) maybeError maybeLatency maybeRespCode $ Message Nothing (Just $ A.toJSON msg)
+
     shouldLogAPI =
       R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
     getLoggerMaskConfig =
@@ -325,20 +303,21 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       eResponse <- try $! HTTP.httpLbs httpLibRequest manager
       end <- liftIO $ systemToTAITime <$> getSystemTime
       let lat = div (diffTimeToPicoseconds $ diffAbsoluteTime end start) picoMilliDiff
+          httpRequestMethod = show $ getRequestMethod request
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
-          when shouldLogAPI $ logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+          when shouldLogAPI $ logJsonError errMsg httpRequestMethod 0 lat (maskHTTPRequest getLoggerMaskConfig request)
           pure $ Left errMsg
         Right httpResponse -> do
           case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
-              when shouldLogAPI $ logJsonError errMsg (maskHTTPRequest getLoggerMaskConfig request)
+              when shouldLogAPI $ logJsonError errMsg httpRequestMethod (HTTP.statusCode . HTTP.responseStatus $ httpResponse) lat (maskHTTPRequest getLoggerMaskConfig request)
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do
                 let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request) (Just $ maskHTTPResponse getLoggerMaskConfig response)
-                logJson Info logEntry
+                logJson Info httpRequestMethod "EXT_TAG" Nothing lat (getResponseCode response) logEntry
               pure $ Right response
     tock <- EEMF.getCurrentDateInMillisIO
     void $ EEMF.incrementAPILatencyMetric flowRt (tock-tick)
@@ -346,13 +325,16 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
   where
     picoMilliDiff :: Integer
     picoMilliDiff = 1000000000
-    logJsonError :: Text -> HTTPRequestMasked -> IO ()
-    logJsonError err = logJson Error . HTTPIOException err
-    logJson :: ToJSON a => LogLevel -> a -> IO ()
-    logJson infoLevel msg =
+    logJsonError :: Text -> Text -> Int -> Integer -> HTTPRequestMasked -> IO ()
+    logJsonError err method statusCode latency req =
+      let errM = ErrorL Nothing err err
+        in logJson Error method "EXT_TAG" (Just errM) latency statusCode $ HTTPIOException err req
+    logJson :: ToJSON a => LogLevel -> Action -> Entity -> Maybe ErrorL -> Latency -> RespCode -> a -> IO ()
+    logJson level action entity maybeError lat respCode msg =
       runLogger (Just "API CALL:") (R._loggerRuntime . R._coreRuntime $ flowRt)
-        . L.logMessage' infoLevel ("callHTTP" :: String)
-        $ Message Nothing (Just $ A.toJSON msg)
+        -- . L.logMessage' infoLevel ("callHTTP" :: String)
+        -- $ Message Nothing (Just $ A.toJSON msg)
+        . L.masterLogger level ("callHTTP" :: String) "EXTERNAL_API" (Just action) (Just entity) maybeError (Just lat) (Just respCode) $ Message Nothing (Just $ A.toJSON msg)
 
     shouldLogAPI =
       R.shouldLogAPI . R._loggerRuntime . R._coreRuntime $ flowRt
@@ -617,7 +599,7 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
     let dbgLogger msg =
           if R.shouldFlowLogRawSql flowRt
           then runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' Debug ("RunDB Impl" :: String) $ Message (Just $ A.toJSON msg) Nothing
+               . L.logMessage' Debug ("RunDB Impl" :: String) $ Message (Just $ A.toJSON msg) Nothing -- log_todo
           else pure ()
     rawSqlTVar <- newTVarIO mempty
     -- This function would be used inside beam and write raw sql, generated by beam backend, in TVar.
@@ -658,7 +640,7 @@ interpretFlowMethod mbFlowGuid flowRt (L.RunDB conn sqlDbMethod runInTransaction
       wrapException exception = do
         let exception' = (wrapException' exception)
         runLogger mbFlowGuid (R._loggerRuntime . R._coreRuntime $ flowRt)
-               . L.logMessage' Error ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception') <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing
+               . L.logMessage' Error ("CALLSTACK" :: String) $ Message (Just $ A.toJSON $ ("Exception : " <> (Text.pack $ show exception') <> (" , Stack Trace") <> (Text.pack $ prettyCallStack callStack))) Nothing -- log_todo
         pure exception'
 
       wrapException' :: SomeException -> DBError

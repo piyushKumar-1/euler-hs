@@ -1,5 +1,10 @@
 # Changelog for euler-hs
 
+## [2.13.0.4] - 2023-04-25
+
+* define new log structure
+* added `masterLogger` to use versionized logs
+
 ## [2.13.0.3] - 2023-03-10
 
 * Add exception handling in async logging in `loggerWorker`

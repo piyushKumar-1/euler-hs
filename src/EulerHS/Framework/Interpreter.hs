@@ -44,7 +44,7 @@ import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   HTTPMethod (Connect, Delete, Get, Head, Options, Patch, Post, Put, Trace),
                                   HTTPRequest(..), HTTPRequestMasked,
-                                  HTTPResponse (..), buildSettings, AwaitingError(..),
+                                  HTTPResponse (..), buildSettings, AwaitingError(..), RequestType(..), 
                                   defaultTimeout, getRequestBody,
                                   getRequestHeaders, getRequestMethod,
                                   getRequestRedirects, getRequestTimeout,
@@ -86,6 +86,9 @@ import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
 import qualified EulerHS.Extra.Monitoring.Flow as EEMF
+import qualified Juspay.Extra.Config as Conf
+import qualified Data.Bool as Bool
+import qualified Data.List as List
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
 connect cfg = do
@@ -316,7 +319,7 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager mbMa
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do
-                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody) (Just $ maskHTTPResponse getLoggerMaskConfig response mbMaskReqResBody)
+                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody) (Just $ maskHTTPResponse getLoggerMaskConfig response mbMaskReqResBody) (Bool.bool EXTERNAL INTERNAL ( (shouldBypassProxy . Just . decodeUtf8 . host $ httpLibRequest) || isART ) )
                 logJson Info httpRequestMethod "EXT_TAG" Nothing lat (getResponseCode response) logEntry
               pure $ Right response
     tock <- EEMF.getCurrentDateInMillisIO
@@ -697,3 +700,27 @@ kvdbConfigToTag = \case
 
 kvdbConnToTag :: KVDBConn -> Text
 kvdbConnToTag (Redis t _) = t
+
+httpBypassProxyList :: Maybe Text
+httpBypassProxyList  = Conf.lookupEnvT "HTTP_PROXY_BYPASS_LIST"
+
+decodeFromText :: FromJSON a => Text -> Maybe a
+decodeFromText = A.decode . Lazy.fromStrict . Encoding.encodeUtf8
+
+shouldBypassProxy :: Maybe Text -> Bool
+shouldBypassProxy mHostname = 
+  case (mHostname, httpBypassProxyList) of
+    (Just hostname, Just bypassProxyListText) -> 
+      let mUrlList =  decodeFromText bypassProxyListText :: Maybe [Text]
+          urlList = fromMaybe [] mUrlList
+      in List.any (\x -> Text.isInfixOf x hostname) urlList
+    (_ , _ ) -> False
+
+checkARTEnabled :: Text
+checkARTEnabled = fromMaybe "False" $ Conf.lookupEnvT "ART_ENABLED"
+
+isART :: Bool
+isART = case checkARTEnabled of
+  "true" -> True
+  "True" -> True
+  _      -> False

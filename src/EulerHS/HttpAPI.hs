@@ -32,6 +32,7 @@ module EulerHS.HttpAPI
     , AwaitingError (..)
     , HttpManagerNotFound(..)
     , MaskReqRespBody
+    , RequestType(..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -359,6 +360,10 @@ data HTTPMethod
 type HeaderName = Text
 type HeaderValue = Text
 
+data RequestType = INTERNAL | EXTERNAL
+  deriving stock (Eq,Show,Generic)
+  deriving anyclass (FromJSON,ToJSON)
+
 data HttpApiCallLogEntry = HttpApiCallLogEntry
   { url         :: Maybe Text
   , method      :: Maybe Text
@@ -368,6 +373,7 @@ data HttpApiCallLogEntry = HttpApiCallLogEntry
   , res_body    :: Maybe A.Value
   , res_headers :: Maybe A.Value
   , latency     :: Integer
+  , req_type    :: RequestType
   }
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
@@ -381,8 +387,8 @@ newtype HttpManagerNotFound = HttpManagerNotFound Text
 
 instance Exception HttpManagerNotFound
 
-mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> HttpApiCallLogEntry
-mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
+mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> RequestType -> HttpApiCallLogEntry
+mkHttpApiCallLogEntry lat req res reqType = HttpApiCallLogEntry
   { url = (\x -> x.getRequestURL) <$> req
   , method = (\x -> show $ x.getRequestMethod) <$> req
   , req_headers = (\x -> A.toJSON $ x.getRequestHeaders) <$> req
@@ -391,6 +397,7 @@ mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
   , res_body = (\x -> x.getResponseBody) <$> res
   , res_headers = (\x -> A.toJSON $ x.getResponseHeaders) <$> res
   , latency = lat
+  , req_type = reqType
   }
 
 

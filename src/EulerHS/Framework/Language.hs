@@ -52,6 +52,8 @@ module EulerHS.Framework.Language
   -- *** Legacy
   , callHTTPWithCert
   , callHTTPWithManager
+  , callHTTPWithCert' 
+  , callHTTPWithManager'
   -- *** Others
   , runIO
   , withRunFlow
@@ -1490,9 +1492,17 @@ callHTTPWithManager
   :: (HasCallStack, MonadFlow m)
   => Maybe ManagerSelector              -- ^ Selector
   -> HTTPRequest                        -- ^ remote url 'Text'
+  -> m (Either Text.Text HTTPResponse)  -- ^ result
+callHTTPWithManager mSel req = callHTTP' mSel req Nothing
+
+-- applies custom masking function while logging outgoing request
+callHTTPWithManager'
+  :: (HasCallStack, MonadFlow m)
+  => Maybe ManagerSelector              -- ^ Selector
+  -> HTTPRequest                        -- ^ remote url 'Text'
   -> Maybe MaskReqRespBody
   -> m (Either Text.Text HTTPResponse)  -- ^ result
-callHTTPWithManager = callHTTP'
+callHTTPWithManager' = callHTTP'
 
 -- | The same as callHTTP' but uses the default HTTP manager.
 --
@@ -1503,15 +1513,20 @@ callHTTPWithManager = callHTTP'
 -- > myFlow = do
 -- >   book <- callHTTP url
 callHTTP :: (HasCallStack, MonadFlow m) =>
-  HTTPRequest -> Maybe MaskReqRespBody-> m (Either Text.Text HTTPResponse)
-callHTTP url mskReqRespBody = callHTTPWithManager Nothing url mskReqRespBody
+  HTTPRequest -> m (Either Text.Text HTTPResponse)
+callHTTP url = callHTTPWithManager Nothing url
 
 {-# DEPRECATED callHTTPWithCert    "Use getHTTPManager/callHTTPUsingManager instead. This method does not allow custom CA store." #-}
-callHTTPWithCert :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> Maybe MaskReqRespBody-> m (Either Text HTTPResponse)
-callHTTPWithCert req cert mskReqRespBody = do
+callHTTPWithCert :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> m (Either Text HTTPResponse)
+callHTTPWithCert req cert  = do
+  mgr <- maybe getDefaultManager (getHTTPManager . withClientTls) cert
+  callHTTPUsingManager mgr req Nothing
+
+-- applies custom masking function while logging outgoing request
+callHTTPWithCert' :: MonadFlow m => HTTPRequest -> Maybe HTTPCert -> Maybe MaskReqRespBody-> m (Either Text HTTPResponse)
+callHTTPWithCert' req cert mskReqRespBody = do
   mgr <- maybe getDefaultManager (getHTTPManager . withClientTls) cert
   callHTTPUsingManager mgr req mskReqRespBody
-
 
 --
 -- Well-typed HTTP calls

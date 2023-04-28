@@ -29,6 +29,8 @@ module EulerHS.Language
     Y.callHTTP',
     Y.callHTTPWithCert,
     Y.callHTTPWithManager,
+    Y.callHTTPWithCert',
+    Y.callHTTPWithManager',
     -- * other
     Y.runIO,
     Y.withRunFlow,

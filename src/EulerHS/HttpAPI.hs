@@ -31,6 +31,9 @@ module EulerHS.HttpAPI
     , P12Cert (..)
     , AwaitingError (..)
     , HttpManagerNotFound(..)
+    , MaskReqRespBody
+    , HttpData(..)
+    , RequestType(..)
     , defaultTimeout
     , extractBody
     , httpGet
@@ -50,6 +53,8 @@ module EulerHS.HttpAPI
     , maskHTTPRequest
     , maskHTTPResponse
     , mkHttpApiCallLogEntry
+    , shouldBypassProxy
+    , isART
     ) where
 
 import qualified Crypto.Store.PKCS12 as PKCS12
@@ -87,6 +92,8 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.X509 (getSystemCertificateStore)
+import qualified Juspay.Extra.Config as Conf
+import qualified Data.List as List
 
 newtype CertificateStore'
   = CertificateStore'
@@ -358,6 +365,10 @@ data HTTPMethod
 type HeaderName = Text
 type HeaderValue = Text
 
+data RequestType = INTERNAL | EXTERNAL
+  deriving stock (Eq,Show,Generic)
+  deriving anyclass (FromJSON,ToJSON)
+
 data HttpApiCallLogEntry = HttpApiCallLogEntry
   { url         :: Maybe Text
   , method      :: Maybe Text
@@ -367,6 +378,7 @@ data HttpApiCallLogEntry = HttpApiCallLogEntry
   , res_body    :: Maybe A.Value
   , res_headers :: Maybe A.Value
   , latency     :: Integer
+  , req_type    :: RequestType
   }
   deriving stock (Show,Generic)
   deriving anyclass A.ToJSON
@@ -380,8 +392,8 @@ newtype HttpManagerNotFound = HttpManagerNotFound Text
 
 instance Exception HttpManagerNotFound
 
-mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> HttpApiCallLogEntry
-mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
+mkHttpApiCallLogEntry :: Integer -> Maybe HTTPRequestMasked -> Maybe HTTPResponseMasked -> RequestType -> HttpApiCallLogEntry
+mkHttpApiCallLogEntry lat req res reqType = HttpApiCallLogEntry
   { url = (\x -> x.getRequestURL) <$> req
   , method = (\x -> show $ x.getRequestMethod) <$> req
   , req_headers = (\x -> A.toJSON $ x.getRequestHeaders) <$> req
@@ -390,6 +402,7 @@ mkHttpApiCallLogEntry lat req res = HttpApiCallLogEntry
   , res_body = (\x -> x.getResponseBody) <$> res
   , res_headers = (\x -> A.toJSON $ x.getResponseHeaders) <$> res
   , latency = lat
+  , req_type = reqType
   }
 
 
@@ -500,8 +513,12 @@ withJSONBody body req@HTTPRequest{getRequestHeaders} =
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
 
-maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> HTTPRequestMasked
-maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
+data HttpData = HttpRequest HTTPRequest | HttpResponse HTTPResponse
+
+type MaskReqRespBody = HttpData -> A.Value
+
+maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> Maybe MaskReqRespBody-> HTTPRequestMasked
+maskHTTPRequest mbMaskConfig request mbMaskReqBody = HTTPRequestMasked
     { getRequestHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText requestHeaders
     , getRequestBody = maskedRequestBody
     , getRequestMethod = request.getRequestMethod
@@ -516,14 +533,13 @@ maskHTTPRequest mbMaskConfig request = HTTPRequestMasked
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
 
+    maskedRequestBody = case mbMaskReqBody of
+                          Just mskReqBody -> Just . mskReqBody $ HttpRequest request
+                          Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders) . LB.toStrict . T.getLBinaryString <$> requestBody
 
-    maskedRequestBody =
-          parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders)
-        . LB.toStrict
-        . T.getLBinaryString <$> requestBody
 
-maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> HTTPResponseMasked
-maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
+maskHTTPResponse :: Maybe Log.LogMaskingConfig -> HTTPResponse -> Maybe MaskReqRespBody-> HTTPResponseMasked
+maskHTTPResponse mbMaskConfig response mbMaskResBody = HTTPResponseMasked
   { getResponseHeaders = maskHTTPHeaders (shouldMaskKey mbMaskConfig) getMaskText responseHeaders
   , getResponseBody = maskedResponseBody
   , getResponseCode = response.getResponseCode
@@ -535,8 +551,32 @@ maskHTTPResponse mbMaskConfig response = HTTPResponseMasked
     responseBody = response.getResponseBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
+    
+    maskedResponseBody = case mbMaskResBody of
+                          Just mskResBody -> mskResBody $ HttpResponse response
+                          Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders) . LB.toStrict . T.getLBinaryString $ responseBody
 
-    maskedResponseBody =
-      parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders)
-        . LB.toStrict
-        $ T.getLBinaryString responseBody
+
+httpBypassProxyList :: Maybe Text
+httpBypassProxyList  = Conf.lookupEnvT "HTTP_PROXY_BYPASS_LIST"
+
+decodeFromText :: FromJSON a => Text -> Maybe a
+decodeFromText = A.decode . LB.fromStrict . Text.encodeUtf8
+
+shouldBypassProxy :: Maybe Text -> Bool
+shouldBypassProxy mHostname = 
+  case (mHostname, httpBypassProxyList) of
+    (Just hostname, Just bypassProxyListText) -> 
+      let mUrlList =  decodeFromText bypassProxyListText :: Maybe [Text]
+          urlList = fromMaybe [] mUrlList
+      in List.any (\x -> Text.isInfixOf x hostname) urlList
+    (_ , _ ) -> False
+
+checkARTEnabled :: Text
+checkARTEnabled = fromMaybe "False" $ Conf.lookupEnvT "ART_ENABLED"
+
+isART :: Bool
+isART = case checkARTEnabled of
+  "true" -> True
+  "True" -> True
+  _      -> False

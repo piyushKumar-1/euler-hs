@@ -44,14 +44,14 @@ import qualified EulerHS.Framework.Runtime as R
 import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   HTTPMethod (Connect, Delete, Get, Head, Options, Patch, Post, Put, Trace),
                                   HTTPRequest(..), HTTPRequestMasked,
-                                  HTTPResponse (..), buildSettings, AwaitingError(..),
+                                  HTTPResponse (..), buildSettings, AwaitingError(..), RequestType(..), 
                                   defaultTimeout, getRequestBody,
                                   getRequestHeaders, getRequestMethod,
                                   getRequestRedirects, getRequestTimeout,
                                   getRequestURL, getResponseBody,
                                   getResponseCode, getResponseHeaders,
                                   getResponseStatus, maskHTTPRequest,maskHTTPResponse,
-                                  mkHttpApiCallLogEntry)
+                                  mkHttpApiCallLogEntry, shouldBypassProxy, isART)
 import           EulerHS.KVDB.Interpreter (runKVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer,
                                      KVDBConfig (KVDBClusterConfig, KVDBConfig),
@@ -86,6 +86,7 @@ import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
 import qualified EulerHS.Extra.Monitoring.Flow as EEMF
+import qualified Data.Bool as Bool
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
 connect cfg = do
@@ -295,7 +296,7 @@ interpretFlowMethod _ R.FlowRuntime {..} (L.GetHTTPManager settings next) =
           pure (LRU.insert settings mgr _cache, mgr)
 
 
-interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next) = do
+interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager mbMaskReqResBody next) = do
     tick <- EEMF.getCurrentDateInMillisIO
     val <- fmap next $ do
       httpLibRequest <- getHttpLibRequest request
@@ -307,16 +308,16 @@ interpretFlowMethod _ flowRt@R.FlowRuntime {..} (L.CallHTTP request manager next
       case eResponse of
         Left (err :: SomeException) -> do
           let errMsg = Text.pack $ displayException err
-          when shouldLogAPI $ logJsonError errMsg httpRequestMethod 0 lat (maskHTTPRequest getLoggerMaskConfig request)
+          when shouldLogAPI $ logJsonError errMsg httpRequestMethod 0 lat (maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody)
           pure $ Left errMsg
         Right httpResponse -> do
           case (modify302RedirectionResponse <$> translateHttpResponse httpResponse) of
             Left errMsg -> do
-              when shouldLogAPI $ logJsonError errMsg httpRequestMethod (HTTP.statusCode . HTTP.responseStatus $ httpResponse) lat (maskHTTPRequest getLoggerMaskConfig request)
+              when shouldLogAPI $ logJsonError errMsg httpRequestMethod (HTTP.statusCode . HTTP.responseStatus $ httpResponse) lat (maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody)
               pure $ Left errMsg
             Right response -> do
               when shouldLogAPI $ do
-                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request) (Just $ maskHTTPResponse getLoggerMaskConfig response)
+                let logEntry = mkHttpApiCallLogEntry lat (Just $ maskHTTPRequest getLoggerMaskConfig request mbMaskReqResBody) (Just $ maskHTTPResponse getLoggerMaskConfig response mbMaskReqResBody) (Bool.bool EXTERNAL INTERNAL ( (shouldBypassProxy . Just . decodeUtf8 . host $ httpLibRequest) || isART ) )
                 logJson Info httpRequestMethod "EXT_TAG" Nothing lat (getResponseCode response) logEntry
               pure $ Right response
     tock <- EEMF.getCurrentDateInMillisIO

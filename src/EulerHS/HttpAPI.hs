@@ -32,7 +32,7 @@ module EulerHS.HttpAPI
     , AwaitingError (..)
     , HttpManagerNotFound(..)
     , MaskReqRespBody
-    , ReqOrRes(..)
+    , HttpData(..)
     , RequestType(..)
     , defaultTimeout
     , extractBody
@@ -513,9 +513,9 @@ withJSONBody body req@HTTPRequest{getRequestHeaders} =
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
 
-data ReqOrRes = HttpRequest HTTPRequest | HttpResponse HTTPResponse
+data HttpData = HttpRequest HTTPRequest | HttpResponse HTTPResponse
 
-type MaskReqRespBody = ReqOrRes -> A.Value
+type MaskReqRespBody = HttpData -> A.Value
 
 maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> Maybe MaskReqRespBody-> HTTPRequestMasked
 maskHTTPRequest mbMaskConfig request mbMaskReqBody = HTTPRequestMasked

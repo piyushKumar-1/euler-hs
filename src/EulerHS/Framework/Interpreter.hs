@@ -51,7 +51,7 @@ import           EulerHS.HttpAPI (HTTPIOException (HTTPIOException),
                                   getRequestURL, getResponseBody,
                                   getResponseCode, getResponseHeaders,
                                   getResponseStatus, maskHTTPRequest,maskHTTPResponse,
-                                  mkHttpApiCallLogEntry)
+                                  mkHttpApiCallLogEntry, shouldBypassProxy, isART)
 import           EulerHS.KVDB.Interpreter (runKVDB)
 import           EulerHS.KVDB.Types (KVDBAnswer,
                                      KVDBConfig (KVDBClusterConfig, KVDBConfig),
@@ -86,9 +86,7 @@ import qualified Servant.Client as S
 import           System.Process (readCreateProcess, shell)
 import           Unsafe.Coerce (unsafeCoerce)
 import qualified EulerHS.Extra.Monitoring.Flow as EEMF
-import qualified Juspay.Extra.Config as Conf
 import qualified Data.Bool as Bool
-import qualified Data.List as List
 
 connect :: DBConfig be -> IO (DBResult (SqlConn be))
 connect cfg = do
@@ -700,27 +698,3 @@ kvdbConfigToTag = \case
 
 kvdbConnToTag :: KVDBConn -> Text
 kvdbConnToTag (Redis t _) = t
-
-httpBypassProxyList :: Maybe Text
-httpBypassProxyList  = Conf.lookupEnvT "HTTP_PROXY_BYPASS_LIST"
-
-decodeFromText :: FromJSON a => Text -> Maybe a
-decodeFromText = A.decode . Lazy.fromStrict . Encoding.encodeUtf8
-
-shouldBypassProxy :: Maybe Text -> Bool
-shouldBypassProxy mHostname = 
-  case (mHostname, httpBypassProxyList) of
-    (Just hostname, Just bypassProxyListText) -> 
-      let mUrlList =  decodeFromText bypassProxyListText :: Maybe [Text]
-          urlList = fromMaybe [] mUrlList
-      in List.any (\x -> Text.isInfixOf x hostname) urlList
-    (_ , _ ) -> False
-
-checkARTEnabled :: Text
-checkARTEnabled = fromMaybe "False" $ Conf.lookupEnvT "ART_ENABLED"
-
-isART :: Bool
-isART = case checkARTEnabled of
-  "true" -> True
-  "True" -> True
-  _      -> False

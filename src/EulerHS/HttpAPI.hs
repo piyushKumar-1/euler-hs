@@ -52,6 +52,8 @@ module EulerHS.HttpAPI
     , maskHTTPRequest
     , maskHTTPResponse
     , mkHttpApiCallLogEntry
+    , shouldBypassProxy
+    , isART
     ) where
 
 import qualified Crypto.Store.PKCS12 as PKCS12
@@ -89,6 +91,8 @@ import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
 import           System.IO.Unsafe (unsafePerformIO)
 import           System.X509 (getSystemCertificateStore)
+import qualified Juspay.Extra.Config as Conf
+import qualified Data.List as List
 
 newtype CertificateStore'
   = CertificateStore'
@@ -508,7 +512,9 @@ withJSONBody body req@HTTPRequest{getRequestHeaders} =
 extractBody :: HTTPResponse -> Text
 extractBody HTTPResponse{getResponseBody} = decodeUtf8With lenientDecode $ convertString getResponseBody
 
-type MaskReqRespBody = Maybe Int -> Map.Map HeaderName HeaderValue -> Maybe LB.ByteString -> A.Value
+type ResponseCode = Int
+
+type MaskReqRespBody = Maybe ResponseCode -> Map.Map HeaderName HeaderValue -> Maybe LB.ByteString -> A.Value
 
 maskHTTPRequest :: Maybe Log.LogMaskingConfig -> HTTPRequest -> Maybe MaskReqRespBody-> HTTPRequestMasked
 maskHTTPRequest mbMaskConfig request mbMaskReqBody = HTTPRequestMasked
@@ -525,12 +531,6 @@ maskHTTPRequest mbMaskConfig request mbMaskReqBody = HTTPRequestMasked
     requestBody = request.getRequestBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-
-    -- maskedRequestBody =
-    --     (mbMaskReqBody (Just 200) requestHeaders <|>
-    --     parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP requestHeaders) )
-    --     . LB.toStrict
-    --     . T.getLBinaryString <$> requestBody
 
     maskedRequestBody = case mbMaskReqBody of
                           Just mskReqBody -> mskReqBody (Just 200) requestHeaders . Just . T.getLBinaryString <$> requestBody
@@ -550,14 +550,32 @@ maskHTTPResponse mbMaskConfig response mbMaskResBody = HTTPResponseMasked
     responseBody = response.getResponseBody
 
     getMaskText = maybe defaultMaskText (fromMaybe defaultMaskText . Log._maskText) mbMaskConfig
-
-    -- maskedResponseBody =
-    --   (mbMaskResBody (Just response.getResponseCode) responseHeaders <|>
-    --   parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders) )
-    --     . LB.toStrict
-    --     $ T.getLBinaryString responseBody
     
     maskedResponseBody = case mbMaskResBody of
                           Just mskResBody -> mskResBody (Just response.getResponseCode) responseHeaders . Just . T.getLBinaryString $ responseBody
                           Nothing         -> parseRequestResponseBody (shouldMaskKey mbMaskConfig) getMaskText (getContentTypeForHTTP responseHeaders) . LB.toStrict . T.getLBinaryString $ responseBody
 
+
+httpBypassProxyList :: Maybe Text
+httpBypassProxyList  = Conf.lookupEnvT "HTTP_PROXY_BYPASS_LIST"
+
+decodeFromText :: FromJSON a => Text -> Maybe a
+decodeFromText = A.decode . LB.fromStrict . Text.encodeUtf8
+
+shouldBypassProxy :: Maybe Text -> Bool
+shouldBypassProxy mHostname = 
+  case (mHostname, httpBypassProxyList) of
+    (Just hostname, Just bypassProxyListText) -> 
+      let mUrlList =  decodeFromText bypassProxyListText :: Maybe [Text]
+          urlList = fromMaybe [] mUrlList
+      in List.any (\x -> Text.isInfixOf x hostname) urlList
+    (_ , _ ) -> False
+
+checkARTEnabled :: Text
+checkARTEnabled = fromMaybe "False" $ Conf.lookupEnvT "ART_ENABLED"
+
+isART :: Bool
+isART = case checkARTEnabled of
+  "true" -> True
+  "True" -> True
+  _      -> False
